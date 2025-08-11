@@ -37,7 +37,7 @@ class NFLAPIService {
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_API_SPORTS_KEY || '';
+    this.apiKey = process.env.API_SPORTS_KEY || '';
     this.baseUrl = 'https://v3.football.api-sports.io';
   }
 

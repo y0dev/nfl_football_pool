@@ -10,10 +10,11 @@ import {
   tieBreakersTable,
   auditLogsTable,
   teamsTable,
-  updatedGamesTable
+  updatedGamesTable,
+  rlsPolicies
 } from '../src/lib/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -45,6 +46,16 @@ async function setupDatabase() {
       } else {
         console.log(`✅ ${table.name} table created successfully`);
       }
+    }
+
+    // Apply RLS policies
+    console.log('Applying Row Level Security policies...');
+    const { error: rlsError } = await supabase.rpc('exec_sql', { sql: rlsPolicies });
+    
+    if (rlsError) {
+      console.error('Error applying RLS policies:', rlsError);
+    } else {
+      console.log('✅ RLS policies applied successfully');
     }
 
     console.log('Database setup complete!');

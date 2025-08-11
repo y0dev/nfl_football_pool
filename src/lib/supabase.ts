@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.SUPABASE_URL!
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -418,4 +418,112 @@ CREATE TABLE IF NOT EXISTS games (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
+
+export const rlsPolicies = `
+-- Enable Row Level Security on all tables
+ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE picks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tie_breakers ENABLE ROW LEVEL SECURITY;
+
+-- Participants table policies
+CREATE POLICY "Participants are viewable by all authenticated users" ON participants
+  FOR SELECT USING (true);
+
+CREATE POLICY "Only admins can insert participants" ON participants
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+  );
+
+CREATE POLICY "Only admins can update participants" ON participants
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+  );
+
+-- Picks table policies
+CREATE POLICY "Users can only view their own picks" ON picks
+  FOR SELECT USING (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Users can only insert picks for themselves" ON picks
+  FOR INSERT WITH CHECK (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Users can only update their own picks" ON picks
+  FOR UPDATE USING (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Admins can view all picks" ON picks
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+  );
+
+-- Scores table policies
+CREATE POLICY "Users can only view their own scores" ON scores
+  FOR SELECT USING (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Admins can view all scores" ON scores
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+  );
+
+-- Tie-breakers table policies
+CREATE POLICY "Users can only view their own tie-breakers" ON tie_breakers
+  FOR SELECT USING (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Users can only insert tie-breakers for themselves" ON tie_breakers
+  FOR INSERT WITH CHECK (
+    participant_id IN (
+      SELECT id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+  );
+
+CREATE POLICY "Admins can view all tie-breakers" ON tie_breakers
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+  );
 `; 

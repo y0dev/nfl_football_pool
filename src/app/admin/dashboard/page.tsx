@@ -19,6 +19,7 @@ import { runPostGameCalculations } from '@/actions/autoScoreCalculation';
 import { ParticipantManagement } from '@/components/admin/participant-management';
 import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot';
 import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
+import { SubmissionStatus } from '@/components/admin/submission-status';
 import { DeviceRotationPrompt } from '@/components/ui/device-rotation-prompt';
 import { 
   Download, 
@@ -293,14 +294,19 @@ function AdminDashboardContent() {
             {/* Overview Tab */}
             <TabsContent value="overview" className="space-y-6">
               {/* Submission Status */}
+              {selectedPool && (
+                <SubmissionStatus poolId={selectedPool} />
+              )}
+
+              {/* Weekly Submissions */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
-                    Weekly Submissions
+                    <Trophy className="h-5 w-5" />
+                    Week {selectedWeek} Submissions
                   </CardTitle>
                   <CardDescription>
-                    Track who has submitted picks for the current week
+                    View all picks submitted for the current week
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -314,10 +320,9 @@ function AdminDashboardContent() {
                         <TableHeader>
                           <TableRow>
                             <TableHead className="text-xs sm:text-sm">Participant</TableHead>
-                            <TableHead className="text-xs sm:text-sm">Status</TableHead>
-                            <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Submitted At</TableHead>
                             <TableHead className="text-xs sm:text-sm">Games</TableHead>
-                            <TableHead className="text-xs sm:text-sm">Confidence</TableHead>
+                            <TableHead className="text-xs sm:text-sm">Total Confidence</TableHead>
+                            <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Submitted At</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -326,18 +331,15 @@ function AdminDashboardContent() {
                               <TableCell className="font-medium text-xs sm:text-sm">
                                 {submission.participant_name}
                               </TableCell>
-                              <TableCell>
-                                <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  <span className="hidden sm:inline">Submitted</span>
-                                  <span className="sm:hidden">Done</span>
-                                </Badge>
+                              <TableCell className="text-xs sm:text-sm">
+                                {submission.game_count} games
+                              </TableCell>
+                              <TableCell className="text-xs sm:text-sm">
+                                {submission.total_confidence} points
                               </TableCell>
                               <TableCell className="hidden sm:table-cell text-xs sm:text-sm">
                                 {new Date(submission.submitted_at).toLocaleString()}
                               </TableCell>
-                              <TableCell className="text-xs sm:text-sm">{submission.game_count}</TableCell>
-                              <TableCell className="text-xs sm:text-sm">{submission.total_confidence}</TableCell>
                             </TableRow>
                           ))}
                           {submissions.length === 0 && (

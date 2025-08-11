@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { submitPicks } from '@/actions/submitPicks';
-import { useAuth } from '@/lib/auth';
+import { PickUserSelection } from './pick-user-selection';
+import { userSessionManager } from '@/lib/user-session';
 import { format } from 'date-fns';
-import { Calendar, Clock, Trophy } from 'lucide-react';
+import { Calendar, Clock, Trophy, User, Shield, LogOut } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -30,13 +31,20 @@ interface Pick {
   confidencePoints: number | null;
 }
 
+interface SelectedUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export function WeeklyPicks() {
-  const { user } = useAuth();
+  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<{ week_number: number } | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sessionExpiringSoon, setSessionExpiringSoon] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -63,7 +71,51 @@ export function WeeklyPicks() {
       }
     }
     fetchData();
+
+    // Check for existing session
+    const currentSession = userSessionManager.getCurrentSession();
+    if (currentSession) {
+      setSelectedUser({
+        id: currentSession.participantId,
+        name: currentSession.participantName,
+        email: ''
+      });
+    }
+
+    // Check if session is expiring soon
+    if (userSessionManager.isSessionExpiringSoon()) {
+      setSessionExpiringSoon(true);
+    }
+
+    // Set up session monitoring
+    const sessionCheckInterval = setInterval(() => {
+      if (userSessionManager.isSessionExpiringSoon()) {
+        setSessionExpiringSoon(true);
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(sessionCheckInterval);
   }, []);
+
+  const handleUserSelected = (user: SelectedUser) => {
+    setSelectedUser(user);
+    setSessionExpiringSoon(false);
+  };
+
+  const handleLogout = () => {
+    userSessionManager.clearCurrentSession();
+    setSelectedUser(null);
+    setPicks(games.map(game => ({
+      gameId: game.id,
+      pickedTeam: null,
+      confidencePoints: null,
+    })));
+  };
+
+  const extendSession = () => {
+    userSessionManager.extendSession();
+    setSessionExpiringSoon(false);
+  };
 
   const updatePick = (gameId: string, pickedTeam: string | null) => {
     setPicks(prev => prev.map(pick => 
@@ -107,8 +159,8 @@ export function WeeklyPicks() {
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      console.error('User not authenticated');
+    if (!selectedUser) {
+      console.error('User not selected');
       return;
     }
 
@@ -121,7 +173,7 @@ export function WeeklyPicks() {
     setIsSubmitting(true);
     try {
       const picksToSubmit = picks.map(pick => ({
-        participant_id: user.id || '',
+        participant_id: selectedUser.id,
         pool_id: '1', // Default pool for now
         game_id: pick.gameId,
         predicted_winner: pick.pickedTeam!,
@@ -130,12 +182,36 @@ export function WeeklyPicks() {
 
       await submitPicks(picksToSubmit);
       console.log('Picks submitted successfully');
+      
+      // Reset the form after successful submission
+      setSelectedUser(null);
+      setPicks(games.map(game => ({
+        gameId: game.id,
+        pickedTeam: null,
+        confidencePoints: null,
+      })));
     } catch (error) {
       console.error('Error submitting picks:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Show user selection if no user is selected
+  if (!selectedUser) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Make Your Picks</h2>
+          <p className="text-gray-600">Select your name to submit picks for this week</p>
+        </div>
+        <PickUserSelection 
+          poolId="1" 
+          onUserSelected={handleUserSelected}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -176,17 +252,51 @@ export function WeeklyPicks() {
 
   return (
     <div className="space-y-6">
+      {/* Session Expiration Warning */}
+      {sessionExpiringSoon && (
+        <Card className="border-yellow-300 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Shield className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <p className="font-medium text-yellow-800">Session Expiring Soon</p>
+                  <p className="text-sm text-yellow-700">Your session will expire in less than 1 hour</p>
+                </div>
+              </div>
+              <Button onClick={extendSession} size="sm" variant="outline">
+                Extend Session
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
+          <div className="flex items-center space-x-2 mb-2">
+            <User className="h-5 w-5 text-blue-600" />
+            <span className="text-sm text-gray-600">Picking as: {selectedUser.name}</span>
+          </div>
           <h2 className="text-2xl font-bold">Week {currentWeek.week_number} Picks</h2>
           <p className="text-gray-600">Make your picks and assign confidence points (1-{games.length})</p>
         </div>
-        <Button 
-          onClick={handleSubmit} 
-          disabled={isSubmitting || picks.some(pick => !pick.pickedTeam || !pick.confidencePoints)}
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Picks'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={handleLogout}
+            disabled={isSubmitting}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Change User
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={isSubmitting || picks.some(pick => !pick.pickedTeam || !pick.confidencePoints)}
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Picks'}
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">
