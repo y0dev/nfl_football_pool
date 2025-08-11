@@ -7,6 +7,7 @@ import {
   gamesTable, 
   picksTable, 
   scoresTable, 
+  tieBreakersTable,
   auditLogsTable,
   teamsTable,
   updatedGamesTable
@@ -31,6 +32,7 @@ async function setupDatabase() {
       { name: 'games', sql: updatedGamesTable },
       { name: 'picks', sql: picksTable },
       { name: 'scores', sql: scoresTable },
+      { name: 'tie_breakers', sql: tieBreakersTable },
       { name: 'audit_logs', sql: auditLogsTable },
     ];
 

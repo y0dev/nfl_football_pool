@@ -376,6 +376,140 @@ export async function getPoolParticipants(poolId: string) {
   }
 }
 
+// Add new participant to a pool
+export async function addParticipantToPool(poolId: string, name: string, email: string) {
+  try {
+    const { data, error } = await supabase
+      .from('participants')
+      .insert({
+        pool_id: poolId,
+        name: name.trim(),
+        email: email.trim() || null,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding participant:', error);
+      throw new Error(error.message);
+    }
+
+    // Log the action
+    await supabase
+      .from('audit_logs')
+      .insert({
+        action: 'add_participant',
+        admin_id: (await supabase.auth.getUser()).data.user?.id,
+        entity: 'participants',
+        entity_id: data.id,
+        details: { pool_id: poolId, name, email }
+      });
+
+    return data;
+  } catch (error) {
+    console.error('Failed to add participant:', error);
+    throw error;
+  }
+}
+
+// Remove participant from a pool
+export async function removeParticipantFromPool(participantId: string) {
+  try {
+    const { error } = await supabase
+      .from('participants')
+      .update({ is_active: false })
+      .eq('id', participantId);
+
+    if (error) {
+      console.error('Error removing participant:', error);
+      throw new Error(error.message);
+    }
+
+    // Log the action
+    await supabase
+      .from('audit_logs')
+      .insert({
+        action: 'remove_participant',
+        admin_id: (await supabase.auth.getUser()).data.user?.id,
+        entity: 'participants',
+        entity_id: participantId,
+        details: { action: 'deactivated' }
+      });
+
+    return true;
+  } catch (error) {
+    console.error('Failed to remove participant:', error);
+    throw error;
+  }
+}
+
+// Get all submissions for a week in a format suitable for screenshot
+export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
+  try {
+    // Get all picks for the week with game details
+    const { data: picks, error } = await supabase
+      .from('picks')
+      .select(`
+        participant_id,
+        participants!inner(name),
+        predicted_winner,
+        confidence_points,
+        game_id,
+        games!inner(home_team, away_team, kickoff_time)
+      `)
+      .eq('pool_id', poolId)
+      .eq('games.week', week)
+      .order('participants.name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching picks for screenshot:', error);
+      return null;
+    }
+
+    // Get all games for the week
+    const { data: games } = await supabase
+      .from('games')
+      .select('*')
+      .eq('week', week)
+      .order('kickoff_time', { ascending: true });
+
+    if (!games) {
+      console.error('No games found for week', week);
+      return null;
+    }
+
+    // Group picks by participant
+    const participantsMap = new Map();
+    
+    picks?.forEach((pick: any) => {
+      const participantId = pick.participant_id;
+      const participantName = pick.participants.name;
+      
+      if (!participantsMap.has(participantId)) {
+        participantsMap.set(participantId, {
+          name: participantName,
+          picks: new Map()
+        });
+      }
+      
+      const participant = participantsMap.get(participantId);
+      participant.picks.set(pick.game_id, {
+        predicted_winner: pick.predicted_winner,
+        confidence_points: pick.confidence_points
+      });
+    });
+
+    return {
+      games,
+      participants: Array.from(participantsMap.values())
+    };
+  } catch (error) {
+    console.error('Failed to get submissions for screenshot:', error);
+    return null;
+  }
+}
+
 // Get games for a week
 export async function getWeekGames(week: number) {
   try {
