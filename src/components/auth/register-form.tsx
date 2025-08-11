@@ -8,19 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useMutateAction } from '@uibakery/data';
-import createUserAction from '@/actions/createUser';
-import { useAuth } from '@/lib/auth.tsx';
-import { useToast } from '@/hooks/use-toast';
+import { createUser } from '@/actions/createUser';
+import { useAuth } from '@/lib/auth';
 
 const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  displayName: z.string().min(2, 'Display name must be at least 2 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+  pool_id: z.string().min(1, 'Please select a pool'),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -28,53 +22,31 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
-  const { toast } = useToast();
-  const [createUser] = useMutateAction(createUserAction);
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: '',
       email: '',
-      displayName: '',
-      password: '',
-      confirmPassword: '',
+      pool_id: '',
     },
   });
 
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
     try {
-      // In a real app, you'd hash the password before storing
-      const passwordHash = data.password; // Simplified for demo
-      
-      const result = await createUser({
+      const user = await createUser({
+        name: data.name,
         email: data.email,
-        displayName: data.displayName,
-        passwordHash,
-        provider: 'email',
-        providerId: null,
+        pool_id: data.pool_id,
       });
       
-      const user = result[0];
       if (user) {
-        login({
-          id: user.id,
-          email: user.email,
-          display_name: user.display_name,
-          is_admin: user.is_admin,
-        });
-
-        toast({
-          title: 'Account created!',
-          description: `Welcome to NFL Confidence Pool, ${user.display_name}!`,
-        });
+        login(data.email, '');
+        console.log('Account created successfully');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create account. Email may already be in use.',
-        variant: 'destructive',
-      });
+      console.error('Failed to create account:', error);
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +63,19 @@ export function RegisterForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter your name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
@@ -104,38 +89,12 @@ export function RegisterForm() {
             />
             <FormField
               control={form.control}
-              name="displayName"
+              name="pool_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Display Name</FormLabel>
+                  <FormLabel>Pool ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your display name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Create a password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Confirm your password" {...field} />
+                    <Input placeholder="Enter pool ID" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

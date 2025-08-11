@@ -8,10 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useMutateAction } from '@uibakery/data';
-import loginUserAction from '@/actions/loginUser';
-import { useAuth } from '@/lib/auth.tsx';
-import { useToast } from '@/hooks/use-toast';
+import { loginUser } from '@/actions/loginUser';
+import { useAuth } from '@/lib/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -23,8 +21,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
-  const { toast } = useToast();
-  const [loginUser] = useMutateAction(loginUserAction);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -37,37 +33,20 @@ export function LoginForm() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      const result = await loginUser({ email: data.email });
-      const user = result[0];
+      const user = await loginUser(data.email);
       
       if (!user) {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid email or password',
-          variant: 'destructive',
-        });
+        console.error('Login failed: Invalid credentials');
         return;
       }
 
       // In a real app, you'd verify the password hash here
       // For demo purposes, we'll skip password verification
-      login({
-        id: user.id,
-        email: user.email,
-        display_name: user.display_name,
-        is_admin: user.is_admin,
-      });
+      login(data.email, data.password);
 
-      toast({
-        title: 'Welcome back!',
-        description: `Logged in as ${user.display_name}`,
-      });
+      console.log('Login successful');
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to login. Please try again.',
-        variant: 'destructive',
-      });
+      console.error('Login failed:', error);
     } finally {
       setIsLoading(false);
     }

@@ -8,42 +8,32 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useMutateAction } from '@uibakery/data';
-import createPoolAction from '@/actions/createPool';
-import { useAuth } from '@/lib/auth.tsx';
-import { useToast } from '@/hooks/use-toast';
+// import { Checkbox } from '@/components/ui/checkbox';
+import { createPool } from '@/actions/createPool';
+import { useAuth } from '@/lib/auth';
 
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   description: z.string().optional(),
-  entryFee: z.number().min(0, 'Entry fee cannot be negative').max(1000, 'Entry fee cannot exceed $1000'),
-  maxParticipants: z.number().min(2, 'Must allow at least 2 participants').max(500, 'Cannot exceed 500 participants').optional(),
-  isPublic: z.boolean(),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
 
 interface CreatePoolDialogProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   onPoolCreated: () => void;
 }
 
-export function CreatePoolDialog({ open, onClose, onPoolCreated }: CreatePoolDialogProps) {
+export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [createPool] = useMutateAction(createPoolAction);
 
   const form = useForm<PoolFormData>({
     resolver: zodResolver(poolSchema),
     defaultValues: {
       name: '',
       description: '',
-      entryFee: 0,
-      maxParticipants: undefined,
-      isPublic: true,
     },
   });
 
@@ -54,34 +44,24 @@ export function CreatePoolDialog({ open, onClose, onPoolCreated }: CreatePoolDia
     try {
       await createPool({
         name: data.name,
-        description: data.description || null,
-        creatorId: user.id,
-        entryFee: data.entryFee,
-        maxParticipants: data.maxParticipants || null,
-        isPublic: data.isPublic,
+        description: data.description,
+        created_by: user.email || '',
       });
       
-      toast({
-        title: 'Pool Created!',
-        description: `${data.name} has been created successfully.`,
-      });
+      console.log('Pool created successfully');
       
       onPoolCreated();
-      onClose();
+      onOpenChange(false);
       form.reset();
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create pool. Please try again.',
-        variant: 'destructive',
-      });
+      console.error('Failed to create pool:', error);
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Confidence Pool</DialogTitle>
@@ -105,7 +85,7 @@ export function CreatePoolDialog({ open, onClose, onPoolCreated }: CreatePoolDia
                 </FormItem>
               )}
             />
-
+            
             <FormField
               control={form.control}
               name="description"
@@ -113,79 +93,23 @@ export function CreatePoolDialog({ open, onClose, onPoolCreated }: CreatePoolDia
                 <FormItem>
                   <FormLabel>Description (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Brief description of your pool" {...field} />
+                    <Input placeholder="Enter pool description" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    A brief description of your confidence pool.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="entryFee"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Entry Fee ($)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        min="0" 
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="maxParticipants"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Max Players (Optional)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        min="2"
-                        placeholder="Unlimited"
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="isPublic"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Public Pool</FormLabel>
-                    <FormDescription>
-                      Allow anyone to discover and join this pool
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-
+            
             <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>

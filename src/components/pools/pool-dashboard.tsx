@@ -1,38 +1,51 @@
 'use client';
 
-import { useState } from 'react';
-import { useLoadAction } from '@uibakery/data';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreatePoolDialog } from '@/components/pools/CreatePoolDialog';
-import { JoinPoolButton } from '@/components/pools/JoinPoolButton';
-import loadPoolsAction from '@/actions/loadPools';
-import { useAuth } from '@/lib/auth.tsx';
-import { Users, Trophy, Calendar, DollarSign, Plus } from 'lucide-react';
-import { format } from 'date-fns';
+import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { JoinPoolButton } from '@/components/pools/join-pool-button';
+import { loadPools } from '@/actions/loadPools';
+import { useAuth } from '@/lib/auth';
+import { Users, Trophy, Calendar, Plus } from 'lucide-react';
+// import { format } from 'date-fns';
 
 interface Pool {
-  id: number;
+  id: string;
   name: string;
   description: string;
-  creator_name: string;
-  season_year: number;
-  participant_count: number;
-  entry_fee: number;
-  max_participants: number | null;
-  join_deadline: string | null;
-  is_public: boolean;
+  created_by: string;
+  season: number;
+  is_active: boolean;
   created_at: string;
 }
 
 export function PoolDashboard() {
-  const [pools, loading, error, refresh] = useLoadAction(loadPoolsAction, []);
+  const [pools, setPools] = useState<Pool[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { user } = useAuth();
 
-  const poolsData: Pool[] = pools || [];
+  async function fetchPools() {
+    try {
+      setLoading(true);
+      setError(null);
+      const poolsData = await loadPools();
+      setPools(poolsData);
+    } catch (err) {
+      setError('Failed to load pools');
+      console.error('Error loading pools:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchPools();
+  }, []);
 
   if (loading) {
     return (
@@ -70,7 +83,7 @@ export function PoolDashboard() {
         <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load pools</h3>
         <p className="text-gray-600 mb-4">There was an error loading the confidence pools.</p>
-        <Button onClick={refresh} variant="outline">
+        <Button onClick={fetchPools} variant="outline">
           Try Again
         </Button>
       </div>
@@ -95,29 +108,29 @@ export function PoolDashboard() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
-          <PoolGrid pools={poolsData} onPoolJoined={refresh} />
+          <PoolGrid pools={pools} onPoolJoined={fetchPools} />
         </TabsContent>
 
         <TabsContent value="my-pools" className="mt-6">
           <PoolGrid 
-            pools={poolsData.filter(pool => pool.creator_name === user?.display_name)} 
-            onPoolJoined={refresh}
+            pools={pools.filter(pool => pool.created_by === user?.email)} 
+            onPoolJoined={fetchPools}
             showJoinButton={false}
           />
         </TabsContent>
 
         <TabsContent value="available" className="mt-6">
           <PoolGrid 
-            pools={poolsData.filter(pool => pool.is_public && pool.creator_name !== user?.display_name)} 
-            onPoolJoined={refresh}
+            pools={pools.filter(pool => pool.created_by !== user?.email)} 
+            onPoolJoined={fetchPools}
           />
         </TabsContent>
       </Tabs>
 
       <CreatePoolDialog 
         open={createDialogOpen} 
-        onClose={() => setCreateDialogOpen(false)}
-        onPoolCreated={refresh}
+        onOpenChange={setCreateDialogOpen}
+        onPoolCreated={fetchPools}
       />
     </div>
   );
@@ -135,7 +148,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps)
       <div className="text-center py-12">
         <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">No pools found</h3>
-        <p className="text-gray-600">There are no pools matching your criteria yet.</p>
+        <p className="text-gray-600">No confidence pools match your criteria.</p>
       </div>
     );
   }
@@ -148,44 +161,34 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps)
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-xl">{pool.name}</CardTitle>
-                <CardDescription>Created by {pool.creator_name}</CardDescription>
+                <CardDescription className="mt-1">
+                  Created by {pool.created_by}
+                </CardDescription>
               </div>
-              <Badge variant="secondary">{pool.season_year} Season</Badge>
+              <Badge variant={pool.is_active ? "default" : "secondary"}>
+                {pool.is_active ? "Active" : "Inactive"}
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {pool.description && (
-              <p className="text-sm text-gray-600">{pool.description}</p>
-            )}
+            <p className="text-gray-600 text-sm">
+              {pool.description || "No description provided"}
+            </p>
             
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <Users className="h-4 w-4 text-gray-500" />
-                <span>
-                  {pool.participant_count}
-                  {pool.max_participants ? `/${pool.max_participants}` : ''} players
-                </span>
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <div className="flex items-center space-x-1">
+                <Calendar className="h-4 w-4" />
+                <span>Season {pool.season}</span>
               </div>
-              
-              {pool.entry_fee > 0 && (
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4 text-gray-500" />
-                  <span>${pool.entry_fee}</span>
-                </div>
-              )}
-              
-              {pool.join_deadline && (
-                <div className="flex items-center space-x-2 col-span-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span>Join by {format(new Date(pool.join_deadline), 'MMM d, yyyy')}</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-1">
+                <Users className="h-4 w-4" />
+                <span>Members</span>
+              </div>
             </div>
 
             {showJoinButton && (
               <JoinPoolButton 
                 poolId={pool.id} 
-                poolName={pool.name}
                 onJoined={onPoolJoined}
               />
             )}

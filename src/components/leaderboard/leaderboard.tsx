@@ -1,37 +1,69 @@
 'use client';
 
-import { useState } from 'react';
-import { useLoadAction } from '@uibakery/data';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import loadPoolsAction from '@/actions/loadPools';
-import loadLeaderboardAction from '@/actions/loadLeaderboard';
+import { loadPools } from '@/actions/loadPools';
+import { loadLeaderboard } from '@/actions/loadLeaderboard';
 import { Trophy, Medal, Award } from 'lucide-react';
 
 interface LeaderboardEntry {
-  id: number;
-  participant_id: number;
-  pool_id: number;
-  total_points: number;
-  total_correct_picks: number;
-  total_possible_points: number;
-  current_rank: number;
-  display_name: string;
-  pool_name: string;
+  id: string;
+  participant_id: string;
+  pool_id: string;
+  week: number;
+  points: number;
+  participants: {
+    name: string;
+  };
+}
+
+interface Pool {
+  id: string;
+  name: string;
 }
 
 export function Leaderboard() {
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
-  
-  const [pools, loadingPools] = useLoadAction(loadPoolsAction, []);
-  const [leaderboard, loadingLeaderboard] = useLoadAction(loadLeaderboardAction, [], {
-    poolId: selectedPoolId ? parseInt(selectedPoolId) : null,
-  });
+  const [pools, setPools] = useState<Pool[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [, setLoadingPools] = useState(true);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
-  const poolsData = pools || [];
-  const leaderboardData: LeaderboardEntry[] = leaderboard || [];
+  useEffect(() => {
+    async function fetchPools() {
+      try {
+        const poolsData = await loadPools();
+        setPools(poolsData);
+      } catch (error) {
+        console.error('Error loading pools:', error);
+      } finally {
+        setLoadingPools(false);
+      }
+    }
+    fetchPools();
+  }, []);
+
+  useEffect(() => {
+    async function fetchLeaderboard() {
+      if (!selectedPoolId) {
+        setLeaderboard([]);
+        return;
+      }
+
+      try {
+        setLoadingLeaderboard(true);
+        const leaderboardData = await loadLeaderboard(selectedPoolId, 1);
+        setLeaderboard(leaderboardData);
+      } catch (error) {
+        console.error('Error loading leaderboard:', error);
+      } finally {
+        setLoadingLeaderboard(false);
+      }
+    }
+    fetchLeaderboard();
+  }, [selectedPoolId]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -46,11 +78,6 @@ export function Leaderboard() {
     }
   };
 
-  const getAccuracyPercentage = (correct: number, total: number) => {
-    if (total === 0) return 0;
-    return ((correct / total) * 100).toFixed(1);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -61,8 +88,8 @@ export function Leaderboard() {
               <SelectValue placeholder="Select a pool" />
             </SelectTrigger>
             <SelectContent>
-              {poolsData.map((pool: any) => (
-                <SelectItem key={pool.id} value={pool.id.toString()}>
+              {pools.map((pool) => (
+                <SelectItem key={pool.id} value={pool.id}>
                   {pool.name}
                 </SelectItem>
               ))}
@@ -100,24 +127,22 @@ export function Leaderboard() {
         </Card>
       )}
 
-      {selectedPoolId && !loadingLeaderboard && leaderboardData.length === 0 && (
+      {selectedPoolId && !loadingLeaderboard && leaderboard.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Standings Yet</h3>
-            <p className="text-gray-600">
-              Standings will appear once participants start making picks and games are completed.
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Results Yet</h3>
+            <p className="text-gray-600">No picks have been submitted for this pool yet.</p>
           </CardContent>
         </Card>
       )}
 
-      {selectedPoolId && !loadingLeaderboard && leaderboardData.length > 0 && (
+      {selectedPoolId && !loadingLeaderboard && leaderboard.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>{leaderboardData[0]?.pool_name} - Season Standings</CardTitle>
+            <CardTitle>Week 1 Standings</CardTitle>
             <CardDescription>
-              Current standings for all participants in this confidence pool
+              Current rankings for the selected pool
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -125,42 +150,21 @@ export function Leaderboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Rank</TableHead>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-center">Points</TableHead>
-                  <TableHead className="text-center">Correct Picks</TableHead>
-                  <TableHead className="text-center">Accuracy</TableHead>
-                  <TableHead className="text-center">Total Possible</TableHead>
+                  <TableHead>Participant</TableHead>
+                  <TableHead className="text-right">Points</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaderboardData.map((entry) => (
-                  <TableRow key={entry.id} className={entry.current_rank <= 3 ? 'bg-yellow-50' : ''}>
+                {leaderboard.map((entry, index) => (
+                  <TableRow key={entry.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center justify-center">
-                        {getRankIcon(entry.current_rank)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium">{entry.display_name}</span>
-                        {entry.current_rank === 1 && (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                            Leader
-                          </Badge>
-                        )}
+                        {getRankIcon(index + 1)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center font-semibold">
-                      {entry.total_points}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {entry.total_correct_picks}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getAccuracyPercentage(entry.total_correct_picks, entry.total_possible_points / 16)}%
-                    </TableCell>
-                    <TableCell className="text-center text-gray-500">
-                      {entry.total_possible_points}
+                    <TableCell>{entry.participants.name}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {entry.points}
                     </TableCell>
                   </TableRow>
                 ))}

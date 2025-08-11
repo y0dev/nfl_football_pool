@@ -251,4 +251,43 @@ export type Database = {
       }
     }
   }
-} 
+}
+
+// Teams table
+export const teamsTable = `
+CREATE TABLE IF NOT EXISTS teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  city VARCHAR(255) NOT NULL,
+  abbreviation VARCHAR(10) NOT NULL,
+  conference VARCHAR(50),
+  division VARCHAR(50),
+  season INTEGER NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(id, season)
+);
+`;
+
+// Update games table to include team references and playoff flag
+export const updatedGamesTable = `
+CREATE TABLE IF NOT EXISTS games (
+  id VARCHAR(255) PRIMARY KEY,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  home_team VARCHAR(255) NOT NULL,
+  away_team VARCHAR(255) NOT NULL,
+  kickoff_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  home_score INTEGER,
+  away_score INTEGER,
+  winner VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'scheduled',
+  home_team_id VARCHAR(255),
+  away_team_id VARCHAR(255),
+  is_playoff BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`; 

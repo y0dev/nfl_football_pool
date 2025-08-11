@@ -4,69 +4,71 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useLoadAction } from '@uibakery/data';
-import loadUsersAction from '@/actions/loadUsers';
-import { useAuth } from '@/lib/auth.tsx';
-import { useToast } from '@/hooks/use-toast';
+import { loadUsers } from '@/actions/loadUsers';
+import { useAuth } from '@/lib/auth';
 import { Trophy, User } from 'lucide-react';
 
 interface UserOption {
-  id: number;
-  display_name: string;
-  is_admin: boolean;
+  id: string;
+  name: string;
+  email: string;
 }
 
 export function UserSelection() {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [users, setUsers] = useState<UserOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const { login } = useAuth();
-  const { toast } = useToast();
-  const [usersResult, loadingUsers] = useLoadAction(loadUsersAction, []);
 
   useEffect(() => {
-    if (usersResult) {
-      setUsers(usersResult);
+    async function fetchUsers() {
+      try {
+        const usersData = await loadUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
     }
-  }, [usersResult]);
+    fetchUsers();
+  }, []);
 
   async function handleContinue() {
     if (!selectedUserId) {
-      toast({
-        title: 'Please select a user',
-        description: 'You must select your name to continue',
-        variant: 'destructive',
-      });
+      console.error('Please select a user');
       return;
     }
 
     setIsLoading(true);
     
-    const selectedUser = users.find(u => u.id.toString() === selectedUserId);
+    const selectedUser = users.find(u => u.id === selectedUserId);
     if (!selectedUser) {
-      toast({
-        title: 'Error',
-        description: 'Selected user not found',
-        variant: 'destructive',
-      });
+      console.error('Selected user not found');
       setIsLoading(false);
       return;
     }
 
     // Simulate user login without password
-    login({
-      id: selectedUser.id,
-      email: '', // Not needed for simplified auth
-      display_name: selectedUser.display_name,
-      is_admin: selectedUser.is_admin,
-    });
+    login(selectedUser.email, '');
 
-    toast({
-      title: 'Welcome!',
-      description: `Logged in as ${selectedUser.display_name}`,
-    });
+    console.log(`Logged in as ${selectedUser.name}`);
 
     setIsLoading(false);
+  }
+
+  if (loadingUsers) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <Trophy className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-pulse" />
+            <p className="text-gray-600">Loading users...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -89,8 +91,8 @@ export function UserSelection() {
             </SelectTrigger>
             <SelectContent>
               {users.map((user) => (
-                <SelectItem key={user.id} value={user.id.toString()}>
-                  {user.display_name}
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -99,15 +101,11 @@ export function UserSelection() {
         
         <Button 
           onClick={handleContinue} 
-          className="w-full" 
-          disabled={isLoading || !selectedUserId}
+          disabled={!selectedUserId || isLoading}
+          className="w-full"
         >
-          {isLoading ? 'Please wait...' : 'Continue'}
+          {isLoading ? 'Loading...' : 'Continue'}
         </Button>
-        
-        <div className="text-center text-xs text-gray-500 mt-4">
-          Don't see your name? Contact the pool administrator.
-        </div>
       </CardContent>
     </Card>
   );

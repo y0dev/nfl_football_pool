@@ -2,46 +2,29 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useMutateAction } from '@uibakery/data';
-import joinPoolAction from '@/actions/joinPool';
-import { useAuth } from '@/lib/auth.tsx';
-import { useToast } from '@/hooks/use-toast';
+import { joinPool } from '@/actions/joinPool';
+import { useAuth } from '@/lib/auth';
 import { UserPlus } from 'lucide-react';
 
 interface JoinPoolButtonProps {
-  poolId: number;
-  poolName: string;
+  poolId: string;
   onJoined: () => void;
 }
 
-export function JoinPoolButton({ poolId, poolName, onJoined }: JoinPoolButtonProps) {
+export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
   const [isJoining, setIsJoining] = useState(false);
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [joinPool] = useMutateAction(joinPoolAction);
 
   async function handleJoin() {
     if (!user) return;
 
     setIsJoining(true);
     try {
-      await joinPool({
-        poolId,
-        userId: user.id,
-      });
-
-      toast({
-        title: 'Successfully Joined!',
-        description: `You've joined ${poolName}. Good luck with your picks!`,
-      });
-
+      await joinPool(poolId, user.id || '');
+      console.log('Successfully joined pool');
       onJoined();
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to join pool. You may already be a member.',
-        variant: 'destructive',
-      });
+      console.error('Failed to join pool:', error);
     } finally {
       setIsJoining(false);
     }
