@@ -10,34 +10,33 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { loginUser } from '@/actions/loginUser';
 import { useAuth } from '@/lib/auth';
-import { Shield } from 'lucide-react';
 
-const adminLoginSchema = z.object({
+const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
+type LoginFormData = z.infer<typeof loginSchema>;
 
-export function AdminLogin() {
+export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
-  const form = useForm<AdminLoginFormData>({
-    resolver: zodResolver(adminLoginSchema),
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: '',
       password: '',
     },
   });
 
-  async function onSubmit(data: AdminLoginFormData) {
+  async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
       const user = await loginUser(data.email);
       
-      if (!user || !user.is_super_admin) {
-        console.error('Access Denied: Admin credentials required');
+      if (!user) {
+        console.error('Login failed: Invalid credentials');
         return;
       }
 
@@ -45,7 +44,7 @@ export function AdminLogin() {
       // For demo purposes, we'll skip password verification
       login(data.email, data.password);
 
-      console.log('Admin Access Granted');
+      console.log('Login successful');
     } catch (error) {
       console.error('Login failed:', error);
     } finally {
@@ -55,12 +54,9 @@ export function AdminLogin() {
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center mb-2">
-          <Shield className="h-8 w-8 text-red-600" />
-        </div>
-        <CardTitle>Admin Login</CardTitle>
-        <CardDescription>Administrator access required</CardDescription>
+      <CardHeader>
+        <CardTitle>Sign In</CardTitle>
+        <CardDescription>Enter your credentials to access your account</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -70,9 +66,9 @@ export function AdminLogin() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Admin Email</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter admin email" {...field} />
+                    <Input type="email" placeholder="Enter your email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -85,14 +81,14 @@ export function AdminLogin() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter admin password" {...field} />
+                    <Input type="password" placeholder="Enter your password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Verifying...' : 'Admin Login'}
+              {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
         </Form>

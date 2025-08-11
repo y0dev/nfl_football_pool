@@ -1,0 +1,10 @@
+NFL Confidence Pool - Simplified Authentication System
+
+[x] Analyze current authentication system
+[x] Read current user management and login flow
+[x] Create user selection dropdown component
+[x] Modify main app to show user selection instead of login for non-admins
+[x] Add admin login system separate from user selection
+[x] Update pick submission to include user confirmation
+[x] Add admin users to database
+[x] Test the simplified authentication flow

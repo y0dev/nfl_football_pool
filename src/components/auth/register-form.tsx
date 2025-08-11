@@ -8,46 +8,45 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { loginUser } from '@/actions/loginUser';
+import { createUser } from '@/actions/createUser';
 import { useAuth } from '@/lib/auth';
-import { Shield } from 'lucide-react';
 
-const adminLoginSchema = z.object({
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  pool_id: z.string().min(1, 'Please select a pool'),
 });
 
-type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
-export function AdminLogin() {
+export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
-  const form = useForm<AdminLoginFormData>({
-    resolver: zodResolver(adminLoginSchema),
+  const form = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: '',
       email: '',
-      password: '',
+      pool_id: '',
     },
   });
 
-  async function onSubmit(data: AdminLoginFormData) {
+  async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
     try {
-      const user = await loginUser(data.email);
+      const user = await createUser({
+        name: data.name,
+        email: data.email,
+        pool_id: data.pool_id,
+      });
       
-      if (!user || !user.is_super_admin) {
-        console.error('Access Denied: Admin credentials required');
-        return;
+      if (user) {
+        login(data.email, '');
+        console.log('Account created successfully');
       }
-
-      // In a real app, you'd verify the password hash here
-      // For demo purposes, we'll skip password verification
-      login(data.email, data.password);
-
-      console.log('Admin Access Granted');
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Failed to create account:', error);
     } finally {
       setIsLoading(false);
     }
@@ -55,24 +54,21 @@ export function AdminLogin() {
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center mb-2">
-          <Shield className="h-8 w-8 text-red-600" />
-        </div>
-        <CardTitle>Admin Login</CardTitle>
-        <CardDescription>Administrator access required</CardDescription>
+      <CardHeader>
+        <CardTitle>Create Account</CardTitle>
+        <CardDescription>Join the NFL Confidence Pool community</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="email"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Admin Email</FormLabel>
+                  <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter admin email" {...field} />
+                    <Input placeholder="Enter your name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -80,19 +76,32 @@ export function AdminLogin() {
             />
             <FormField
               control={form.control}
-              name="password"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter admin password" {...field} />
+                    <Input type="email" placeholder="Enter your email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="pool_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pool ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter pool ID" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Verifying...' : 'Admin Login'}
+              {isLoading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
         </Form>

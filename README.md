@@ -8,6 +8,12 @@ A full-stack web application for managing NFL confidence pools with real-time up
 - **Authentication**: Email/password + OAuth (Google, GitHub) for admin access only
 - **Pool Management**: Create and manage multiple confidence pools
 - **Participant Management**: Add, edit, and manage participants by name and email
+- **NFL Data Sync**: Import teams, regular season, and playoff games from API-Sports.io
+- **Schedule Management**: Sync current week games and playoff data
+- **Submission Tracking**: Monitor who has submitted picks for each week
+- **Excel Export**: Export participant picks and confidence points to CSV format
+- **Score Calculation**: Automatic and manual score calculation with rankings
+- **Quarterly Standings**: Track first 4 weeks and determine quarterly winners
 - **Pick Management**: Drag-and-drop interface for assigning confidence points (1-16)
 - **Real-time Updates**: Automatic game score updates and standings calculations
 - **Lock System**: Picks automatically lock at game kickoff
@@ -31,6 +37,13 @@ A full-stack web application for managing NFL confidence pools with real-time up
 - **State Management**: React Query for data fetching
 - **Drag & Drop**: @dnd-kit for confidence point assignment
 - **Styling**: TailwindCSS with custom NFL-themed design system
+
+## Pages and Routes
+
+- **`/`** - Landing page with admin login
+- **`/login`** - Dedicated login page (no navigation link)
+- **`/admin/nfl-sync`** - NFL data synchronization management (admin only)
+- **`/admin/dashboard`** - Admin dashboard for submission tracking and score management (admin only)
 
 ## Database Schema
 
@@ -100,7 +113,29 @@ cd nfl-confidence-pool
 npm install
 ```
 
-### 3. Set Up Supabase
+### 3. Environment Variables
+
+Copy the example environment file and configure your variables:
+
+```bash
+cp env.example .env.local
+```
+
+Required environment variables:
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
+- `NEXT_PUBLIC_API_SPORTS_KEY` - Your API-Sports.io key for NFL data
+
+### 4. Set Up Database
+
+Run the database setup script to create all necessary tables:
+
+```bash
+npm run setup-db
+```
+
+### 5. Set Up Supabase
 
 1. Create a new Supabase project at [supabase.com](https://supabase.com)
 2. Go to Settings > API to get your project URL and anon key
@@ -295,6 +330,34 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+### 7. Sync NFL Data
+
+1. Get an API key from [API-Sports.io](https://api-sports.io/documentation/nfl/v1)
+2. Add the key to your `.env.local` file as `NEXT_PUBLIC_API_SPORTS_KEY`
+3. Visit `/admin/nfl-sync` (admin login required)
+4. Sync teams and regular season games
+5. Set up your confidence pools
+
+### 8. Admin Dashboard Usage
+
+The admin dashboard (`/admin/dashboard`) provides comprehensive pool management:
+
+#### Weekly Management:
+- **Track Submissions**: See who has submitted picks for each week
+- **Calculate Scores**: Manually trigger score calculation for a specific pool/week
+- **Export Data**: Download participant picks as CSV file
+- **View Rankings**: See weekly standings with points and accuracy
+
+#### Quarterly Tracking:
+- **First 4 Weeks**: Automatic tracking of the first quarter of the season
+- **Quarterly Winners**: System automatically determines winners after week 4
+- **Standings**: View overall quarterly standings with total points and averages
+
+#### Automatic Features:
+- **Score Calculation**: Runs automatically when all games for a week are finished
+- **Quarterly Winners**: Automatically determined after week 4 completion
+- **Audit Logging**: All score calculations and winners are logged for transparency
 
 ## Deployment
 

@@ -251,4 +251,146 @@ export type Database = {
       }
     }
   }
-} 
+}
+
+// SQL Table Definitions
+export const adminsTable = `
+CREATE TABLE IF NOT EXISTS admins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  full_name VARCHAR(255),
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_super_admin BOOLEAN DEFAULT false
+);
+`;
+
+export const poolsTable = `
+CREATE TABLE IF NOT EXISTS pools (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  logo_url TEXT,
+  created_by VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_active BOOLEAN DEFAULT true,
+  season INTEGER NOT NULL
+);
+`;
+
+export const adminPoolsTable = `
+CREATE TABLE IF NOT EXISTS admin_pools (
+  admin_id UUID REFERENCES admins(id) ON DELETE CASCADE,
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_owner BOOLEAN DEFAULT false,
+  PRIMARY KEY (admin_id, pool_id)
+);
+`;
+
+export const participantsTable = `
+CREATE TABLE IF NOT EXISTS participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_active BOOLEAN DEFAULT true
+);
+`;
+
+export const gamesTable = `
+CREATE TABLE IF NOT EXISTS games (
+  id VARCHAR(255) PRIMARY KEY,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  home_team VARCHAR(255) NOT NULL,
+  away_team VARCHAR(255) NOT NULL,
+  kickoff_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  winner VARCHAR(255),
+  home_score INTEGER,
+  away_score INTEGER,
+  game_status VARCHAR(50) DEFAULT 'scheduled',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
+export const picksTable = `
+CREATE TABLE IF NOT EXISTS picks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE,
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  game_id VARCHAR(255) REFERENCES games(id) ON DELETE CASCADE,
+  predicted_winner VARCHAR(255) NOT NULL,
+  confidence_points INTEGER NOT NULL,
+  locked BOOLEAN DEFAULT false,
+  submitted_by VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(participant_id, pool_id, game_id)
+);
+`;
+
+export const scoresTable = `
+CREATE TABLE IF NOT EXISTS scores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE,
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  points INTEGER DEFAULT 0,
+  correct_picks INTEGER DEFAULT 0,
+  total_picks INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(participant_id, pool_id, week, season)
+);
+`;
+
+export const auditLogsTable = `
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action VARCHAR(255) NOT NULL,
+  admin_id UUID REFERENCES admins(id) ON DELETE SET NULL,
+  entity VARCHAR(255) NOT NULL,
+  entity_id VARCHAR(255),
+  details JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
+// Teams table
+export const teamsTable = `
+CREATE TABLE IF NOT EXISTS teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  city VARCHAR(255) NOT NULL,
+  abbreviation VARCHAR(10) NOT NULL,
+  conference VARCHAR(50),
+  division VARCHAR(50),
+  season INTEGER NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(id, season)
+);
+`;
+
+// Update games table to include team references and playoff flag
+export const updatedGamesTable = `
+CREATE TABLE IF NOT EXISTS games (
+  id VARCHAR(255) PRIMARY KEY,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  home_team VARCHAR(255) NOT NULL,
+  away_team VARCHAR(255) NOT NULL,
+  kickoff_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  home_score INTEGER,
+  away_score INTEGER,
+  winner VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'scheduled',
+  home_team_id VARCHAR(255),
+  away_team_id VARCHAR(255),
+  is_playoff BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`; 
