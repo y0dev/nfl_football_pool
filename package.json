@@ -5,10 +5,16 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:prod": "NODE_ENV=production next build",
     "start": "next start",
+    "start:prod": "NODE_ENV=production next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "seed": "tsx scripts/seed.ts",
-    "setup-db": "tsx scripts/setup-database.ts"
+    "setup-db": "tsx scripts/setup-database.ts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next out",
+    "vercel-build": "npm run build:prod"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
