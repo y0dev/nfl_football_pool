@@ -69,7 +69,7 @@ export async function syncWeekGames(season: number, week: number) {
           home_score: game.home_score || null,
           away_score: game.away_score || null,
           winner: game.status === 'finished' && game.home_score !== null && game.away_score !== null
-            ? (game.home_score > game.away_score ? game.home_team : game.away_team)
+            ? (game.home_score! > game.away_score! ? game.home_team : game.away_team)
             : null,
           status: game.status,
           home_team_id: game.home_team_id,
@@ -147,7 +147,7 @@ export async function syncPlayoffs(season: number) {
           home_score: game.home_score || null,
           away_score: game.away_score || null,
           winner: game.status === 'finished' && game.home_score !== null && game.away_score !== null
-            ? (game.home_score > game.away_score ? game.home_team : game.away_team)
+            ? (game.home_score! > game.away_score! ? game.home_team : game.away_team)
             : null,
           status: game.status,
           home_team_id: game.home_team_id,

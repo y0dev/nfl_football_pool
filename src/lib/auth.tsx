@@ -2,7 +2,12 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
-import { User } from '@supabase/supabase-js';
+import { User as SupabaseUser } from '@supabase/supabase-js';
+
+interface User extends SupabaseUser {
+  is_super_admin?: boolean;
+  name?: string;
+}
 
 interface AuthContextType {
   user: User | null;
