@@ -43,6 +43,9 @@ export type Database = {
           created_at: string
           is_active: boolean
           season: number
+          tie_breaker_method: string
+          tie_breaker_question: string | null
+          tie_breaker_answer: number | null
         }
         Insert: {
           id?: string
@@ -52,6 +55,9 @@ export type Database = {
           created_at?: string
           is_active?: boolean
           season?: number
+          tie_breaker_method?: string
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
         }
         Update: {
           id?: string
@@ -61,6 +67,9 @@ export type Database = {
           created_at?: string
           is_active?: boolean
           season?: number
+          tie_breaker_method?: string
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
         }
       }
       admin_pools: {
@@ -273,7 +282,10 @@ CREATE TABLE IF NOT EXISTS pools (
   created_by VARCHAR(255) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_active BOOLEAN DEFAULT true,
-  season INTEGER NOT NULL
+  season INTEGER NOT NULL,
+  tie_breaker_method VARCHAR(50),
+  tie_breaker_question VARCHAR(255),
+  tie_breaker_answer INTEGER
 );
 `;
 
@@ -340,6 +352,19 @@ CREATE TABLE IF NOT EXISTS scores (
   correct_picks INTEGER DEFAULT 0,
   total_picks INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(participant_id, pool_id, week, season)
+);
+`;
+
+export const tieBreakersTable = `
+CREATE TABLE IF NOT EXISTS tie_breakers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE,
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  answer DECIMAL(10,2) NOT NULL,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(participant_id, pool_id, week, season)
 );
 `;

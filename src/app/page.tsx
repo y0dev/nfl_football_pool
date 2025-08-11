@@ -10,6 +10,7 @@ import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/toaster';
+import { DeviceRotationPrompt } from '@/components/ui/device-rotation-prompt';
 import { LogOut, Trophy } from 'lucide-react';
 
 function AuthenticatedApp() {
@@ -50,6 +51,7 @@ function AuthenticatedApp() {
           </TabsContent>
           <TabsContent value="leaderboard" className="mt-6">
             <Leaderboard />
+            <DeviceRotationPrompt />
           </TabsContent>
         </Tabs>
       </main>

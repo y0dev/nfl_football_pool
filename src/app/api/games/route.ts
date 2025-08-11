@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+// Create Supabase client dynamically to avoid build-time issues
+function createSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
 
 const API_KEY = process.env.NEXT_PUBLIC_API_SPORTS_KEY
 const BASE_URL = 'https://v3.football.api-sports.io'
@@ -185,6 +188,7 @@ export async function POST(request: NextRequest) {
     // Convert and upsert games
     const gamesToUpsert = apiGames.map(game => NFLAPI.convertGameToDatabaseFormat(game))
     
+    const supabase = createSupabaseClient()
     const { data, error } = await supabase
       .from('games')
       .upsert(gamesToUpsert, { onConflict: 'id' })
