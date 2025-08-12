@@ -46,7 +46,7 @@ export function LoginForm() {
         // Redirect based on user type
         if (result.user.is_super_admin) {
           // Admin users go to admin dashboard
-          window.location.href = '/admin/dashboard';
+          window.location.href = '/';
         } else {
           // Regular users go to home page
           window.location.href = '/';

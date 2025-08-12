@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getDefaultSupabaseClient } from './supabase';
 
 interface User {
   id: string;
@@ -27,27 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsMounted(true);
     
-    // Check for existing session
+    // Check for existing session from localStorage
     const checkSession = async () => {
       try {
-        const supabase = getDefaultSupabaseClient();
-        
-        if (!supabase) {
-          setLoading(false);
-          return;
-        }
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // For now, create a mock user from the session
-          // In a real app, you'd fetch user details from your admins table
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: session.user.user_metadata?.full_name,
-            is_super_admin: session.user.user_metadata?.is_super_admin || false,
-          });
+        if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('nfl-pool-user');
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+          }
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -62,11 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const supabase = getDefaultSupabaseClient();
-      
-      if (!supabase) {
-        throw new Error('Supabase client not available');
-      }
       
       // For now, simulate admin login
       // In a real app, you'd verify against your admins table
@@ -94,11 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       setLoading(true);
-      const supabase = getDefaultSupabaseClient();
-      
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
       
       setUser(null);
       

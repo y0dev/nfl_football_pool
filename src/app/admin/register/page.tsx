@@ -9,54 +9,73 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { loginUser } from '@/actions/loginUser';
-import { Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Shield, ArrowLeft, Eye, EyeOff, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-const adminLoginSchema = z.object({
+const adminRegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
-type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
+type AdminRegisterFormData = z.infer<typeof adminRegisterSchema>;
 
-export default function AdminLoginPage() {
+export default function AdminRegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<AdminLoginFormData>({
-    resolver: zodResolver(adminLoginSchema),
+  const form = useForm<AdminRegisterFormData>({
+    resolver: zodResolver(adminRegisterSchema),
     defaultValues: {
       email: '',
       password: '',
+      confirmPassword: '',
+      fullName: '',
     },
   });
 
-  const onSubmit = async (data: AdminLoginFormData) => {
+  const onSubmit = async (data: AdminRegisterFormData) => {
     setIsLoading(true);
     try {
-      const result = await loginUser(data.email, data.password);
-      
-      if (result.success && result.user) {
+      const response = await fetch('/api/admin/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          fullName: data.fullName,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
         toast({
           title: 'Success',
-          description: 'Admin login successful!',
+          description: 'Admin account created successfully! You can now sign in.',
         });
-        // Redirect to admin dashboard
-        window.location.href = '/';
+        // Redirect to admin login
+        window.location.href = '/admin/login';
       } else {
         toast({
           title: 'Error',
-          description: result.error || 'Invalid credentials',
+          description: result.error || 'Failed to create admin account',
           variant: 'destructive',
         });
       }
     } catch (error) {
-      console.error('Admin login error:', error);
+      console.error('Admin registration error:', error);
       toast({
         title: 'Error',
-        description: 'Login failed. Please try again.',
+        description: 'Registration failed. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -78,20 +97,38 @@ export default function AdminLoginPage() {
           </Link>
         </div>
 
-        {/* Admin Login Card */}
+        {/* Admin Registration Card */}
         <Card className="w-full shadow-lg">
           <CardHeader className="text-center pb-4">
             <div className="flex items-center justify-center mb-4">
-              <Shield className="h-12 w-12 text-blue-600" />
+              <UserPlus className="h-12 w-12 text-blue-600" />
             </div>
-            <CardTitle className="text-2xl font-bold">Admin Access</CardTitle>
+            <CardTitle className="text-2xl font-bold">Create Admin Account</CardTitle>
             <CardDescription>
-              Sign in to manage your NFL Confidence Pool
+              Register a new administrator for the NFL Confidence Pool
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="fullName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium">Full Name</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Enter your full name" 
+                          className="h-12 text-base"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <FormField
                   control={form.control}
                   name="email"
@@ -110,6 +147,7 @@ export default function AdminLoginPage() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="password"
@@ -143,37 +181,67 @@ export default function AdminLoginPage() {
                     </FormItem>
                   )}
                 />
+                
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium">Confirm Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input 
+                            type={showConfirmPassword ? 'text' : 'password'} 
+                            placeholder="Confirm your password" 
+                            className="h-12 text-base pr-12"
+                            {...field} 
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <Button 
                   type="submit" 
                   className="w-full h-12 text-base font-medium" 
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign In as Admin'}
+                  {isLoading ? 'Creating Account...' : 'Create Admin Account'}
                 </Button>
               </form>
             </Form>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <Link href="/admin/login" className="text-blue-600 hover:text-blue-800 font-medium">
+                  Sign in here
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         {/* Help text */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Need help? Contact your pool administrator
+            Need help? Contact your super administrator
           </p>
-        </div>
-        
-        {/* Additional links */}
-        <div className="mt-4 space-y-2">
-          <div className="text-center">
-            <Link href="/admin/register" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              Create Admin Account
-            </Link>
-          </div>
-          <div className="text-center">
-            <Link href="/super-admin" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              Super Admin Dashboard
-            </Link>
-          </div>
         </div>
       </div>
     </div>
