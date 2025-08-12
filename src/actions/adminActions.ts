@@ -405,15 +405,21 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
     }
 
     // Log the action
-    await getSupabaseClient()
-      .from('audit_logs')
-      .insert({
-        action: 'add_participant',
-        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-        entity: 'participants',
-        entity_id: data.id,
-        details: { pool_id: poolId, name, email }
-      });
+    try {
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      await getSupabaseClient()
+        .from('audit_logs')
+        .insert({
+          action: 'add_participant',
+          admin_id: userData?.user?.id || 'system',
+          entity: 'participants',
+          entity_id: data.id,
+          details: { pool_id: poolId, name, email }
+        });
+    } catch (logError) {
+      console.warn('Failed to log participant addition:', logError);
+      // Don't throw error for logging failure
+    }
 
     return data;
   } catch (error) {
@@ -436,15 +442,21 @@ export async function removeParticipantFromPool(participantId: string) {
     }
 
     // Log the action
-    await getSupabaseClient()
-      .from('audit_logs')
-      .insert({
-        action: 'remove_participant',
-        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-        entity: 'participants',
-        entity_id: participantId,
-        details: { action: 'deactivated' }
-      });
+    try {
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      await getSupabaseClient()
+        .from('audit_logs')
+        .insert({
+          action: 'remove_participant',
+          admin_id: userData?.user?.id || 'system',
+          entity: 'participants',
+          entity_id: participantId,
+          details: { action: 'deactivated' }
+        });
+    } catch (logError) {
+      console.warn('Failed to log participant removal:', logError);
+      // Don't throw error for logging failure
+    }
 
     return true;
   } catch (error) {

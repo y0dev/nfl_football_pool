@@ -13,11 +13,13 @@ import { SubmissionStatus } from '@/components/admin/submission-status';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { TestPicks } from '@/components/admin/test-picks';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { loadPools } from '@/actions/loadPools';
 import { AuthProvider } from '@/lib/auth';
 
 export default function AdminDashboard() {
   const [currentWeek, setCurrentWeek] = useState(1);
-  const [selectedPool, setSelectedPool] = useState({ id: '1', name: 'Test Pool' });
+  const [selectedPool, setSelectedPool] = useState<any>(null);
+  const [pools, setPools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -25,8 +27,17 @@ export default function AdminDashboard() {
       try {
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData?.week_number || 1);
+        
+        // Load pools
+        const poolsData = await loadPools();
+        setPools(poolsData);
+        
+        // Select the first pool if available
+        if (poolsData && poolsData.length > 0) {
+          setSelectedPool(poolsData[0]);
+        }
       } catch (error) {
-        console.error('Error loading current week:', error);
+        console.error('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -58,7 +69,42 @@ export default function AdminDashboard() {
 
         <PoolDashboard />
 
-        <Tabs defaultValue="overview" className="mt-6">
+        {/* Pool Selector */}
+        {pools.length > 0 && (
+          <div className="mb-6 p-4 bg-white rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Selected Pool</h3>
+                <p className="text-sm text-gray-600">
+                  {selectedPool ? selectedPool.name : 'No pool selected'}
+                </p>
+              </div>
+              <select
+                value={selectedPool?.id || ''}
+                onChange={(e) => {
+                  const pool = pools.find(p => p.id === e.target.value);
+                  setSelectedPool(pool || null);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a pool...</option>
+                {pools.map((pool) => (
+                  <option key={pool.id} value={pool.id}>
+                    {pool.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {!selectedPool ? (
+          <div className="text-center py-12">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Pool Selected</h3>
+            <p className="text-gray-600">Please select a pool to view its details and manage participants.</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="overview" className="mt-6">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-1">
             <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
             <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
@@ -131,6 +177,7 @@ export default function AdminDashboard() {
             />
           </TabsContent>
         </Tabs>
+        )}
       </div>
     </AuthProvider>
   );

@@ -51,6 +51,7 @@ let startWeek = 1;
 let endWeek = 18;
 let includePlayoffs = true;
 let seasonType = 'regular'; // 'preseason', 'regular', 'postseason', 'all'
+let seasonTypeId = 2; // Default to regular season
 
 // Parse arguments
 for (let i = 0; i < args.length; i++) {
@@ -64,6 +65,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('Options:');
     console.log('  --start-week, -s <week>     Start fetching from specific week (1-22, default: 1)');
     console.log('  --end-week, -e <week>       End fetching at specific week (1-22, default: 18)');
+    console.log('  --season-type <type>        Specify season type: 1=preseason, 2=regular, 3=postseason');
     console.log('  --no-playoffs               Exclude playoff games (weeks 19-22)');
     console.log('  --preseason                 Fetch preseason games only (weeks 1-4)');
     console.log('  --regular                   Fetch regular season games only (weeks 5-18)');
@@ -88,25 +90,52 @@ for (let i = 0; i < args.length; i++) {
     console.log('  npm run fetch-games -- --preseason                     # Fetch preseason only');
     console.log('  npm run fetch-games -- --regular                       # Fetch regular season only');
     console.log('  npm run fetch-games -- --postseason                    # Fetch postseason only');
+    console.log('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
+    console.log('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
+    console.log('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
     console.log('  npm run fetch-games -- --start-week 1 --end-week 22    # Fetch entire season');
     process.exit(0);
   } else if (arg === '--start-week' || arg === '-s') {
     startWeek = parseInt(args[++i]);
   } else if (arg === '--end-week' || arg === '-e') {
     endWeek = parseInt(args[++i]);
+  } else if (arg === '--season-type') {
+    const typeId = parseInt(args[++i]);
+    if (typeId >= 1 && typeId <= 3) {
+      seasonTypeId = typeId;
+      if (typeId === 1) {
+        seasonType = 'preseason';
+        startWeek = 1;
+        endWeek = 4;
+      } else if (typeId === 2) {
+        seasonType = 'regular';
+        startWeek = 1;
+        endWeek = 18;
+      } else if (typeId === 3) {
+        seasonType = 'postseason';
+        startWeek = 19;
+        endWeek = 22;
+      }
+    } else {
+      console.error('❌ Season type must be 1, 2, or 3');
+      process.exit(1);
+    }
   } else if (arg === '--no-playoffs') {
     includePlayoffs = false;
     endWeek = Math.min(endWeek, 18);
   } else if (arg === '--preseason') {
     seasonType = 'preseason';
+    seasonTypeId = 1;
     startWeek = 1;
     endWeek = 4;
   } else if (arg === '--regular') {
     seasonType = 'regular';
+    seasonTypeId = 2;
     startWeek = 1;
     endWeek = 18;
   } else if (arg === '--postseason') {
     seasonType = 'postseason';
+    seasonTypeId = 3;
     startWeek = 19;
     endWeek = 22;
   }
@@ -274,29 +303,11 @@ async function main() {
 
   if (apiKey) {
     console.log('🔑 Using NFL API to fetch games...');
+    console.log(`📅 Season type: ${seasonType} (ID: ${seasonTypeId})`);
+    console.log(`📋 Week range: ${startWeek}-${endWeek}`);
     
-    // Determine season type based on week range
-    let seasonTypeToFetch: number;
-    if (startWeek >= 1 && startWeek <= 4) {
-      seasonTypeToFetch = 1; // Preseason
-      console.log('🏈 Fetching preseason games...');
-    } else if (startWeek >= 5 && startWeek <= 18) {
-      seasonTypeToFetch = 2; // Regular season
-      console.log('🏈 Fetching regular season games...');
-    } else if (startWeek >= 19 && startWeek <= 22) {
-      seasonTypeToFetch = 3; // Postseason
-      console.log('🏆 Fetching postseason games...');
-    } else {
-      console.log('⚠️  Mixed week range detected, fetching all season types...');
-    }
-    let weekSeasonType = 2;
-    if (seasonType === 'preseason') {
-    weekSeasonType = 1;
-    } else if (seasonType === 'regular') {
-    weekSeasonType = 2;
-    } else if (seasonType === 'postseason') {
-    weekSeasonType = 3;
-    }
+    // Use the specified season type
+    const seasonTypeToFetch = seasonTypeId;
     
     // Fetch games for the specified week range
     for (let week = startWeek; week <= endWeek; week++) {
@@ -304,7 +315,7 @@ async function main() {
       
       try {
         
-        const weekGames = await nflAPI.getWeekGames(currentSeason, weekSeasonType, week);
+        const weekGames = await nflAPI.getWeekGames(currentSeason, seasonTypeToFetch, week);
         console.log(`📊 Week ${week} Games:`, weekGames.length);
         
         if (weekGames.length > 0) {
@@ -312,7 +323,7 @@ async function main() {
             id: game.id,
             week: game.week,
             season: game.season,
-            season_type: weekSeasonType,
+            season_type: seasonTypeToFetch,
             home_team: game.home_team,
             away_team: game.away_team,
             kickoff_time: game.date,
@@ -346,7 +357,7 @@ async function main() {
     if (gamesToInsert.length === 0) {
       console.log('🎭 No games found from API, falling back to mock data...');
       gamesToInsert = mockGames
-        .filter(game => game.week >= startWeek && game.week <= endWeek)
+        .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
         .map(game => ({
           ...game,
           season: currentSeason
@@ -356,7 +367,7 @@ async function main() {
   } else {
     console.log('🎭 Using mock data (no API key provided)...');
     gamesToInsert = mockGames
-      .filter(game => game.week >= startWeek && game.week <= endWeek)
+      .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
       .map(game => ({
         ...game,
         season: currentSeason

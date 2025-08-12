@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
-import { loadWeekGames } from '@/actions/loadWeekGames';
+import { loadWeekGames, getSeasonTypeFromWeek } from '@/actions/loadWeekGames';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { PickUserSelection } from './pick-user-selection';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
@@ -63,7 +63,9 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
         }
         setCurrentWeek(weekToUse);
         
-        const gamesData = await loadWeekGames(weekToUse);
+        const seasonType = getSeasonTypeFromWeek(weekToUse);
+        console.log(`WeeklyPick: Loading games for Week ${weekToUse}, Season Type: ${seasonType}`);
+        const gamesData = await loadWeekGames(weekToUse, seasonType);
         setGames(gamesData);
         
         // Initialize picks array

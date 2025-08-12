@@ -36,6 +36,8 @@ export function PoolDashboard() {
       setLoading(true);
       setError(null);
       const poolsData = await loadPools();
+      console.log('PoolDashboard: Loaded pools:', poolsData);
+      console.log('PoolDashboard: Current user:', user);
       setPools(poolsData);
     } catch (err) {
       setError('Failed to load pools');
@@ -117,7 +119,7 @@ export function PoolDashboard() {
           <PoolGrid 
             pools={pools.filter(pool => pool.created_by === user?.email)} 
             onPoolJoined={fetchPools}
-            showJoinButton={false}
+            showJoinButton={true} // Allow joining own pools
           />
         </TabsContent>
 
@@ -145,7 +147,10 @@ interface PoolGridProps {
 }
 
 function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps) {
+  console.log('PoolGrid: Rendering with props:', { pools, showJoinButton, poolsCount: pools.length });
+  
   if (pools.length === 0) {
+    console.log('PoolGrid: No pools to display');
     return (
       <div className="text-center py-12">
         <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />

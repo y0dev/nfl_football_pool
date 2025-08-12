@@ -51,6 +51,13 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
       console.log('Invalid inputs provided to getUsersWhoSubmitted');
       return [];
     }
+
+    // Validate poolId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(poolId)) {
+      console.error('Invalid poolId format (not a UUID):', poolId);
+      return [];
+    }
     
     const supabase = getSupabaseClient();
     
@@ -73,7 +80,6 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
     }
 
     const gameIds = games.map(game => game.id);
-    console.log('Game IDs found:', gameIds);
 
     // Then get users who submitted picks for these games
     const { data: picks, error } = await supabase
@@ -96,5 +102,42 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
   } catch (error) {
     console.error('Error getting users who submitted:', error);
     return [];
+  }
+}
+
+export async function isUserInPool(userEmail: string, poolId: string) {
+  try {
+    // Validate inputs
+    if (!userEmail || !poolId) {
+      console.log('Invalid inputs provided to isUserInPool');
+      return false;
+    }
+
+    // Validate poolId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(poolId)) {
+      console.error('Invalid poolId format (not a UUID):', poolId);
+      return false;
+    }
+
+    const supabase = getSupabaseClient();
+    
+    const { data: participant, error } = await supabase
+      .from('participants')
+      .select('id')
+      .eq('pool_id', poolId)
+      .eq('email', userEmail)
+      .eq('is_active', true)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking if user is in pool:', error);
+      return false;
+    }
+
+    return !!participant;
+  } catch (error) {
+    console.error('Error checking if user is in pool:', error);
+    return false;
   }
 }
