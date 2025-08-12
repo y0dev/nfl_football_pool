@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { nflAPI } from '@/lib/nfl-api';
 
 // Sync teams from NFL API to our database
@@ -14,7 +14,7 @@ export async function syncTeams(season: number) {
     }
 
     // Insert teams into database
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('teams')
       .upsert(
         teams.map(team => ({
@@ -56,7 +56,7 @@ export async function syncWeekGames(season: number, week: number) {
     }
 
     // Insert games into database
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('games')
       .upsert(
         games.map(game => ({
@@ -134,7 +134,7 @@ export async function syncPlayoffs(season: number) {
     }
 
     // Insert playoff games into database
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('games')
       .upsert(
         playoffGames.map(game => ({
@@ -196,7 +196,7 @@ export async function updateGameScore(gameId: string, homeScore: number, awaySco
   try {
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : null;
     
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('games')
       .update({
         home_score: homeScore,
@@ -223,7 +223,7 @@ export async function updateGameScore(gameId: string, homeScore: number, awaySco
 // Get sync status
 export async function getSyncStatus(season: number) {
   try {
-    const { data: games, error } = await supabase
+    const { data: games, error } = await getSupabaseClient()
       .from('games')
       .select('week, status')
       .eq('season', season)

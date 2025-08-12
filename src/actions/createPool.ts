@@ -1,18 +1,18 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function createPool(poolData: {
   name: string;
-  description?: string;
   created_by: string;
+  season?: number;
 }) {
   try {
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('pools')
       .insert({
         name: poolData.name,
-        description: poolData.description,
         created_by: poolData.created_by,
-        season: 2024,
+        season: poolData.season || 2025,
         is_active: true
       })
       .select()

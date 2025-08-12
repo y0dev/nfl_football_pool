@@ -1,7 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
+
+// Validate environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Missing required environment variables:');
+  console.error('   NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+  console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅ Set' : '❌ Missing');
+  console.error('');
+  console.error('Please check your .env.local file and ensure these variables are set.');
+  console.error('');
+  console.error('Required variables:');
+  console.error('  NEXT_PUBLIC_SUPABASE_URL=your_supabase_url');
+  console.error('  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key');
+  process.exit(1);
+}
+
+// Create Supabase client using the service role key for admin operations
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const NFL_TEAMS = [

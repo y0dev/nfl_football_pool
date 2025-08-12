@@ -1,17 +1,18 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function loadPools() {
   try {
-    const { data: pools, error } = await supabase
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
       .from('pools')
       .select('*')
       .eq('is_active', true)
-      .order('name');
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return pools || [];
+    return data;
   } catch (error) {
     console.error('Error loading pools:', error);
-    throw error;
+    return [];
   }
 }

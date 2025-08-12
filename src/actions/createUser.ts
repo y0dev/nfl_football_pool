@@ -1,17 +1,18 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function createUser(userData: {
   name: string;
   email: string;
-  pool_id: string;
+  poolId: string;
 }) {
   try {
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('participants')
       .insert({
         name: userData.name,
         email: userData.email,
-        pool_id: userData.pool_id,
+        pool_id: userData.poolId,
         is_active: true
       })
       .select()

@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // Get weekly submissions for a pool
 export async function getWeeklySubmissions(poolId: string, week: number) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('picks')
       .select(`
         participant_id,
@@ -54,7 +54,7 @@ export async function getWeeklySubmissions(poolId: string, week: number) {
 export async function calculateWeeklyScores(poolId: string, week: number) {
   try {
     // Get all picks for the week
-    const { data: picks, error: picksError } = await supabase
+    const { data: picks, error: picksError } = await getSupabaseClient()
       .from('picks')
       .select(`
         participant_id,
@@ -122,7 +122,7 @@ export async function calculateWeeklyScores(poolId: string, week: number) {
 async function updateScoresInDatabase(poolId: string, week: number, scores: any[]) {
   try {
     // Delete existing scores for this week
-    await supabase
+    await getSupabaseClient()
       .from('scores')
       .delete()
       .eq('pool_id', poolId)
@@ -139,7 +139,7 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
       total_picks: score.total_picks
     }));
 
-    const { error } = await supabase
+    const { error } = await getSupabaseClient()
       .from('scores')
       .insert(scoresToInsert);
 
@@ -154,7 +154,7 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
 // Get quarterly standings (first 4 weeks)
 export async function getQuarterlyStandings(poolId: string) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('scores')
       .select(`
         participant_id,
@@ -218,7 +218,7 @@ export async function getQuarterlyStandings(poolId: string) {
 export async function exportToExcel(poolId: string, week: number) {
   try {
     // Get all picks for the week with game details
-    const { data: picks, error } = await supabase
+    const { data: picks, error } = await getSupabaseClient()
       .from('picks')
       .select(`
         participant_id,
@@ -238,7 +238,7 @@ export async function exportToExcel(poolId: string, week: number) {
     }
 
     // Get all games for the week
-    const { data: games } = await supabase
+    const { data: games } = await getSupabaseClient()
       .from('games')
       .select('*')
       .eq('week', week)
@@ -336,7 +336,7 @@ function downloadCSV(data: any[][], filename: string) {
 // Get all pools for admin
 export async function getAdminPools() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('pools')
       .select('*')
       .eq('is_active', true)
@@ -357,7 +357,7 @@ export async function getAdminPools() {
 // Get participants for a pool
 export async function getPoolParticipants(poolId: string) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('participants')
       .select('*')
       .eq('pool_id', poolId)
@@ -379,7 +379,7 @@ export async function getPoolParticipants(poolId: string) {
 // Add new participant to a pool
 export async function addParticipantToPool(poolId: string, name: string, email: string) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('participants')
       .insert({
         pool_id: poolId,
@@ -396,11 +396,11 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
     }
 
     // Log the action
-    await supabase
+    await getSupabaseClient()
       .from('audit_logs')
       .insert({
         action: 'add_participant',
-        admin_id: (await supabase.auth.getUser()).data.user?.id,
+        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
         entity: 'participants',
         entity_id: data.id,
         details: { pool_id: poolId, name, email }
@@ -416,7 +416,7 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
 // Remove participant from a pool
 export async function removeParticipantFromPool(participantId: string) {
   try {
-    const { error } = await supabase
+    const { error } = await getSupabaseClient()
       .from('participants')
       .update({ is_active: false })
       .eq('id', participantId);
@@ -427,11 +427,11 @@ export async function removeParticipantFromPool(participantId: string) {
     }
 
     // Log the action
-    await supabase
+    await getSupabaseClient()
       .from('audit_logs')
       .insert({
         action: 'remove_participant',
-        admin_id: (await supabase.auth.getUser()).data.user?.id,
+        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
         entity: 'participants',
         entity_id: participantId,
         details: { action: 'deactivated' }
@@ -448,7 +448,7 @@ export async function removeParticipantFromPool(participantId: string) {
 export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
   try {
     // Get all picks for the week with game details
-    const { data: picks, error } = await supabase
+    const { data: picks, error } = await getSupabaseClient()
       .from('picks')
       .select(`
         participant_id,
@@ -468,7 +468,7 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
     }
 
     // Get all games for the week
-    const { data: games } = await supabase
+    const { data: games } = await getSupabaseClient()
       .from('games')
       .select('*')
       .eq('week', week)
@@ -513,7 +513,7 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
 // Get games for a week
 export async function getWeekGames(week: number) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('games')
       .select('*')
       .eq('week', week)
