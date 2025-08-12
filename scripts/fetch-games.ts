@@ -289,23 +289,20 @@ async function main() {
     } else {
       console.log('⚠️  Mixed week range detected, fetching all season types...');
     }
+    let weekSeasonType = 2;
+    if (seasonType === 'preseason') {
+    weekSeasonType = 1;
+    } else if (seasonType === 'regular') {
+    weekSeasonType = 2;
+    } else if (seasonType === 'postseason') {
+    weekSeasonType = 3;
+    }
     
     // Fetch games for the specified week range
     for (let week = startWeek; week <= endWeek; week++) {
       console.log(`📋 Fetching games for Week ${week}...`);
       
       try {
-        // Determine season type for this specific week
-        let weekSeasonType: number;
-        if (week >= 1 && week <= 4) {
-          weekSeasonType = 1; // Preseason
-        } else if (week >= 5 && week <= 18) {
-          weekSeasonType = 2; // Regular season
-        } else if (week >= 19 && week <= 22) {
-          weekSeasonType = 3; // Postseason
-        } else {
-          weekSeasonType = 2; // Default to regular season
-        }
         
         const weekGames = await nflAPI.getWeekGames(currentSeason, weekSeasonType, week);
         console.log(`📊 Week ${week} Games:`, weekGames.length);
