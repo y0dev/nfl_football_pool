@@ -136,15 +136,20 @@ class EmailService {
         .cta-button {
             display: inline-block;
             background-color: #1a73e8;
-            color: white;
+            color: white !important;
             text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
+            padding: 16px 32px;
+            border-radius: 8px;
             font-weight: bold;
+            font-size: 18px;
             margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+            transition: all 0.3s ease;
         }
         .cta-button:hover {
             background-color: #1557b0;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(26, 115, 232, 0.4);
         }
         .footer {
             margin-top: 30px;
@@ -164,6 +169,23 @@ class EmailService {
             font-style: italic;
             color: #666;
             margin-top: 20px;
+        }
+        .link-section {
+            background-color: #e8f4fd;
+            border: 2px solid #1a73e8;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .link-text {
+            font-family: monospace;
+            background-color: #f1f3f4;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -190,7 +212,14 @@ class EmailService {
             <p>Don't forget to assign your confidence points (1-${data.gamesCount}) to each game. The higher the confidence, the more points you'll earn if you're right!</p>
             
             <div style="text-align: center;">
-                <a href="${data.poolUrl}" class="cta-button">Make Your Picks Now</a>
+                <a href="${data.poolUrl}" class="cta-button">🏈 Make Your Picks Now</a>
+            </div>
+            
+            <div class="link-section">
+                <h3>🔗 Direct Link to Your Pool</h3>
+                <p>If the button above doesn't work, copy and paste this link into your browser:</p>
+                <div class="link-text">${data.poolUrl}</div>
+                <p><small>This link will take you directly to Week ${data.weekNumber} picks for ${data.poolName}</small></p>
             </div>
             
             <div class="admin-info">
@@ -218,7 +247,10 @@ It's time to make your picks for ${data.poolName} - Week ${data.weekNumber}!
 
 Don't forget to assign your confidence points (1-${data.gamesCount}) to each game. The higher the confidence, the more points you'll earn if you're right!
 
-Make your picks here: ${data.poolUrl}
+🏈 Make your picks here: ${data.poolUrl}
+
+🔗 Direct Link: ${data.poolUrl}
+(This link will take you directly to Week ${data.weekNumber} picks for ${data.poolName})
 
 Sent by ${data.adminName}
 

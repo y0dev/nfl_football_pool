@@ -9,6 +9,7 @@ import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot
 import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
 import { EmailManagement } from '@/components/admin/email-management';
 import { SubmissionStatus } from '@/components/admin/submission-status';
+import { ParticipantLinks } from '@/components/admin/participant-links';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 
 export default function AdminDashboard() {
@@ -33,7 +34,7 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2"></div>
@@ -43,26 +44,34 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-4">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
         <p className="text-gray-600">Manage your NFL Confidence Pool</p>
       </div>
 
       <PoolDashboard />
 
       <Tabs defaultValue="overview" className="mt-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="submissions">Submissions</TabsTrigger>
-          <TabsTrigger value="emails">Emails</TabsTrigger>
-          <TabsTrigger value="scores">Scores</TabsTrigger>
-          <TabsTrigger value="tiebreakers">Tie-Breakers</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-1">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+          <TabsTrigger value="links" className="text-xs sm:text-sm">Links</TabsTrigger>
+          <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
+          <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
+          <TabsTrigger value="emails" className="text-xs sm:text-sm">Emails</TabsTrigger>
+          <TabsTrigger value="scores" className="text-xs sm:text-sm">Scores</TabsTrigger>
+          <TabsTrigger value="tiebreakers" className="text-xs sm:text-sm">Tie-Breakers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
           <SubmissionStatus poolId={selectedPool.id} />
+        </TabsContent>
+
+        <TabsContent value="links" className="space-y-6">
+          <ParticipantLinks 
+            poolId={selectedPool.id} 
+            poolName={selectedPool.name}
+          />
         </TabsContent>
 
         <TabsContent value="participants" className="space-y-6">

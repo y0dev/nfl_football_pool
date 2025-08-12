@@ -437,45 +437,6 @@ class NFLAPIService {
       return [];
     }
   }
-
-  // Get live game updates
-  async getLiveGames(season: number): Promise<NFLGame[]> {
-    try {
-      const data = await this.makeRequest('/scoreboard', { 
-        season: season.toString(),
-        live: 'true'
-      });
-      const response = data as ESPNScoreboardResponse;
-      
-      return (response.events || []).map((game: ESPNGame) => {
-        const competition = game.competitions?.[0];
-        if (!competition) return null;
-        
-        const homeTeam = competition.competitors?.find(c => c.homeAway === 'home');
-        const awayTeam = competition.competitors?.find(c => c.homeAway === 'away');
-        
-        if (!homeTeam || !awayTeam) return null;
-        
-        return {
-          id: game.id,
-          date: competition.date,
-          time: competition.date,
-          home_team: homeTeam.team.displayName,
-          away_team: awayTeam.team.displayName,
-          home_score: homeTeam.score ? parseInt(homeTeam.score) : undefined,
-          away_score: awayTeam.score ? parseInt(awayTeam.score) : undefined,
-          status: this.mapGameStatus(competition.status.type.state),
-          week: 0, // Would need to determine from game data
-          season: season,
-          home_team_id: homeTeam.team.id,
-          away_team_id: awayTeam.team.id,
-        };
-      }).filter(Boolean) as NFLGame[];
-    } catch (error) {
-      console.error('Failed to get live games:', error);
-      return [];
-    }
-  }
 }
 
 // Export singleton instance

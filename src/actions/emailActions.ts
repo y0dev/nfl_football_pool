@@ -116,7 +116,10 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
 
     const gamesCount = games?.length || 0;
     const deadline = params.deadline || 'Sunday at kickoff';
-    const poolUrl = params.poolUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/picks?pool=${params.poolId}&week=${params.weekNumber}`;
+    
+    // Generate proper participant link
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const poolUrl = `${baseUrl}/participant?pool=${params.poolId}&week=${params.weekNumber}`;
 
     // Prepare email reminders
     const reminders: PickReminderData[] = participants.map(participant => ({
