@@ -63,6 +63,9 @@ export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScr
 
     setIsGeneratingScreenshot(true);
     try {
+      // Add a small delay to ensure the DOM is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const canvas = await html2canvas(screenshotRef.current, {
         background: '#ffffff',
         useCORS: true,
@@ -80,17 +83,32 @@ export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScr
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
+          
+          toast({
+            title: "Success",
+            description: "Screenshot generated and downloaded",
+          });
+        } else {
+          throw new Error('Failed to create blob from canvas');
         }
-      }, 'image/png');
+      }, 'image/png', 0.9);
 
-      toast({
-        title: "Success",
-        description: "Screenshot generated and downloaded",
-      });
     } catch (error) {
+      console.error('Screenshot generation error:', error);
+      
+      // Provide a helpful error message
+      let errorMessage = "Failed to generate screenshot";
+      if (error instanceof Error) {
+        if (error.message.includes('foreignObjectRendering')) {
+          errorMessage = "Screenshot generation failed due to browser compatibility. Try using the 'Copy to Text' option instead.";
+        } else if (error.message.includes('canvas')) {
+          errorMessage = "Screenshot generation failed. Try refreshing the page and try again.";
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to generate screenshot",
+        title: "Screenshot Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

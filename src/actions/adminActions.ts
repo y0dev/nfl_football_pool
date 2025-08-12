@@ -357,6 +357,14 @@ export async function getAdminPools() {
 // Get participants for a pool
 export async function getPoolParticipants(poolId: string) {
   try {
+    // Validate input
+    if (!poolId || typeof poolId !== 'string') {
+      console.error('Invalid poolId provided to getPoolParticipants:', poolId);
+      return [];
+    }
+
+    console.log('getPoolParticipants called with poolId:', poolId);
+
     const { data, error } = await getSupabaseClient()
       .from('participants')
       .select('*')
@@ -369,6 +377,7 @@ export async function getPoolParticipants(poolId: string) {
       return [];
     }
 
+    console.log('getPoolParticipants result:', { count: data?.length || 0, data });
     return data || [];
   } catch (error) {
     console.error('Failed to get pool participants:', error);
@@ -447,44 +456,72 @@ export async function removeParticipantFromPool(participantId: string) {
 // Get all submissions for a week in a format suitable for screenshot
 export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
   try {
-    // Get all picks for the week with game details
-    const { data: picks, error } = await getSupabaseClient()
-      .from('picks')
-      .select(`
-        participant_id,
-        participants!inner(name),
-        predicted_winner,
-        confidence_points,
-        game_id,
-        games!inner(home_team, away_team, kickoff_time)
-      `)
-      .eq('pool_id', poolId)
-      .eq('games.week', week)
-      .order('participants.name', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching picks for screenshot:', error);
-      return null;
-    }
-
-    // Get all games for the week
-    const { data: games } = await getSupabaseClient()
+    console.log('getWeeklySubmissionsForScreenshot called with:', { poolId, week });
+    
+    // First get all games for the week
+    const { data: games, error: gamesError } = await getSupabaseClient()
       .from('games')
       .select('*')
       .eq('week', week)
       .order('kickoff_time', { ascending: true });
 
-    if (!games) {
-      console.error('No games found for week', week);
+    if (gamesError) {
+      console.error('Error fetching games for screenshot:', gamesError);
       return null;
     }
+
+    if (!games || games.length === 0) {
+      console.log('No games found for week:', week);
+      return { games: [], participants: [] };
+    }
+
+    console.log(`Found ${games.length} games for week ${week}`);
+
+    // Get game IDs for this week
+    const gameIds = games.map(game => game.id);
+    console.log('Game IDs:', gameIds);
+
+    // Get all picks for the week
+    const { data: picks, error: picksError } = await getSupabaseClient()
+      .from('picks')
+      .select(`
+        participant_id,
+        predicted_winner,
+        confidence_points,
+        game_id
+      `)
+      .eq('pool_id', poolId)
+      .in('game_id', gameIds);
+
+    if (picksError) {
+      console.error('Error fetching picks for screenshot:', picksError);
+      return null;
+    }
+
+    console.log(`Found ${picks?.length || 0} picks for week ${week}`);
+
+    // Get all participants in the pool
+    const { data: participants, error: participantsError } = await getSupabaseClient()
+      .from('participants')
+      .select('id, name')
+      .eq('pool_id', poolId);
+
+    if (participantsError) {
+      console.error('Error fetching participants for screenshot:', participantsError);
+      return null;
+    }
+
+    console.log(`Found ${participants?.length || 0} participants in pool`);
+
+    // Create a map of participant names
+    const participantNames = new Map(participants?.map(p => [p.id, p.name]) || []);
 
     // Group picks by participant
     const participantsMap = new Map();
     
     picks?.forEach((pick: any) => {
       const participantId = pick.participant_id;
-      const participantName = pick.participants.name;
+      const participantName = participantNames.get(participantId) || 'Unknown';
       
       if (!participantsMap.has(participantId)) {
         participantsMap.set(participantId, {
@@ -500,10 +537,17 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
       });
     });
 
-    return {
+    const result = {
       games,
       participants: Array.from(participantsMap.values())
     };
+
+    console.log('Screenshot data prepared:', {
+      gamesCount: games.length,
+      participantsCount: participantsMap.size
+    });
+
+    return result;
   } catch (error) {
     console.error('Failed to get submissions for screenshot:', error);
     return null;

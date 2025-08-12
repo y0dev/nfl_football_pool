@@ -31,12 +31,30 @@ function ParticipantContent() {
       try {
         setIsLoading(true);
         
-        // Load current week if not provided in URL
-        if (!weekParam) {
+        // Load current week if not provided in URL or if week parameter is empty
+        if (!weekParam || weekParam === '') {
           const weekData = await loadCurrentWeek();
           setCurrentWeek(weekData.week_number);
+          // Show a helpful message for empty week parameter
+          toast({
+            title: "Week not specified",
+            description: `Showing current week (Week ${weekData.week_number})`,
+            duration: 3000,
+          });
         } else {
-          setCurrentWeek(parseInt(weekParam));
+          const weekNumber = parseInt(weekParam);
+          if (isNaN(weekNumber) || weekNumber < 1) {
+            // Invalid week number, use current week
+            const weekData = await loadCurrentWeek();
+            setCurrentWeek(weekData.week_number);
+            toast({
+              title: "Invalid week number",
+              description: `Showing current week (Week ${weekData.week_number}) instead`,
+              duration: 3000,
+            });
+          } else {
+            setCurrentWeek(weekNumber);
+          }
         }
 
         // Load pool information
@@ -46,17 +64,17 @@ function ParticipantContent() {
           if (pool) {
             setPoolName(pool.name);
           } else {
-            setError('Pool not found');
+            setError('Pool not found. Please check the pool link.');
           }
         } else {
-          setError('Pool ID is required');
+          setError('Pool ID is required. Please use a valid pool link.');
         }
-      } catch (error) {
-        console.error('Error loading participant data:', error);
-        setError('Failed to load pool information');
-      } finally {
-        setIsLoading(false);
-      }
+              } catch (error) {
+          console.error('Error loading participant data:', error);
+          setError('Failed to load pool information. Please try again or contact the pool administrator.');
+        } finally {
+          setIsLoading(false);
+        }
     };
 
     loadData();
@@ -101,19 +119,31 @@ function ParticipantContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Floating Back Button for Mobile */}
+      <div className="fixed top-4 left-4 z-50 sm:hidden">
+        <Link href="/">
+          <Button variant="outline" size="sm" className="shadow-lg">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+      
       <div className="container mx-auto p-4">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-6 w-6 text-blue-600" />
-              <h1 className="text-2xl font-bold">NFL Confidence Pool</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Back to Home</span>
+                  <span className="sm:hidden">Back</span>
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-6 w-6 text-blue-600" />
+                <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+              </div>
             </div>
           </div>
           
@@ -155,7 +185,7 @@ function ParticipantContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <WeeklyPick poolId={poolId!} />
+                <WeeklyPick poolId={poolId!} weekNumber={currentWeek} />
               </CardContent>
             </Card>
           </TabsContent>

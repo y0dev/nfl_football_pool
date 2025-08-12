@@ -8,8 +8,10 @@ import { ParticipantManagement } from '@/components/admin/participant-management
 import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot';
 import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
 import { EmailManagement } from '@/components/admin/email-management';
+import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { SubmissionStatus } from '@/components/admin/submission-status';
 import { ParticipantLinks } from '@/components/admin/participant-links';
+import { TestPicks } from '@/components/admin/test-picks';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider } from '@/lib/auth';
 
@@ -57,8 +59,9 @@ export default function AdminDashboard() {
         <PoolDashboard />
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-1">
             <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
             <TabsTrigger value="links" className="text-xs sm:text-sm">Links</TabsTrigger>
             <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
             <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
@@ -69,6 +72,13 @@ export default function AdminDashboard() {
 
           <TabsContent value="overview" className="space-y-6">
             <SubmissionStatus poolId={selectedPool.id} />
+          </TabsContent>
+
+          <TabsContent value="test-picks" className="space-y-6">
+            <TestPicks 
+              poolId={selectedPool.id} 
+              poolName={selectedPool.name}
+            />
           </TabsContent>
 
           <TabsContent value="links" className="space-y-6">
@@ -94,7 +104,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="emails" className="space-y-6">
-            <EmailManagement 
+            <EnhancedEmailManagement 
               poolId={selectedPool.id}
               weekNumber={currentWeek}
               adminId="1" // This should be dynamic based on logged in admin

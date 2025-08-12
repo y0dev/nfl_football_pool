@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Share2, Copy, Check, Smartphone, Mail, MessageCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Share2, Copy, Check, Smartphone, Mail, Calendar } from 'lucide-react';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useToast } from '@/hooks/use-toast';
 
@@ -17,17 +18,29 @@ interface SharePoolButtonProps {
 export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
+  const [selectedWeek, setSelectedWeek] = useState(1);
   const [shareUrl, setShareUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     const loadWeek = async () => {
       try {
         const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
+        const week = weekData?.week_number || 1;
+        setCurrentWeek(week);
+        setSelectedWeek(week);
+        
+        // Generate available weeks (1-18 for regular season)
+        const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+        setAvailableWeeks(weeks);
       } catch (error) {
         console.error('Error loading current week:', error);
+        // Fallback to week 1
+        setCurrentWeek(1);
+        setSelectedWeek(1);
+        setAvailableWeeks(Array.from({ length: 18 }, (_, i) => i + 1));
       }
     };
     loadWeek();
@@ -35,9 +48,9 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${currentWeek}`;
+    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}`;
     setShareUrl(url);
-  }, [poolId, currentWeek]);
+  }, [poolId, selectedWeek]);
 
   const handleCopy = async () => {
     try {
@@ -45,7 +58,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
       setCopied(true);
       toast({
         title: "Copied!",
-        description: "Pool link copied to clipboard",
+        description: `Pool link for Week ${selectedWeek} copied to clipboard`,
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -62,8 +75,8 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Join ${poolName} - NFL Confidence Pool`,
-          text: `Join my NFL Confidence Pool for Week ${currentWeek}!`,
+          title: `Join ${poolName} - NFL Confidence Pool Week ${selectedWeek}`,
+          text: `Join my NFL Confidence Pool for Week ${selectedWeek}!`,
           url: shareUrl,
         });
       } catch (error) {
@@ -83,20 +96,16 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   };
 
   const handleEmailShare = () => {
-    const subject = encodeURIComponent(`Join ${poolName} - NFL Confidence Pool Week ${currentWeek}`);
+    const subject = encodeURIComponent(`Join ${poolName} - NFL Confidence Pool Week ${selectedWeek}`);
     const body = encodeURIComponent(
-      `Hi!\n\nI'd like to invite you to join my NFL Confidence Pool for Week ${currentWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
+      `Hi!\n\nI'd like to invite you to join my NFL Confidence Pool for Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
     );
     const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
     window.open(mailtoUrl);
   };
 
-  const handleSMSShare = () => {
-    const message = encodeURIComponent(
-      `Join my NFL Confidence Pool for Week ${currentWeek}! ${shareUrl}`
-    );
-    const smsUrl = `sms:?body=${message}`;
-    window.open(smsUrl);
+  const handleTestPicks = () => {
+    window.open(shareUrl, '_blank');
   };
 
   return (
@@ -111,13 +120,41 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
         <DialogHeader>
           <DialogTitle>Share Pool</DialogTitle>
           <DialogDescription>
-            Share this link with participants to join {poolName} for Week {currentWeek}
+            Share this link with participants to join {poolName}
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Week Selector */}
           <div>
-            <Label htmlFor="share-url">Pool Link</Label>
+            <Label htmlFor="week-select">Select Week</Label>
+            <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a week" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableWeeks && availableWeeks.length > 0 ? (
+                  availableWeeks.map((week) => (
+                    <SelectItem key={week} value={week.toString()}>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Week {week}
+                        {week === currentWeek && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Current</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="1">Week 1</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Pool Link */}
+          <div>
+            <Label htmlFor="share-url">Pool Link for Week {selectedWeek}</Label>
             <div className="flex gap-2">
               <Input
                 id="share-url"
@@ -146,6 +183,19 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
             </div>
           </div>
 
+          {/* Test Picks Button */}
+          <div>
+            <Button
+              onClick={handleTestPicks}
+              variant="secondary"
+              className="w-full flex items-center gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              Test Week {selectedWeek} Picks
+            </Button>
+          </div>
+
+          {/* Share Options */}
           <div className="space-y-2">
             <Label>Share via:</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -167,21 +217,13 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
                 <Mail className="h-4 w-4" />
                 Email
               </Button>
-              <Button
-                onClick={handleSMSShare}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <MessageCircle className="h-4 w-4" />
-                SMS
-              </Button>
             </div>
           </div>
 
           <div className="bg-blue-50 p-3 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Note:</strong> This link will take participants directly to Week {currentWeek} picks for {poolName}.
+              <strong>Note:</strong> This link will take participants directly to Week {selectedWeek} picks for {poolName}.
+              {selectedWeek === currentWeek && " (Current Week)"}
             </p>
           </div>
         </div>

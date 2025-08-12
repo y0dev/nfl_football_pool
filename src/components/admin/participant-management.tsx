@@ -205,6 +205,35 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     URL.revokeObjectURL(url);
   };
 
+  const addTestParticipants = async () => {
+    const testParticipants = [
+      { name: 'John Smith', email: 'john.smith@example.com' },
+      { name: 'Sarah Johnson', email: 'sarah.johnson@example.com' },
+      { name: 'Mike Davis', email: 'mike.davis@example.com' },
+      { name: 'Lisa Wilson', email: 'lisa.wilson@example.com' },
+      { name: 'David Brown', email: 'david.brown@example.com' }
+    ];
+
+    try {
+      for (const participant of testParticipants) {
+        await addParticipantToPool(poolId, participant.name, participant.email);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Added ${testParticipants.length} test participants to the pool`,
+      });
+      
+      loadParticipants(); // Refresh the list
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add some test participants",
+        variant: "destructive",
+      });
+    }
+  };
+
   const activeParticipants = filteredParticipants.filter(p => p.is_active);
 
   return (
@@ -222,6 +251,15 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
             </CardDescription>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addTestParticipants}
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Add Test Data
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -367,8 +405,35 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                 ))}
                 {activeParticipants.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500 text-sm">
-                      {searchTerm ? 'No participants match your search.' : 'No participants yet. Add some users to get started!'}
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="space-y-4">
+                        <div className="text-gray-500 text-sm">
+                          {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
+                        </div>
+                        {!searchTerm && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600">
+                              Add participants to your pool so they can make picks:
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                              <AddUserDialog 
+                                poolId={poolId} 
+                                poolName={poolName} 
+                                onUserAdded={loadParticipants}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setBulkAddDialogOpen(true)}
+                                className="flex items-center gap-2"
+                              >
+                                <Upload className="h-4 w-4" />
+                                Bulk Add
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}

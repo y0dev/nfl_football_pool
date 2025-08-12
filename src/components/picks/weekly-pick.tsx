@@ -16,6 +16,7 @@ import { Clock, Save, AlertTriangle } from 'lucide-react';
 
 interface WeeklyPickProps {
   poolId: string;
+  weekNumber?: number;
 }
 
 interface Game {
@@ -35,7 +36,7 @@ interface Pick {
   confidence_points: number;
 }
 
-export function WeeklyPick({ poolId }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -54,10 +55,15 @@ export function WeeklyPick({ poolId }: WeeklyPickProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData.week_number);
+        // Use provided week number or load current week
+        let weekToUse = weekNumber;
+        if (!weekToUse) {
+          const weekData = await loadCurrentWeek();
+          weekToUse = weekData.week_number;
+        }
+        setCurrentWeek(weekToUse);
         
-        const gamesData = await loadWeekGames(weekData.week_number);
+        const gamesData = await loadWeekGames(weekToUse);
         setGames(gamesData);
         
         // Initialize picks array
@@ -80,7 +86,7 @@ export function WeeklyPick({ poolId }: WeeklyPickProps) {
     };
 
     loadData();
-  }, [poolId, toast]);
+  }, [poolId, weekNumber, toast]);
 
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
@@ -251,7 +257,9 @@ export function WeeklyPick({ poolId }: WeeklyPickProps) {
   // Handle user selection
   const handleUserSelected = (user: any) => {
     setSelectedUser(user);
-    userSessionManager.createSession(user.id, user.name, poolId, currentWeek);
+    // Note: We'll need to get the pool name and access code from the user selection
+    // For now, we'll use a default pool name and access code
+    userSessionManager.createSession(user.id, user.name, poolId, 'NFL Pool', 'DEFAULT');
   };
 
   // Handle user change
@@ -265,7 +273,7 @@ export function WeeklyPick({ poolId }: WeeklyPickProps) {
   };
 
   if (!selectedUser) {
-    return <PickUserSelection poolId={poolId} onUserSelected={handleUserSelected} />;
+    return <PickUserSelection poolId={poolId} weekNumber={currentWeek} onUserSelected={handleUserSelected} />;
   }
 
   return (

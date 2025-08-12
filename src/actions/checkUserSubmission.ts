@@ -44,6 +44,14 @@ export async function checkUserSubmission(participantId: string, poolId: string,
 
 export async function getUsersWhoSubmitted(poolId: string, week: number) {
   try {
+    console.log('getUsersWhoSubmitted called with:', { poolId, week });
+    
+    // Validate inputs
+    if (!poolId || !week || week < 1) {
+      console.log('Invalid inputs provided to getUsersWhoSubmitted');
+      return [];
+    }
+    
     const supabase = getSupabaseClient();
     
     // First get the games for this week
@@ -52,16 +60,20 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
       .select('id')
       .eq('week', week);
 
+    console.log('Games query result:', { games, gamesError });
+
     if (gamesError) {
       console.error('Error getting games for week:', gamesError);
       return [];
     }
 
     if (!games || games.length === 0) {
+      console.log('No games found for week:', week);
       return [];
     }
 
     const gameIds = games.map(game => game.id);
+    console.log('Game IDs found:', gameIds);
 
     // Then get users who submitted picks for these games
     const { data: picks, error } = await supabase
@@ -70,13 +82,17 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
       .eq('pool_id', poolId)
       .in('game_id', gameIds);
 
+    console.log('Picks query result:', { picks, error });
+
     if (error) {
       console.error('Error getting users who submitted:', error);
       return [];
     }
 
     // Return unique participant IDs
-    return [...new Set(picks?.map(pick => pick.participant_id) || [])];
+    const uniqueParticipantIds = [...new Set(picks?.map(pick => pick.participant_id) || [])];
+    console.log('Unique participant IDs:', uniqueParticipantIds);
+    return uniqueParticipantIds;
   } catch (error) {
     console.error('Error getting users who submitted:', error);
     return [];

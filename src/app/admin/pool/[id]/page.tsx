@@ -16,6 +16,8 @@ import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
 import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot';
 import { EmailManagement } from '@/components/admin/email-management';
+import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
+import { TestPicks } from '@/components/admin/test-picks';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 
 interface Pool {
@@ -203,10 +205,11 @@ export default function PoolDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-4 sm:p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
+        {/* Back Button */}
+        <div className="mb-4">
           <Button
             variant="outline"
             size="sm"
@@ -216,11 +219,15 @@ export default function PoolDetailsPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
           </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold">{pool.name}</h1>
-            <p className="text-gray-600">Pool Management</p>
+        </div>
+
+        {/* Pool Title and Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold truncate">{pool.name}</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Pool Management</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SharePoolButton poolId={pool.id} poolName={pool.name} />
             <Button
               variant="outline"
@@ -229,7 +236,7 @@ export default function PoolDetailsPage() {
               className="flex items-center gap-2"
             >
               {isEditing ? <X className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
-              {isEditing ? 'Cancel' : 'Edit'}
+              <span className="hidden sm:inline">{isEditing ? 'Cancel' : 'Edit'}</span>
             </Button>
             {isEditing && (
               <Button
@@ -238,24 +245,25 @@ export default function PoolDetailsPage() {
                 className="flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save'}
+                <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
               </Button>
             )}
           </div>
         </div>
 
         {/* Pool Status */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm">
           <Badge variant={pool.is_active ? "default" : "secondary"}>
             {pool.is_active ? "Active" : "Inactive"}
           </Badge>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Calendar className="h-4 w-4" />
+          <div className="flex items-center gap-1 sm:gap-2 text-gray-600">
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
             <span>Season {pool.season}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Users className="h-4 w-4" />
-            <span>Created by {pool.created_by}</span>
+          <div className="flex items-center gap-1 sm:gap-2 text-gray-600">
+            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Created by {pool.created_by}</span>
+            <span className="sm:hidden">By {pool.created_by}</span>
           </div>
         </div>
       </div>
@@ -272,7 +280,7 @@ export default function PoolDetailsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="name">Pool Name</Label>
               <Input
@@ -280,6 +288,7 @@ export default function PoolDetailsPage() {
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 disabled={!isEditing}
+                className="w-full"
               />
             </div>
             <div>
@@ -290,6 +299,7 @@ export default function PoolDetailsPage() {
                 value={editForm.season}
                 onChange={(e) => setEditForm({ ...editForm, season: parseInt(e.target.value) })}
                 disabled={!isEditing}
+                className="w-full"
               />
             </div>
           </div>
@@ -302,10 +312,11 @@ export default function PoolDetailsPage() {
               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               disabled={!isEditing}
               rows={3}
+              className="w-full resize-none"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="tie_breaker_method">Tie Breaker Method</Label>
               <Input
@@ -314,6 +325,7 @@ export default function PoolDetailsPage() {
                 onChange={(e) => setEditForm({ ...editForm, tie_breaker_method: e.target.value })}
                 disabled={!isEditing}
                 placeholder="e.g., Total Points"
+                className="w-full"
               />
             </div>
             <div>
@@ -324,6 +336,7 @@ export default function PoolDetailsPage() {
                 onChange={(e) => setEditForm({ ...editForm, tie_breaker_question: e.target.value })}
                 disabled={!isEditing}
                 placeholder="e.g., Total points in Monday night game"
+                className="w-full"
               />
             </div>
             <div>
@@ -335,6 +348,7 @@ export default function PoolDetailsPage() {
                 onChange={(e) => setEditForm({ ...editForm, tie_breaker_answer: parseInt(e.target.value) })}
                 disabled={!isEditing}
                 placeholder="0"
+                className="w-full"
               />
             </div>
           </div>
@@ -355,15 +369,23 @@ export default function PoolDetailsPage() {
 
       {/* Pool Management Tabs */}
       <Tabs defaultValue="participants" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="submissions">Submissions</TabsTrigger>
-          <TabsTrigger value="emails">Emails</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
+          <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
+          <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
+          <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
+          <TabsTrigger value="emails" className="text-xs sm:text-sm">Emails</TabsTrigger>
+          <TabsTrigger value="settings" className="text-xs sm:text-sm">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="participants" className="space-y-6">
           <ParticipantManagement 
+            poolId={pool.id} 
+            poolName={pool.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="test-picks" className="space-y-6">
+          <TestPicks 
             poolId={pool.id} 
             poolName={pool.name}
           />
@@ -378,7 +400,7 @@ export default function PoolDetailsPage() {
         </TabsContent>
 
         <TabsContent value="emails" className="space-y-6">
-          <EmailManagement 
+          <EnhancedEmailManagement 
             poolId={pool.id}
             weekNumber={currentWeek}
             adminId="1" // This should be dynamic based on logged in admin

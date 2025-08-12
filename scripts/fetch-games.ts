@@ -372,20 +372,49 @@ async function main() {
     // write gamesToInsert to a file
     fs.writeFileSync('gamesToInsert.json', JSON.stringify(gamesToInsert, null, 2));
 
-  // Clear existing games for the season and week range
-  console.log(`🗑️  Clearing existing games for season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
-  const { error: deleteError } = await supabase
+  // Check for existing games and filter out duplicates
+  console.log(`🔍 Checking for existing games in season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
+  const { data: existingGames, error: existingError } = await supabase
     .from('games')
-    .delete()
+    .select('id, week, home_team, away_team')
     .eq('season', currentSeason)
     .gte('week', startWeek)
     .lte('week', endWeek);
 
-  if (deleteError) {
-    console.error('❌ Error clearing existing games:', deleteError);
-  } else {
-    console.log('✅ Cleared existing games in range');
+  if (existingError) {
+    console.error('❌ Error checking existing games:', existingError);
+    return;
   }
+
+  // Create a set of existing game identifiers for quick lookup
+  const existingGameIds = new Set(existingGames?.map(game => game.id) || []);
+  const existingGameKeys = new Set(
+    existingGames?.map(game => `${game.week}-${game.home_team}-${game.away_team}`) || []
+  );
+
+  console.log(`📊 Found ${existingGames?.length || 0} existing games in range`);
+
+  // Filter out games that already exist
+  const newGamesToInsert = gamesToInsert.filter(game => {
+    const gameKey = `${game.week}-${game.home_team}-${game.away_team}`;
+    const alreadyExists = existingGameIds.has(game.id) || existingGameKeys.has(gameKey);
+    
+    if (alreadyExists) {
+      console.log(`⏭️  Skipping existing game: ${game.away_team} @ ${game.home_team} (Week ${game.week})`);
+    }
+    
+    return !alreadyExists;
+  });
+
+  if (newGamesToInsert.length === 0) {
+    console.log('✅ All games already exist in database. No new games to insert.');
+    return;
+  }
+
+  console.log(`📦 Found ${newGamesToInsert.length} new games to insert (skipped ${gamesToInsert.length - newGamesToInsert.length} existing games)`);
+  
+  // Update gamesToInsert to only include new games
+  gamesToInsert = newGamesToInsert;
 
   // Insert games in batches
   const batchSize = 50;

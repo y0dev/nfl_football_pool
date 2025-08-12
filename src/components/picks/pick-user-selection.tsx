@@ -12,10 +12,11 @@ import { userSessionManager } from '@/lib/user-session';
 
 interface PickUserSelectionProps {
   poolId: string;
+  weekNumber?: number;
   onUserSelected: (userId: string, userName: string) => void;
 }
 
-export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionProps) {
+export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUserSelectionProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [accessCode, setAccessCode] = useState('');
@@ -41,12 +42,16 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
     try {
       setIsLoading(true);
       
-      // Load current week
-      const weekData = await loadCurrentWeek();
-      setCurrentWeek(weekData?.week_number || 1);
+      // Use provided week number or load current week
+      let weekToUse = weekNumber;
+      if (!weekToUse) {
+        const weekData = await loadCurrentWeek();
+        weekToUse = weekData?.week_number || 1;
+      }
+      setCurrentWeek(weekToUse);
       
       // Load users who haven't submitted picks
-      const availableUsers = await loadUsers(poolId, weekData?.week_number || 1);
+      const availableUsers = await loadUsers(poolId, weekToUse);
       setUsers(availableUsers);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -157,13 +162,30 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
     return (
       <Card>
         <CardHeader>
-          <CardTitle>No Users Available</CardTitle>
-          <CardDescription>All users have submitted their picks for Week {currentWeek}</CardDescription>
+          <CardTitle>No Participants Available</CardTitle>
+          <CardDescription>
+            {currentWeek ? `No participants found for Week ${currentWeek}` : 'No participants found in this pool'}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-center text-gray-500">
-            Everyone has already made their picks for this week!
-          </p>
+        <CardContent className="space-y-4">
+          <div className="text-center space-y-2">
+            <p className="text-gray-500">
+              {currentWeek ? 
+                'All participants have already submitted their picks for this week!' :
+                'No participants have been added to this pool yet.'
+              }
+            </p>
+            {!currentWeek && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Admin Action Required:</strong> The pool administrator needs to add participants to this pool before picks can be made.
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  Please contact the pool administrator or use the admin dashboard to add participants.
+                </p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     );

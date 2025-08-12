@@ -5,20 +5,28 @@ export async function loadUsers(poolId?: string, week?: number) {
   try {
     // If poolId and week are provided, exclude users who have already submitted picks
     if (poolId && week) {
-      // Get participants who have already submitted picks for this week
-      const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week);
-      
-      // Query participants excluding those who have submitted
-      if (submittedParticipantIds.length > 0) {
-        const { data: participants, error } = await getSupabaseClient()
-          .from('participants')
-          .select('*')
-          .eq('is_active', true)
-          .not('id', 'in', submittedParticipantIds)
-          .order('name');
+      try {
+        // Get participants who have already submitted picks for this week
+        const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week);
+        
+        // Query participants excluding those who have submitted
+        if (submittedParticipantIds.length > 0) {
+          const { data: participants, error } = await getSupabaseClient()
+            .from('participants')
+            .select('*')
+            .eq('is_active', true)
+            .not('id', 'in', submittedParticipantIds)
+            .order('name');
 
-        if (error) throw error;
-        return participants || [];
+          if (error) {
+            console.error('Error querying participants (excluding submitted):', error);
+            throw error;
+          }
+          return participants || [];
+        }
+      } catch (error) {
+        console.error('Error in loadUsers when filtering submitted users:', error);
+        // Fall back to loading all users if there's an error
       }
     }
 
@@ -29,7 +37,11 @@ export async function loadUsers(poolId?: string, week?: number) {
       .eq('is_active', true)
       .order('name');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error querying all participants:', error);
+      throw error;
+    }
+    
     return participants || [];
   } catch (error) {
     console.error('Error loading users:', error);
