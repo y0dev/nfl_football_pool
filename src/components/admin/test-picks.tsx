@@ -18,9 +18,16 @@ interface TestPicksProps {
 export function TestPicks({ poolId, poolName }: TestPicksProps) {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(2); // Default to regular season
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [testUrl, setTestUrl] = useState('');
   const { toast } = useToast();
+
+  const seasonTypeOptions = [
+    { value: 1, label: 'Preseason', weeks: [1, 2, 3, 4] },
+    { value: 2, label: 'Regular Season', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
+    { value: 3, label: 'Postseason', weeks: [19, 20, 21, 22] }
+  ];
 
   useEffect(() => {
     const loadWeek = async () => {
@@ -30,25 +37,25 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
         setCurrentWeek(week);
         setSelectedWeek(week);
         
-        // Generate available weeks (1-18 for regular season)
-        const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
-        setAvailableWeeks(weeks);
+        // Set available weeks based on selected season type
+        const currentSeasonType = seasonTypeOptions.find(option => option.value === selectedSeasonType);
+        setAvailableWeeks(currentSeasonType?.weeks || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
       } catch (error) {
         console.error('Error loading current week:', error);
         // Fallback to week 1
         setCurrentWeek(1);
         setSelectedWeek(1);
-        setAvailableWeeks(Array.from({ length: 18 }, (_, i) => i + 1));
+        setAvailableWeeks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
       }
     };
     loadWeek();
-  }, []);
+  }, [selectedSeasonType]);
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}`;
+    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=${selectedSeasonType}`;
     setTestUrl(url);
-  }, [poolId, selectedWeek]);
+  }, [poolId, selectedWeek, selectedSeasonType]);
 
   const handleTestPicks = () => {
     window.open(testUrl, '_blank');
@@ -57,9 +64,10 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(testUrl);
+      const seasonTypeLabel = seasonTypeOptions.find(opt => opt.value === selectedSeasonType)?.label;
       toast({
         title: "Copied!",
-        description: `Test link for Week ${selectedWeek} copied to clipboard`,
+        description: `${seasonTypeLabel} Week ${selectedWeek} test link copied to clipboard`,
       });
     } catch (error) {
       console.error('Failed to copy:', error);
@@ -99,26 +107,61 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="test-week-select">Week</Label>
-            <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a week" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableWeeks.map((week) => (
-                  <SelectItem key={week} value={week.toString()}>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Week {week}
-                      {week === currentWeek && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Current</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="test-season-type-select">Season Type</Label>
+              <Select 
+                value={selectedSeasonType.toString()} 
+                onValueChange={(value) => {
+                  const newSeasonType = parseInt(value);
+                  setSelectedSeasonType(newSeasonType);
+                  // Reset to first week of the new season type
+                  const newSeasonTypeOption = seasonTypeOptions.find(option => option.value === newSeasonType);
+                  if (newSeasonTypeOption && newSeasonTypeOption.weeks.length > 0) {
+                    setSelectedWeek(newSeasonTypeOption.weeks[0]);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select season type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasonTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value.toString()}>
+                      <div className="flex items-center gap-2">
+                        {option.value === 1 && <span className="text-orange-600">🏈</span>}
+                        {option.value === 2 && <span className="text-blue-600">🏆</span>}
+                        {option.value === 3 && <span className="text-purple-600">🎯</span>}
+                        {option.label}
+                        <span className="text-xs text-gray-500">({option.weeks.length} weeks)</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="test-week-select">Week</Label>
+              <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a week" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableWeeks.map((week) => (
+                    <SelectItem key={week} value={week.toString()}>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Week {week}
+                        {week === currentWeek && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Current</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Test URL Display */}
@@ -149,7 +192,7 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
             className="w-full flex items-center gap-2"
           >
             <ExternalLink className="h-4 w-4" />
-            Test Week {selectedWeek} Picks
+            Test {seasonTypeOptions.find(opt => opt.value === selectedSeasonType)?.label} Week {selectedWeek} Picks
           </Button>
         </CardContent>
       </Card>

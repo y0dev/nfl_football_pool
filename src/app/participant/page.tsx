@@ -161,7 +161,16 @@ function ParticipantContent() {
 
         // Load games for the week
         try {
-          const seasonType = getSeasonTypeFromWeek(currentWeek);
+          // Use season type from URL parameter if provided (for testing), otherwise determine from week
+          let seasonType: number;
+          if (seasonTypeParam) {
+            seasonType = parseInt(seasonTypeParam);
+            console.log(`Using season type from URL parameter: ${seasonType}`);
+          } else {
+            seasonType = getSeasonTypeFromWeek(currentWeek);
+            console.log(`Determined season type from week: ${seasonType}`);
+          }
+          
           console.log(`Loading games for Week ${currentWeek}, Season Type: ${seasonType}`);
           const gamesData = await loadWeekGames(currentWeek, seasonType);
           setGames(gamesData);
@@ -341,6 +350,15 @@ function ParticipantContent() {
                   <span className="text-sm text-gray-500">
                     {games.length} games
                   </span>
+                  {(() => {
+                    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : getSeasonTypeFromWeek(currentWeek);
+                    const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                    return (
+                      <Badge variant="secondary" className="text-xs">
+                        {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 {lastUpdated && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
