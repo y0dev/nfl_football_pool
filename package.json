@@ -15,8 +15,11 @@
     "fetch-games-help": "tsx scripts/fetch-games.ts --help",
     "fetch-games-week": "tsx scripts/fetch-games.ts --start-week",
     "fetch-games-range": "tsx scripts/fetch-games.ts --start-week",
-    "fetch-games-playoffs": "tsx scripts/fetch-games.ts --start-week 19 --end-week 22",
-    "fetch-games-regular": "tsx scripts/fetch-games.ts --no-playoffs"
+    "fetch-games-regular": "tsx scripts/fetch-games.ts --no-playoffs",
+    "fetch-games-preseason": "tsx scripts/fetch-games.ts --preseason",
+    "fetch-games-regular-only": "tsx scripts/fetch-games.ts --regular",
+    "fetch-games-postseason": "tsx scripts/fetch-games.ts --postseason",
+    "fetch-games-all": "npm run fetch-games-preseason && npm run fetch-games-regular-only && npm run fetch-games-postseason"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

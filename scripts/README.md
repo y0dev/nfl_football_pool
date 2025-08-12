@@ -64,7 +64,7 @@ npm run fetch-teams
 ---
 
 ### 4. `fetch-games.ts` - NFL Games Data
-**Purpose**: Fetches NFL games from API and adds them to the games table.
+**Purpose**: Fetches NFL games from ESPN API and adds them to the games table.
 
 **How to run**:
 ```bash
@@ -78,49 +78,47 @@ npm run fetch-games -- --no-playoffs
 
 # Convenience scripts
 npm run fetch-games-help      # Show help and examples
-npm run fetch-games-playoffs  # Fetch playoff games only (weeks 19-22)
-npm run fetch-games-regular   # Fetch regular season only (weeks 1-18)
+npm run fetch-games-preseason # Fetch preseason games only (weeks 1-4)
+npm run fetch-games-regular-only # Fetch regular season only (weeks 5-18)
+npm run fetch-games-postseason   # Fetch postseason games only (weeks 19-22)
+npm run fetch-games-all       # Fetch all games (preseason + regular + postseason)
 ```
 
 **Command Line Options**:
 - `--start-week, -s <week>`: Start fetching from specific week (1-22, default: 1)
 - `--end-week, -e <week>`: End fetching at specific week (1-22, default: 18)
 - `--no-playoffs`: Exclude playoff games (weeks 19-22)
-- `--help, -h`: Show help message
+- `--preseason`: Fetch preseason games only (weeks 1-4)
+- `--regular`: Fetch regular season games only (weeks 5-18)
+- `--postseason`: Fetch postseason games only (weeks 19-22)
+- `--help, -h`: Show help message with examples
+
+**Features**:
+- **ESPN API Integration**: Uses ESPN's official API for real-time NFL data
+- **No API Key Required**: ESPN API is free and doesn't require authentication
+- **Real-Time Data**: Access to live scores, game status, and team information
+- **Season Type Support**: Automatically handles preseason (1-4), regular season (5-18), and postseason (19-22)
+- **Season Type Column**: Database includes `season_type` column (1=preseason, 2=regular, 3=postseason)
+- **Flexible Week Ranges**: Fetch specific weeks or ranges
+- **Batch Processing**: Efficient database insertion with progress tracking
+- **Error Handling**: Graceful fallback to mock data if API is unavailable
 
 **Examples**:
 ```bash
-# Fetch all regular season games (weeks 1-18)
-npm run fetch-games
+# Fetch all regular season games
+npm run fetch-games-regular-only
 
-# Fetch from week 5 onwards
-npm run fetch-games -- --start-week 5
+# Fetch preseason games only
+npm run fetch-games-preseason
 
-# Fetch weeks 10-15 only
+# Fetch specific week range
 npm run fetch-games -- --start-week 10 --end-week 15
 
-# Fetch regular season only (no playoffs)
-npm run fetch-games -- --no-playoffs
-
-# Fetch playoff games only (weeks 19-22)
-npm run fetch-games -- --start-week 19
-
-# Fetch specific range with playoffs
-npm run fetch-games -- --start-week 15 --end-week 22
+# Fetch all games for the entire season
+npm run fetch-games-all
 ```
 
-**Prerequisites**:
-- Database tables created (run `setup-db` first)
-- Teams data populated (run `fetch-teams` first)
-- `.env.local` file with Supabase credentials
-- Optional: `API_SPORTS_KEY` for live data (falls back to mock data if not provided)
-
-**What it does**:
-- Fetches games for specified week range
-- Includes regular season games (weeks 1-18) and playoff games (weeks 19-22)
-- Clears existing games for the specified range before inserting new ones
-- Provides detailed summary of games by week with playoff indicators
-- Falls back to mock data when API is unavailable
+**Data Source**: [ESPN NFL Scoreboard API](https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard)
 
 ---
 

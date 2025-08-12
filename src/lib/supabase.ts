@@ -148,6 +148,7 @@ export type Database = {
           id: string
           week: number
           season: number
+          season_type: number
           home_team: string
           away_team: string
           kickoff_time: string
@@ -161,6 +162,7 @@ export type Database = {
           id?: string
           week: number
           season: number
+          season_type?: number
           home_team: string
           away_team: string
           kickoff_time: string
@@ -174,6 +176,7 @@ export type Database = {
           id?: string
           week?: number
           season?: number
+          season_type?: number
           home_team?: string
           away_team?: string
           kickoff_time?: string
@@ -429,6 +432,7 @@ CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(255) PRIMARY KEY,
   week INTEGER NOT NULL,
   season INTEGER NOT NULL,
+  season_type INTEGER NOT NULL DEFAULT 2,
   home_team VARCHAR(255) NOT NULL,
   away_team VARCHAR(255) NOT NULL,
   kickoff_time TIMESTAMP WITH TIME ZONE NOT NULL,
