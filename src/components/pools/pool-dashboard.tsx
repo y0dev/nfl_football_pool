@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { JoinPoolButton } from '@/components/pools/join-pool-button';
+import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { loadPools } from '@/actions/loadPools';
 import { useAuth } from '@/lib/auth';
-import { Users, Trophy, Calendar, Plus } from 'lucide-react';
+import { Users, Trophy, Calendar, Plus, Settings } from 'lucide-react';
+import Link from 'next/link';
 // import { format } from 'date-fns';
 
 interface Pool {
@@ -186,12 +188,24 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps)
               </div>
             </div>
 
-            {showJoinButton && (
-              <JoinPoolButton 
+            <div className="flex gap-2">
+              <SharePoolButton 
                 poolId={pool.id} 
-                onJoined={onPoolJoined}
+                poolName={pool.name}
               />
-            )}
+              <Link href={`/admin/pool/${pool.id}`}>
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Details
+                </Button>
+              </Link>
+              {showJoinButton && (
+                <JoinPoolButton 
+                  poolId={pool.id} 
+                  onJoined={onPoolJoined}
+                />
+              )}
+            </div>
           </CardContent>
         </Card>
       ))}
