@@ -37,26 +37,32 @@ export type Database = {
         Row: {
           id: string
           email: string
+          password_hash: string
           full_name: string | null
           avatar_url: string | null
           created_at: string
           is_super_admin: boolean
+          is_active: boolean
         }
         Insert: {
-          id: string
+          id?: string
           email: string
+          password_hash: string
           full_name?: string | null
           avatar_url?: string | null
           created_at?: string
           is_super_admin?: boolean
+          is_active?: boolean
         }
         Update: {
           id?: string
           email?: string
+          password_hash?: string
           full_name?: string | null
           avatar_url?: string | null
           created_at?: string
           is_super_admin?: boolean
+          is_active?: boolean
         }
       }
       pools: {
@@ -295,10 +301,12 @@ export const adminsTable = `
 CREATE TABLE IF NOT EXISTS admins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(255),
-  avatar_url TEXT,
+  avatar_url VARCHAR(500),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  is_super_admin BOOLEAN DEFAULT false
+  is_super_admin BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true
 );
 `;
 

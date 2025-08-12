@@ -1,18 +1,18 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function loadWeekGames(weekNumber: number = 1) {
   try {
-    const { data: games, error } = await supabase
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
       .from('games')
       .select('*')
       .eq('week', weekNumber)
-      .eq('season', 2024)
       .order('kickoff_time');
 
     if (error) throw error;
-    return games || [];
+    return data || [];
   } catch (error) {
     console.error('Error loading week games:', error);
-    throw error;
+    return [];
   }
 }

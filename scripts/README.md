@@ -1,6 +1,68 @@
-# NFL Confidence Pool Scripts
+# NFL Confidence Pool - Scripts Guide
 
-This directory contains scripts for setting up and managing the NFL Confidence Pool application.
+This guide explains how to set up and run all the scripts in the `scripts/` directory for the NFL Confidence Pool application.
+
+## 🚀 Quick Start
+
+1. **Copy environment template**:
+   ```bash
+   cp env.example .env.local
+   ```
+
+2. **Set up Supabase credentials** (see Environment Setup below)
+
+3. **Run database setup**:
+   ```bash
+   npm run setup-db
+   ```
+
+4. **Fetch NFL data**:
+   ```bash
+   npm run fetch-nfl-data
+   ```
+
+## 🔧 Environment Setup
+
+### Required Environment Variables
+
+Create a `.env.local` file in the project root with the following variables:
+
+```bash
+# Supabase Configuration (REQUIRED)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# NFL API Configuration (OPTIONAL - ESPN API used by default)
+API_SPORTS_KEY=your_api_sports_key_here
+```
+
+### How to Get Supabase Credentials
+
+1. **Go to your Supabase project dashboard**
+2. **Navigate to Settings > API**
+3. **Copy the following values**:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role secret** → `SUPABASE_SERVICE_ROLE_KEY`
+
+### Environment Variable Details
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ Yes | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ Yes | Public anon key for client-side operations |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Yes | Service role key for admin operations (scripts) |
+| `API_SPORTS_KEY` | ❌ No | Only needed if you want to use API-Sports instead of ESPN |
+
+### Important Notes
+
+- **ESPN API is used by default** - No API key required
+- **API_SPORTS_KEY is optional** - Only needed for fallback to API-Sports
+- **All Supabase keys are required** - For database operations and scripts
+- **Never commit `.env.local`** - It's already in `.gitignore`
+
+---
 
 ## 📋 Available Scripts
 
@@ -12,37 +74,76 @@ This directory contains scripts for setting up and managing the NFL Confidence P
 npm run setup-db
 ```
 
+**What it does**:
+- Creates all database tables (admins, pools, participants, games, picks, scores, etc.)
+- Applies Row Level Security (RLS) policies
+- Provides SQL commands for manual execution if needed
+
 **Prerequisites**:
 - `.env.local` file with Supabase credentials
 - Supabase project created
 
-**What it does**:
-- Creates all database tables (admins, pools, participants, teams, games, picks, scores, etc.)
-- Applies Row Level Security policies
-- Provides SQL commands for manual execution if needed
-
 ---
 
-### 2. `seed.ts` - Database Seeding
-**Purpose**: Populates the database with initial data (admins, pools, participants).
+### 2. `seed.ts` - Initial Data Seeding
+**Purpose**: Seeds the database with initial admin users, pools, and participants.
 
 **How to run**:
 ```bash
 npm run seed
 ```
 
+**What it does**:
+- Creates default admin users
+- Creates sample pools
+- Adds sample participants
+- Sets up admin-pool relationships
+
 **Prerequisites**:
 - Database tables created (run `setup-db` first)
 - `.env.local` file with Supabase credentials
 
-**What it does**:
-- Creates default admin user
-- Creates sample pools
-- Adds sample participants
+---
+
+### 3. `create-test-data.ts` - Test Data Generator
+**Purpose**: Creates comprehensive test data for development and testing.
+
+**How to run**:
+```bash
+npm run create-test-data
+```
+
+**What it creates**:
+- **3 Admin Users**:
+  - `admin@test.com` (Super Admin)
+  - `superadmin@test.com` (Super Admin)
+  - `pooladmin@test.com` (Regular Admin)
+- **3 Pools**:
+  - Test Pool 2025
+  - Family Pool
+  - Work Pool
+- **15 Participants** across the pools
+- **Admin-pool relationships**
+
+**Features**:
+- **Avatar Generation**: Uses DiceBear API for profile pictures
+- **Realistic Data**: Family and work-themed participant names
+- **Conflict Handling**: Uses upsert to avoid duplicates
+- **Comprehensive Logging**: Detailed progress and summary
+
+**Use Cases**:
+- Development testing
+- Feature testing
+- Demo purposes
+- UI/UX testing
+
+**Prerequisites**:
+- Database tables created (run `setup-db` first)
+- `.env.local` file with Supabase credentials
 
 ---
 
-### 3. `fetch-teams.ts` - NFL Teams Data
+### 4. `fetch-teams.ts` - NFL Teams Data
 **Purpose**: Fetches NFL teams from API and adds them to the teams table.
 
 **How to run**:
@@ -50,20 +151,20 @@ npm run seed
 npm run fetch-teams
 ```
 
+**What it does**:
+- Fetches all NFL teams (32 teams)
+- Includes team information (name, city, conference, division)
+- Generates UUIDs for team IDs
+- Falls back to mock data if API is unavailable
+
 **Prerequisites**:
 - Database tables created (run `setup-db` first)
 - `.env.local` file with Supabase credentials
 - Optional: `API_SPORTS_KEY` for live data (falls back to mock data if not provided)
 
-**What it does**:
-- Fetches all NFL teams for the current season
-- Includes team metadata (conference, division, city, abbreviation)
-- Clears existing teams for the season before inserting new ones
-- Provides detailed summary of teams by conference and division
-
 ---
 
-### 4. `fetch-games.ts` - NFL Games Data
+### 5. `fetch-games.ts` - NFL Games Data
 **Purpose**: Fetches NFL games from ESPN API and adds them to the games table.
 
 **How to run**:
@@ -122,7 +223,7 @@ npm run fetch-games-all
 
 ---
 
-### 5. `fetch-nfl-data.ts` - Complete NFL Data Setup
+### 6. `fetch-nfl-data.ts` - Complete NFL Data Setup
 **Purpose**: Runs both teams and games fetch scripts in sequence.
 
 **How to run**:
@@ -137,136 +238,7 @@ npm run fetch-nfl-data
 
 ---
 
-## 🚀 Complete Setup Workflow
-
-1. **Set up environment variables**:
-   ```bash
-   cp env.template .env.local
-   # Edit .env.local with your Supabase credentials
-   ```
-
-2. **Create database tables**:
-   ```bash
-   npm run setup-db
-   ```
-
-3. **Seed with initial data**:
-   ```bash
-   npm run seed
-   ```
-
-4. **Fetch NFL data**:
-   ```bash
-   npm run fetch-nfl-data
-   ```
-
-5. **Start the application**:
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 🔧 Environment Variables
-
-**Required variables**:
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-```
-
-**Optional variables**:
-```env
-API_SPORTS_KEY=your_api_sports_key  # For live NFL data
-```
-
-**How to get these values**:
-1. Go to your Supabase project dashboard
-2. Navigate to Settings > API
-3. Copy the following values:
-   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **service_role secret** → `SUPABASE_SERVICE_ROLE_KEY`
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**"Missing required environment variables"**
-- Ensure `.env.local` file exists in the project root
-- Check that all required variables are set
-- Verify variable names match exactly
-
-**"Could not find the function public.exec_sql"**
-- This is expected - the script will provide SQL commands to run manually
-- Go to your Supabase dashboard > SQL Editor
-- Copy and paste the provided SQL commands
-
-**"API_SPORTS_KEY not set"**
-- This is not an error - the script will use mock data
-- For live data, get an API key from [API-Sports](https://www.api-sports.io/)
-
-**"Error inserting data"**
-- Check your Supabase service role key has admin permissions
-- Verify database tables exist
-- Check for duplicate data constraints
-
----
-
 ## 📊 Script Dependencies
 
 ```
-setup-db → seed → fetch-teams → fetch-games
 ```
-
-- `setup-db` must run first to create tables
-- `seed` can run anytime after `setup-db`
-- `fetch-teams` should run before `fetch-games` (for data consistency)
-- `fetch-nfl-data` runs both fetch scripts in the correct order
-
----
-
-## 📈 What Each Script Creates
-
-| Script | Tables/Data | Purpose |
-|--------|-------------|---------|
-| `setup-db` | All database tables + RLS policies | Database structure |
-| `seed` | Admins, pools, participants | Initial application data |
-| `fetch-teams` | Teams table | NFL team information |
-| `fetch-games` | Games table | NFL game schedule and results |
-
----
-
-## ⚡ Quick Start Commands
-
-```bash
-# Complete setup (run in order)
-npm run setup-db
-npm run seed
-npm run fetch-nfl-data
-
-# Or use the convenience command
-npm run fetch-nfl-data  # After setup-db and seed
-```
-
----
-
-## 🔄 Data Refresh
-
-To refresh NFL data during the season:
-
-```bash
-# Refresh teams (rarely needed)
-npm run fetch-teams
-
-# Refresh games (weekly recommended)
-npm run fetch-games
-
-# Refresh both
-npm run fetch-nfl-data
-```
-
-**Note**: These scripts clear existing data before inserting new data to ensure consistency.

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // Check if all games for a week are finished and calculate scores
 export async function checkAndCalculateWeeklyScores(poolId: string, week: number) {
