@@ -8,7 +8,15 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "tsx scripts/seed.ts",
-    "setup-db": "tsx scripts/setup-database.ts"
+    "setup-db": "tsx scripts/setup-database.ts",
+    "fetch-games": "tsx scripts/fetch-games.ts",
+    "fetch-teams": "tsx scripts/fetch-teams.ts",
+    "fetch-nfl-data": "npm run fetch-teams && npm run fetch-games",
+    "fetch-games-help": "tsx scripts/fetch-games.ts --help",
+    "fetch-games-week": "tsx scripts/fetch-games.ts --start-week",
+    "fetch-games-range": "tsx scripts/fetch-games.ts --start-week",
+    "fetch-games-playoffs": "tsx scripts/fetch-games.ts --start-week 19 --end-week 22",
+    "fetch-games-regular": "tsx scripts/fetch-games.ts --no-playoffs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -34,6 +42,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.1",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",
@@ -47,6 +56,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/dotenv": "^6.1.1",
     "@types/html2canvas": "^0.5.35",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
 
 export async function loadUsers(poolId?: string, week?: number) {
@@ -10,7 +10,7 @@ export async function loadUsers(poolId?: string, week?: number) {
       
       // Query participants excluding those who have submitted
       if (submittedParticipantIds.length > 0) {
-        const { data: participants, error } = await supabase
+        const { data: participants, error } = await getSupabaseClient()
           .from('participants')
           .select('*')
           .eq('is_active', true)
@@ -23,7 +23,7 @@ export async function loadUsers(poolId?: string, week?: number) {
     }
 
     // Default query for all active participants
-    const { data: participants, error } = await supabase
+    const { data: participants, error } = await getSupabaseClient()
       .from('participants')
       .select('*')
       .eq('is_active', true)

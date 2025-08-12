@@ -62,7 +62,7 @@ chmod +x scripts/deploy-edge-function.sh
 
 ```bash
 SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_PROJECT_ID=your_project_id
 ```

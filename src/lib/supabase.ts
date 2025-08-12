@@ -1,9 +1,34 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL!
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!
+// Function to get Supabase client with proper environment variable handling
+export function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  if (!supabaseUrl) {
+    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL in your environment variables.');
+  }
+
+  if (!supabaseAnonKey && !supabaseServiceKey) {
+    throw new Error('Supabase key is required. Please set NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
+  }
+
+  // Use service role key if available (for admin operations), otherwise use anon key
+  const key = supabaseServiceKey || supabaseAnonKey!;
+  
+  return createClient(supabaseUrl, key);
+}
+
+// Create default client for backward compatibility (only in browser environment)
+let supabase: SupabaseClient | null = null;
+
+export function getDefaultSupabaseClient() {
+  if (typeof window !== 'undefined' && !supabase) {
+    supabase = getSupabaseClient();
+  }
+  return supabase;
+}
 
 export type Database = {
   public: {

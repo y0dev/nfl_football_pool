@@ -1,244 +1,274 @@
-# NFL Confidence Pool - Scripts Guide
+# NFL Confidence Pool Scripts
 
-This directory contains essential scripts for setting up and managing the NFL Confidence Pool application.
+This directory contains scripts for setting up and managing the NFL Confidence Pool application.
 
-## 📁 Scripts Overview
+## 📋 Available Scripts
 
-### 1. `setup-database.ts` - Database Initialization
-**Purpose**: Creates all database tables and applies security policies
-
-**What it does**:
-- Creates all required tables (admins, pools, participants, games, picks, scores, etc.)
-- Applies Row Level Security (RLS) policies
-- Sets up audit logging system
-- Configures tie-breaker tables
+### 1. `setup-database.ts` - Database Setup
+**Purpose**: Creates all necessary database tables and applies Row Level Security policies.
 
 **How to run**:
 ```bash
-# Make sure you have environment variables set
 npm run setup-db
-# OR
-npx tsx scripts/setup-database.ts
 ```
 
 **Prerequisites**:
-- Supabase project configured
-- Environment variables set in `.env.local`:
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY`
+- `.env.local` file with Supabase credentials
+- Supabase project created
+
+**What it does**:
+- Creates all database tables (admins, pools, participants, teams, games, picks, scores, etc.)
+- Applies Row Level Security policies
+- Provides SQL commands for manual execution if needed
 
 ---
 
 ### 2. `seed.ts` - Database Seeding
-**Purpose**: Populates the database with initial data
-
-**What it does**:
-- Creates admin users
-- Sets up NFL teams
-- Creates sample pools
-- Adds sample participants
-- Creates sample games for the season
-- Sets up initial picks and scores
+**Purpose**: Populates the database with initial data (admins, pools, participants).
 
 **How to run**:
 ```bash
-# Seed with default data
 npm run seed
-# OR
-npx tsx scripts/seed.ts
-
-# Seed with custom data (if supported)
-npx tsx scripts/seed.ts --env production
 ```
 
 **Prerequisites**:
-- Database tables must be created (run `setup-database.ts` first)
-- Supabase project configured
-- Environment variables set
+- Database tables created (run `setup-db` first)
+- `.env.local` file with Supabase credentials
+
+**What it does**:
+- Creates default admin user
+- Creates sample pools
+- Adds sample participants
 
 ---
 
-### 3. `deploy-edge-function.sh` - Supabase Edge Function Deployment
-**Purpose**: Deploys automated functions for game updates and score calculations
-
-**What it does**:
-- Deploys the `update-games` Edge Function
-- Sets up cron jobs for automatic execution
-- Configures automated score calculations
-- Sets up game result updates
+### 3. `fetch-teams.ts` - NFL Teams Data
+**Purpose**: Fetches NFL teams from API and adds them to the teams table.
 
 **How to run**:
 ```bash
-# Make script executable
-chmod +x scripts/deploy-edge-function.sh
-
-# Deploy edge functions
-./scripts/deploy-edge-function.sh
-# OR
-bash scripts/deploy-edge-function.sh
+npm run fetch-teams
 ```
 
 **Prerequisites**:
-- Supabase CLI installed (`npm install -g supabase`)
-- Logged into Supabase CLI (`supabase login`)
-- Project linked (`supabase link --project-ref YOUR_PROJECT_ID`)
+- Database tables created (run `setup-db` first)
+- `.env.local` file with Supabase credentials
+- Optional: `API_SPORTS_KEY` for live data (falls back to mock data if not provided)
+
+**What it does**:
+- Fetches all NFL teams for the current season
+- Includes team metadata (conference, division, city, abbreviation)
+- Clears existing teams for the season before inserting new ones
+- Provides detailed summary of teams by conference and division
+
+---
+
+### 4. `fetch-games.ts` - NFL Games Data
+**Purpose**: Fetches NFL games from API and adds them to the games table.
+
+**How to run**:
+```bash
+# Basic usage
+npm run fetch-games
+
+# With command line options
+npm run fetch-games -- --start-week 5
+npm run fetch-games -- --start-week 10 --end-week 15
+npm run fetch-games -- --no-playoffs
+
+# Convenience scripts
+npm run fetch-games-help      # Show help and examples
+npm run fetch-games-playoffs  # Fetch playoff games only (weeks 19-22)
+npm run fetch-games-regular   # Fetch regular season only (weeks 1-18)
+```
+
+**Command Line Options**:
+- `--start-week, -s <week>`: Start fetching from specific week (1-22, default: 1)
+- `--end-week, -e <week>`: End fetching at specific week (1-22, default: 18)
+- `--no-playoffs`: Exclude playoff games (weeks 19-22)
+- `--help, -h`: Show help message
+
+**Examples**:
+```bash
+# Fetch all regular season games (weeks 1-18)
+npm run fetch-games
+
+# Fetch from week 5 onwards
+npm run fetch-games -- --start-week 5
+
+# Fetch weeks 10-15 only
+npm run fetch-games -- --start-week 10 --end-week 15
+
+# Fetch regular season only (no playoffs)
+npm run fetch-games -- --no-playoffs
+
+# Fetch playoff games only (weeks 19-22)
+npm run fetch-games -- --start-week 19
+
+# Fetch specific range with playoffs
+npm run fetch-games -- --start-week 15 --end-week 22
+```
+
+**Prerequisites**:
+- Database tables created (run `setup-db` first)
+- Teams data populated (run `fetch-teams` first)
+- `.env.local` file with Supabase credentials
+- Optional: `API_SPORTS_KEY` for live data (falls back to mock data if not provided)
+
+**What it does**:
+- Fetches games for specified week range
+- Includes regular season games (weeks 1-18) and playoff games (weeks 19-22)
+- Clears existing games for the specified range before inserting new ones
+- Provides detailed summary of games by week with playoff indicators
+- Falls back to mock data when API is unavailable
+
+---
+
+### 5. `fetch-nfl-data.ts` - Complete NFL Data Setup
+**Purpose**: Runs both teams and games fetch scripts in sequence.
+
+**How to run**:
+```bash
+npm run fetch-nfl-data
+```
+
+**What it does**:
+- Runs `fetch-teams` first
+- Then runs `fetch-games`
+- Ensures proper data dependencies
 
 ---
 
 ## 🚀 Complete Setup Workflow
 
-### Step 1: Environment Setup
-```bash
-# Copy environment template
-cp env.example .env.local
+1. **Set up environment variables**:
+   ```bash
+   cp env.template .env.local
+   # Edit .env.local with your Supabase credentials
+   ```
 
-# Edit environment variables
-nano .env.local
-```
+2. **Create database tables**:
+   ```bash
+   npm run setup-db
+   ```
 
-Required variables:
+3. **Seed with initial data**:
+   ```bash
+   npm run seed
+   ```
+
+4. **Fetch NFL data**:
+   ```bash
+   npm run fetch-nfl-data
+   ```
+
+5. **Start the application**:
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 🔧 Environment Variables
+
+**Required variables**:
 ```env
-SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
-### Step 2: Database Setup
+**Optional variables**:
+```env
+API_SPORTS_KEY=your_api_sports_key  # For live NFL data
+```
+
+**How to get these values**:
+1. Go to your Supabase project dashboard
+2. Navigate to Settings > API
+3. Copy the following values:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role secret** → `SUPABASE_SERVICE_ROLE_KEY`
+
+---
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+**"Missing required environment variables"**
+- Ensure `.env.local` file exists in the project root
+- Check that all required variables are set
+- Verify variable names match exactly
+
+**"Could not find the function public.exec_sql"**
+- This is expected - the script will provide SQL commands to run manually
+- Go to your Supabase dashboard > SQL Editor
+- Copy and paste the provided SQL commands
+
+**"API_SPORTS_KEY not set"**
+- This is not an error - the script will use mock data
+- For live data, get an API key from [API-Sports](https://www.api-sports.io/)
+
+**"Error inserting data"**
+- Check your Supabase service role key has admin permissions
+- Verify database tables exist
+- Check for duplicate data constraints
+
+---
+
+## 📊 Script Dependencies
+
+```
+setup-db → seed → fetch-teams → fetch-games
+```
+
+- `setup-db` must run first to create tables
+- `seed` can run anytime after `setup-db`
+- `fetch-teams` should run before `fetch-games` (for data consistency)
+- `fetch-nfl-data` runs both fetch scripts in the correct order
+
+---
+
+## 📈 What Each Script Creates
+
+| Script | Tables/Data | Purpose |
+|--------|-------------|---------|
+| `setup-db` | All database tables + RLS policies | Database structure |
+| `seed` | Admins, pools, participants | Initial application data |
+| `fetch-teams` | Teams table | NFL team information |
+| `fetch-games` | Games table | NFL game schedule and results |
+
+---
+
+## ⚡ Quick Start Commands
+
 ```bash
-# Create all tables and security policies
+# Complete setup (run in order)
 npm run setup-db
-```
-
-### Step 3: Seed Initial Data
-```bash
-# Populate with sample data
 npm run seed
-```
+npm run fetch-nfl-data
 
-### Step 4: Deploy Edge Functions
-```bash
-# Deploy automated functions
-./scripts/deploy-edge-function.sh
-```
-
-### Step 5: Verify Setup
-```bash
-# Start development server
-npm run dev
-
-# Check admin dashboard at http://localhost:3000/admin/dashboard
+# Or use the convenience command
+npm run fetch-nfl-data  # After setup-db and seed
 ```
 
 ---
 
-## 📋 Script Dependencies
+## 🔄 Data Refresh
 
-```
-setup-database.ts
-    ↓ (creates tables)
-seed.ts
-    ↓ (populates data)
-deploy-edge-function.sh
-    ↓ (deploys automation)
-```
-
----
-
-## 🔧 Troubleshooting
-
-### Common Issues:
-
-**1. "Permission denied" on deploy script**
-```bash
-chmod +x scripts/deploy-edge-function.sh
-```
-
-**2. "Supabase CLI not found"**
-```bash
-npm install -g supabase
-```
-
-**3. "Environment variables not set"**
-```bash
-# Check if .env.local exists and has required variables
-cat .env.local
-```
-
-**4. "Database connection failed"**
-```bash
-# Verify Supabase project is active
-supabase status
-```
-
-**5. "Tables already exist"**
-```bash
-# Drop and recreate (WARNING: This will delete all data)
-supabase db reset
-npm run setup-db
-```
-
----
-
-## 📊 What Each Script Creates
-
-### `setup-database.ts` Output:
-- ✅ `admins` table
-- ✅ `pools` table  
-- ✅ `admin_pools` table
-- ✅ `participants` table
-- ✅ `teams` table
-- ✅ `games` table
-- ✅ `picks` table
-- ✅ `scores` table
-- ✅ `tie_breakers` table
-- ✅ `audit_logs` table
-- ✅ Row Level Security policies
-
-### `seed.ts` Output:
-- ✅ Admin user: `admin@example.com`
-- ✅ 32 NFL teams
-- ✅ Sample pool: "Office Pool"
-- ✅ Sample participants (10 users)
-- ✅ Sample games for current season
-- ✅ Sample picks and scores
-
-### `deploy-edge-function.sh` Output:
-- ✅ `update-games` Edge Function
-- ✅ Cron job: Runs every 4 hours
-- ✅ Automated score calculations
-- ✅ Game result updates
-
----
-
-## 🎯 Quick Start Commands
+To refresh NFL data during the season:
 
 ```bash
-# Complete setup in one go
-npm run setup-db && npm run seed && ./scripts/deploy-edge-function.sh
+# Refresh teams (rarely needed)
+npm run fetch-teams
 
-# Development workflow
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run setup-db     # Reset database
-npm run seed         # Reset sample data
+# Refresh games (weekly recommended)
+npm run fetch-games
+
+# Refresh both
+npm run fetch-nfl-data
 ```
 
----
-
-## 📝 Notes
-
-- **Backup First**: Always backup your data before running setup scripts
-- **Environment**: Scripts use `.env.local` for configuration
-- **Permissions**: Some scripts require admin privileges
-- **Logs**: Check console output for detailed error messages
-- **Rollback**: Use `supabase db reset` to start fresh
-
----
-
-## 🆘 Support
-
-If you encounter issues:
-1. Check the console output for error messages
-2. Verify environment variables are set correctly
-3. Ensure Supabase project is properly configured
-4. Check that all dependencies are installed
+**Note**: These scripts clear existing data before inserting new data to ensure consistency.

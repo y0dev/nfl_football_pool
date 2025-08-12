@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { cookies } from 'next/headers';
 
 export async function submitPicks(picks: Array<{
@@ -18,7 +18,7 @@ export async function submitPicks(picks: Array<{
     const firstPick = picks[0];
     
     // Verify the participant hasn't already submitted picks for this week
-    const { data: existingPicks, error: checkError } = await supabase
+    const { data: existingPicks, error: checkError } = await getSupabaseClient()
       .from('picks')
       .select('id')
       .eq('participant_id', firstPick.participant_id)
@@ -36,7 +36,7 @@ export async function submitPicks(picks: Array<{
     }
 
     // Additional security: check if games are locked (past kickoff time)
-    const { data: games, error: gamesError } = await supabase
+    const { data: games, error: gamesError } = await getSupabaseClient()
       .from('games')
       .select('id, kickoff_time')
       .in('id', picks.map(p => p.game_id));
@@ -63,14 +63,14 @@ export async function submitPicks(picks: Array<{
     }
 
     // Submit the picks
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('picks')
       .insert(picks);
 
     if (error) throw error;
     
     // Log the submission for audit purposes
-    await supabase
+    await getSupabaseClient()
       .from('audit_logs')
       .insert({
         action: 'picks_submitted',

@@ -1,3 +1,7 @@
+import dotenv from 'dotenv';
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
+
 interface NFLGame {
   id: string;
   date: string;
@@ -39,6 +43,8 @@ class NFLAPIService {
   constructor() {
     this.apiKey = process.env.API_SPORTS_KEY || '';
     this.baseUrl = 'https://v3.football.api-sports.io';
+    console.log("Base URL", this.baseUrl);
+    console.log("API Key", this.apiKey);
   }
 
   private async makeRequest(endpoint: string, params: Record<string, string> = {}) {
