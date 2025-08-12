@@ -1,8 +1,87 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
+export async function calculateScores(weekNumber: number = 1) {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Get all games for the week with results
+    const { data: games, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('week', weekNumber)
+      .not('winner', 'is', null);
+
+    if (gamesError) {
+      console.error('Error fetching games:', gamesError);
+      return;
+    }
+
+    // Get all picks for the week
+    const { data: picks, error: picksError } = await supabase
+      .from('picks')
+      .select(`
+        *,
+        games (*),
+        participants (*)
+      `)
+      .eq('games.week', weekNumber);
+
+    if (picksError) {
+      console.error('Error fetching picks:', picksError);
+      return;
+    }
+
+    // Calculate scores for each participant
+    const scores = new Map();
+
+    picks?.forEach(pick => {
+      const participantId = pick.participant_id;
+      const poolId = pick.pool_id;
+      const key = `${participantId}-${poolId}`;
+
+      if (!scores.has(key)) {
+        scores.set(key, {
+          participant_id: participantId,
+          pool_id: poolId,
+          week: weekNumber,
+          points: 0,
+          correct_picks: 0,
+          total_picks: 0
+        });
+      }
+
+      const score = scores.get(key);
+      score.total_picks++;
+
+      // Check if pick is correct
+      const game = games?.find(g => g.id === pick.game_id);
+      if (game && pick.predicted_winner === game.winner) {
+        score.points += pick.confidence_points;
+        score.correct_picks++;
+      }
+    });
+
+    // Insert or update scores
+    for (const score of scores.values()) {
+      const { error } = await supabase
+        .from('scores')
+        .upsert(score, { onConflict: 'participant_id,pool_id,week' });
+
+      if (error) {
+        console.error('Error updating score:', error);
+      }
+    }
+
+    console.log(`Scores calculated for week ${weekNumber}`);
+  } catch (error) {
+    console.error('Error calculating scores:', error);
+  }
+}
+
 // Check if all games for a week are finished and calculate scores
 export async function checkAndCalculateWeeklyScores(poolId: string, week: number) {
   try {
+    const supabase = getSupabaseClient();
     // Get all games for the week
     const { data: games, error: gamesError } = await supabase
       .from('games')
@@ -58,6 +137,7 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
 // Calculate scores for a specific pool and week
 async function calculateWeeklyScores(poolId: string, week: number) {
   try {
+    const supabase = getSupabaseClient();
     // Get all picks for the week
     const { data: picks, error: picksError } = await supabase
       .from('picks')
@@ -123,6 +203,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
 // Update scores in database
 async function updateScoresInDatabase(poolId: string, week: number, scores: any[]) {
   try {
+    const supabase = getSupabaseClient();
     // Delete existing scores for this week
     await supabase
       .from('scores')
@@ -156,6 +237,7 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
 // Check for quarterly winners (after week 4)
 export async function checkQuarterlyWinners() {
   try {
+    const supabase = getSupabaseClient();
     const currentWeek = getCurrentWeek();
     
     if (currentWeek !== 4) {
@@ -186,6 +268,7 @@ export async function checkQuarterlyWinners() {
 // Determine quarterly winner for a pool
 async function determineQuarterlyWinner(poolId: string, poolName: string) {
   try {
+    const supabase = getSupabaseClient();
     // Get scores for weeks 1-4
     const { data: scores, error } = await supabase
       .from('scores')
@@ -245,6 +328,7 @@ async function determineQuarterlyWinner(poolId: string, poolName: string) {
 // Log quarterly winner to audit log
 async function logQuarterlyWinner(poolId: string, winner: any) {
   try {
+    const supabase = getSupabaseClient();
     const { error } = await supabase
       .from('audit_logs')
       .insert({
@@ -271,6 +355,7 @@ async function logQuarterlyWinner(poolId: string, winner: any) {
 
 // Get current week (simplified calculation)
 function getCurrentWeek(): number {
+  const supabase = getSupabaseClient();
   const now = new Date();
   const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
   const weekDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
@@ -280,6 +365,7 @@ function getCurrentWeek(): number {
 // Scheduled function to run after each game day
 export async function runPostGameCalculations() {
   try {
+    const supabase = getSupabaseClient();
     const currentWeek = getCurrentWeek();
     
     // Get all pools

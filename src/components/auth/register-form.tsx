@@ -21,7 +21,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { signIn } = useAuth();
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -32,17 +32,19 @@ export function RegisterForm() {
     },
   });
 
-  async function onSubmit(data: RegisterFormData) {
+  const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
       const user = await createUser({
         name: data.name,
         email: data.email,
-        pool_id: data.pool_id,
+        poolId: data.pool_id,
       });
       
       if (user) {
-        login(data.email, '');
+        // For now, just sign in with the registered email
+        // In a real app, you'd create the user first
+        await signIn(data.email, '');
         console.log('Account created successfully');
       }
     } catch (error) {
@@ -50,7 +52,7 @@ export function RegisterForm() {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">

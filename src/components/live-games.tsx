@@ -95,7 +95,7 @@ export function LiveGames() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-gray-600">
             No games currently live
           </p>
         </CardContent>
@@ -116,12 +116,23 @@ export function LiveGames() {
           {liveGames.map((game) => (
             <div key={game.id} className="border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className={`text-sm font-semibold ${getStatusColor(game.game_status)}`}>
-                  {getStatusText(game.game_status)}
-                </span>
-                <span className="text-sm text-gray-600 dark:text-gray-300">
-                  {formatTime(game.kickoff_time)}
-                </span>
+                <p className="text-gray-600">
+                  {game.status === 'scheduled' ? (
+                    <>
+                      <Clock className="inline h-4 w-4 mr-1" />
+                      {new Date(game.kickoff_time).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm text-gray-600">
+                        {game.status === 'final' ? 'Final' : game.status}
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
               
               <div className="grid grid-cols-3 gap-4 items-center">

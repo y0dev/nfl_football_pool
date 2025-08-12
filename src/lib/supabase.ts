@@ -2,8 +2,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // Function to get Supabase client with proper environment variable handling
 export function getSupabaseClient() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl) {
@@ -475,6 +475,7 @@ CREATE POLICY "Only admins can insert participants" ON participants
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Only admins can update participants" ON participants
@@ -484,6 +485,7 @@ CREATE POLICY "Only admins can update participants" ON participants
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
     )
+    OR auth.role() = 'service_role'
   );
 
 -- Picks table policies
@@ -493,6 +495,7 @@ CREATE POLICY "Users can only view their own picks" ON picks
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Users can only insert picks for themselves" ON picks
@@ -501,6 +504,7 @@ CREATE POLICY "Users can only insert picks for themselves" ON picks
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Users can only update their own picks" ON picks
@@ -509,6 +513,7 @@ CREATE POLICY "Users can only update their own picks" ON picks
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Admins can view all picks" ON picks
@@ -518,6 +523,7 @@ CREATE POLICY "Admins can view all picks" ON picks
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
     )
+    OR auth.role() = 'service_role'
   );
 
 -- Scores table policies
@@ -527,6 +533,7 @@ CREATE POLICY "Users can only view their own scores" ON scores
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Admins can view all scores" ON scores
@@ -536,6 +543,7 @@ CREATE POLICY "Admins can view all scores" ON scores
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
     )
+    OR auth.role() = 'service_role'
   );
 
 -- Tie-breakers table policies
@@ -545,6 +553,7 @@ CREATE POLICY "Users can only view their own tie-breakers" ON tie_breakers
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Users can only insert tie-breakers for themselves" ON tie_breakers
@@ -553,6 +562,7 @@ CREATE POLICY "Users can only insert tie-breakers for themselves" ON tie_breaker
       SELECT id FROM participants 
       WHERE email = auth.jwt() ->> 'email'
     )
+    OR auth.role() = 'service_role'
   );
 
 CREATE POLICY "Admins can view all tie-breakers" ON tie_breakers
@@ -562,5 +572,6 @@ CREATE POLICY "Admins can view all tie-breakers" ON tie_breakers
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
     )
+    OR auth.role() = 'service_role'
   );
 `; 

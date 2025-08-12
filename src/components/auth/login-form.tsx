@@ -20,7 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { signIn } = useAuth();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -30,27 +30,16 @@ export function LoginForm() {
     },
   });
 
-  async function onSubmit(data: LoginFormData) {
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const user = await loginUser(data.email);
-      
-      if (!user) {
-        console.error('Login failed: Invalid credentials');
-        return;
-      }
-
-      // In a real app, you'd verify the password hash here
-      // For demo purposes, we'll skip password verification
-      login(data.email, data.password);
-
-      console.log('Login successful');
+      await signIn(data.email, data.password);
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">

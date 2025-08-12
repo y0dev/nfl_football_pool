@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabaseClient } from './supabase';
 
 export interface TieBreakerResult {
   participant_id: string;
@@ -63,7 +63,7 @@ async function breakTieByTotalPoints(
   participants: Array<{ participant_id: string; participant_name: string }>
 ): Promise<TieBreakerResult[]> {
   try {
-    const { data: scores, error } = await supabase
+    const { data: scores, error } = await getSupabaseClient()
       .from('scores')
       .select('participant_id, points')
       .eq('pool_id', poolId)
@@ -115,7 +115,7 @@ async function breakTieByCorrectPicks(
   participants: Array<{ participant_id: string; participant_name: string }>
 ): Promise<TieBreakerResult[]> {
   try {
-    const { data: scores, error } = await supabase
+    const { data: scores, error } = await getSupabaseClient()
       .from('scores')
       .select('participant_id, correct_picks')
       .eq('pool_id', poolId)
@@ -167,7 +167,7 @@ async function breakTieByAccuracy(
   participants: Array<{ participant_id: string; participant_name: string }>
 ): Promise<TieBreakerResult[]> {
   try {
-    const { data: scores, error } = await supabase
+    const { data: scores, error } = await getSupabaseClient()
       .from('scores')
       .select('participant_id, correct_picks, total_picks')
       .eq('pool_id', poolId)
@@ -223,7 +223,7 @@ async function breakTieByLastWeek(
   participants: Array<{ participant_id: string; participant_name: string }>
 ): Promise<TieBreakerResult[]> {
   try {
-    const { data: scores, error } = await supabase
+    const { data: scores, error } = await getSupabaseClient()
       .from('scores')
       .select('participant_id, points')
       .eq('pool_id', poolId)
@@ -278,7 +278,7 @@ async function breakTieByCustomQuestion(
       throw new Error('Custom tie-breaker answer not set');
     }
 
-    const { data: tieBreakers, error } = await supabase
+    const { data: tieBreakers, error } = await getSupabaseClient()
       .from('tie_breakers')
       .select('participant_id, answer')
       .eq('pool_id', poolId)
@@ -325,7 +325,7 @@ async function breakTieByCustomQuestion(
  */
 export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerSettings | null> {
   try {
-    const { data: pool, error } = await supabase
+    const { data: pool, error } = await getSupabaseClient()
       .from('pools')
       .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer')
       .eq('id', poolId)
@@ -352,7 +352,7 @@ export async function saveTieBreakerSettings(
   settings: TieBreakerSettings
 ): Promise<boolean> {
   try {
-    const { error } = await supabase
+    const { error } = await getSupabaseClient()
       .from('pools')
       .update({
         tie_breaker_method: settings.method,

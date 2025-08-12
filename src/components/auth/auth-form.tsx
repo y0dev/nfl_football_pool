@@ -21,7 +21,7 @@ type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 
 export function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { signIn } = useAuth();
 
   const form = useForm<AdminLoginFormData>({
     resolver: zodResolver(adminLoginSchema),
@@ -31,27 +31,16 @@ export function AdminLogin() {
     },
   });
 
-  async function onSubmit(data: AdminLoginFormData) {
+  const onSubmit = async (data: AdminLoginFormData) => {
     setIsLoading(true);
     try {
-      const user = await loginUser(data.email);
-      
-      if (!user || !user.is_super_admin) {
-        console.error('Access Denied: Admin credentials required');
-        return;
-      }
-
-      // In a real app, you'd verify the password hash here
-      // For demo purposes, we'll skip password verification
-      login(data.email, data.password);
-
-      console.log('Admin Access Granted');
+      await signIn(data.email, data.password);
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">

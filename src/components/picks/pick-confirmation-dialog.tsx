@@ -94,7 +94,9 @@ export function PickConfirmationDialog({
               <User className="h-5 w-5 text-blue-600" />
               <span className="font-semibold text-blue-900">Submitting as:</span>
             </div>
-            <div className="text-lg font-bold text-blue-900">{user?.name}</div>
+            <div className="text-sm text-gray-600">
+              {user?.full_name} - {user?.email}
+            </div>
             <div className="mt-3">
               <label className="flex items-center space-x-2">
                 <input
@@ -104,7 +106,7 @@ export function PickConfirmationDialog({
                   className="rounded border-gray-300"
                 />
                 <span className="text-sm text-blue-800">
-                  I confirm that I am <strong>{user?.name}</strong> and these are my picks
+                  I confirm that I am <strong>{user?.full_name}</strong> and these are my picks
                 </span>
               </label>
             </div>

@@ -1,51 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #1e293b;
   --card: #ffffff;
-  --card-foreground: #171717;
+  --card-foreground: #1e293b;
   --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #3b82f6;
+  --popover-foreground: #1e293b;
+  --primary: #e76f51; /* warm coral-orange */
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #171717;
+  --secondary: #fef3c7; /* light cream-yellow */
+  --secondary-foreground: #78350f;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #171717;
-  --destructive: #ef4444;
+  --accent: #2a9d8f; /* teal green */
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #3b82f6;
+  --ring: #e76f51;
   --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #0a0a0a;
-    --card-foreground: #ededed;
-    --popover: #0a0a0a;
-    --popover-foreground: #ededed;
-    --primary: #3b82f6;
-    --primary-foreground: #ffffff;
-    --secondary: #1e293b;
-    --secondary-foreground: #ededed;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --accent: #1e293b;
-    --accent-foreground: #ededed;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #1e293b;
-    --input: #1e293b;
-    --ring: #3b82f6;
-  }
-}
 
 @theme {
   --color-background: var(--background);
@@ -89,10 +66,6 @@ body {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
 }
 
-.dark .nfl-card-gradient {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-}
-
 /* Enhanced Card Styles */
 .team-card {
   background: white;
@@ -100,11 +73,6 @@ body {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   transition: all 0.3s;
   border: 1px solid #e2e8f0;
-}
-
-.dark .team-card {
-  background: #1f2937;
-  border-color: #374151;
 }
 
 .team-card:hover {
@@ -220,22 +188,12 @@ body {
   border-color: transparent;
 }
 
-.dark .form-input {
-  background: #1f2937;
-  border-color: #4b5563;
-  color: white;
-}
-
 .form-label {
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
   color: #374151;
   margin-bottom: 0.5rem;
-}
-
-.dark .form-label {
-  color: #d1d5db;
 }
 
 /* Status Badges */
@@ -253,29 +211,14 @@ body {
   color: #991b1b;
 }
 
-.dark .status-badge.live {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-}
-
 .status-badge.finished {
   background: #f0fdf4;
   color: #166534;
 }
 
-.dark .status-badge.finished {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
-}
-
 .status-badge.scheduled {
   background: #eff6ff;
   color: #1e40af;
-}
-
-.dark .status-badge.scheduled {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
 }
 
 /* Navigation Styles */
@@ -289,29 +232,15 @@ body {
   color: #374151;
 }
 
-.dark .nav-link {
-  color: #d1d5db;
-}
-
 .nav-link:hover {
   background: #f3f4f6;
   color: #111827;
-}
-
-.dark .nav-link:hover {
-  background: #374151;
-  color: white;
 }
 
 .nav-link.active {
   background: #dbeafe;
   color: #1d4ed8;
   border-right: 2px solid #2563eb;
-}
-
-.dark .nav-link.active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
 }
 
 /* Table Styles */
@@ -323,18 +252,10 @@ body {
   background: #f9fafb;
 }
 
-.dark .table-row:hover {
-  background: #1f2937;
-}
-
 .table-cell {
   padding: 1rem 1.5rem;
   font-size: 0.875rem;
   color: #111827;
-}
-
-.dark .table-cell {
-  color: #f9fafb;
 }
 
 /* Modal Styles */
@@ -357,8 +278,4 @@ body {
   max-width: 28rem;
   width: 100%;
   padding: 1.5rem;
-}
-
-.dark .modal-content {
-  background: #1f2937;
 }
