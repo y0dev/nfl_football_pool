@@ -2,10 +2,12 @@ import { getSupabaseClient } from '@/lib/supabase';
 
 // Helper function to determine season type based on week number
 export function getSeasonTypeFromWeek(weekNumber: number): number {
-  if (weekNumber >= 1 && weekNumber <= 4) {
-    return 1; // Preseason
-  } else if (weekNumber >= 5 && weekNumber <= 18) {
-    return 2; // Regular Season
+  if (weekNumber === 0) {
+    return 1; // Hall of Fame Game (Preseason)
+  } else if (weekNumber >= 1 && weekNumber <= 3) {
+    return 1; // Preseason Weeks 1-3
+  } else if (weekNumber >= 4 && weekNumber <= 18) {
+    return 2; // Regular Season (Weeks 4-18)
   } else if (weekNumber >= 19 && weekNumber <= 22) {
     return 3; // Postseason
   }

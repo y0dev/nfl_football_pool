@@ -73,8 +73,8 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --help, -h                  Show this help message');
     console.log('');
     console.log('Season Types:');
-    console.log('  • Preseason: Weeks 1-4 (seasontype=1)');
-    console.log('  • Regular Season: Weeks 5-18 (seasontype=2)');
+    console.log('  • Preseason: Week 0 (Hall of Fame) + Weeks 1-3 (seasontype=1)');
+    console.log('  • Regular Season: Weeks 4-18 (seasontype=2)');
     console.log('  • Postseason: Weeks 19-22 (seasontype=3)');
     console.log('');
     console.log('Database Schema:');
@@ -84,8 +84,8 @@ for (let i = 0; i < args.length; i++) {
     console.log('');
     console.log('Examples:');
     console.log('  npm run fetch-games                                    # Fetch all regular season games');
-    console.log('  npm run fetch-games -- --start-week 5                  # Fetch from week 5 onwards');
-    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch preseason only');
+    console.log('  npm run fetch-games -- --start-week 4                  # Fetch from week 4 onwards');
+    console.log('  npm run fetch-games -- --start-week 0 --end-week 3     # Fetch preseason only');
     console.log('  npm run fetch-games -- --start-week 19 --end-week 22   # Fetch playoffs only');
     console.log('  npm run fetch-games -- --preseason                     # Fetch preseason only');
     console.log('  npm run fetch-games -- --regular                       # Fetch regular season only');
@@ -93,7 +93,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
     console.log('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
     console.log('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
-    console.log('  npm run fetch-games -- --start-week 1 --end-week 22    # Fetch entire season');
+    console.log('  npm run fetch-games -- --start-week 0 --end-week 22    # Fetch entire season');
     process.exit(0);
   } else if (arg === '--start-week' || arg === '-s') {
     startWeek = parseInt(args[++i]);
@@ -105,11 +105,11 @@ for (let i = 0; i < args.length; i++) {
       seasonTypeId = typeId;
       if (typeId === 1) {
         seasonType = 'preseason';
-        startWeek = 1;
-        endWeek = 4;
+        startWeek = 0;
+        endWeek = 3;
       } else if (typeId === 2) {
         seasonType = 'regular';
-        startWeek = 1;
+        startWeek = 4;
         endWeek = 18;
       } else if (typeId === 3) {
         seasonType = 'postseason';
@@ -126,12 +126,12 @@ for (let i = 0; i < args.length; i++) {
   } else if (arg === '--preseason') {
     seasonType = 'preseason';
     seasonTypeId = 1;
-    startWeek = 1;
-    endWeek = 4;
+    startWeek = 0;
+    endWeek = 3;
   } else if (arg === '--regular') {
     seasonType = 'regular';
     seasonTypeId = 2;
-    startWeek = 1;
+    startWeek = 4;
     endWeek = 18;
   } else if (arg === '--postseason') {
     seasonType = 'postseason';
@@ -142,8 +142,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 // Validate week ranges
-if (startWeek < 1 || startWeek > 22 || endWeek < 1 || endWeek > 22) {
-  console.error('❌ Week numbers must be between 1 and 22');
+if (startWeek < 0 || startWeek > 22 || endWeek < 0 || endWeek > 22) {
+  console.error('❌ Week numbers must be between 0 and 22');
   process.exit(1);
 }
 
