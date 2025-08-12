@@ -1,488 +1,399 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-// import { Separator } from '@/components/ui/separator';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { loadWeekGames } from '@/actions/loadWeekGames';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
+import { loadWeekGames } from '@/actions/loadWeekGames';
+import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { PickUserSelection } from './pick-user-selection';
+import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
-import { format } from 'date-fns';
-import { Calendar, Clock, Trophy, User, Shield, LogOut, AlertTriangle } from 'lucide-react';
+import { pickStorage, StoredPick } from '@/lib/pick-storage';
+import { Clock, Save, AlertTriangle } from 'lucide-react';
+
+interface WeeklyPickProps {
+  poolId: string;
+}
 
 interface Game {
   id: string;
   home_team: string;
   away_team: string;
   kickoff_time: string;
-  home_score: number | null;
-  away_score: number | null;
-  winner: string | null;
-  week: number;
-  season: number;
+  game_status: string;
+  winner?: string;
 }
 
 interface Pick {
-  gameId: string;
-  pickedTeam: string | null;
-  confidencePoints: number | null;
+  participant_id: string;
+  pool_id: string;
+  game_id: string;
+  predicted_winner: string;
+  confidence_points: number;
 }
 
-interface SelectedUser {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export function WeeklyPicks() {
-  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
-  const [picks, setPicks] = useState<Pick[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState<{ week_number: number } | null>(null);
+export function WeeklyPick({ poolId }: WeeklyPickProps) {
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [games, setGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sessionExpiringSoon, setSessionExpiringSoon] = useState(false);
-  const [showValidationErrors, setShowValidationErrors] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [picks, setPicks] = useState<Pick[]>([]);
+  const [currentWeek, setCurrentWeek] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  
+  const { toast } = useToast();
+  const errorsRef = useRef<HTMLDivElement>(null);
 
+  // Load current week and games
   useEffect(() => {
-    async function fetchData() {
+    const loadData = async () => {
       try {
-        setLoading(true);
         const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData);
+        setCurrentWeek(weekData.week_number);
         
-        if (weekData) {
-          const gamesData = await loadWeekGames(weekData.week_number);
-          setGames(gamesData);
-          
-          // Initialize picks array
-          setPicks(gamesData.map(game => ({
-            gameId: game.id,
-            pickedTeam: null,
-            confidencePoints: null,
-          })));
-        }
+        const gamesData = await loadWeekGames(weekData.week_number);
+        setGames(gamesData);
+        
+        // Initialize picks array
+        const initialPicks: Pick[] = gamesData.map(game => ({
+          participant_id: '',
+          pool_id: poolId,
+          game_id: game.id,
+          predicted_winner: '',
+          confidence_points: 0
+        }));
+        setPicks(initialPicks);
       } catch (error) {
         console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
+        toast({
+          title: 'Error',
+          description: 'Failed to load games data',
+          variant: 'destructive',
+        });
       }
-    }
-    fetchData();
+    };
 
-    // Check for existing session
-    const currentSession = userSessionManager.getCurrentSession();
-    if (currentSession) {
-      setSelectedUser({
-        id: currentSession.participantId,
-        name: currentSession.participantName,
-        email: ''
-      });
-    }
+    loadData();
+  }, [poolId, toast]);
 
-    // Check if session is expiring soon
-    if (userSessionManager.isSessionExpiringSoon()) {
-      setSessionExpiringSoon(true);
-    }
-
-    // Set up session monitoring
-    const sessionCheckInterval = setInterval(() => {
-      if (userSessionManager.isSessionExpiringSoon()) {
-        setSessionExpiringSoon(true);
-      }
-    }, 60000); // Check every minute
-
-    return () => clearInterval(sessionCheckInterval);
-  }, []);
-
-  const handleUserSelected = (user: SelectedUser) => {
-    setSelectedUser(user);
-    setSessionExpiringSoon(false);
-  };
-
-  const handleLogout = () => {
-    userSessionManager.clearCurrentSession();
-    setSelectedUser(null);
-    setPicks(games.map(game => ({
-      gameId: game.id,
-      pickedTeam: null,
-      confidencePoints: null,
-    })));
-  };
-
-  const extendSession = () => {
-    userSessionManager.extendSession();
-    setSessionExpiringSoon(false);
-  };
-
-  const updatePick = (gameId: string, pickedTeam: string | null) => {
-    setPicks(prev => prev.map(pick => 
-      pick.gameId === gameId 
-        ? { ...pick, pickedTeam }
-        : pick
-    ));
-  };
-
-  const updateConfidence = (gameId: string, confidencePoints: number) => {
-    setPicks(prev => {
-      // Remove this confidence from other picks first
-      const updated = prev.map(pick => 
-        pick.confidencePoints === confidencePoints 
-          ? { ...pick, confidencePoints: null }
-          : pick
-      );
+  // Load saved picks from localStorage when user is selected
+  useEffect(() => {
+    if (selectedUser && games.length > 0) {
+      const savedPicks = pickStorage.loadPicks(selectedUser.id, poolId, currentWeek);
       
-      // Set new confidence
-      return updated.map(pick => 
-        pick.gameId === gameId 
-          ? { ...pick, confidencePoints }
-          : pick
-      );
-    });
-  };
-
-  const getAvailableConfidencePoints = (currentGameId: string) => {
-    const usedPoints = picks
-      .filter(pick => pick.gameId !== currentGameId && pick.confidencePoints)
-      .map(pick => pick.confidencePoints);
-    
-    return Array.from({ length: games.length }, (_, i) => i + 1)
-      .filter(point => !usedPoints.includes(point));
-  };
-
-  const isGameLocked = (game: Game) => {
-    const gameTime = new Date(game.kickoff_time);
-    const now = new Date();
-    return now >= gameTime;
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedUser) {
-      console.error('User not selected');
-      return;
-    }
-
-    // Validate picks before submission
-    const incompletePicks = picks.filter(pick => !pick.pickedTeam || !pick.confidencePoints);
-    const errors: string[] = [];
-
-    if (incompletePicks.length > 0) {
-      setShowValidationErrors(true);
-      
-      // Create detailed error messages
-      incompletePicks.forEach(pick => {
-        const game = games.find(g => g.id === pick.gameId);
-        if (game) {
-          if (!pick.pickedTeam && !pick.confidencePoints) {
-            errors.push(`${game.away_team} @ ${game.home_team}: Missing both pick and confidence points`);
-          } else if (!pick.pickedTeam) {
-            errors.push(`${game.away_team} @ ${game.home_team}: Missing team pick`);
-          } else if (!pick.confidencePoints) {
-            errors.push(`${game.away_team} @ ${game.home_team}: Missing confidence points`);
+      if (savedPicks.length > 0) {
+        // Map saved picks to the current picks array
+        const updatedPicks = picks.map(pick => {
+          const savedPick = savedPicks.find(sp => sp.game_id === pick.game_id);
+          if (savedPick) {
+            return {
+              ...pick,
+              participant_id: selectedUser.id,
+              predicted_winner: savedPick.predicted_winner,
+              confidence_points: savedPick.confidence_points
+            };
           }
-        }
-      });
+          return { ...pick, participant_id: selectedUser.id };
+        });
+        
+        setPicks(updatedPicks);
+        setHasUnsavedChanges(false);
+        setLastSaved(new Date(savedPicks[0]?.timestamp || Date.now()));
+        
+        toast({
+          title: 'Picks Restored',
+          description: `Loaded ${savedPicks.length} saved picks from localStorage`,
+        });
+      } else {
+        // Initialize picks with selected user
+        setPicks(picks.map(pick => ({ ...pick, participant_id: selectedUser.id })));
+      }
+    }
+  }, [selectedUser, games, poolId, currentWeek, toast]);
 
-      setValidationErrors(errors);
+  // Auto-save picks to localStorage when picks change
+  useEffect(() => {
+    if (selectedUser && picks.length > 0 && hasUnsavedChanges) {
+      const validPicks = picks.filter(pick => 
+        pick.predicted_winner && pick.confidence_points > 0
+      );
       
-      // Scroll to first error
-      setTimeout(() => {
-        const firstErrorElement = document.querySelector('[data-validation-error="true"]');
-        if (firstErrorElement) {
-          firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (validPicks.length > 0) {
+        const storedPicks: StoredPick[] = validPicks.map(pick => ({
+          ...pick,
+          timestamp: Date.now()
+        }));
+        
+        pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+        setLastSaved(new Date());
+        setHasUnsavedChanges(false);
+      }
+    }
+  }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges]);
+
+  // Countdown timer for auto-submit
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (selectedUser && pickStorage.hasValidPicks(selectedUser.id, poolId, currentWeek)) {
+        const remaining = pickStorage.getFormattedTimeRemaining();
+        setTimeRemaining(remaining);
+        
+        if (remaining === 'Expired') {
+          // Auto-submit will be handled by the storage class
+          setTimeRemaining('');
         }
-      }, 100);
+      } else {
+        setTimeRemaining('');
+      }
+    }, 1000);
 
+    return () => clearInterval(timer);
+  }, [selectedUser, poolId, currentWeek]);
+
+  // Handle pick changes
+  const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
+    setPicks(prevPicks => 
+      prevPicks.map(pick => 
+        pick.game_id === gameId 
+          ? { ...pick, [field]: value }
+          : pick
+      )
+    );
+    setHasUnsavedChanges(true);
+    pickStorage.updateExpiration(); // Reset the 5-minute timer
+  };
+
+  // Validate picks
+  const validatePicks = (): string[] => {
+    const errors: string[] = [];
+    const usedConfidencePoints = new Set<number>();
+    const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+
+    if (validPicks.length !== games.length) {
+      errors.push('Please make a pick for all games');
+    }
+
+    validPicks.forEach(pick => {
+      if (usedConfidencePoints.has(pick.confidence_points)) {
+        errors.push(`Confidence point ${pick.confidence_points} is used multiple times`);
+      }
+      usedConfidencePoints.add(pick.confidence_points);
+    });
+
+    // Check for sequential confidence points
+    const confidencePoints = Array.from(usedConfidencePoints).sort((a, b) => a - b);
+    for (let i = 0; i < confidencePoints.length; i++) {
+      if (confidencePoints[i] !== i + 1) {
+        errors.push('Confidence points must be sequential (1, 2, 3, etc.)');
+        break;
+      }
+    }
+
+    return errors;
+  };
+
+  // Handle form submission
+  const handleSubmit = async () => {
+    const validationErrors = validatePicks();
+    setErrors(validationErrors);
+
+    if (validationErrors.length > 0) {
+      // Scroll to errors
+      if (errorsRef.current) {
+        errorsRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
       return;
     }
 
-    // Check for duplicate confidence points
-    const confidencePoints = picks.map(p => p.confidencePoints).filter(Boolean);
-    const uniquePoints = new Set(confidencePoints);
-    if (uniquePoints.size !== confidencePoints.length) {
-      setShowValidationErrors(true);
-      setValidationErrors(['Duplicate confidence points found. Each game must have a unique confidence value.']);
-      return;
-    }
+    setShowConfirmation(true);
+  };
 
-    // Check if confidence points are sequential (1 to number of games)
-    const sortedPoints = confidencePoints.sort((a, b) => a! - b!);
-    const expectedPoints = Array.from({ length: games.length }, (_, i) => i + 1);
-    if (JSON.stringify(sortedPoints) !== JSON.stringify(expectedPoints)) {
-      setShowValidationErrors(true);
-      setValidationErrors(['Confidence points must be sequential from 1 to ' + games.length]);
-      return;
-    }
+  // Confirm submission
+  const confirmSubmission = async () => {
+    setIsLoading(true);
+    setShowConfirmation(false);
 
-    // Clear any previous validation errors
-    setShowValidationErrors(false);
-    setValidationErrors([]);
-
-    setIsSubmitting(true);
     try {
-      const picksToSubmit = picks.map(pick => ({
-        participant_id: selectedUser.id,
-        pool_id: '1', // Default pool for now
-        game_id: pick.gameId,
-        predicted_winner: pick.pickedTeam!,
-        confidence_points: pick.confidencePoints!,
-      }));
+      const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+      const result = await submitPicks(validPicks);
 
-      await submitPicks(picksToSubmit);
-      console.log('Picks submitted successfully');
-      
-      // Reset the form after successful submission
-      setSelectedUser(null);
-      setPicks(games.map(game => ({
-        gameId: game.id,
-        pickedTeam: null,
-        confidencePoints: null,
-      })));
-    } catch (error) {
+      if (result) {
+        toast({
+          title: 'Success',
+          description: 'Picks submitted successfully!',
+        });
+        
+        // Clear localStorage after successful submission
+        pickStorage.clearPicks();
+        setPicks([]);
+        setSelectedUser(null);
+        setHasUnsavedChanges(false);
+        setLastSaved(null);
+      }
+    } catch (error: any) {
       console.error('Error submitting picks:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to submit picks',
+        variant: 'destructive',
+      });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
-  // Show user selection if no user is selected
+  // Handle user selection
+  const handleUserSelected = (user: any) => {
+    setSelectedUser(user);
+    userSessionManager.createSession(user.id, user.name, poolId, currentWeek);
+  };
+
+  // Handle user change
+  const handleChangeUser = () => {
+    setSelectedUser(null);
+    setPicks([]);
+    setHasUnsavedChanges(false);
+    setLastSaved(null);
+    pickStorage.clearPicks();
+    userSessionManager.removeSession(selectedUser?.id || '', poolId);
+  };
+
   if (!selectedUser) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Make Your Picks</h2>
-          <p className="text-gray-600">Select your name to submit picks for this week</p>
-        </div>
-        <PickUserSelection 
-          poolId="1" 
-          onUserSelected={handleUserSelected}
-        />
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Weekly Picks</h2>
-          <Button disabled>Submit Picks</Button>
-        </div>
-        <div className="space-y-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader>
-                <div className="h-6 bg-gray-200 rounded mb-2"></div>
-                <div className="h-4 bg-gray-100 rounded"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="h-4 bg-gray-100 rounded"></div>
-                  <div className="h-4 bg-gray-100 rounded w-3/4"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentWeek) {
-    return (
-      <div className="text-center py-12">
-        <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Active Week</h3>
-        <p className="text-gray-600">There is no active week for picks at this time.</p>
-      </div>
-    );
+    return <PickUserSelection poolId={poolId} onUserSelected={handleUserSelected} />;
   }
 
   return (
     <div className="space-y-6">
-      {/* Session Expiration Warning */}
-      {sessionExpiringSoon && (
-        <Card className="border-yellow-300 bg-yellow-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Shield className="h-5 w-5 text-yellow-600" />
-                <div>
-                  <p className="font-medium text-yellow-800">Session Expiring Soon</p>
-                  <p className="text-sm text-yellow-700">Your session will expire in less than 1 hour</p>
-                </div>
-              </div>
-              <Button onClick={extendSession} size="sm" variant="outline">
-                Extend Session
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Validation Errors */}
-      {showValidationErrors && validationErrors.length > 0 && (
-        <Card className="border-red-300 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-2">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-red-800 mb-2">Please Complete Your Picks</h4>
-                <ul className="space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <li key={index} className="text-sm text-red-700 flex items-start space-x-2">
-                      <span className="text-red-500 mt-1">•</span>
-                      <span>{error}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <Button 
-                onClick={() => setShowValidationErrors(false)} 
-                size="sm" 
-                variant="outline"
-                className="flex-shrink-0"
-              >
-                Dismiss
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex justify-between items-center">
+      {/* Header with user info and timer */}
+      <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center space-x-2 mb-2">
-            <User className="h-5 w-5 text-blue-600" />
-            <span className="text-sm text-gray-600">Picking as: {selectedUser.name}</span>
-          </div>
-          <h2 className="text-2xl font-bold">Week {currentWeek.week_number} Picks</h2>
-          <p className="text-gray-600">Make your picks and assign confidence points (1-{games.length})</p>
+          <h2 className="text-2xl font-bold">Week {currentWeek} Picks</h2>
+          <p className="text-gray-600">
+            Making picks as: <span className="font-semibold">{selectedUser.name}</span>
+          </p>
         </div>
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            onClick={handleLogout}
-            disabled={isSubmitting}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-4">
+          {timeRemaining && (
+            <div className="flex items-center gap-2 text-sm">
+              <Clock className="h-4 w-4 text-orange-500" />
+              <span className="font-mono">Auto-submit: {timeRemaining}</span>
+            </div>
+          )}
+          {lastSaved && (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <Save className="h-4 w-4" />
+              <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+            </div>
+          )}
+          <Button variant="outline" onClick={handleChangeUser}>
             Change User
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Picks'}
           </Button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {games.map((game) => {
-          const pick = picks.find(p => p.gameId === game.id);
-          const isLocked = isGameLocked(game);
-          const availablePoints = getAvailableConfidencePoints(game.id);
-          const isIncomplete = showValidationErrors && (!pick?.pickedTeam || !pick?.confidencePoints);
-          const isMissingPick = showValidationErrors && !pick?.pickedTeam;
-          const isMissingConfidence = showValidationErrors && !pick?.confidencePoints;
+      {/* Auto-save warning */}
+      {hasUnsavedChanges && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-blue-600" />
+            <span className="text-blue-800">
+              Your picks are being auto-saved. They will be automatically submitted in 5 minutes if you don't submit them manually.
+            </span>
+          </div>
+        </div>
+      )}
 
+      {/* Error messages */}
+      {errors.length > 0 && (
+        <div ref={errorsRef} className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="font-semibold text-red-800 mb-2">Please fix the following errors:</h3>
+          <ul className="list-disc list-inside text-red-700 space-y-1">
+            {errors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Games grid */}
+      <div className="grid gap-4">
+        {games.map((game, index) => {
+          const pick = picks.find(p => p.game_id === game.id);
+          const isLocked = game.game_status !== 'scheduled';
+          
           return (
-            <Card 
-              key={game.id} 
-              className={`
-                ${isLocked ? 'opacity-75' : ''}
-                ${isIncomplete ? 'border-red-300 bg-red-50' : ''}
-                transition-all duration-200
-              `}
-              data-validation-error={isIncomplete ? "true" : "false"}
-            >
+            <Card key={game.id} className={isLocked ? 'opacity-75' : ''}>
               <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className={`text-lg ${isIncomplete ? 'text-red-800' : ''}`}>
-                      {game.away_team} @ {game.home_team}
-                    </CardTitle>
-                    <CardDescription className="flex items-center space-x-2 mt-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>{format(new Date(game.kickoff_time), 'EEEE, MMM d, yyyy')}</span>
-                      <Clock className="h-4 w-4" />
-                      <span>{format(new Date(game.kickoff_time), 'h:mm a')}</span>
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {isIncomplete && (
-                      <div className="flex items-center space-x-1 text-red-600 text-sm font-medium">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span>Incomplete</span>
-                      </div>
-                    )}
-                    {isLocked && (
-                      <div className="text-sm text-red-600 font-medium">LOCKED</div>
-                    )}
-                  </div>
-                </div>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Game {index + 1}</span>
+                  {isLocked && <Badge variant="secondary">Locked</Badge>}
+                </CardTitle>
+                <CardDescription>
+                  {game.away_team} @ {game.home_team}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Team selection */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={`text-sm font-medium mb-2 block ${isMissingPick ? 'text-red-700' : ''}`}>
-                      Pick Winner
-                      {isMissingPick && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <Select 
-                      value={pick?.pickedTeam || ''} 
-                      onValueChange={(value) => updatePick(game.id, value)}
-                      disabled={isLocked}
-                    >
-                      <SelectTrigger className={isMissingPick ? 'border-red-300 bg-red-100' : ''}>
-                        <SelectValue placeholder="Select winner..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                        <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {isMissingPick && (
-                      <p className="text-red-600 text-xs mt-1">Please select a winner</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label className={`text-sm font-medium mb-2 block ${isMissingConfidence ? 'text-red-700' : ''}`}>
-                      Confidence Points
-                      {isMissingConfidence && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <Select 
-                      value={pick?.confidencePoints?.toString() || ''} 
-                      onValueChange={(value) => updateConfidence(game.id, parseInt(value))}
-                      disabled={isLocked}
-                    >
-                      <SelectTrigger className={isMissingConfidence ? 'border-red-300 bg-red-100' : ''}>
-                        <SelectValue placeholder="Select points..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availablePoints.map(point => (
-                          <SelectItem key={point} value={point.toString()}>
-                            {point}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {isMissingConfidence && (
-                      <p className="text-red-600 text-xs mt-1">Please assign confidence points</p>
-                    )}
+                  <Button
+                    variant={pick?.predicted_winner === game.away_team ? 'default' : 'outline'}
+                    onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.away_team)}
+                    disabled={isLocked}
+                    className="h-12"
+                  >
+                    {game.away_team}
+                  </Button>
+                  <Button
+                    variant={pick?.predicted_winner === game.home_team ? 'default' : 'outline'}
+                    onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.home_team)}
+                    disabled={isLocked}
+                    className="h-12"
+                  >
+                    {game.home_team}
+                  </Button>
+                </div>
+
+                {/* Confidence points */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Confidence Points: {pick?.confidence_points || 0}
+                  </label>
+                  <div className="grid grid-cols-8 gap-2">
+                    {Array.from({ length: games.length }, (_, i) => i + 1).map(points => (
+                      <Button
+                        key={points}
+                        variant={pick?.confidence_points === points ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => !isLocked && handlePickChange(game.id, 'confidence_points', points)}
+                        disabled={isLocked}
+                      >
+                        {points}
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </CardContent>
             </Card>
           );
         })}
+      </div>
+
+      {/* Submit button */}
+      <div className="flex justify-center">
+        <Button 
+          onClick={handleSubmit} 
+          disabled={isLoading}
+          size="lg"
+          className="px-8"
+        >
+          {isLoading ? 'Submitting...' : 'Submit Picks'}
+        </Button>
       </div>
     </div>
   );

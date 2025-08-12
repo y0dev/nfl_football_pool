@@ -44,7 +44,6 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     try {
       await createPool({
         name: data.name,
-        description: data.description,
         created_by: user.email || '',
       });
       

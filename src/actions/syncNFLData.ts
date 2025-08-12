@@ -48,7 +48,7 @@ export async function syncWeekGames(season: number, week: number) {
   try {
     console.log(`Syncing games for season ${season}, week ${week}...`);
     
-    const games = await nflAPI.getWeekGames(season, week);
+    const games = await nflAPI.getWeekGames(season, 2, week); // 2 = regular season
     
     if (games.length === 0) {
       console.log(`No games found for week ${week}`);

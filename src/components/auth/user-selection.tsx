@@ -25,7 +25,7 @@ export function UserSelection({ poolId, week, onUserSelected }: UserSelectionPro
   const [users, setUsers] = useState<UserOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const { login } = useAuth();
+  const { signIn } = useAuth();
 
   useEffect(() => {
     async function fetchUsers() {
@@ -61,7 +61,7 @@ export function UserSelection({ poolId, week, onUserSelected }: UserSelectionPro
       onUserSelected(selectedUser);
     } else {
       // Default behavior: simulate user login without password
-      login(selectedUser.email, '');
+      signIn(selectedUser.email, '');
       console.log(`Logged in as ${selectedUser.name}`);
     }
 

@@ -195,9 +195,9 @@ npm run fetch-games-all       # Fetch all games (preseason + regular + postseaso
 - `--help, -h`: Show help message with examples
 
 **Features**:
-- **ESPN API Integration**: Uses ESPN's official API for real-time NFL data
+- **ESPN API Integration**: Uses ESPN's official API for NFL data
 - **No API Key Required**: ESPN API is free and doesn't require authentication
-- **Real-Time Data**: Access to live scores, game status, and team information
+- **Game Data**: Access to game schedules, scores, and team information
 - **Season Type Support**: Automatically handles preseason (1-4), regular season (5-18), and postseason (19-22)
 - **Season Type Column**: Database includes `season_type` column (1=preseason, 2=regular, 3=postseason)
 - **Flexible Week Ranges**: Fetch specific weeks or ranges

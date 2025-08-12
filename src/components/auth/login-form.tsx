@@ -9,18 +9,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { loginUser } from '@/actions/loginUser';
-import { useAuth } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import { Eye, EyeOff } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -30,27 +32,43 @@ export function LoginForm() {
     },
   });
 
-  async function onSubmit(data: LoginFormData) {
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const user = await loginUser(data.email);
+      const result = await loginUser(data.email, data.password);
       
-      if (!user) {
-        console.error('Login failed: Invalid credentials');
-        return;
+      if (result.success && result.user) {
+        toast({
+          title: 'Success',
+          description: 'Login successful!',
+        });
+        
+        // Redirect based on user type
+        if (result.user.is_super_admin) {
+          // Admin users go to admin dashboard
+          window.location.href = '/';
+        } else {
+          // Regular users go to home page
+          window.location.href = '/';
+        }
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Invalid credentials',
+          variant: 'destructive',
+        });
       }
-
-      // In a real app, you'd verify the password hash here
-      // For demo purposes, we'll skip password verification
-      login(data.email, data.password);
-
-      console.log('Login successful');
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
+      toast({
+        title: 'Error',
+        description: 'Login failed. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -81,7 +99,26 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter your password" {...field} />
+                    <div className="relative">
+                      <Input 
+                        type={showPassword ? 'text' : 'password'} 
+                        placeholder="Enter your password" 
+                        {...field} 
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -2,108 +2,151 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
-import { User, Trophy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
-
-interface UserOption {
-  id: string;
-  name: string;
-  email: string;
-}
 
 interface PickUserSelectionProps {
   poolId: string;
-  onUserSelected: (user: UserOption) => void;
+  onUserSelected: (userId: string, userName: string) => void;
 }
 
 export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionProps) {
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [users, setUsers] = useState<UserOption[]>([]);
-  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [showVerification, setShowVerification] = useState(false);
-  const [verificationError, setVerificationError] = useState('');
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [accessCode, setAccessCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [currentWeek, setCurrentWeek] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  const { toast } = useToast();
+
+  // Handle SSR - only run on client side
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoadingUsers(true);
-        
-        // Get current week
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || null);
-        
-        // Load users who haven't submitted picks yet
-        const usersData = await loadUsers(poolId, weekData?.week_number);
-        setUsers(usersData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoadingUsers(false);
+    if (isMounted) {
+      loadData();
+    }
+  }, [isMounted, poolId]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load current week
+      const weekData = await loadCurrentWeek();
+      setCurrentWeek(weekData?.week_number || 1);
+      
+      // Load users who haven't submitted picks
+      const availableUsers = await loadUsers(poolId, weekData?.week_number || 1);
+      setUsers(availableUsers);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load users',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyAccess = async () => {
+    if (!selectedUserId || !accessCode) {
+      toast({
+        title: 'Error',
+        description: 'Please select a user and enter the access code',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const selectedUser = users.find(u => u.id === selectedUserId);
+      if (!selectedUser) {
+        throw new Error('User not found');
       }
-    }
-    fetchData();
-  }, [poolId]);
 
-  const handleUserSelect = (userId: string) => {
-    setSelectedUserId(userId);
-    setShowVerification(true);
-    setVerificationError('');
+      // For now, we'll use a simple verification
+      // In a real app, you might want to store access codes in the database
+      const expectedCode = selectedUser.name.substring(0, 4).toUpperCase();
+      
+      if (accessCode.toUpperCase() !== expectedCode) {
+        toast({
+          title: 'Access Denied',
+          description: 'Invalid access code',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create session
+      const session = userSessionManager.createSession(
+        selectedUser.id,
+        selectedUser.name,
+        poolId,
+        selectedUser.pool_name || 'Unknown Pool',
+        accessCode
+      );
+
+      toast({
+        title: 'Access Granted',
+        description: `Welcome, ${selectedUser.name}!`,
+      });
+
+      onUserSelected(selectedUser.id, selectedUser.name);
+    } catch (error) {
+      console.error('Error verifying access:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to verify access',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  const handleVerification = () => {
-    if (!verificationCode.trim()) {
-      setVerificationError('Please enter the verification code');
-      return;
-    }
-
-    // Simple verification: check if code matches participant ID (first 4 characters)
-    const selectedUser = users.find(u => u.id === selectedUserId);
-    if (!selectedUser) {
-      setVerificationError('User not found');
-      return;
-    }
-
-    const expectedCode = selectedUser.id.substring(0, 4).toUpperCase();
-    if (verificationCode.toUpperCase() !== expectedCode) {
-      setVerificationError('Invalid verification code');
-      return;
-    }
-
-    // Create secure session
-    userSessionManager.createSession(selectedUser.id, selectedUser.name);
-    
-    // Call the callback
-    onUserSelected(selectedUser);
-    
-    // Reset form
-    setShowVerification(false);
-    setVerificationCode('');
-    setSelectedUserId('');
-  };
-
-  const handleCancelVerification = () => {
-    setShowVerification(false);
-    setVerificationCode('');
-    setSelectedUserId('');
-    setVerificationError('');
-  };
-
-  if (loadingUsers) {
+  // Don't render until mounted to prevent hydration errors
+  if (!isMounted) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="flex items-center justify-center py-8">
-          <div className="text-center">
-            <Trophy className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-pulse" />
-            <p className="text-gray-600">Loading available users...</p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Select User</CardTitle>
+          <CardDescription>Loading...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Select User</CardTitle>
+          <CardDescription>Loading users...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
           </div>
         </CardContent>
       </Card>
@@ -112,119 +155,68 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
 
   if (users.length === 0) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="text-center py-8">
-          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">All Picks Submitted!</h3>
-          <p className="text-gray-600">
-            {currentWeek 
-              ? `All users have already submitted their picks for Week ${currentWeek}.`
-              : "All users have already submitted their picks for this week."
-            }
+      <Card>
+        <CardHeader>
+          <CardTitle>No Users Available</CardTitle>
+          <CardDescription>All users have submitted their picks for Week {currentWeek}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-gray-500">
+            Everyone has already made their picks for this week!
           </p>
         </CardContent>
       </Card>
     );
   }
 
-  if (showVerification) {
-    const selectedUser = users.find(u => u.id === selectedUserId);
-    const expectedCode = selectedUser?.id.substring(0, 4).toUpperCase();
-
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader className="text-center">
-          <div className="flex items-center justify-center mb-2">
-            <Shield className="h-8 w-8 text-blue-600" />
-          </div>
-          <CardTitle>Verify Your Identity</CardTitle>
-          <CardDescription>
-            Please verify you are {selectedUser?.name} to continue
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="verification-code">Verification Code</Label>
-            <Input
-              id="verification-code"
-              type="text"
-              placeholder="Enter verification code"
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value)}
-              className="text-center text-lg font-mono tracking-wider"
-              maxLength={4}
-            />
-            <p className="text-xs text-gray-500 text-center">
-              Hint: Check your email or ask the pool administrator for your verification code
-            </p>
-            {verificationError && (
-              <div className="flex items-center space-x-2 text-red-600 text-sm">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{verificationError}</span>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex space-x-2">
-            <Button 
-              variant="outline" 
-              onClick={handleCancelVerification}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleVerification}
-              className="flex-1"
-            >
-              Verify & Continue
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center mb-2">
-          <User className="h-8 w-8 text-blue-600" />
-        </div>
-        <CardTitle>Select Your Name</CardTitle>
+    <Card>
+      <CardHeader>
+        <CardTitle>Select User</CardTitle>
         <CardDescription>
-          {currentWeek 
-            ? `Choose your name to submit picks for Week ${currentWeek}`
-            : "Choose your name to submit picks"
-          }
+          Choose your name and enter the access code to make your picks for Week {currentWeek}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
+        <div>
           <Label htmlFor="user-select">Your Name</Label>
-          <Select value={selectedUserId} onValueChange={handleUserSelect}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select your name..." />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            id="user-select"
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md"
+          >
+            <option value="">Select your name...</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </select>
         </div>
-        
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start space-x-2">
-            <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Security Notice</p>
-              <p>You'll need to verify your identity before making picks. This prevents others from submitting picks on your behalf.</p>
-            </div>
-          </div>
+
+        <div>
+          <Label htmlFor="access-code">Access Code</Label>
+          <Input
+            id="access-code"
+            type="text"
+            value={accessCode}
+            onChange={(e) => setAccessCode(e.target.value)}
+            placeholder="Enter 4-character access code"
+            maxLength={4}
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            Use the first 4 letters of your name as the access code
+          </p>
         </div>
+
+        <Button
+          onClick={handleVerifyAccess}
+          disabled={!selectedUserId || !accessCode || isVerifying}
+          className="w-full"
+        >
+          {isVerifying ? 'Verifying...' : 'Continue'}
+        </Button>
       </CardContent>
     </Card>
   );
