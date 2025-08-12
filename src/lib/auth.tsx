@@ -12,7 +12,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (userData: User) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -46,24 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkSession();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (userData: User) => {
     try {
       setLoading(true);
       
-      // For now, simulate admin login
-      // In a real app, you'd verify against your admins table
-      const mockUser: User = {
-        id: 'mock-admin-id',
-        email,
-        full_name: email.split('@')[0],
-        is_super_admin: true,
-      };
-      
-      setUser(mockUser);
+      setUser(userData);
       
       // Store in localStorage for persistence
       if (typeof window !== 'undefined') {
-        localStorage.setItem('nfl-pool-user', JSON.stringify(mockUser));
+        localStorage.setItem('nfl-pool-user', JSON.stringify(userData));
       }
     } catch (error) {
       console.error('Sign in error:', error);

@@ -10,8 +10,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { loginUser } from '@/actions/loginUser';
+import { useAuth } from '@/lib/auth';
 import { Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { AuthProvider } from '@/lib/auth';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -20,10 +22,11 @@ const adminLoginSchema = z.object({
 
 type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 
-export default function AdminLoginPage() {
+function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
+  const { signIn } = useAuth();
 
   const form = useForm<AdminLoginFormData>({
     resolver: zodResolver(adminLoginSchema),
@@ -39,12 +42,15 @@ export default function AdminLoginPage() {
       const result = await loginUser(data.email, data.password);
       
       if (result.success && result.user) {
+        // Set the user in the auth context
+        await signIn(result.user);
+        
         toast({
           title: 'Success',
           description: 'Admin login successful!',
         });
         // Redirect to admin dashboard
-        window.location.href = '/';
+        window.location.href = '/admin/dashboard';
       } else {
         toast({
           title: 'Error',
@@ -177,5 +183,13 @@ export default function AdminLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <AuthProvider>
+      <AdminLoginContent />
+    </AuthProvider>
   );
 }
