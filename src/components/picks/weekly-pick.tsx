@@ -354,6 +354,44 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
         </div>
       )}
 
+      {/* Confidence Points Summary */}
+      {(() => {
+        const usedPoints = picks
+          .filter(p => p.confidence_points > 0)
+          .map(p => p.confidence_points);
+        const totalPoints = games.length;
+        const availablePoints = totalPoints - usedPoints.length;
+        
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-900">Confidence Points Summary</h3>
+                <p className="text-sm text-blue-700">
+                  {usedPoints.length} of {totalPoints} points assigned
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-900">{availablePoints}</div>
+                <div className="text-xs text-blue-600">Available</div>
+              </div>
+            </div>
+            {usedPoints.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs text-blue-600 mb-1">Used points:</div>
+                <div className="flex flex-wrap gap-1">
+                  {usedPoints.sort((a, b) => a - b).map(points => (
+                    <Badge key={points} variant="secondary" className="text-xs">
+                      {points}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Games grid */}
       <div className="grid gap-4">
         {games.map((game, index) => {
@@ -407,9 +445,16 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
 
                 {/* Confidence points */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Confidence Points
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium">
+                      Confidence Points
+                    </label>
+                    {usedConfidencePoints.length > 0 && (
+                      <span className="text-xs text-gray-500">
+                        {usedConfidencePoints.length} used
+                      </span>
+                    )}
+                  </div>
                   <Select
                     value={pick?.confidence_points?.toString() || ''}
                     onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
@@ -419,13 +464,31 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
                       <SelectValue placeholder="Select confidence points" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: games.length }, (_, i) => i + 1).map(points => (
-                        <SelectItem key={points} value={points.toString()}>
-                          {points} point{points !== 1 ? 's' : ''}
+                      {availableConfidencePoints.length > 0 ? (
+                        availableConfidencePoints.map(points => (
+                          <SelectItem key={points} value={points.toString()}>
+                            {points} point{points !== 1 ? 's' : ''}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="" disabled>
+                          No confidence points available
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
+                  {usedConfidencePoints.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-500 mb-1">Used by other games:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {usedConfidencePoints.sort((a, b) => a - b).map(points => (
+                          <Badge key={points} variant="outline" className="text-xs bg-gray-100">
+                            {points}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

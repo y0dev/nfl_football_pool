@@ -4,6 +4,7 @@ export async function createPool(poolData: {
   name: string;
   created_by: string;
   season?: number;
+  require_access_code?: boolean;
 }) {
   try {
     const supabase = getSupabaseClient();
@@ -13,7 +14,8 @@ export async function createPool(poolData: {
         name: poolData.name,
         created_by: poolData.created_by,
         season: poolData.season || 2025,
-        is_active: true
+        is_active: true,
+        require_access_code: poolData.require_access_code ?? true
       })
       .select()
       .single();

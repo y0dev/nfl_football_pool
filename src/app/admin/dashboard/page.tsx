@@ -12,6 +12,7 @@ import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-manag
 import { SubmissionStatus } from '@/components/admin/submission-status';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { TestPicks } from '@/components/admin/test-picks';
+import { PoolSettings } from '@/components/admin/pool-settings';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { AuthProvider } from '@/lib/auth';
@@ -105,7 +106,7 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1">
             <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
             <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
             <TabsTrigger value="links" className="text-xs sm:text-sm">Links</TabsTrigger>
@@ -113,6 +114,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
             <TabsTrigger value="emails" className="text-xs sm:text-sm">Emails</TabsTrigger>
             <TabsTrigger value="scores" className="text-xs sm:text-sm">Scores</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs sm:text-sm">Settings</TabsTrigger>
             <TabsTrigger value="tiebreakers" className="text-xs sm:text-sm">Tie-Breakers</TabsTrigger>
           </TabsList>
 
@@ -168,6 +170,13 @@ export default function AdminDashboard() {
                 <p className="text-gray-500">Score management features coming soon...</p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <PoolSettings 
+              poolId={selectedPool.id} 
+              poolName={selectedPool.name}
+            />
           </TabsContent>
 
           <TabsContent value="tiebreakers" className="space-y-6">

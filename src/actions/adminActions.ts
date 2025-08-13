@@ -468,7 +468,6 @@ export async function removeParticipantFromPool(participantId: string) {
 // Get all submissions for a week in a format suitable for screenshot
 export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
   try {
-    console.log('getWeeklySubmissionsForScreenshot called with:', { poolId, week });
     
     // First get all games for the week
     const { data: games, error: gamesError } = await getSupabaseClient()
@@ -487,11 +486,8 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
       return { games: [], participants: [] };
     }
 
-    console.log(`Found ${games.length} games for week ${week}`);
-
     // Get game IDs for this week
     const gameIds = games.map(game => game.id);
-    console.log('Game IDs:', gameIds);
 
     // Get all picks for the week
     const { data: picks, error: picksError } = await getSupabaseClient()
@@ -510,8 +506,6 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
       return null;
     }
 
-    console.log(`Found ${picks?.length || 0} picks for week ${week}`);
-
     // Get all participants in the pool
     const { data: participants, error: participantsError } = await getSupabaseClient()
       .from('participants')
@@ -522,8 +516,6 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
       console.error('Error fetching participants for screenshot:', participantsError);
       return null;
     }
-
-    console.log(`Found ${participants?.length || 0} participants in pool`);
 
     // Create a map of participant names
     const participantNames = new Map(participants?.map(p => [p.id, p.name]) || []);

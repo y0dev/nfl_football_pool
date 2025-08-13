@@ -28,38 +28,39 @@ function ParticipantContent() {
   const [games, setGames] = useState<any[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
   
-  const { toast } = useToast();
+    const { toast } = useToast();
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
-              // Load upcoming week if not provided in URL or if week parameter is empty
-        if (!weekParam || weekParam === '') {
+
+      // Load upcoming week if not provided in URL or if week parameter is empty
+      if (!weekParam || weekParam === '') {
+        const upcomingWeek = await getUpcomingWeek();
+        setCurrentWeek(upcomingWeek.week);
+        // Show a helpful message for empty week parameter
+        toast({
+          title: "Week not specified",
+          description: `Showing upcoming week (Week ${upcomingWeek.week})`,
+          duration: 3000,
+        });
+      } else {
+        const weekNumber = parseInt(weekParam);
+        if (isNaN(weekNumber) || weekNumber < 1) {
+          // Invalid week number, use upcoming week
           const upcomingWeek = await getUpcomingWeek();
           setCurrentWeek(upcomingWeek.week);
-          // Show a helpful message for empty week parameter
           toast({
-            title: "Week not specified",
-            description: `Showing upcoming week (Week ${upcomingWeek.week})`,
+            title: "Invalid week number",
+            description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
             duration: 3000,
           });
         } else {
-          const weekNumber = parseInt(weekParam);
-          if (isNaN(weekNumber) || weekNumber < 1) {
-            // Invalid week number, use upcoming week
-            const upcomingWeek = await getUpcomingWeek();
-            setCurrentWeek(upcomingWeek.week);
-            toast({
-              title: "Invalid week number",
-              description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
-              duration: 3000,
-            });
-          } else {
-            setCurrentWeek(weekNumber);
-          }
+          setCurrentWeek(weekNumber);
         }
+      }
 
       // Load pool information
       if (poolId) {
@@ -67,6 +68,7 @@ function ParticipantContent() {
         const pool = pools.find(p => p.id === poolId);
         if (pool) {
           setPoolName(pool.name);
+          setPoolRequiresAccessCode(pool.require_access_code);
         } else {
           setError('Pool not found. Please check the pool link.');
         }
@@ -76,7 +78,17 @@ function ParticipantContent() {
 
       // Load games for the week
       try {
-        const gamesData = await loadWeekGames(currentWeek);
+        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+        // Determine the week to load based on URL parameter or upcoming week
+        let weekToLoad: number;
+        if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
+          weekToLoad = parseInt(weekParam);
+        } else {
+          // If no valid week in URL, use upcoming week
+          const upcomingWeek = await getUpcomingWeek();
+          weekToLoad = upcomingWeek.week;
+        }
+        const gamesData = await loadWeekGames(weekToLoad, seasonType);
         setGames(gamesData);
       } catch (error) {
         console.error('Error loading games:', error);
@@ -116,102 +128,6 @@ function ParticipantContent() {
   };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-
-        // Load upcoming week if not provided in URL or if week parameter is empty
-        if (!weekParam || weekParam === '') {
-
-          const upcomingWeek = await getUpcomingWeek();
-          setCurrentWeek(upcomingWeek.week);
-          // Show a helpful message for empty week parameter
-          toast({
-            title: "Week not specified",
-            description: `Showing upcoming week (Week ${upcomingWeek.week})`,
-            duration: 3000,
-          });
-        } else {
-          const weekNumber = parseInt(weekParam);
-          if (isNaN(weekNumber) || weekNumber < 1) {
-
-            // Invalid week number, use upcoming week
-            const upcomingWeek = await getUpcomingWeek();
-            setCurrentWeek(upcomingWeek.week);
-            toast({
-              title: "Invalid week number",
-              description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
-              duration: 3000,
-            });
-                      } else {
-                          setCurrentWeek(weekNumber);
-            }
-        }
-
-        // Load pool information
-        if (poolId) {
-          const pools = await loadPools();
-          const pool = pools.find(p => p.id === poolId);
-          if (pool) {
-            setPoolName(pool.name);
-          } else {
-            setError('Pool not found. Please check the pool link.');
-          }
-        } else {
-          setError('Pool ID is required. Please use a valid pool link.');
-        }
-
-        // Load games for the week based on URL parameters
-        try {
-          const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-          // Determine the week to load based on URL parameter or upcoming week
-          let weekToLoad: number;
-          if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
-            weekToLoad = parseInt(weekParam);
-          } else {
-            // If no valid week in URL, use upcoming week
-            const upcomingWeek = await getUpcomingWeek();
-            weekToLoad = upcomingWeek.week;
-          }
-          const gamesData = await loadWeekGames(weekToLoad, seasonType);
-          setGames(gamesData);
-        } catch (error) {
-          console.error('Error loading games:', error);
-          toast({
-            title: "Warning",
-            description: "Could not load games data",
-            variant: "destructive",
-          });
-        }
-
-        // Check if this is test mode (no participants in pool)
-        if (poolId) {
-          try {
-            const { getSupabaseClient } = await import('@/lib/supabase');
-            const supabase = getSupabaseClient();
-            const { data: participants } = await supabase
-              .from('participants')
-              .select('id')
-              .eq('pool_id', poolId)
-              .eq('is_active', true);
-            
-            if (!participants || participants.length === 0) {
-              setIsTestMode(true);
-            }
-          } catch (error) {
-            console.error('Error checking participants:', error);
-          }
-        }
-
-        setLastUpdated(new Date());
-      } catch (error) {
-        console.error('Error loading participant data:', error);
-        setError('Failed to load pool information. Please try again or contact the pool administrator.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadData();
   }, [poolId, weekParam]);
 
@@ -359,6 +275,12 @@ function ParticipantContent() {
                       </Badge>
                     );
                   })()}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-gray-500" />
+                  <Badge variant={poolRequiresAccessCode ? "default" : "secondary"} className="text-xs">
+                    {poolRequiresAccessCode ? "Access Code Required" : "No Access Code Required"}
+                  </Badge>
                 </div>
                 {lastUpdated && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">

@@ -1,79 +1,127 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { createPool } from '@/actions/createPool';
-import { useAuth } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import { loadPool } from '@/actions/loadPools';
+import { updatePool } from '@/actions/updatePool';
 
-const poolSchema = z.object({
+const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   description: z.string().optional(),
   require_access_code: z.boolean(),
 });
 
-type PoolFormData = z.infer<typeof poolSchema>;
+type PoolSettingsData = z.infer<typeof poolSettingsSchema>;
 
-interface CreatePoolDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onPoolCreated: () => void;
+interface PoolSettingsProps {
+  poolId: string;
+  poolName: string;
 }
 
-export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
+export function PoolSettings({ poolId, poolName }: PoolSettingsProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
 
-  const form = useForm<PoolFormData>({
-    resolver: zodResolver(poolSchema),
+  const form = useForm<PoolSettingsData>({
+    resolver: zodResolver(poolSettingsSchema),
     defaultValues: {
-      name: '',
+      name: poolName,
       description: '',
       require_access_code: true,
     },
   });
 
-  async function onSubmit(data: PoolFormData) {
-    if (!user) return;
+  // Load pool data
+  useEffect(() => {
+    const loadPoolData = async () => {
+      try {
+        setIsLoading(true);
+        const pool = await loadPool(poolId);
+        if (pool) {
+          form.reset({
+            name: pool.name,
+            description: pool.description || '',
+            require_access_code: pool.require_access_code,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading pool data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load pool settings',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    setIsLoading(true);
+    loadPoolData();
+  }, [poolId, form, toast]);
+
+  const onSubmit = async (data: PoolSettingsData) => {
     try {
-      await createPool({
+      setIsSaving(true);
+      await updatePool(poolId, {
         name: data.name,
-        created_by: user.email || '',
+        description: data.description,
         require_access_code: data.require_access_code,
       });
       
-      console.log('Pool created successfully');
-      
-      onPoolCreated();
-      onOpenChange(false);
-      form.reset();
+      toast({
+        title: 'Success',
+        description: 'Pool settings updated successfully',
+      });
     } catch (error) {
-      console.error('Failed to create pool:', error);
+      console.error('Failed to update pool settings:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update pool settings',
+        variant: 'destructive',
+      });
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Pool Settings</CardTitle>
+          <CardDescription>Loading pool settings...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Create New Confidence Pool</DialogTitle>
-          <DialogDescription>
-            Set up a new NFL confidence pool for the current season.
-          </DialogDescription>
-        </DialogHeader>
-        
+    <Card>
+      <CardHeader>
+        <CardTitle>Pool Settings</CardTitle>
+        <CardDescription>
+          Configure pool settings and preferences
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
               name="name"
@@ -131,20 +179,15 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
             
             <div className="flex justify-end space-x-2 pt-4">
               <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={isLoading}
+                type="submit" 
+                disabled={isSaving}
               >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating...' : 'Create Pool'}
+                {isSaving ? 'Saving...' : 'Save Settings'}
               </Button>
             </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </CardContent>
+    </Card>
   );
 }

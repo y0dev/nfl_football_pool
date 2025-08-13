@@ -93,6 +93,7 @@ export type Database = {
           tie_breaker_method: string
           tie_breaker_question: string | null
           tie_breaker_answer: number | null
+          require_access_code: boolean
         }
         Insert: {
           id?: string
@@ -105,6 +106,7 @@ export type Database = {
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
+          require_access_code?: boolean
         }
         Update: {
           id?: string
@@ -117,6 +119,7 @@ export type Database = {
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
+          require_access_code?: boolean
         }
       }
       admin_pools: {
@@ -337,7 +340,8 @@ CREATE TABLE IF NOT EXISTS pools (
   season INTEGER NOT NULL,
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
-  tie_breaker_answer INTEGER
+  tie_breaker_answer INTEGER,
+  require_access_code BOOLEAN DEFAULT true
 );
 `;
 
