@@ -1,5 +1,70 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
+// Function to determine if picks should be unlocked for a given week
+export function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): boolean {
+  const now = new Date();
+  const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, etc.
+  
+  // Picks unlock on Tuesday at 12:00 AM for the upcoming week
+  // This means:
+  // - If it's Tuesday or later, the current week should be unlocked
+  // - If it's Monday or earlier, the previous week should still be locked
+  
+  // For now, let's be more permissive and allow picks for the current week
+  // This can be adjusted based on your specific requirements
+  // You can uncomment the following logic for stricter control:
+  
+  /*
+  // If it's Monday or earlier, only allow picks for the next week
+  if (currentDay <= 1) { // Sunday = 0, Monday = 1
+    // This would require more complex logic to determine the next week
+    return false;
+  }
+  */
+  
+  return true;
+}
+
+// Function to get the upcoming week (the week that should be unlocked for picks)
+export async function getUpcomingWeek(): Promise<{ week: number; seasonType: number }> {
+  try {
+    const supabase = getSupabaseClient();
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, etc.
+    
+    // Get all future games ordered by kickoff time
+    const { data: games, error } = await supabase
+      .from('games')
+      .select('week, season, kickoff_time, season_type')
+      .gte('kickoff_time', now.toISOString())
+      .order('kickoff_time')
+      .limit(1);
+
+    if (error || !games || games.length === 0) {
+      // Fallback to current week
+      const currentWeekData = await loadCurrentWeek();
+      return {
+        week: currentWeekData.week_number,
+        seasonType: currentWeekData.season_type || 2
+      };
+    }
+
+    // Return the week of the next upcoming game
+    return {
+      week: games[0].week,
+      seasonType: games[0].season_type
+    };
+  } catch (error) {
+    console.error('Error getting upcoming week:', error);
+    // Fallback to current week
+    const currentWeekData = await loadCurrentWeek();
+    return {
+      week: currentWeekData.week_number,
+      seasonType: currentWeekData.season_type || 2
+    };
+  }
+}
+
 export async function loadCurrentWeek() {
   try {
     const supabase = getSupabaseClient();
@@ -10,8 +75,6 @@ export async function loadCurrentWeek() {
       .from('games')
       .select('week, season, kickoff_time, season_type')
       .order('kickoff_time');
-    console.log('games', games);
-    console.log('error', error);
 
     if (error) {
       console.error('Error loading games for current week calculation:', error);
@@ -98,14 +161,6 @@ export async function loadCurrentWeek() {
         gameCount = weekGames.length;
       }
     }
-
-    console.log('Current week calculation:', {
-      currentWeek,
-      currentSeason,
-      currentSeasonType,
-      gameCount,
-      now: now.toISOString()
-    });
 
     return {
       id: currentWeek,

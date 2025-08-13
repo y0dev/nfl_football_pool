@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { emailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,6 +83,18 @@ export async function POST(request: NextRequest) {
         entity_id: newAdmin.id,
         details: `Created admin account for ${email}`
       });
+
+    // Send email notification
+    try {
+      await emailService.sendAdminCreationNotification(
+        newAdmin.email,
+        newAdmin.full_name || 'Unknown',
+        'System' // For now, we'll use 'System' as the creator
+      );
+    } catch (error) {
+      console.error('Failed to send admin creation notification:', error);
+      // Don't fail the registration if email fails
+    }
 
     return NextResponse.json({
       success: true,

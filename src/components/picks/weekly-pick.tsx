@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { PickUserSelection } from './pick-user-selection';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
@@ -17,6 +18,7 @@ import { Clock, Save, AlertTriangle } from 'lucide-react';
 interface WeeklyPickProps {
   poolId: string;
   weekNumber?: number;
+  seasonType?: number;
 }
 
 interface Game {
@@ -24,7 +26,8 @@ interface Game {
   home_team: string;
   away_team: string;
   kickoff_time: string;
-  game_status: string;
+  game_status?: string;
+  status?: string;
   winner?: string;
 }
 
@@ -36,7 +39,7 @@ interface Pick {
   confidence_points: number;
 }
 
-export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -47,6 +50,7 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
   
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
@@ -55,19 +59,25 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Use provided week number or load current week
+        // Use provided week number or load upcoming week
         let weekToUse = weekNumber;
-        if (!weekToUse) {
-          const weekData = await loadCurrentWeek();
-          weekToUse = weekData.week_number;
-        }
-        setCurrentWeek(weekToUse);
+        let seasonTypeToUse = seasonType;
         
-        // Default to regular season (season_type = 2)
-        const seasonType = 2;
-        console.log(`WeeklyPick: Loading games for Week ${weekToUse}, Season Type: ${seasonType}`);
-        const gamesData = await loadWeekGames(weekToUse, seasonType);
+        if (!weekToUse) {
+          const upcomingWeek = await getUpcomingWeek();
+          weekToUse = upcomingWeek.week;
+          seasonTypeToUse = seasonTypeToUse || upcomingWeek.seasonType;
+        }
+        
+        setCurrentWeek(weekToUse);
+        seasonTypeToUse = seasonTypeToUse || 2; // Default to regular season
+        
+        const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
         setGames(gamesData);
+        
+        // Check if this week is unlocked for picks
+        const weekUnlocked = isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
+        setIsWeekUnlocked(weekUnlocked);
         
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map(game => ({
@@ -89,7 +99,7 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
     };
 
     loadData();
-  }, [poolId, weekNumber, toast]);
+  }, [poolId, weekNumber, seasonType, toast]);
 
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
@@ -320,6 +330,18 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
         </div>
       )}
 
+      {/* Week locked warning */}
+      {!isWeekUnlocked && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <span className="text-yellow-800">
+              Picks for Week {currentWeek} are not yet available. Picks typically unlock on Tuesday for the upcoming week's games.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Error messages */}
       {errors.length > 0 && (
         <div ref={errorsRef} className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -336,7 +358,20 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
       <div className="grid gap-4">
         {games.map((game, index) => {
           const pick = picks.find(p => p.game_id === game.id);
-          const isLocked = game.game_status !== 'scheduled';
+          const gameStatus = game.status || game.game_status || 'scheduled';
+          const isLocked = !isWeekUnlocked || gameStatus !== 'scheduled';
+          
+          // Get used confidence points from other picks
+          const usedConfidencePoints = picks
+            .filter(p => p.game_id !== game.id && p.confidence_points > 0)
+            .map(p => p.confidence_points);
+          
+          // Get available confidence points (excluding used ones and the current pick's value)
+          const availableConfidencePoints = Array.from({ length: games.length }, (_, i) => i + 1)
+            .filter(points => 
+              points === pick?.confidence_points || // Include current pick's value
+              !usedConfidencePoints.includes(points) // Exclude used by other picks
+            );
           
           return (
             <Card key={game.id} className={isLocked ? 'opacity-75' : ''}>
@@ -373,21 +408,24 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
                 {/* Confidence points */}
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Confidence Points: {pick?.confidence_points || 0}
+                    Confidence Points
                   </label>
-                  <div className="grid grid-cols-8 gap-2">
-                    {Array.from({ length: games.length }, (_, i) => i + 1).map(points => (
-                      <Button
-                        key={points}
-                        variant={pick?.confidence_points === points ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => !isLocked && handlePickChange(game.id, 'confidence_points', points)}
-                        disabled={isLocked}
-                      >
-                        {points}
-                      </Button>
-                    ))}
-                  </div>
+                  <Select
+                    value={pick?.confidence_points?.toString() || ''}
+                    onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
+                    disabled={isLocked}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select confidence points" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: games.length }, (_, i) => i + 1).map(points => (
+                        <SelectItem key={points} value={points.toString()}>
+                          {points} point{points !== 1 ? 's' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
@@ -399,11 +437,11 @@ export function WeeklyPick({ poolId, weekNumber }: WeeklyPickProps) {
       <div className="flex justify-center">
         <Button 
           onClick={handleSubmit} 
-          disabled={isLoading}
+          disabled={isLoading || !isWeekUnlocked}
           size="lg"
           className="px-8"
         >
-          {isLoading ? 'Submitting...' : 'Submit Picks'}
+          {isLoading ? 'Submitting...' : !isWeekUnlocked ? 'Week Locked' : 'Submit Picks'}
         </Button>
       </div>
     </div>

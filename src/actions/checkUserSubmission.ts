@@ -44,7 +44,6 @@ export async function checkUserSubmission(participantId: string, poolId: string,
 
 export async function getUsersWhoSubmitted(poolId: string, week: number) {
   try {
-    console.log('getUsersWhoSubmitted called with:', { poolId, week });
     
     // Validate inputs
     if (!poolId || !week || week < 1) {
@@ -67,8 +66,6 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
       .select('id')
       .eq('week', week);
 
-    console.log('Games query result:', { games, gamesError });
-
     if (gamesError) {
       console.error('Error getting games for week:', gamesError);
       return [];
@@ -88,8 +85,6 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
       .eq('pool_id', poolId)
       .in('game_id', gameIds);
 
-    console.log('Picks query result:', { picks, error });
-
     if (error) {
       console.error('Error getting users who submitted:', error);
       return [];
@@ -97,7 +92,6 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
 
     // Return unique participant IDs
     const uniqueParticipantIds = [...new Set(picks?.map(pick => pick.participant_id) || [])];
-    console.log('Unique participant IDs:', uniqueParticipantIds);
     return uniqueParticipantIds;
   } catch (error) {
     console.error('Error getting users who submitted:', error);

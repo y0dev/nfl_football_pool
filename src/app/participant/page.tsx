@@ -12,14 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
   const poolId = searchParams.get('pool');
   const weekParam = searchParams.get('week');
-  const seasonTypeParam = searchParams.get('seasonType'); // New parameter for testing
+  const seasonTypeParam = searchParams.get('seasonType');
   
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
@@ -35,31 +35,31 @@ function ParticipantContent() {
     try {
       setIsLoading(true);
       
-      // Load current week if not provided in URL or if week parameter is empty
-      if (!weekParam || weekParam === '') {
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData.week_number);
-        // Show a helpful message for empty week parameter
-        toast({
-          title: "Week not specified",
-          description: `Showing current week (Week ${weekData.week_number})`,
-          duration: 3000,
-        });
-      } else {
-        const weekNumber = parseInt(weekParam);
-        if (isNaN(weekNumber) || weekNumber < 1) {
-          // Invalid week number, use current week
-          const weekData = await loadCurrentWeek();
-          setCurrentWeek(weekData.week_number);
+              // Load upcoming week if not provided in URL or if week parameter is empty
+        if (!weekParam || weekParam === '') {
+          const upcomingWeek = await getUpcomingWeek();
+          setCurrentWeek(upcomingWeek.week);
+          // Show a helpful message for empty week parameter
           toast({
-            title: "Invalid week number",
-            description: `Showing current week (Week ${weekData.week_number}) instead`,
+            title: "Week not specified",
+            description: `Showing upcoming week (Week ${upcomingWeek.week})`,
             duration: 3000,
           });
         } else {
-          setCurrentWeek(weekNumber);
+          const weekNumber = parseInt(weekParam);
+          if (isNaN(weekNumber) || weekNumber < 1) {
+            // Invalid week number, use upcoming week
+            const upcomingWeek = await getUpcomingWeek();
+            setCurrentWeek(upcomingWeek.week);
+            toast({
+              title: "Invalid week number",
+              description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
+              duration: 3000,
+            });
+          } else {
+            setCurrentWeek(weekNumber);
+          }
         }
-      }
 
       // Load pool information
       if (poolId) {
@@ -119,38 +119,32 @@ function ParticipantContent() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        console.log(`weekParam: ${weekParam}`);
-        console.log(`seasonTypeParam: ${seasonTypeParam}`);
-        // Load current week if not provided in URL or if week parameter is empty
+
+        // Load upcoming week if not provided in URL or if week parameter is empty
         if (!weekParam || weekParam === '') {
-          console.log('weekParam is empty');
-          const weekData = await loadCurrentWeek();
-          setCurrentWeek(weekData.week_number);
+
+          const upcomingWeek = await getUpcomingWeek();
+          setCurrentWeek(upcomingWeek.week);
           // Show a helpful message for empty week parameter
           toast({
             title: "Week not specified",
-            description: `Showing current week (Week ${weekData.week_number})`,
+            description: `Showing upcoming week (Week ${upcomingWeek.week})`,
             duration: 3000,
           });
         } else {
-          console.log('weekParam is not empty');
           const weekNumber = parseInt(weekParam);
-          console.log(`weekNumber: ${weekNumber}`);
           if (isNaN(weekNumber) || weekNumber < 1) {
-            console.log('weekNumber is invalid');
-            // Invalid week number, use current week
-            const weekData = await loadCurrentWeek();
-            setCurrentWeek(weekData.week_number);
+
+            // Invalid week number, use upcoming week
+            const upcomingWeek = await getUpcomingWeek();
+            setCurrentWeek(upcomingWeek.week);
             toast({
               title: "Invalid week number",
-              description: `Showing current week (Week ${weekData.week_number}) instead`,
+              description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
               duration: 3000,
             });
                       } else {
-              console.log('weekNumber is valid');
-              // set current week to the week number
-              setCurrentWeek(weekNumber);
-              console.log(`Setting currentWeek to: ${weekNumber}`);
+                          setCurrentWeek(weekNumber);
             }
         }
 
@@ -170,19 +164,17 @@ function ParticipantContent() {
         // Load games for the week based on URL parameters
         try {
           const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-          // Determine the week to load based on URL parameter or current week
+          // Determine the week to load based on URL parameter or upcoming week
           let weekToLoad: number;
           if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
             weekToLoad = parseInt(weekParam);
           } else {
-            // If no valid week in URL, use current week
-            const weekData = await loadCurrentWeek();
-            weekToLoad = weekData.week_number;
+            // If no valid week in URL, use upcoming week
+            const upcomingWeek = await getUpcomingWeek();
+            weekToLoad = upcomingWeek.week;
           }
-          console.log(`Loading games for Week ${weekToLoad}, Season Type: ${seasonType}`);
           const gamesData = await loadWeekGames(weekToLoad, seasonType);
           setGames(gamesData);
-          console.log(`Found ${gamesData.length} games for Week ${weekToLoad}`);
         } catch (error) {
           console.error('Error loading games:', error);
           toast({
@@ -456,7 +448,7 @@ function ParticipantContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <WeeklyPick poolId={poolId!} weekNumber={currentWeek} />
+                <WeeklyPick poolId={poolId!} weekNumber={currentWeek} seasonType={seasonTypeParam ? parseInt(seasonTypeParam) : 2} />
               </CardContent>
             </Card>
           </TabsContent>

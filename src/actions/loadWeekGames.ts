@@ -18,7 +18,6 @@ export async function loadWeekGames(weekNumber: number = 1, seasonType?: number)
     if (seasonType !== undefined) {
       query = query.eq('season_type', seasonType);
     }
-    console.log('query', query);
 
     const { data, error } = await query.order('kickoff_time');
 
