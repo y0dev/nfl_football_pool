@@ -85,7 +85,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter your email" {...field} />
+                    <Input type="email" placeholder="Enter your email" autoComplete="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -102,6 +102,7 @@ export function LoginForm() {
                       <Input 
                         type={showPassword ? 'text' : 'password'} 
                         placeholder="Enter your password" 
+                        autoComplete="current-password"
                         {...field} 
                       />
                       <Button

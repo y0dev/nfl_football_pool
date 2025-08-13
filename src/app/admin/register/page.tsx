@@ -140,6 +140,7 @@ export default function AdminRegisterPage() {
                           type="email" 
                           placeholder="admin@example.com" 
                           className="h-12 text-base"
+                          autoComplete="email"
                           {...field} 
                         />
                       </FormControl>
@@ -160,6 +161,7 @@ export default function AdminRegisterPage() {
                             type={showPassword ? 'text' : 'password'} 
                             placeholder="Enter your password" 
                             className="h-12 text-base pr-12"
+                            autoComplete="new-password"
                             {...field} 
                           />
                           <Button

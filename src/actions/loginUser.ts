@@ -4,14 +4,21 @@ import bcrypt from 'bcryptjs';
 export async function loginUser(email: string, password: string) {
   try {
     const supabase = getSupabaseClient();
+    
+    // First, try to get the admin by email
     const { data, error } = await supabase
       .from('admins')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.trim().toLowerCase())
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    if (error) {
+      console.error('Supabase error:', error);
+      return { success: false, error: 'Database error. Please try again.' };
+    }
+
+    if (!data) {
       return { success: false, error: 'Invalid credentials' };
     }
 

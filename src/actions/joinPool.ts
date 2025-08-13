@@ -12,11 +12,11 @@ export async function joinPool(poolId: string, userEmail: string, userName?: str
       .from('participants')
       .select('id')
       .eq('pool_id', poolId)
-      .eq('email', userEmail)
+      .eq('email', userEmail.trim().toLowerCase())
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (checkError && checkError.code !== 'PGRST116') {
+    if (checkError) {
       console.error('joinPool: Error checking existing participant:', checkError);
       throw checkError;
     }
@@ -32,7 +32,7 @@ export async function joinPool(poolId: string, userEmail: string, userName?: str
     const participantData = {
       pool_id: poolId,
       name: userName || userEmail.split('@')[0], // Use email prefix as name if not provided
-      email: userEmail,
+      email: userEmail.trim().toLowerCase(),
       is_active: true
     };
     

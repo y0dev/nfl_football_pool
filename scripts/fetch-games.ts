@@ -160,10 +160,94 @@ if (!includePlayoffs && endWeek > 18) {
 // Mock data for when API key is not available
 const mockGames: GameData[] = [
   {
-    id: 'mock_1',
+    id: 'mock_hof',
+    week: 0,
+    season: 2024,
+    season_type: 1, // Hall of Fame Game (Preseason)
+    home_team: 'Dallas Cowboys',
+    away_team: 'Pittsburgh Steelers',
+    kickoff_time: '2024-08-01T20:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'DAL',
+    away_team_id: 'PIT',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_1',
     week: 1,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 1, // Preseason Week 1
+    home_team: 'Kansas City Chiefs',
+    away_team: 'Baltimore Ravens',
+    kickoff_time: '2024-08-08T20:20:00Z',
+    status: 'scheduled',
+    home_team_id: 'KC',
+    away_team_id: 'BAL',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_2',
+    week: 1,
+    season: 2024,
+    season_type: 1, // Preseason Week 1
+    home_team: 'Buffalo Bills',
+    away_team: 'New York Jets',
+    kickoff_time: '2024-08-08T17:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'BUF',
+    away_team_id: 'NYJ',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_3',
+    week: 2,
+    season: 2024,
+    season_type: 1, // Preseason Week 2
+    home_team: 'Green Bay Packers',
+    away_team: 'Chicago Bears',
+    kickoff_time: '2024-08-15T17:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'GB',
+    away_team_id: 'CHI',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_4',
+    week: 2,
+    season: 2024,
+    season_type: 1, // Preseason Week 2
+    home_team: 'San Francisco 49ers',
+    away_team: 'Los Angeles Rams',
+    kickoff_time: '2024-08-15T20:20:00Z',
+    status: 'scheduled',
+    home_team_id: 'SF',
+    away_team_id: 'LAR',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_5',
+    week: 3,
+    season: 2024,
+    season_type: 1, // Preseason Week 3
+    home_team: 'New England Patriots',
+    away_team: 'Miami Dolphins',
+    kickoff_time: '2024-08-22T19:30:00Z',
+    status: 'scheduled',
+    home_team_id: 'NE',
+    away_team_id: 'MIA',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_regular_1',
+    week: 4,
+    season: 2024,
+    season_type: 2, // Regular Season Week 4
     home_team: 'Kansas City Chiefs',
     away_team: 'Baltimore Ravens',
     kickoff_time: '2024-09-05T20:20:00Z',
@@ -174,10 +258,10 @@ const mockGames: GameData[] = [
     is_active: true
   },
   {
-    id: 'mock_2',
-    week: 1,
+    id: 'mock_regular_2',
+    week: 4,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 2, // Regular Season Week 4
     home_team: 'Buffalo Bills',
     away_team: 'New York Jets',
     kickoff_time: '2024-09-08T17:00:00Z',
@@ -188,44 +272,16 @@ const mockGames: GameData[] = [
     is_active: true
   },
   {
-    id: 'mock_3',
-    week: 1,
+    id: 'mock_regular_3',
+    week: 5,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 2, // Regular Season Week 5
     home_team: 'Dallas Cowboys',
     away_team: 'Philadelphia Eagles',
-    kickoff_time: '2024-09-08T20:20:00Z',
+    kickoff_time: '2024-09-12T20:20:00Z',
     status: 'scheduled',
     home_team_id: 'DAL',
     away_team_id: 'PHI',
-    is_playoff: false,
-    is_active: true
-  },
-  {
-    id: 'mock_4',
-    week: 2,
-    season: 2024,
-    season_type: 1, // Preseason
-    home_team: 'Green Bay Packers',
-    away_team: 'Chicago Bears',
-    kickoff_time: '2024-09-15T17:00:00Z',
-    status: 'scheduled',
-    home_team_id: 'GB',
-    away_team_id: 'CHI',
-    is_playoff: false,
-    is_active: true
-  },
-  {
-    id: 'mock_5',
-    week: 2,
-    season: 2024,
-    season_type: 1, // Preseason
-    home_team: 'San Francisco 49ers',
-    away_team: 'Los Angeles Rams',
-    kickoff_time: '2024-09-15T20:20:00Z',
-    status: 'scheduled',
-    home_team_id: 'SF',
-    away_team_id: 'LAR',
     is_playoff: false,
     is_active: true
   },

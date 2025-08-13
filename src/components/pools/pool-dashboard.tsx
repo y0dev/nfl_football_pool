@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,14 @@ export function PoolDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { user } = useAuth();
+  const router = useRouter();
+
+  // Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (user === null) {
+      router.push('/admin/login');
+    }
+  }, [user, router]);
 
   async function fetchPools() {
     try {
@@ -50,6 +59,11 @@ export function PoolDashboard() {
   useEffect(() => {
     fetchPools();
   }, []);
+
+  // Don't render anything if user is not authenticated
+  if (user === null) {
+    return null;
+  }
 
   if (loading) {
     return (

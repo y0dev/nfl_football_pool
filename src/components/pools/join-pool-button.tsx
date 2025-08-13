@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { joinPool } from '@/actions/joinPool';
+import { joinPoolServer } from '@/actions/joinPoolServer';
 import { isUserInPool } from '@/actions/checkUserSubmission';
 import { useAuth } from '@/lib/auth';
 import { UserPlus, Check } from 'lucide-react';
@@ -19,13 +20,19 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
   const [isChecking, setIsChecking] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+
+  // Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (user === null) {
+      router.push('/admin/login');
+    }
+  }, [user, router]);
 
   useEffect(() => {
     const checkIfInPool = async () => {
-      console.log('JoinPoolButton: Checking if user is in pool', { user, poolId });
       
       if (!user?.email) {
-        console.log('JoinPoolButton: No user email, skipping check');
         setIsChecking(false);
         return;
       }
@@ -59,15 +66,24 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
 
     setIsJoining(true);
     try {
-      console.log('JoinPoolButton: Calling joinPool with:', { poolId, email: user.email, name: user.full_name });
-      await joinPool(poolId, user.email, user.full_name);
-      console.log('Successfully joined pool');
-      setIsInPool(true);
-      onJoined();
-      toast({
-        title: "Success",
-        description: "Successfully joined the pool!",
-      });
+      console.log('JoinPoolButton: Calling joinPoolServer with:', { poolId, email: user.email, name: user.full_name });
+      const result = await joinPoolServer(poolId, user.email, user.full_name);
+      
+      if (result.success) {
+        console.log('Successfully joined pool');
+        setIsInPool(true);
+        onJoined();
+        toast({
+          title: "Success",
+          description: "Successfully joined the pool!",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to join pool",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('Failed to join pool:', error);
       toast({
@@ -78,6 +94,11 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
     } finally {
       setIsJoining(false);
     }
+  }
+
+  // Don't render anything if user is not authenticated
+  if (user === null) {
+    return null;
   }
 
   if (isChecking) {

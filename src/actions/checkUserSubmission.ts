@@ -126,11 +126,11 @@ export async function isUserInPool(userEmail: string, poolId: string) {
       .from('participants')
       .select('id')
       .eq('pool_id', poolId)
-      .eq('email', userEmail)
+      .eq('email', userEmail.trim().toLowerCase())
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('Error checking if user is in pool:', error);
       return false;
     }
