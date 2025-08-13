@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
+import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, RefreshCw } from 'lucide-react';
@@ -28,9 +29,10 @@ function ParticipantContent() {
   const [games, setGames] = useState<any[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
+    const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   
-    const { toast } = useToast();
+  const { toast } = useToast();
 
   const loadData = async () => {
     try {
@@ -89,6 +91,7 @@ function ParticipantContent() {
           weekToLoad = upcomingWeek.week;
         }
         const gamesData = await loadWeekGames(weekToLoad, seasonType);
+        console.log('Loaded games:', gamesData.length, 'for week', weekToLoad, 'season type', seasonType);
         setGames(gamesData);
       } catch (error) {
         console.error('Error loading games:', error);
@@ -134,6 +137,10 @@ function ParticipantContent() {
   const handleRefresh = async () => {
     setIsLoading(true);
     await loadData();
+  };
+
+  const handleUserSelected = (userId: string, userName: string) => {
+    setSelectedUser({ id: userId, name: userName });
   };
 
   const handleShare = async () => {
@@ -370,7 +377,28 @@ function ParticipantContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <WeeklyPick poolId={poolId!} weekNumber={currentWeek} seasonType={seasonTypeParam ? parseInt(seasonTypeParam) : 2} />
+                {selectedUser ? (
+                  games.length > 0 ? (
+                    <WeeklyPick 
+                      poolId={poolId!} 
+                      weekNumber={currentWeek} 
+                      seasonType={seasonTypeParam ? parseInt(seasonTypeParam) : 2}
+                      selectedUser={selectedUser}
+                      games={games}
+                      preventGameLoading={true}
+                    />
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No games found for Week {currentWeek}
+                    </div>
+                  )
+                ) : (
+                  <PickUserSelection 
+                    poolId={poolId!} 
+                    weekNumber={currentWeek} 
+                    onUserSelected={handleUserSelected}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>

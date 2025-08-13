@@ -72,7 +72,7 @@ export default function AdminDashboard() {
 
         {/* Pool Selector */}
         {pools.length > 0 && (
-          <div className="mb-6 p-4 bg-white rounded-lg border">
+          <div className="my-6 p-4 bg-white rounded-lg border">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Selected Pool</h3>

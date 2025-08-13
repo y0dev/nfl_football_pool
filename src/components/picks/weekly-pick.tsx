@@ -19,6 +19,9 @@ interface WeeklyPickProps {
   poolId: string;
   weekNumber?: number;
   seasonType?: number;
+  selectedUser?: any;
+  games?: Game[];
+  preventGameLoading?: boolean;
 }
 
 interface Game {
@@ -39,9 +42,9 @@ interface Pick {
   confidence_points: number;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) {
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [games, setGames] = useState<Game[]>([]);
+export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading }: WeeklyPickProps) {
+  const [selectedUser, setSelectedUser] = useState<any>(propSelectedUser || null);
+  const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,8 +58,29 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
 
-  // Load current week and games
+  // Load current week and games (only if not prevented)
   useEffect(() => {
+    if (preventGameLoading && propGames) {
+      // Use provided games and set current week
+      setGames(propGames);
+      setCurrentWeek(weekNumber || 1);
+      
+      // Check if this week is unlocked for picks
+      const weekUnlocked = isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
+      setIsWeekUnlocked(weekUnlocked);
+      
+      // Initialize picks array
+      const initialPicks: Pick[] = propGames.map(game => ({
+        participant_id: '',
+        pool_id: poolId,
+        game_id: game.id,
+        predicted_winner: '',
+        confidence_points: 0
+      }));
+      setPicks(initialPicks);
+      return;
+    }
+
     const loadData = async () => {
       try {
         // Use provided week number or load upcoming week
@@ -99,7 +123,14 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
     };
 
     loadData();
-  }, [poolId, weekNumber, seasonType, toast]);
+  }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast]);
+
+  // Update selectedUser when prop changes
+  useEffect(() => {
+    if (propSelectedUser && propSelectedUser !== selectedUser) {
+      setSelectedUser(propSelectedUser);
+    }
+  }, [propSelectedUser, selectedUser]);
 
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
@@ -156,15 +187,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
     }
   }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges]);
 
-  // Countdown timer for auto-submit
+  // Countdown timer for auto-save (no auto-submit)
   useEffect(() => {
     const timer = setInterval(() => {
-      if (selectedUser && pickStorage.hasValidPicks(selectedUser.id, poolId, currentWeek)) {
+      if (selectedUser && hasUnsavedChanges) {
         const remaining = pickStorage.getFormattedTimeRemaining();
         setTimeRemaining(remaining);
         
         if (remaining === 'Expired') {
-          // Auto-submit will be handled by the storage class
+          // Just clear the timer, don't auto-submit
           setTimeRemaining('');
         }
       } else {
@@ -173,7 +204,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [selectedUser, poolId, currentWeek]);
+  }, [selectedUser, poolId, currentWeek, hasUnsavedChanges]);
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
@@ -185,7 +216,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
       )
     );
     setHasUnsavedChanges(true);
-    pickStorage.updateExpiration(); // Reset the 5-minute timer
+    // Don't update expiration - just save to localStorage
   };
 
   // Validate picks
@@ -359,7 +390,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
         const usedPoints = picks
           .filter(p => p.confidence_points > 0)
           .map(p => p.confidence_points);
-        const totalPoints = games.length;
+        const totalPoints = games.length || 0;
         const availablePoints = totalPoints - usedPoints.length;
         
         return (
@@ -405,11 +436,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
             .map(p => p.confidence_points);
           
           // Get available confidence points (excluding used ones and the current pick's value)
-          const availableConfidencePoints = Array.from({ length: games.length }, (_, i) => i + 1)
+          const availableConfidencePoints = games.length > 0 ? Array.from({ length: games.length }, (_, i) => i + 1)
             .filter(points => 
               points === pick?.confidence_points || // Include current pick's value
               !usedConfidencePoints.includes(points) // Exclude used by other picks
-            );
+            ) : [];
           
           return (
             <Card key={game.id} className={isLocked ? 'opacity-75' : ''}>
@@ -464,7 +495,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType }: WeeklyPickProps) 
                       <SelectValue placeholder="Select confidence points" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableConfidencePoints.length > 0 ? (
+                      {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
                         availableConfidencePoints.map(points => (
                           <SelectItem key={points} value={points.toString()}>
                             {points} point{points !== 1 ? 's' : ''}

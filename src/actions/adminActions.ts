@@ -363,8 +363,6 @@ export async function getPoolParticipants(poolId: string) {
       return [];
     }
 
-    console.log('getPoolParticipants called with poolId:', poolId);
-
     const { data, error } = await getSupabaseClient()
       .from('participants')
       .select('*')
@@ -377,7 +375,6 @@ export async function getPoolParticipants(poolId: string) {
       return [];
     }
 
-    console.log('getPoolParticipants result:', { count: data?.length || 0, data });
     return data || [];
   } catch (error) {
     console.error('Failed to get pool participants:', error);
