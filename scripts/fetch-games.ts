@@ -73,9 +73,9 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --help, -h                  Show this help message');
     console.log('');
     console.log('Season Types:');
-    console.log('  • Preseason: Week 0 (Hall of Fame) + Weeks 1-3 (seasontype=1)');
-    console.log('  • Regular Season: Weeks 4-18 (seasontype=2)');
-    console.log('  • Postseason: Weeks 19-22 (seasontype=3)');
+    console.log('  • Preseason: Weeks 1-4 (Week 1 = Hall of Fame, Weeks 2-4 = Preseason)');
+    console.log('  • Regular Season: Weeks 1-18');
+    console.log('  • Postseason: Weeks 1-4');
     console.log('');
     console.log('Database Schema:');
     console.log('  • season_type column added to games table');
@@ -84,16 +84,15 @@ for (let i = 0; i < args.length; i++) {
     console.log('');
     console.log('Examples:');
     console.log('  npm run fetch-games                                    # Fetch all regular season games');
-    console.log('  npm run fetch-games -- --start-week 4                  # Fetch from week 4 onwards');
-    console.log('  npm run fetch-games -- --start-week 0 --end-week 3     # Fetch preseason only');
-    console.log('  npm run fetch-games -- --start-week 19 --end-week 22   # Fetch playoffs only');
+    console.log('  npm run fetch-games -- --start-week 1                  # Fetch from week 1 onwards');
+    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch preseason only');
+    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch postseason only');
     console.log('  npm run fetch-games -- --preseason                     # Fetch preseason only');
     console.log('  npm run fetch-games -- --regular                       # Fetch regular season only');
     console.log('  npm run fetch-games -- --postseason                    # Fetch postseason only');
     console.log('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
     console.log('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
     console.log('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
-    console.log('  npm run fetch-games -- --start-week 0 --end-week 22    # Fetch entire season');
     process.exit(0);
   } else if (arg === '--start-week' || arg === '-s') {
     startWeek = parseInt(args[++i]);
@@ -105,16 +104,16 @@ for (let i = 0; i < args.length; i++) {
       seasonTypeId = typeId;
       if (typeId === 1) {
         seasonType = 'preseason';
-        startWeek = 0;
-        endWeek = 3;
+        startWeek = 1;
+        endWeek = 4;
       } else if (typeId === 2) {
         seasonType = 'regular';
-        startWeek = 4;
+        startWeek = 1;
         endWeek = 18;
       } else if (typeId === 3) {
         seasonType = 'postseason';
-        startWeek = 19;
-        endWeek = 22;
+        startWeek = 1;
+        endWeek = 4;
       }
     } else {
       console.error('❌ Season type must be 1, 2, or 3');
@@ -126,24 +125,24 @@ for (let i = 0; i < args.length; i++) {
   } else if (arg === '--preseason') {
     seasonType = 'preseason';
     seasonTypeId = 1;
-    startWeek = 0;
-    endWeek = 3;
+    startWeek = 1;
+    endWeek = 4;
   } else if (arg === '--regular') {
     seasonType = 'regular';
     seasonTypeId = 2;
-    startWeek = 4;
+    startWeek = 1;
     endWeek = 18;
   } else if (arg === '--postseason') {
     seasonType = 'postseason';
     seasonTypeId = 3;
-    startWeek = 19;
-    endWeek = 22;
+    startWeek = 1;
+    endWeek = 4;
   }
 }
 
 // Validate week ranges
-if (startWeek < 0 || startWeek > 22 || endWeek < 0 || endWeek > 22) {
-  console.error('❌ Week numbers must be between 0 and 22');
+if (startWeek < 1 || startWeek > 18 || endWeek < 1 || endWeek > 18) {
+  console.error('❌ Week numbers must be between 1 and 18');
   process.exit(1);
 }
 
@@ -161,7 +160,7 @@ if (!includePlayoffs && endWeek > 18) {
 const mockGames: GameData[] = [
   {
     id: 'mock_hof',
-    week: 0,
+    week: 1,
     season: 2024,
     season_type: 1, // Hall of Fame Game (Preseason)
     home_team: 'Dallas Cowboys',
@@ -175,7 +174,7 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_preseason_1',
-    week: 1,
+    week: 2,
     season: 2024,
     season_type: 1, // Preseason Week 1
     home_team: 'Kansas City Chiefs',
@@ -189,7 +188,7 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_preseason_2',
-    week: 1,
+    week: 2,
     season: 2024,
     season_type: 1, // Preseason Week 1
     home_team: 'Buffalo Bills',
@@ -203,7 +202,7 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_preseason_3',
-    week: 2,
+    week: 3,
     season: 2024,
     season_type: 1, // Preseason Week 2
     home_team: 'Green Bay Packers',
@@ -217,7 +216,7 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_preseason_4',
-    week: 2,
+    week: 3,
     season: 2024,
     season_type: 1, // Preseason Week 2
     home_team: 'San Francisco 49ers',
@@ -231,7 +230,7 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_preseason_5',
-    week: 3,
+    week: 4,
     season: 2024,
     season_type: 1, // Preseason Week 3
     home_team: 'New England Patriots',
@@ -245,9 +244,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_regular_1',
-    week: 4,
+    week: 1,
     season: 2024,
-    season_type: 2, // Regular Season Week 4
+    season_type: 2, // Regular Season Week 1
     home_team: 'Kansas City Chiefs',
     away_team: 'Baltimore Ravens',
     kickoff_time: '2024-09-05T20:20:00Z',
@@ -259,9 +258,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_regular_2',
-    week: 4,
+    week: 1,
     season: 2024,
-    season_type: 2, // Regular Season Week 4
+    season_type: 2, // Regular Season Week 1
     home_team: 'Buffalo Bills',
     away_team: 'New York Jets',
     kickoff_time: '2024-09-08T17:00:00Z',
@@ -273,9 +272,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_regular_3',
-    week: 5,
+    week: 2,
     season: 2024,
-    season_type: 2, // Regular Season Week 5
+    season_type: 2, // Regular Season Week 2
     home_team: 'Dallas Cowboys',
     away_team: 'Philadelphia Eagles',
     kickoff_time: '2024-09-12T20:20:00Z',
@@ -287,9 +286,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_1',
-    week: 19,
+    week: 1,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 1
     home_team: 'Kansas City Chiefs',
     away_team: 'Buffalo Bills',
     kickoff_time: '2025-01-11T20:15:00Z',
@@ -301,9 +300,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_2',
-    week: 19,
+    week: 1,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 1
     home_team: 'Baltimore Ravens',
     away_team: 'Cincinnati Bengals',
     kickoff_time: '2025-01-12T16:30:00Z',
@@ -315,9 +314,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_3',
-    week: 20,
+    week: 2,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 2
     home_team: 'Kansas City Chiefs',
     away_team: 'Baltimore Ravens',
     kickoff_time: '2025-01-19T20:15:00Z',
@@ -329,9 +328,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_4',
-    week: 21,
+    week: 3,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 3
     home_team: 'Kansas City Chiefs',
     away_team: 'San Francisco 49ers',
     kickoff_time: '2025-02-02T18:30:00Z',

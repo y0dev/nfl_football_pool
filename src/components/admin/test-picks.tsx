@@ -24,9 +24,9 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
   const { toast } = useToast();
 
   const seasonTypeOptions = [
-    { value: 1, label: 'Preseason', weeks: [0, 1, 2, 3] }, // 0 = Hall of Fame Game, 1-3 = Preseason Weeks
-    { value: 2, label: 'Regular Season', weeks: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
-    { value: 3, label: 'Postseason', weeks: [19, 20, 21, 22] }
+    { value: 1, label: 'Preseason', weeks: [1, 2, 3, 4] }, // 1 = Hall of Fame Game, 2-4 = Preseason Weeks
+    { value: 2, label: 'Regular Season', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
+    { value: 3, label: 'Postseason', weeks: [1, 2, 3, 4] }
   ];
 
   useEffect(() => {

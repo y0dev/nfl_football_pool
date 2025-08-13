@@ -1,19 +1,11 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
-// Helper function to determine season type based on week number
-export function getSeasonTypeFromWeek(weekNumber: number): number {
-  if (weekNumber === 0) {
-    return 1; // Hall of Fame Game (Preseason)
-  } else if (weekNumber >= 1 && weekNumber <= 3) {
-    return 1; // Preseason Weeks 1-3
-  } else if (weekNumber >= 4 && weekNumber <= 18) {
-    return 2; // Regular Season (Weeks 4-18)
-  } else if (weekNumber >= 19 && weekNumber <= 22) {
-    return 3; // Postseason
-  }
-  return 2; // Default to regular season
-}
-
+/*
+ * Loads the games for a given week and season type
+ * @param weekNumber - The week number to load games for
+ * @param seasonType - The season type to load games for
+ * @returns An array of games
+ */
 export async function loadWeekGames(weekNumber: number = 1, seasonType?: number) {
   try {
     const supabase = getSupabaseClient();
@@ -26,6 +18,7 @@ export async function loadWeekGames(weekNumber: number = 1, seasonType?: number)
     if (seasonType !== undefined) {
       query = query.eq('season_type', seasonType);
     }
+    console.log('query', query);
 
     const { data, error } = await query.order('kickoff_time');
 
@@ -36,3 +29,5 @@ export async function loadWeekGames(weekNumber: number = 1, seasonType?: number)
     return [];
   }
 }
+
+

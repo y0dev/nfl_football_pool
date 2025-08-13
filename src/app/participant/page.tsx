@@ -13,7 +13,7 @@ import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2,
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { loadWeekGames, getSeasonTypeFromWeek } from '@/actions/loadWeekGames';
+import { loadWeekGames } from '@/actions/loadWeekGames';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
@@ -119,9 +119,11 @@ function ParticipantContent() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        
+        console.log(`weekParam: ${weekParam}`);
+        console.log(`seasonTypeParam: ${seasonTypeParam}`);
         // Load current week if not provided in URL or if week parameter is empty
         if (!weekParam || weekParam === '') {
+          console.log('weekParam is empty');
           const weekData = await loadCurrentWeek();
           setCurrentWeek(weekData.week_number);
           // Show a helpful message for empty week parameter
@@ -131,8 +133,11 @@ function ParticipantContent() {
             duration: 3000,
           });
         } else {
+          console.log('weekParam is not empty');
           const weekNumber = parseInt(weekParam);
+          console.log(`weekNumber: ${weekNumber}`);
           if (isNaN(weekNumber) || weekNumber < 1) {
+            console.log('weekNumber is invalid');
             // Invalid week number, use current week
             const weekData = await loadCurrentWeek();
             setCurrentWeek(weekData.week_number);
@@ -141,9 +146,12 @@ function ParticipantContent() {
               description: `Showing current week (Week ${weekData.week_number}) instead`,
               duration: 3000,
             });
-          } else {
-            setCurrentWeek(weekNumber);
-          }
+                      } else {
+              console.log('weekNumber is valid');
+              // set current week to the week number
+              setCurrentWeek(weekNumber);
+              console.log(`Setting currentWeek to: ${weekNumber}`);
+            }
         }
 
         // Load pool information
@@ -159,22 +167,22 @@ function ParticipantContent() {
           setError('Pool ID is required. Please use a valid pool link.');
         }
 
-        // Load games for the week
+        // Load games for the week based on URL parameters
         try {
-          // Use season type from URL parameter if provided (for testing), otherwise determine from week
-          let seasonType: number;
-          if (seasonTypeParam) {
-            seasonType = parseInt(seasonTypeParam);
-            console.log(`Using season type from URL parameter: ${seasonType}`);
+          const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+          // Determine the week to load based on URL parameter or current week
+          let weekToLoad: number;
+          if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
+            weekToLoad = parseInt(weekParam);
           } else {
-            seasonType = getSeasonTypeFromWeek(currentWeek);
-            console.log(`Determined season type from week: ${seasonType}`);
+            // If no valid week in URL, use current week
+            const weekData = await loadCurrentWeek();
+            weekToLoad = weekData.week_number;
           }
-          
-          console.log(`Loading games for Week ${currentWeek}, Season Type: ${seasonType}`);
-          const gamesData = await loadWeekGames(currentWeek, seasonType);
+          console.log(`Loading games for Week ${weekToLoad}, Season Type: ${seasonType}`);
+          const gamesData = await loadWeekGames(weekToLoad, seasonType);
           setGames(gamesData);
-          console.log(`Found ${gamesData.length} games for Week ${currentWeek}`);
+          console.log(`Found ${gamesData.length} games for Week ${weekToLoad}`);
         } catch (error) {
           console.error('Error loading games:', error);
           toast({
@@ -243,7 +251,7 @@ function ParticipantContent() {
 
   const getDeadlineInfo = () => {
     if (games.length === 0) return null;
-    
+
     const firstGame = games[0];
     const gameTime = new Date(firstGame.kickoff_time);
     const now = new Date();
@@ -351,9 +359,9 @@ function ParticipantContent() {
                     {games.length} games
                   </span>
                   {(() => {
-                    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : getSeasonTypeFromWeek(currentWeek);
-                    const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                    return (
+                      const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season for display
+                      const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                      return (
                       <Badge variant="secondary" className="text-xs">
                         {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
                       </Badge>
@@ -485,7 +493,7 @@ function ParticipantContent() {
                             </div>
                             {game.status && game.status !== 'scheduled' && (
                               <div className="text-sm text-gray-500 mt-1">
-                                Status: {game.status}
+                                Status: {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
                               </div>
                             )}
                           </div>
