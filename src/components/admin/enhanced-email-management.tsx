@@ -255,7 +255,7 @@ export function EnhancedEmailManagement({
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     <SelectItem value="welcome">Welcome</SelectItem>
                     <SelectItem value="reminder">Reminders</SelectItem>
                     <SelectItem value="update">Updates</SelectItem>

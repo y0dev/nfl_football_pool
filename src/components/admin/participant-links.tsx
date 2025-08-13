@@ -17,6 +17,7 @@ interface ParticipantLinksProps {
 
 export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
   const [currentWeek, setCurrentWeek] = useState<number>(1);
+  const [seasonType, setSeasonType] = useState<number>(2);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -24,7 +25,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
   // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${baseUrl}/participant?pool=${poolId}&week=${currentWeek}`;
+    return `${baseUrl}/participant?pool=${poolId}&week=${currentWeek}&seasonType=${seasonType}`;
   };
 
   // Copy link to clipboard
@@ -74,6 +75,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
       try {
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData.week_number);
+        setSeasonType(weekData.season_type || 2);
       } catch (error) {
         console.error('Error loading current week:', error);
       }
@@ -171,7 +173,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
         {/* Quick Share Options */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Quick Share</Label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-2">
             <Button
               variant="outline"
               size="sm"

@@ -12,7 +12,7 @@ import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { loadPools } from '@/actions/loadPools';
+import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 
@@ -24,6 +24,7 @@ function ParticipantContent() {
   
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
+  const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [games, setGames] = useState<any[]>([]);
@@ -38,36 +39,34 @@ function ParticipantContent() {
     try {
       setIsLoading(true);
 
-      // Load upcoming week if not provided in URL or if week parameter is empty
-      if (!weekParam || weekParam === '') {
+      // Use the week and season type from URL parameters
+      let weekToUse: number;
+      let seasonTypeToUse: number;
+      
+      if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
+        weekToUse = parseInt(weekParam);
+        seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
+        setCurrentWeek(weekToUse);
+        setCurrentSeasonType(seasonTypeToUse);
+      } else {
+        // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
-        setCurrentWeek(upcomingWeek.week);
+        weekToUse = upcomingWeek.week;
+        seasonTypeToUse = upcomingWeek.seasonType;
+        setCurrentWeek(weekToUse);
+        setCurrentSeasonType(seasonTypeToUse);
+        
         // Show a helpful message for empty week parameter
         toast({
           title: "Week not specified",
           description: `Showing upcoming week (Week ${upcomingWeek.week})`,
           duration: 3000,
         });
-      } else {
-        const weekNumber = parseInt(weekParam);
-        if (isNaN(weekNumber) || weekNumber < 1) {
-          // Invalid week number, use upcoming week
-          const upcomingWeek = await getUpcomingWeek();
-          setCurrentWeek(upcomingWeek.week);
-          toast({
-            title: "Invalid week number",
-            description: `Showing upcoming week (Week ${upcomingWeek.week}) instead`,
-            duration: 3000,
-          });
-        } else {
-          setCurrentWeek(weekNumber);
-        }
       }
 
       // Load pool information
       if (poolId) {
-        const pools = await loadPools();
-        const pool = pools.find(p => p.id === poolId);
+        const pool = await loadPool(poolId);
         if (pool) {
           setPoolName(pool.name);
           setPoolRequiresAccessCode(pool.require_access_code);
@@ -78,25 +77,10 @@ function ParticipantContent() {
         setError('Pool ID is required. Please use a valid pool link.');
       }
 
-      // Load games for the week
+      // Load games for the week using the determined week and season type
       try {
-        // Determine the week and season type to load
-        let weekToLoad: number;
-        let seasonTypeToLoad: number;
-        
-        if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
-          weekToLoad = parseInt(weekParam);
-          // Use season type from URL or default to upcoming week's season type
-          seasonTypeToLoad = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-        } else {
-          // If no valid week in URL, use upcoming week
-          const upcomingWeek = await getUpcomingWeek();
-          weekToLoad = upcomingWeek.week;
-          seasonTypeToLoad = upcomingWeek.seasonType;
-        }
-        
-        const gamesData = await loadWeekGames(weekToLoad, seasonTypeToLoad);
-        console.log('Loaded games:', gamesData.length, 'for week', weekToLoad, 'season type', seasonTypeToLoad);
+        const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
+        console.log('Loaded games:', gamesData.length, 'for week', weekToUse, 'season type', seasonTypeToUse);
         setGames(gamesData);
       } catch (error) {
         console.error('Error loading games:', error);
@@ -387,7 +371,7 @@ function ParticipantContent() {
                     <WeeklyPick 
                       poolId={poolId!} 
                       weekNumber={currentWeek} 
-                      seasonType={seasonTypeParam ? parseInt(seasonTypeParam) : 2}
+                      seasonType={currentSeasonType}
                       selectedUser={selectedUser}
                       games={games}
                       preventGameLoading={true}

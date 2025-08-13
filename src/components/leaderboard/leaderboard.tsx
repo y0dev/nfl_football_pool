@@ -34,7 +34,8 @@ export function Leaderboard() {
   useEffect(() => {
     async function fetchPools() {
       try {
-        const poolsData = await loadPools();
+        // Show all active pools for leaderboard (participant context)
+        const poolsData = await loadPools(undefined, true);
         setPools(poolsData);
       } catch (error) {
         console.error('Error loading pools:', error);
