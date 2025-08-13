@@ -4,10 +4,10 @@ import { getSupabaseClient } from '@/lib/supabase';
 // GET - Get pool details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const poolId = params.id;
+    const { id: poolId } = await params;
     const supabase = getSupabaseClient();
 
     const { data: pool, error } = await supabase
@@ -41,10 +41,10 @@ export async function GET(
 // PUT - Update pool details
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const poolId = params.id;
+    const { id: poolId } = await params;
     const body = await request.json();
     const supabase = getSupabaseClient();
 
@@ -111,10 +111,10 @@ export async function PUT(
 // DELETE - Delete pool
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const poolId = params.id;
+    const { id: poolId } = await params;
     const supabase = getSupabaseClient();
 
     // First, get the pool details for logging

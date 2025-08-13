@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-// import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/ui/checkbox';
 import { createPool } from '@/actions/createPool';
 import { useAuth } from '@/lib/auth';
 
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   description: z.string().optional(),
+  require_access_code: z.boolean(),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -34,6 +35,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     defaultValues: {
       name: '',
       description: '',
+      require_access_code: true,
     },
   });
 
@@ -45,6 +47,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
       await createPool({
         name: data.name,
         created_by: user.email || '',
+        require_access_code: data.require_access_code,
       });
       
       console.log('Pool created successfully');
@@ -98,6 +101,30 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                     A brief description of your confidence pool.
                   </FormDescription>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="require_access_code"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>
+                      Require Access Code for Picks
+                    </FormLabel>
+                    <FormDescription>
+                      When enabled, participants must enter an access code to make their picks. 
+                      When disabled, participants can make picks directly without any code.
+                    </FormDescription>
+                  </div>
                 </FormItem>
               )}
             />

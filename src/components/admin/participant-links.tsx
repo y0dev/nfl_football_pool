@@ -171,17 +171,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
         {/* Quick Share Options */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Quick Share</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const text = `Join ${poolName} - Week ${currentWeek} NFL Confidence Pool: ${participantLink}`;
-                window.open(`sms:?body=${encodeURIComponent(text)}`);
-              }}
-            >
-              📱 Text Message
-            </Button>
+          <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
               size="sm"

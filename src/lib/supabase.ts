@@ -20,6 +20,22 @@ export function getSupabaseClient() {
   return createClient(supabaseUrl, key);
 }
 
+// Function to get Supabase client with service role (for server-side operations that need to bypass RLS)
+export function getSupabaseServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL in your environment variables.');
+  }
+
+  if (!supabaseServiceKey) {
+    throw new Error('Supabase service role key is required for server operations. Please set SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
 // Create default client for backward compatibility (only in browser environment)
 let supabase: SupabaseClient | null = null;
 
@@ -77,6 +93,7 @@ export type Database = {
           tie_breaker_method: string
           tie_breaker_question: string | null
           tie_breaker_answer: number | null
+          require_access_code: boolean
         }
         Insert: {
           id?: string
@@ -89,6 +106,7 @@ export type Database = {
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
+          require_access_code?: boolean
         }
         Update: {
           id?: string
@@ -101,6 +119,7 @@ export type Database = {
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
+          require_access_code?: boolean
         }
       }
       admin_pools: {
@@ -321,7 +340,8 @@ CREATE TABLE IF NOT EXISTS pools (
   season INTEGER NOT NULL,
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
-  tie_breaker_answer INTEGER
+  tie_breaker_answer INTEGER,
+  require_access_code BOOLEAN DEFAULT true
 );
 `;
 
@@ -468,9 +488,11 @@ ALTER TABLE tie_breakers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Participants are viewable by all authenticated users" ON participants
   FOR SELECT USING (true);
 
-CREATE POLICY "Only admins can insert participants" ON participants
+CREATE POLICY "Users can join pools" ON participants
   FOR INSERT WITH CHECK (
-    EXISTS (
+    -- Allow users to join pools (for the join pool functionality)
+    true
+    OR EXISTS (
       SELECT 1 FROM admins 
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true

@@ -8,37 +8,22 @@ export interface EmailConfig {
   from: string;
 }
 
-export interface PickReminderData {
-  participantName: string;
-  participantEmail: string;
-  poolName: string;
-  weekNumber: number;
-  deadline: string;
-  gamesCount: number;
-  poolUrl: string;
-  adminName: string;
-}
-
-export interface EmailTemplate {
+interface EmailData {
+  to: string;
   subject: string;
   html: string;
-  text: string;
+  text?: string;
 }
 
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private config: EmailConfig | null = null;
-  private initialized = false;
 
   constructor() {
-    // Only initialize on client side
-    if (typeof window !== 'undefined') {
-      this.initializeTransporter();
-    }
+    this.initializeTransporter();
   }
 
   private initializeTransporter() {
-    if (this.initialized) return;
     
     const host = process.env.NEXT_PUBLIC_SMTP_HOST || process.env.SMTP_HOST;
     const port = process.env.NEXT_PUBLIC_SMTP_PORT || process.env.SMTP_PORT;
@@ -47,8 +32,7 @@ class EmailService {
     const from = process.env.NEXT_PUBLIC_SMTP_FROM || process.env.SMTP_FROM;
 
     if (!host || !port || !user || !pass || !from) {
-      console.warn('⚠️ Email configuration incomplete. Email functionality will be disabled.');
-      this.initialized = true;
+      console.warn('Email configuration incomplete. Email notifications will be disabled.');
       return;
     }
 
@@ -63,291 +47,170 @@ class EmailService {
     this.transporter = nodemailer.createTransport({
       host: this.config.host,
       port: this.config.port,
-      secure: this.config.port === 465,
+      secure: this.config.port === 465, // true for 465, false for other ports
       auth: {
         user: this.config.user,
         pass: this.config.pass,
       },
     });
-
-    console.log('✅ Email service initialized');
-    this.initialized = true;
   }
 
-  private createPickReminderTemplate(data: PickReminderData): EmailTemplate {
-    const subject = `🏈 NFL Confidence Pool - Week ${data.weekNumber} Picks Due!`;
-    
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFL Confidence Pool - Week ${data.weekNumber} Picks</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f8f9fa;
-        }
-        .container {
-            background-color: #ffffff;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo {
-            font-size: 32px;
-            font-weight: bold;
-            color: #1a73e8;
-            margin-bottom: 10px;
-        }
-        .week-badge {
-            background-color: #1a73e8;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: bold;
-            display: inline-block;
-            margin-bottom: 20px;
-        }
-        .content {
-            margin-bottom: 30px;
-        }
-        .deadline {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 20px 0;
-            text-align: center;
-        }
-        .deadline strong {
-            color: #856404;
-        }
-        .cta-button {
-            display: inline-block;
-            background-color: #1a73e8;
-            color: white !important;
-            text-decoration: none;
-            padding: 16px 32px;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 18px;
-            margin: 20px 0;
-            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
-            transition: all 0.3s ease;
-        }
-        .cta-button:hover {
-            background-color: #1557b0;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(26, 115, 232, 0.4);
-        }
-        .footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            font-size: 14px;
-            color: #666;
-            text-align: center;
-        }
-        .games-info {
-            background-color: #f8f9fa;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        .admin-info {
-            font-style: italic;
-            color: #666;
-            margin-top: 20px;
-        }
-        .link-section {
-            background-color: #e8f4fd;
-            border: 2px solid #1a73e8;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 25px 0;
-            text-align: center;
-        }
-        .link-text {
-            font-family: monospace;
-            background-color: #f1f3f4;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-            word-break: break-all;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">🏈 NFL Confidence Pool</div>
-            <div class="week-badge">Week ${data.weekNumber}</div>
-        </div>
-        
-        <div class="content">
-            <h2>Hi ${data.participantName}!</h2>
-            
-            <p>It's time to make your picks for <strong>${data.poolName}</strong> - Week ${data.weekNumber}!</p>
-            
-            <div class="deadline">
-                <strong>⏰ Deadline:</strong> ${data.deadline}
-            </div>
-            
-            <div class="games-info">
-                <strong>📊 This Week:</strong> ${data.gamesCount} games to pick
-            </div>
-            
-            <p>Don't forget to assign your confidence points (1-${data.gamesCount}) to each game. The higher the confidence, the more points you'll earn if you're right!</p>
-            
-            <div style="text-align: center;">
-                <a href="${data.poolUrl}" class="cta-button">🏈 Make Your Picks Now</a>
-            </div>
-            
-            <div class="link-section">
-                <h3>🔗 Direct Link to Your Pool</h3>
-                <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-                <div class="link-text">${data.poolUrl}</div>
-                <p><small>This link will take you directly to Week ${data.weekNumber} picks for ${data.poolName}</small></p>
-            </div>
-            
-            <div class="admin-info">
-                Sent by ${data.adminName}
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>This is an automated reminder from your NFL Confidence Pool.</p>
-            <p>If you have any questions, please contact your pool administrator.</p>
-        </div>
-    </div>
-</body>
-</html>`;
-
-    const text = `
-🏈 NFL Confidence Pool - Week ${data.weekNumber} Picks Due!
-
-Hi ${data.participantName}!
-
-It's time to make your picks for ${data.poolName} - Week ${data.weekNumber}!
-
-⏰ Deadline: ${data.deadline}
-📊 This Week: ${data.gamesCount} games to pick
-
-Don't forget to assign your confidence points (1-${data.gamesCount}) to each game. The higher the confidence, the more points you'll earn if you're right!
-
-🏈 Make your picks here: ${data.poolUrl}
-
-🔗 Direct Link: ${data.poolUrl}
-(This link will take you directly to Week ${data.weekNumber} picks for ${data.poolName})
-
-Sent by ${data.adminName}
-
----
-This is an automated reminder from your NFL Confidence Pool.
-If you have any questions, please contact your pool administrator.`;
-
-    return { subject, html, text };
-  }
-
-  async sendPickReminder(data: PickReminderData): Promise<boolean> {
-    if (typeof window === 'undefined') {
-      console.error('❌ Email service cannot be used on server side');
-      return false;
-    }
-
-    if (!this.initialized) {
-      this.initializeTransporter();
-    }
-
+  async sendEmail(emailData: EmailData): Promise<boolean> {
     if (!this.transporter || !this.config) {
-      console.error('❌ Email service not configured');
+      console.warn('Email service not configured. Skipping email send.');
       return false;
     }
 
     try {
-      const template = this.createPickReminderTemplate(data);
-      
       const mailOptions = {
         from: this.config.from,
-        to: data.participantEmail,
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.html,
+        text: emailData.text || this.stripHtml(emailData.html),
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Pick reminder sent to ${data.participantEmail}: ${info.messageId}`);
+      console.log('Email sent successfully:', info.messageId);
       return true;
     } catch (error) {
-      console.error(`❌ Failed to send pick reminder to ${data.participantEmail}:`, error);
+      console.error('Error sending email:', error);
       return false;
     }
   }
 
-  async sendBulkPickReminders(reminders: PickReminderData[]): Promise<{
-    sent: number;
-    failed: number;
-    total: number;
-  }> {
-    if (typeof window === 'undefined') {
-      console.error('❌ Email service cannot be used on server side');
-      return { sent: 0, failed: reminders.length, total: reminders.length };
-    }
-
-    if (!this.initialized) {
-      this.initializeTransporter();
-    }
-
-    if (!this.transporter || !this.config) {
-      console.error('❌ Email service not configured');
-      return { sent: 0, failed: reminders.length, total: reminders.length };
-    }
-
-    let sent = 0;
-    let failed = 0;
-
-    console.log(`📧 Sending ${reminders.length} pick reminders...`);
-
-    for (const reminder of reminders) {
-      const success = await this.sendPickReminder(reminder);
-      if (success) {
-        sent++;
-      } else {
-        failed++;
-      }
-      
-      // Add a small delay between emails to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    console.log(`📊 Email results: ${sent} sent, ${failed} failed`);
-    return { sent, failed, total: reminders.length };
+  private stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, '');
   }
 
-  isConfigured(): boolean {
-    if (typeof window === 'undefined') {
-      return false; // Always return false on server side
-    }
+  // Template for admin account creation notification
+  async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
+    const subject = 'New Admin Account Created - NFL Confidence Pool';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+          🏈 NFL Confidence Pool - Admin Account Created
+        </h2>
+        
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #1f2937; margin-top: 0;">New Admin Account Details:</h3>
+          <p><strong>Email:</strong> ${adminEmail}</p>
+          <p><strong>Name:</strong> ${adminName}</p>
+          <p><strong>Created:</strong> ${new Date().toLocaleString()}</p>
+          ${createdBy ? `<p><strong>Created By:</strong> ${createdBy}</p>` : ''}
+        </div>
+        
+        <div style="background-color: #dbeafe; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0; color: #1e40af;">
+            <strong>Note:</strong> This admin account has been created and is now active. 
+            The admin can log in to manage pools and participants.
+          </p>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px;">
+            This is an automated notification from the NFL Confidence Pool system.
+          </p>
+        </div>
+      </div>
+    `;
 
-    if (!this.initialized) {
-      this.initializeTransporter();
-    }
+    return this.sendEmail({
+      to: process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@example.com',
+      subject,
+      html
+    });
+  }
 
-    return this.transporter !== null && this.config !== null;
+  // Template for pool invitation
+  async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string): Promise<boolean> {
+    const subject = `You're Invited to Join ${poolName} - NFL Confidence Pool`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+          🏈 You're Invited to Join ${poolName}
+        </h2>
+        
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #1f2937; margin-top: 0;">Welcome to the NFL Confidence Pool!</h3>
+          <p>Hi ${participantName},</p>
+          <p>You've been invited to join <strong>${poolName}</strong> in our NFL Confidence Pool!</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${poolLink}" 
+             style="background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Join Pool Now
+          </a>
+        </div>
+        
+        <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #92400e; margin-top: 0;">How it works:</h4>
+          <ul style="color: #92400e; margin: 0; padding-left: 20px;">
+            <li>Pick the winner for each NFL game</li>
+            <li>Assign confidence points (1-16) to each pick</li>
+            <li>Earn points for correct picks × confidence points</li>
+            <li>Compete for the highest score each week!</li>
+          </ul>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px;">
+            If you have any questions, please contact your pool administrator.
+          </p>
+        </div>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: participantEmail,
+      subject,
+      html
+    });
+  }
+
+  // Template for pick reminder
+  async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string): Promise<boolean> {
+    const subject = `🏈 Week ${weekNumber} Picks Due - ${poolName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+          🏈 Week ${weekNumber} Picks Due
+        </h2>
+        
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #1f2937; margin-top: 0;">Time to Make Your Picks!</h3>
+          <p>Hi ${participantName},</p>
+          <p>Don't forget to submit your picks for <strong>${poolName}</strong> - Week ${weekNumber}!</p>
+        </div>
+        
+        <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #92400e; margin-top: 0;">⏰ Deadline:</h4>
+          <p style="color: #92400e; margin: 0; font-weight: bold;">${deadline}</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${poolLink}" 
+             style="background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Make Your Picks Now
+          </a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #6b7280; font-size: 14px;">
+            This is an automated reminder from your NFL Confidence Pool.
+          </p>
+        </div>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: participantEmail,
+      subject,
+      html
+    });
   }
 }
 
-// Export singleton instance
+// Export a singleton instance
 export const emailService = new EmailService();

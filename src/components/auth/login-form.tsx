@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { loginUser } from '@/actions/loginUser';
+import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -23,6 +24,7 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
+  const { signIn } = useAuth();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -38,19 +40,16 @@ export function LoginForm() {
       const result = await loginUser(data.email, data.password);
       
       if (result.success && result.user) {
+        // Set the user in the auth context
+        await signIn(result.user);
+        
         toast({
           title: 'Success',
           description: 'Login successful!',
         });
         
-        // Redirect based on user type
-        if (result.user.is_super_admin) {
-          // Admin users go to admin dashboard
-          window.location.href = '/';
-        } else {
-          // Regular users go to home page
-          window.location.href = '/';
-        }
+        // Redirect to admin dashboard
+        window.location.href = '/admin/dashboard';
       } else {
         toast({
           title: 'Error',
@@ -86,7 +85,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter your email" {...field} />
+                    <Input type="email" placeholder="Enter your email" autoComplete="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -103,6 +102,7 @@ export function LoginForm() {
                       <Input 
                         type={showPassword ? 'text' : 'password'} 
                         placeholder="Enter your password" 
+                        autoComplete="current-password"
                         {...field} 
                       />
                       <Button

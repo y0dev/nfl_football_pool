@@ -8,14 +8,16 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { loadPool } from '@/actions/loadPools';
 import { userSessionManager } from '@/lib/user-session';
 
 interface PickUserSelectionProps {
   poolId: string;
+  weekNumber?: number;
   onUserSelected: (userId: string, userName: string) => void;
 }
 
-export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionProps) {
+export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUserSelectionProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [accessCode, setAccessCode] = useState('');
@@ -23,6 +25,7 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
   const [currentWeek, setCurrentWeek] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState(true);
   
   const { toast } = useToast();
 
@@ -41,12 +44,22 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
     try {
       setIsLoading(true);
       
-      // Load current week
-      const weekData = await loadCurrentWeek();
-      setCurrentWeek(weekData?.week_number || 1);
+      // Load pool details to check access code requirement
+      const pool = await loadPool(poolId);
+      if (pool) {
+        setPoolRequiresAccessCode(pool.require_access_code);
+      }
+      
+      // Use provided week number or load current week
+      let weekToUse = weekNumber;
+      if (!weekToUse) {
+        const weekData = await loadCurrentWeek();
+        weekToUse = weekData?.week_number || 1;
+      }
+      setCurrentWeek(weekToUse);
       
       // Load users who haven't submitted picks
-      const availableUsers = await loadUsers(poolId, weekData?.week_number || 1);
+      const availableUsers = await loadUsers(poolId, weekToUse);
       setUsers(availableUsers);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -61,10 +74,19 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
   };
 
   const handleVerifyAccess = async () => {
-    if (!selectedUserId || !accessCode) {
+    if (!selectedUserId) {
       toast({
         title: 'Error',
-        description: 'Please select a user and enter the access code',
+        description: 'Please select a user',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (poolRequiresAccessCode && !accessCode) {
+      toast({
+        title: 'Error',
+        description: 'Please enter the access code',
         variant: 'destructive',
       });
       return;
@@ -78,17 +100,20 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
         throw new Error('User not found');
       }
 
-      // For now, we'll use a simple verification
-      // In a real app, you might want to store access codes in the database
-      const expectedCode = selectedUser.name.substring(0, 4).toUpperCase();
-      
-      if (accessCode.toUpperCase() !== expectedCode) {
-        toast({
-          title: 'Access Denied',
-          description: 'Invalid access code',
-          variant: 'destructive',
-        });
-        return;
+      // Only verify access code if pool requires it
+      if (poolRequiresAccessCode) {
+        // For now, we'll use a simple verification
+        // In a real app, you might want to store access codes in the database
+        const expectedCode = selectedUser.name.substring(0, 4).toUpperCase();
+        
+        if (accessCode.toUpperCase() !== expectedCode) {
+          toast({
+            title: 'Access Denied',
+            description: 'Invalid access code',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
 
       // Create session
@@ -97,7 +122,7 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
         selectedUser.name,
         poolId,
         selectedUser.pool_name || 'Unknown Pool',
-        accessCode
+        poolRequiresAccessCode ? accessCode : ''
       );
 
       toast({
@@ -157,13 +182,30 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
     return (
       <Card>
         <CardHeader>
-          <CardTitle>No Users Available</CardTitle>
-          <CardDescription>All users have submitted their picks for Week {currentWeek}</CardDescription>
+          <CardTitle>No Participants Available</CardTitle>
+          <CardDescription>
+            {currentWeek ? `No participants found for Week ${currentWeek}` : 'No participants found in this pool'}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-center text-gray-500">
-            Everyone has already made their picks for this week!
-          </p>
+        <CardContent className="space-y-4">
+          <div className="text-center space-y-2">
+            <p className="text-gray-500">
+              {currentWeek ? 
+                'All participants have already submitted their picks for this week!' :
+                'No participants have been added to this pool yet.'
+              }
+            </p>
+            {!currentWeek && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Admin Action Required:</strong> The pool administrator needs to add participants to this pool before picks can be made.
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  Please contact the pool administrator or use the admin dashboard to add participants.
+                </p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -174,7 +216,10 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
       <CardHeader>
         <CardTitle>Select User</CardTitle>
         <CardDescription>
-          Choose your name and enter the access code to make your picks for Week {currentWeek}
+          {poolRequiresAccessCode 
+            ? `Choose your name and enter the access code to make your picks for Week ${currentWeek}`
+            : `Choose your name to make your picks for Week ${currentWeek}`
+          }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -195,24 +240,26 @@ export function PickUserSelection({ poolId, onUserSelected }: PickUserSelectionP
           </select>
         </div>
 
-        <div>
-          <Label htmlFor="access-code">Access Code</Label>
-          <Input
-            id="access-code"
-            type="text"
-            value={accessCode}
-            onChange={(e) => setAccessCode(e.target.value)}
-            placeholder="Enter 4-character access code"
-            maxLength={4}
-          />
-          <p className="text-sm text-gray-500 mt-1">
-            Use the first 4 letters of your name as the access code
-          </p>
-        </div>
+        {poolRequiresAccessCode && (
+          <div>
+            <Label htmlFor="access-code">Access Code</Label>
+            <Input
+              id="access-code"
+              type="text"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              placeholder="Enter 4-character access code"
+              maxLength={4}
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Use the first 4 letters of your name as the access code
+            </p>
+          </div>
+        )}
 
         <Button
           onClick={handleVerifyAccess}
-          disabled={!selectedUserId || !accessCode || isVerifying}
+          disabled={!selectedUserId || (poolRequiresAccessCode && !accessCode) || isVerifying}
           className="w-full"
         >
           {isVerifying ? 'Verifying...' : 'Continue'}

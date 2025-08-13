@@ -51,6 +51,7 @@ let startWeek = 1;
 let endWeek = 18;
 let includePlayoffs = true;
 let seasonType = 'regular'; // 'preseason', 'regular', 'postseason', 'all'
+let seasonTypeId = 2; // Default to regular season
 
 // Parse arguments
 for (let i = 0; i < args.length; i++) {
@@ -64,6 +65,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('Options:');
     console.log('  --start-week, -s <week>     Start fetching from specific week (1-22, default: 1)');
     console.log('  --end-week, -e <week>       End fetching at specific week (1-22, default: 18)');
+    console.log('  --season-type <type>        Specify season type: 1=preseason, 2=regular, 3=postseason');
     console.log('  --no-playoffs               Exclude playoff games (weeks 19-22)');
     console.log('  --preseason                 Fetch preseason games only (weeks 1-4)');
     console.log('  --regular                   Fetch regular season games only (weeks 5-18)');
@@ -71,9 +73,9 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --help, -h                  Show this help message');
     console.log('');
     console.log('Season Types:');
-    console.log('  • Preseason: Weeks 1-4 (seasontype=1)');
-    console.log('  • Regular Season: Weeks 5-18 (seasontype=2)');
-    console.log('  • Postseason: Weeks 19-22 (seasontype=3)');
+    console.log('  • Preseason: Weeks 1-4 (Week 1 = Hall of Fame, Weeks 2-4 = Preseason)');
+    console.log('  • Regular Season: Weeks 1-18');
+    console.log('  • Postseason: Weeks 1-4');
     console.log('');
     console.log('Database Schema:');
     console.log('  • season_type column added to games table');
@@ -82,39 +84,65 @@ for (let i = 0; i < args.length; i++) {
     console.log('');
     console.log('Examples:');
     console.log('  npm run fetch-games                                    # Fetch all regular season games');
-    console.log('  npm run fetch-games -- --start-week 5                  # Fetch from week 5 onwards');
+    console.log('  npm run fetch-games -- --start-week 1                  # Fetch from week 1 onwards');
     console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch preseason only');
-    console.log('  npm run fetch-games -- --start-week 19 --end-week 22   # Fetch playoffs only');
+    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch postseason only');
     console.log('  npm run fetch-games -- --preseason                     # Fetch preseason only');
     console.log('  npm run fetch-games -- --regular                       # Fetch regular season only');
     console.log('  npm run fetch-games -- --postseason                    # Fetch postseason only');
-    console.log('  npm run fetch-games -- --start-week 1 --end-week 22    # Fetch entire season');
+    console.log('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
+    console.log('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
+    console.log('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
     process.exit(0);
   } else if (arg === '--start-week' || arg === '-s') {
     startWeek = parseInt(args[++i]);
   } else if (arg === '--end-week' || arg === '-e') {
     endWeek = parseInt(args[++i]);
+  } else if (arg === '--season-type') {
+    const typeId = parseInt(args[++i]);
+    if (typeId >= 1 && typeId <= 3) {
+      seasonTypeId = typeId;
+      if (typeId === 1) {
+        seasonType = 'preseason';
+        startWeek = 1;
+        endWeek = 4;
+      } else if (typeId === 2) {
+        seasonType = 'regular';
+        startWeek = 1;
+        endWeek = 18;
+      } else if (typeId === 3) {
+        seasonType = 'postseason';
+        startWeek = 1;
+        endWeek = 4;
+      }
+    } else {
+      console.error('❌ Season type must be 1, 2, or 3');
+      process.exit(1);
+    }
   } else if (arg === '--no-playoffs') {
     includePlayoffs = false;
     endWeek = Math.min(endWeek, 18);
   } else if (arg === '--preseason') {
     seasonType = 'preseason';
+    seasonTypeId = 1;
     startWeek = 1;
     endWeek = 4;
   } else if (arg === '--regular') {
     seasonType = 'regular';
+    seasonTypeId = 2;
     startWeek = 1;
     endWeek = 18;
   } else if (arg === '--postseason') {
     seasonType = 'postseason';
-    startWeek = 19;
-    endWeek = 22;
+    seasonTypeId = 3;
+    startWeek = 1;
+    endWeek = 4;
   }
 }
 
 // Validate week ranges
-if (startWeek < 1 || startWeek > 22 || endWeek < 1 || endWeek > 22) {
-  console.error('❌ Week numbers must be between 1 and 22');
+if (startWeek < 1 || startWeek > 18 || endWeek < 1 || endWeek > 18) {
+  console.error('❌ Week numbers must be between 1 and 18');
   process.exit(1);
 }
 
@@ -131,10 +159,94 @@ if (!includePlayoffs && endWeek > 18) {
 // Mock data for when API key is not available
 const mockGames: GameData[] = [
   {
-    id: 'mock_1',
+    id: 'mock_hof',
     week: 1,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 1, // Hall of Fame Game (Preseason)
+    home_team: 'Dallas Cowboys',
+    away_team: 'Pittsburgh Steelers',
+    kickoff_time: '2024-08-01T20:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'DAL',
+    away_team_id: 'PIT',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_1',
+    week: 2,
+    season: 2024,
+    season_type: 1, // Preseason Week 1
+    home_team: 'Kansas City Chiefs',
+    away_team: 'Baltimore Ravens',
+    kickoff_time: '2024-08-08T20:20:00Z',
+    status: 'scheduled',
+    home_team_id: 'KC',
+    away_team_id: 'BAL',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_2',
+    week: 2,
+    season: 2024,
+    season_type: 1, // Preseason Week 1
+    home_team: 'Buffalo Bills',
+    away_team: 'New York Jets',
+    kickoff_time: '2024-08-08T17:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'BUF',
+    away_team_id: 'NYJ',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_3',
+    week: 3,
+    season: 2024,
+    season_type: 1, // Preseason Week 2
+    home_team: 'Green Bay Packers',
+    away_team: 'Chicago Bears',
+    kickoff_time: '2024-08-15T17:00:00Z',
+    status: 'scheduled',
+    home_team_id: 'GB',
+    away_team_id: 'CHI',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_4',
+    week: 3,
+    season: 2024,
+    season_type: 1, // Preseason Week 2
+    home_team: 'San Francisco 49ers',
+    away_team: 'Los Angeles Rams',
+    kickoff_time: '2024-08-15T20:20:00Z',
+    status: 'scheduled',
+    home_team_id: 'SF',
+    away_team_id: 'LAR',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_preseason_5',
+    week: 4,
+    season: 2024,
+    season_type: 1, // Preseason Week 3
+    home_team: 'New England Patriots',
+    away_team: 'Miami Dolphins',
+    kickoff_time: '2024-08-22T19:30:00Z',
+    status: 'scheduled',
+    home_team_id: 'NE',
+    away_team_id: 'MIA',
+    is_playoff: false,
+    is_active: true
+  },
+  {
+    id: 'mock_regular_1',
+    week: 1,
+    season: 2024,
+    season_type: 2, // Regular Season Week 1
     home_team: 'Kansas City Chiefs',
     away_team: 'Baltimore Ravens',
     kickoff_time: '2024-09-05T20:20:00Z',
@@ -145,10 +257,10 @@ const mockGames: GameData[] = [
     is_active: true
   },
   {
-    id: 'mock_2',
+    id: 'mock_regular_2',
     week: 1,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 2, // Regular Season Week 1
     home_team: 'Buffalo Bills',
     away_team: 'New York Jets',
     kickoff_time: '2024-09-08T17:00:00Z',
@@ -159,13 +271,13 @@ const mockGames: GameData[] = [
     is_active: true
   },
   {
-    id: 'mock_3',
-    week: 1,
+    id: 'mock_regular_3',
+    week: 2,
     season: 2024,
-    season_type: 1, // Preseason
+    season_type: 2, // Regular Season Week 2
     home_team: 'Dallas Cowboys',
     away_team: 'Philadelphia Eagles',
-    kickoff_time: '2024-09-08T20:20:00Z',
+    kickoff_time: '2024-09-12T20:20:00Z',
     status: 'scheduled',
     home_team_id: 'DAL',
     away_team_id: 'PHI',
@@ -173,38 +285,10 @@ const mockGames: GameData[] = [
     is_active: true
   },
   {
-    id: 'mock_4',
-    week: 2,
-    season: 2024,
-    season_type: 1, // Preseason
-    home_team: 'Green Bay Packers',
-    away_team: 'Chicago Bears',
-    kickoff_time: '2024-09-15T17:00:00Z',
-    status: 'scheduled',
-    home_team_id: 'GB',
-    away_team_id: 'CHI',
-    is_playoff: false,
-    is_active: true
-  },
-  {
-    id: 'mock_5',
-    week: 2,
-    season: 2024,
-    season_type: 1, // Preseason
-    home_team: 'San Francisco 49ers',
-    away_team: 'Los Angeles Rams',
-    kickoff_time: '2024-09-15T20:20:00Z',
-    status: 'scheduled',
-    home_team_id: 'SF',
-    away_team_id: 'LAR',
-    is_playoff: false,
-    is_active: true
-  },
-  {
     id: 'mock_playoff_1',
-    week: 19,
+    week: 1,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 1
     home_team: 'Kansas City Chiefs',
     away_team: 'Buffalo Bills',
     kickoff_time: '2025-01-11T20:15:00Z',
@@ -216,9 +300,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_2',
-    week: 19,
+    week: 1,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 1
     home_team: 'Baltimore Ravens',
     away_team: 'Cincinnati Bengals',
     kickoff_time: '2025-01-12T16:30:00Z',
@@ -230,9 +314,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_3',
-    week: 20,
+    week: 2,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 2
     home_team: 'Kansas City Chiefs',
     away_team: 'Baltimore Ravens',
     kickoff_time: '2025-01-19T20:15:00Z',
@@ -244,9 +328,9 @@ const mockGames: GameData[] = [
   },
   {
     id: 'mock_playoff_4',
-    week: 21,
+    week: 3,
     season: 2024,
-    season_type: 3, // Postseason
+    season_type: 3, // Postseason Week 3
     home_team: 'Kansas City Chiefs',
     away_team: 'San Francisco 49ers',
     kickoff_time: '2025-02-02T18:30:00Z',
@@ -274,29 +358,11 @@ async function main() {
 
   if (apiKey) {
     console.log('🔑 Using NFL API to fetch games...');
+    console.log(`📅 Season type: ${seasonType} (ID: ${seasonTypeId})`);
+    console.log(`📋 Week range: ${startWeek}-${endWeek}`);
     
-    // Determine season type based on week range
-    let seasonTypeToFetch: number;
-    if (startWeek >= 1 && startWeek <= 4) {
-      seasonTypeToFetch = 1; // Preseason
-      console.log('🏈 Fetching preseason games...');
-    } else if (startWeek >= 5 && startWeek <= 18) {
-      seasonTypeToFetch = 2; // Regular season
-      console.log('🏈 Fetching regular season games...');
-    } else if (startWeek >= 19 && startWeek <= 22) {
-      seasonTypeToFetch = 3; // Postseason
-      console.log('🏆 Fetching postseason games...');
-    } else {
-      console.log('⚠️  Mixed week range detected, fetching all season types...');
-    }
-    let weekSeasonType = 2;
-    if (seasonType === 'preseason') {
-    weekSeasonType = 1;
-    } else if (seasonType === 'regular') {
-    weekSeasonType = 2;
-    } else if (seasonType === 'postseason') {
-    weekSeasonType = 3;
-    }
+    // Use the specified season type
+    const seasonTypeToFetch = seasonTypeId;
     
     // Fetch games for the specified week range
     for (let week = startWeek; week <= endWeek; week++) {
@@ -304,7 +370,7 @@ async function main() {
       
       try {
         
-        const weekGames = await nflAPI.getWeekGames(currentSeason, weekSeasonType, week);
+        const weekGames = await nflAPI.getWeekGames(currentSeason, seasonTypeToFetch, week);
         console.log(`📊 Week ${week} Games:`, weekGames.length);
         
         if (weekGames.length > 0) {
@@ -312,7 +378,7 @@ async function main() {
             id: game.id,
             week: game.week,
             season: game.season,
-            season_type: weekSeasonType,
+            season_type: seasonTypeToFetch,
             home_team: game.home_team,
             away_team: game.away_team,
             kickoff_time: game.date,
@@ -346,7 +412,7 @@ async function main() {
     if (gamesToInsert.length === 0) {
       console.log('🎭 No games found from API, falling back to mock data...');
       gamesToInsert = mockGames
-        .filter(game => game.week >= startWeek && game.week <= endWeek)
+        .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
         .map(game => ({
           ...game,
           season: currentSeason
@@ -356,7 +422,7 @@ async function main() {
   } else {
     console.log('🎭 Using mock data (no API key provided)...');
     gamesToInsert = mockGames
-      .filter(game => game.week >= startWeek && game.week <= endWeek)
+      .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
       .map(game => ({
         ...game,
         season: currentSeason
@@ -372,20 +438,49 @@ async function main() {
     // write gamesToInsert to a file
     fs.writeFileSync('gamesToInsert.json', JSON.stringify(gamesToInsert, null, 2));
 
-  // Clear existing games for the season and week range
-  console.log(`🗑️  Clearing existing games for season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
-  const { error: deleteError } = await supabase
+  // Check for existing games and filter out duplicates
+  console.log(`🔍 Checking for existing games in season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
+  const { data: existingGames, error: existingError } = await supabase
     .from('games')
-    .delete()
+    .select('id, week, home_team, away_team')
     .eq('season', currentSeason)
     .gte('week', startWeek)
     .lte('week', endWeek);
 
-  if (deleteError) {
-    console.error('❌ Error clearing existing games:', deleteError);
-  } else {
-    console.log('✅ Cleared existing games in range');
+  if (existingError) {
+    console.error('❌ Error checking existing games:', existingError);
+    return;
   }
+
+  // Create a set of existing game identifiers for quick lookup
+  const existingGameIds = new Set(existingGames?.map(game => game.id) || []);
+  const existingGameKeys = new Set(
+    existingGames?.map(game => `${game.week}-${game.home_team}-${game.away_team}`) || []
+  );
+
+  console.log(`📊 Found ${existingGames?.length || 0} existing games in range`);
+
+  // Filter out games that already exist
+  const newGamesToInsert = gamesToInsert.filter(game => {
+    const gameKey = `${game.week}-${game.home_team}-${game.away_team}`;
+    const alreadyExists = existingGameIds.has(game.id) || existingGameKeys.has(gameKey);
+    
+    if (alreadyExists) {
+      console.log(`⏭️  Skipping existing game: ${game.away_team} @ ${game.home_team} (Week ${game.week})`);
+    }
+    
+    return !alreadyExists;
+  });
+
+  if (newGamesToInsert.length === 0) {
+    console.log('✅ All games already exist in database. No new games to insert.');
+    return;
+  }
+
+  console.log(`📦 Found ${newGamesToInsert.length} new games to insert (skipped ${gamesToInsert.length - newGamesToInsert.length} existing games)`);
+  
+  // Update gamesToInsert to only include new games
+  gamesToInsert = newGamesToInsert;
 
   // Insert games in batches
   const batchSize = 50;

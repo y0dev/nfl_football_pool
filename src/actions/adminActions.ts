@@ -357,6 +357,12 @@ export async function getAdminPools() {
 // Get participants for a pool
 export async function getPoolParticipants(poolId: string) {
   try {
+    // Validate input
+    if (!poolId || typeof poolId !== 'string') {
+      console.error('Invalid poolId provided to getPoolParticipants:', poolId);
+      return [];
+    }
+
     const { data, error } = await getSupabaseClient()
       .from('participants')
       .select('*')
@@ -396,15 +402,21 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
     }
 
     // Log the action
-    await getSupabaseClient()
-      .from('audit_logs')
-      .insert({
-        action: 'add_participant',
-        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-        entity: 'participants',
-        entity_id: data.id,
-        details: { pool_id: poolId, name, email }
-      });
+    try {
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      await getSupabaseClient()
+        .from('audit_logs')
+        .insert({
+          action: 'add_participant',
+          admin_id: userData?.user?.id || 'system',
+          entity: 'participants',
+          entity_id: data.id,
+          details: { pool_id: poolId, name, email }
+        });
+    } catch (logError) {
+      console.warn('Failed to log participant addition:', logError);
+      // Don't throw error for logging failure
+    }
 
     return data;
   } catch (error) {
@@ -427,15 +439,21 @@ export async function removeParticipantFromPool(participantId: string) {
     }
 
     // Log the action
-    await getSupabaseClient()
-      .from('audit_logs')
-      .insert({
-        action: 'remove_participant',
-        admin_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-        entity: 'participants',
-        entity_id: participantId,
-        details: { action: 'deactivated' }
-      });
+    try {
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      await getSupabaseClient()
+        .from('audit_logs')
+        .insert({
+          action: 'remove_participant',
+          admin_id: userData?.user?.id || 'system',
+          entity: 'participants',
+          entity_id: participantId,
+          details: { action: 'deactivated' }
+        });
+    } catch (logError) {
+      console.warn('Failed to log participant removal:', logError);
+      // Don't throw error for logging failure
+    }
 
     return true;
   } catch (error) {
@@ -445,46 +463,73 @@ export async function removeParticipantFromPool(participantId: string) {
 }
 
 // Get all submissions for a week in a format suitable for screenshot
-export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
+export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number) {
   try {
-    // Get all picks for the week with game details
-    const { data: picks, error } = await getSupabaseClient()
+    // If no week provided, get the current week from games
+    let weekToUse = week;
+    if (!weekToUse) {
+      const { getCurrentWeekFromGames } = await import('./getCurrentWeekFromGames');
+      const currentWeekData = await getCurrentWeekFromGames();
+      weekToUse = currentWeekData.week;
+    }
+    
+    // First get all games for the week
+    const { data: games, error: gamesError } = await getSupabaseClient()
+      .from('games')
+      .select('*')
+      .eq('week', weekToUse)
+      .order('kickoff_time', { ascending: true });
+
+    if (gamesError) {
+      console.error('Error fetching games for screenshot:', gamesError);
+      return null;
+    }
+
+    if (!games || games.length === 0) {
+      console.log('No games found for week:', week);
+      return { games: [], participants: [] };
+    }
+
+    // Get game IDs for this week
+    const gameIds = games.map(game => game.id);
+
+    // Get all picks for the week
+    const { data: picks, error: picksError } = await getSupabaseClient()
       .from('picks')
       .select(`
         participant_id,
-        participants!inner(name),
         predicted_winner,
         confidence_points,
-        game_id,
-        games!inner(home_team, away_team, kickoff_time)
+        game_id
       `)
       .eq('pool_id', poolId)
-      .eq('games.week', week)
-      .order('participants.name', { ascending: true });
+      .in('game_id', gameIds);
 
-    if (error) {
-      console.error('Error fetching picks for screenshot:', error);
+    if (picksError) {
+      console.error('Error fetching picks for screenshot:', picksError);
       return null;
     }
 
-    // Get all games for the week
-    const { data: games } = await getSupabaseClient()
-      .from('games')
-      .select('*')
-      .eq('week', week)
-      .order('kickoff_time', { ascending: true });
+    // Get all participants in the pool
+    const { data: participants, error: participantsError } = await getSupabaseClient()
+      .from('participants')
+      .select('id, name')
+      .eq('pool_id', poolId);
 
-    if (!games) {
-      console.error('No games found for week', week);
+    if (participantsError) {
+      console.error('Error fetching participants for screenshot:', participantsError);
       return null;
     }
+
+    // Create a map of participant names
+    const participantNames = new Map(participants?.map(p => [p.id, p.name]) || []);
 
     // Group picks by participant
     const participantsMap = new Map();
     
     picks?.forEach((pick: any) => {
       const participantId = pick.participant_id;
-      const participantName = pick.participants.name;
+      const participantName = participantNames.get(participantId) || 'Unknown';
       
       if (!participantsMap.has(participantId)) {
         participantsMap.set(participantId, {
@@ -500,10 +545,17 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week: nu
       });
     });
 
-    return {
+    const result = {
       games,
       participants: Array.from(participantsMap.values())
     };
+
+    console.log('Screenshot data prepared:', {
+      gamesCount: games.length,
+      participantsCount: participantsMap.size
+    });
+
+    return result;
   } catch (error) {
     console.error('Failed to get submissions for screenshot:', error);
     return null;
