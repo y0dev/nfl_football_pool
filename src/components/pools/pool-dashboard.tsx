@@ -44,7 +44,10 @@ export function PoolDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const poolsData = await loadPools();
+      const poolsData = await loadPools(
+        user?.email, 
+        user?.is_super_admin
+      );
       console.log('PoolDashboard: Loaded pools:', poolsData);
       console.log('PoolDashboard: Current user:', user);
       setPools(poolsData);
@@ -58,7 +61,7 @@ export function PoolDashboard() {
 
   useEffect(() => {
     fetchPools();
-  }, []);
+  }, [user]);
 
   // Don't render anything if user is not authenticated
   if (user === null) {

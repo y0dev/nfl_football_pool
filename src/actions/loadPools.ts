@@ -1,13 +1,19 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
-export async function loadPools() {
+export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from('pools')
       .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+      .eq('is_active', true);
+
+    // If not a super admin, only show pools created by this admin
+    if (!isSuperAdmin && adminEmail) {
+      query = query.eq('created_by', adminEmail);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];

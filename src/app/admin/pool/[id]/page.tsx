@@ -221,14 +221,15 @@ export default function PoolDetailsPage() {
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="sm:hidden">Back</span>
           </Button>
         </div>
 
         {/* Pool Title and Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex flex-col gap-4 mb-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold truncate">{pool.name}</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold truncate">{pool.name}</h1>
             <p className="text-gray-600 text-sm sm:text-base">Pool Management</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -256,7 +257,7 @@ export default function PoolDetailsPage() {
         </div>
 
         {/* Pool Status */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
           <Badge variant={pool.is_active ? "default" : "secondary"}>
             {pool.is_active ? "Active" : "Inactive"}
           </Badge>
@@ -373,44 +374,46 @@ export default function PoolDetailsPage() {
 
       {/* Pool Management Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1">
-          <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-          <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
-          <TabsTrigger value="links" className="text-xs sm:text-sm">Links</TabsTrigger>
-          <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
-          <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
-          <TabsTrigger value="emails" className="text-xs sm:text-sm">Emails</TabsTrigger>
-          <TabsTrigger value="scores" className="text-xs sm:text-sm">Scores</TabsTrigger>
-          <TabsTrigger value="settings" className="text-xs sm:text-sm">Settings</TabsTrigger>
-          <TabsTrigger value="tiebreakers" className="text-xs sm:text-sm">Tie-Breakers</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <TabsList className="flex w-full min-w-max gap-1 p-1">
+            <TabsTrigger value="overview" className="text-xs whitespace-nowrap px-2 py-1">Overview</TabsTrigger>
+            <TabsTrigger value="test-picks" className="text-xs whitespace-nowrap px-2 py-1">Test Picks</TabsTrigger>
+            <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
+            <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
+            <TabsTrigger value="submissions" className="text-xs whitespace-nowrap px-2 py-1">Submissions</TabsTrigger>
+            <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
+            <TabsTrigger value="scores" className="text-xs whitespace-nowrap px-2 py-1">Scores</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
+            <TabsTrigger value="tiebreakers" className="text-xs whitespace-nowrap px-2 py-1">Tie-Breakers</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6 mt-6">
           <SubmissionStatus poolId={pool.id} />
         </TabsContent>
 
-        <TabsContent value="participants" className="space-y-6">
+        <TabsContent value="participants" className="space-y-6 mt-6">
           <ParticipantManagement 
             poolId={pool.id} 
             poolName={pool.name}
           />
         </TabsContent>
 
-        <TabsContent value="test-picks" className="space-y-6">
+        <TabsContent value="test-picks" className="space-y-6 mt-6">
           <TestPicks 
             poolId={pool.id} 
             poolName={pool.name}
           />
         </TabsContent>
 
-        <TabsContent value="links" className="space-y-6">
+        <TabsContent value="links" className="space-y-6 mt-6">
           <ParticipantLinks 
             poolId={pool.id} 
             poolName={pool.name}
           />
         </TabsContent>
 
-        <TabsContent value="submissions" className="space-y-6">
+        <TabsContent value="submissions" className="space-y-6 mt-6">
           <SubmissionsScreenshot 
             poolId={pool.id} 
             poolName={pool.name}
@@ -418,7 +421,7 @@ export default function PoolDetailsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="emails" className="space-y-6">
+        <TabsContent value="emails" className="space-y-6 mt-6">
           <EnhancedEmailManagement 
             poolId={pool.id}
             weekNumber={currentWeek}
@@ -427,7 +430,7 @@ export default function PoolDetailsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="scores" className="space-y-6">
+        <TabsContent value="scores" className="space-y-6 mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Weekly Scores</CardTitle>
@@ -439,7 +442,7 @@ export default function PoolDetailsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings" className="space-y-6">
+        <TabsContent value="settings" className="space-y-6 mt-6">
           <PoolSettings 
             poolId={pool.id} 
             poolName={pool.name}
@@ -447,7 +450,7 @@ export default function PoolDetailsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="tiebreakers" className="space-y-6">
+        <TabsContent value="tiebreakers" className="space-y-6 mt-6">
           <TieBreakerSettings 
             poolId={pool.id} 
             poolName={pool.name}
