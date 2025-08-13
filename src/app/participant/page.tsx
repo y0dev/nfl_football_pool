@@ -80,18 +80,23 @@ function ParticipantContent() {
 
       // Load games for the week
       try {
-        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-        // Determine the week to load based on URL parameter or upcoming week
+        // Determine the week and season type to load
         let weekToLoad: number;
+        let seasonTypeToLoad: number;
+        
         if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
           weekToLoad = parseInt(weekParam);
+          // Use season type from URL or default to upcoming week's season type
+          seasonTypeToLoad = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
         } else {
           // If no valid week in URL, use upcoming week
           const upcomingWeek = await getUpcomingWeek();
           weekToLoad = upcomingWeek.week;
+          seasonTypeToLoad = upcomingWeek.seasonType;
         }
-        const gamesData = await loadWeekGames(weekToLoad, seasonType);
-        console.log('Loaded games:', gamesData.length, 'for week', weekToLoad, 'season type', seasonType);
+        
+        const gamesData = await loadWeekGames(weekToLoad, seasonTypeToLoad);
+        console.log('Loaded games:', gamesData.length, 'for week', weekToLoad, 'season type', seasonTypeToLoad);
         setGames(gamesData);
       } catch (error) {
         console.error('Error loading games:', error);

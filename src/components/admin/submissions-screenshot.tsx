@@ -45,7 +45,16 @@ export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScr
   const loadSubmissionsData = async () => {
     setIsLoading(true);
     try {
-      const data = await getWeeklySubmissionsForScreenshot(poolId, week);
+      // If no week provided, get current week from games
+      let weekToUse = week;
+      if (!weekToUse) {
+        const { getCurrentWeekFromGames } = await import('@/actions/getCurrentWeekFromGames');
+        const currentWeekData = await getCurrentWeekFromGames();
+        weekToUse = currentWeekData.week;
+      }
+      
+      const data = await getWeeklySubmissionsForScreenshot(poolId, weekToUse);
+      console.log('data', data);
       setSubmissionsData(data);
     } catch (error) {
       toast({

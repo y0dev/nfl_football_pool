@@ -54,35 +54,43 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
+  const [unlockTime, setUnlockTime] = useState<string>('');
   
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
 
   // Load current week and games (only if not prevented)
   useEffect(() => {
-    if (preventGameLoading && propGames) {
-      // Use provided games and set current week
-      setGames(propGames);
-      setCurrentWeek(weekNumber || 1);
-      
-      // Check if this week is unlocked for picks
-      const weekUnlocked = isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
-      setIsWeekUnlocked(weekUnlocked);
-      
-      // Initialize picks array
-      const initialPicks: Pick[] = propGames.map(game => ({
-        participant_id: '',
-        pool_id: poolId,
-        game_id: game.id,
-        predicted_winner: '',
-        confidence_points: 0
-      }));
-      setPicks(initialPicks);
-      return;
-    }
-
     const loadData = async () => {
-      try {
+      if (preventGameLoading && propGames) {
+        // Use provided games and set current week
+        setGames(propGames);
+        setCurrentWeek(weekNumber || 1);
+        
+        // Check if this week is unlocked for picks
+        const weekUnlocked = await isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
+        setIsWeekUnlocked(weekUnlocked);
+        
+        // Get unlock time if week is locked
+        if (!weekUnlocked && propGames && propGames.length > 0) {
+          const firstGameTime = new Date(propGames[0].kickoff_time);
+          const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
+          setUnlockTime(threeDaysBefore.toLocaleString());
+        }
+        
+        // Initialize picks array
+        const initialPicks: Pick[] = propGames.map((game: any) => ({
+          participant_id: '',
+          pool_id: poolId,
+          game_id: game.id,
+          predicted_winner: '',
+          confidence_points: 0
+        }));
+        setPicks(initialPicks);
+        return;
+      }
+
+            try {
         // Use provided week number or load upcoming week
         let weekToUse = weekNumber;
         let seasonTypeToUse = seasonType;
@@ -100,8 +108,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setGames(gamesData);
         
         // Check if this week is unlocked for picks
-        const weekUnlocked = isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
+        const weekUnlocked = await isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
         setIsWeekUnlocked(weekUnlocked);
+        
+        // Get unlock time if week is locked
+        if (!weekUnlocked && gamesData.length > 0) {
+          const firstGameTime = new Date(gamesData[0].kickoff_time);
+          const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
+          setUnlockTime(threeDaysBefore.toLocaleString());
+        }
         
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map(game => ({
@@ -145,8 +160,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             return {
               ...pick,
               participant_id: selectedUser.id,
-              predicted_winner: savedPick.predicted_winner,
-              confidence_points: savedPick.confidence_points
+              predicted_winner: savedPick.predicted_winner || '',
+              confidence_points: savedPick.confidence_points || 0
             };
           }
           return { ...pick, participant_id: selectedUser.id };
@@ -156,9 +171,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setHasUnsavedChanges(false);
         setLastSaved(new Date(savedPicks[0]?.timestamp || Date.now()));
         
+        const validPicks = savedPicks.filter(sp => sp.predicted_winner && sp.confidence_points > 0);
         toast({
           title: 'Picks Restored',
-          description: `Loaded ${savedPicks.length} saved picks from localStorage`,
+          description: `Loaded ${validPicks.length} saved picks from localStorage`,
         });
       } else {
         // Initialize picks with selected user
@@ -167,25 +183,25 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [selectedUser, games, poolId, currentWeek, toast]);
 
-  // Auto-save picks to localStorage when picks change
+  // Auto-save picks to localStorage when picks change (backup mechanism)
   useEffect(() => {
     if (selectedUser && picks.length > 0 && hasUnsavedChanges) {
-      const validPicks = picks.filter(pick => 
-        pick.predicted_winner && pick.confidence_points > 0
-      );
+      // Only auto-save if we haven't already saved in the last second
+      const now = Date.now();
+      const lastSavedTime = lastSaved?.getTime() || 0;
       
-      if (validPicks.length > 0) {
-        const storedPicks: StoredPick[] = validPicks.map(pick => ({
+      if (now - lastSavedTime > 1000) { // Only save if more than 1 second has passed
+        const storedPicks: StoredPick[] = picks.map(pick => ({
           ...pick,
-          timestamp: Date.now()
+          timestamp: now
         }));
         
         pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
-        setLastSaved(new Date());
+        setLastSaved(new Date(now));
         setHasUnsavedChanges(false);
       }
     }
-  }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges]);
+  }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges, lastSaved]);
 
   // Countdown timer for auto-save (no auto-submit)
   useEffect(() => {
@@ -208,15 +224,25 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
-    setPicks(prevPicks => 
-      prevPicks.map(pick => 
-        pick.game_id === gameId 
-          ? { ...pick, [field]: value }
-          : pick
-      )
+    const updatedPicks = picks.map(pick => 
+      pick.game_id === gameId 
+        ? { ...pick, [field]: value }
+        : pick
     );
+    
+    setPicks(updatedPicks);
     setHasUnsavedChanges(true);
-    // Don't update expiration - just save to localStorage
+    
+    // Immediately save to localStorage
+    if (selectedUser) {
+      const storedPicks: StoredPick[] = updatedPicks.map(pick => ({
+        ...pick,
+        timestamp: Date.now()
+      }));
+      
+      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+      setLastSaved(new Date());
+    }
   };
 
   // Validate picks
@@ -366,9 +392,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <span className="text-yellow-800">
-              Picks for Week {currentWeek} are not yet available. Picks typically unlock on Tuesday for the upcoming week's games.
-            </span>
+            <div className="text-yellow-800">
+              <div className="font-medium">
+                Picks for Week {currentWeek} are not yet available.
+              </div>
+              <div className="text-sm mt-1">
+                Picks unlock within 3 days of the first game's kickoff time.
+                {unlockTime && (
+                  <span className="block mt-1">
+                    <strong>Unlocks:</strong> {unlockTime}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

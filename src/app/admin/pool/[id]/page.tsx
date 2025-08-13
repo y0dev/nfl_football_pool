@@ -18,6 +18,10 @@ import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot
 import { EmailManagement } from '@/components/admin/email-management';
 import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { TestPicks } from '@/components/admin/test-picks';
+import { ParticipantLinks } from '@/components/admin/participant-links';
+import { SubmissionStatus } from '@/components/admin/submission-status';
+import { PoolSettings } from '@/components/admin/pool-settings';
+import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 
 interface Pool {
@@ -368,14 +372,22 @@ export default function PoolDetailsPage() {
       </Card>
 
       {/* Pool Management Tabs */}
-      <Tabs defaultValue="participants" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
-          <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
           <TabsTrigger value="test-picks" className="text-xs sm:text-sm">Test Picks</TabsTrigger>
+          <TabsTrigger value="links" className="text-xs sm:text-sm">Links</TabsTrigger>
+          <TabsTrigger value="participants" className="text-xs sm:text-sm">Participants</TabsTrigger>
           <TabsTrigger value="submissions" className="text-xs sm:text-sm">Submissions</TabsTrigger>
           <TabsTrigger value="emails" className="text-xs sm:text-sm">Emails</TabsTrigger>
+          <TabsTrigger value="scores" className="text-xs sm:text-sm">Scores</TabsTrigger>
           <TabsTrigger value="settings" className="text-xs sm:text-sm">Settings</TabsTrigger>
+          <TabsTrigger value="tiebreakers" className="text-xs sm:text-sm">Tie-Breakers</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <SubmissionStatus poolId={pool.id} />
+        </TabsContent>
 
         <TabsContent value="participants" className="space-y-6">
           <ParticipantManagement 
@@ -386,6 +398,13 @@ export default function PoolDetailsPage() {
 
         <TabsContent value="test-picks" className="space-y-6">
           <TestPicks 
+            poolId={pool.id} 
+            poolName={pool.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="links" className="space-y-6">
+          <ParticipantLinks 
             poolId={pool.id} 
             poolName={pool.name}
           />
@@ -408,52 +427,31 @@ export default function PoolDetailsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="settings" className="space-y-6">
+        <TabsContent value="scores" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trash2 className="h-5 w-5 text-red-600" />
-                Danger Zone
-              </CardTitle>
-              <CardDescription>
-                Irreversible and destructive actions
-              </CardDescription>
+              <CardTitle>Weekly Scores</CardTitle>
+              <CardDescription>View and manage weekly scores</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-red-600 mb-2">Delete Pool</h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Once you delete a pool, there is no going back. Please be certain.
-                  </p>
-                  <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Pool
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Delete Pool</DialogTitle>
-                        <DialogDescription>
-                          Are you sure you want to delete "{pool.name}"? This action cannot be undone.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDelete}>
-                          Delete Pool
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
+              <p className="text-gray-500">Score management features coming soon...</p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-6">
+          <PoolSettings 
+            poolId={pool.id} 
+            poolName={pool.name}
+            onPoolDeleted={() => router.push('/admin/dashboard')}
+          />
+        </TabsContent>
+
+        <TabsContent value="tiebreakers" className="space-y-6">
+          <TieBreakerSettings 
+            poolId={pool.id} 
+            poolName={pool.name}
+          />
         </TabsContent>
       </Tabs>
     </div>

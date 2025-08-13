@@ -463,14 +463,21 @@ export async function removeParticipantFromPool(participantId: string) {
 }
 
 // Get all submissions for a week in a format suitable for screenshot
-export async function getWeeklySubmissionsForScreenshot(poolId: string, week: number) {
+export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number) {
   try {
+    // If no week provided, get the current week from games
+    let weekToUse = week;
+    if (!weekToUse) {
+      const { getCurrentWeekFromGames } = await import('./getCurrentWeekFromGames');
+      const currentWeekData = await getCurrentWeekFromGames();
+      weekToUse = currentWeekData.week;
+    }
     
     // First get all games for the week
     const { data: games, error: gamesError } = await getSupabaseClient()
       .from('games')
       .select('*')
-      .eq('week', week)
+      .eq('week', weekToUse)
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
