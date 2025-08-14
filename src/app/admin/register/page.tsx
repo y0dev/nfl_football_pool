@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, ArrowLeft, Eye, EyeOff, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 
 const adminRegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -30,6 +32,15 @@ export default function AdminRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const router = useRouter();
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) {
+      router.push('/admin/dashboard');
+    }
+  }, [user, router]);
 
   const form = useForm<AdminRegisterFormData>({
     resolver: zodResolver(adminRegisterSchema),

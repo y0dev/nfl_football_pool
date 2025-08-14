@@ -4,12 +4,51 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, Users, Calendar } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
+import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
+import { AuthProvider } from '@/lib/auth';
 
-export default function LeaderboardPage() {
+function LeaderboardContent() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Check if user is admin
+    const checkAdminStatus = async () => {
+      if (user) {
+        try {
+          const { getSupabaseClient } = await import('@/lib/supabase');
+          const supabase = getSupabaseClient();
+          const { data: admin } = await supabase
+            .from('admins')
+            .select('id')
+            .eq('id', user.id)
+            .single();
+          setIsAdmin(!!admin);
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+        }
+      }
+    };
+
+    checkAdminStatus();
+  }, [user]);
 
   useEffect(() => {
     // Simulate loading time
@@ -41,18 +80,32 @@ export default function LeaderboardPage() {
       <div className="container mx-auto p-4">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/">
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Back to Home</span>
-                <span className="sm:hidden">Back</span>
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool Leaderboards</h1>
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Back to Home</span>
+                  <span className="sm:hidden">Back</span>
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-6 w-6 text-blue-600" />
+                <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool Leaderboards</h1>
+              </div>
             </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Logout</span>
+              </Button>
+            )}
           </div>
           
           {/* Info Card */}
@@ -124,5 +177,13 @@ export default function LeaderboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <AuthProvider>
+      <LeaderboardContent />
+    </AuthProvider>
   );
 }

@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { PoolDashboard } from '@/components/pools/pool-dashboard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key } from 'lucide-react';
+import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface Admin {
   id: string;
@@ -47,6 +48,8 @@ function AdminDashboardContent() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [resetEmail, setResetEmail] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [isDeletingAdmin, setIsDeletingAdmin] = useState(false);
+  const [selectedAdminForDelete, setSelectedAdminForDelete] = useState<Admin | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -315,8 +318,50 @@ function AdminDashboardContent() {
       router.push('/admin/login');
     } catch (error) {
       console.error('Error logging out:', error);
-    } finally {
       setIsLoggingOut(false);
+    }
+  };
+
+  const deleteAdmin = async (admin: Admin) => {
+    if (!admin || !user) return;
+
+    setIsDeletingAdmin(true);
+    try {
+      const response = await fetch('/api/super-admin/delete-admin', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminId: admin.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: `Admin ${admin.full_name} deleted successfully`,
+        });
+        loadAdmins();
+        setSelectedAdminForDelete(null);
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to delete admin',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete admin',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingAdmin(false);
     }
   };
 
@@ -345,12 +390,17 @@ function AdminDashboardContent() {
                 : 'Manage your NFL Confidence Pools'
               }
             </p>
+            {user?.full_name && (
+              <p className="text-sm sm:text-base text-blue-600 font-medium mt-1">
+                Welcome, {user.full_name}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2 mt-2">
-        {user?.is_super_admin && (
+              {user?.is_super_admin && (
                 <Badge variant="outline" className="text-xs">
-            Super Admin
-          </Badge>
-        )}
+                  Super Admin
+                </Badge>
+              )}
               {!user?.is_super_admin && (
                 <Badge variant="secondary" className="text-xs">
                   Pool Admin
@@ -386,7 +436,7 @@ function AdminDashboardContent() {
             <Button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              variant="outline"
+              variant="destructive"
               size="sm"
               className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
             >
@@ -395,7 +445,7 @@ function AdminDashboardContent() {
               <span className="sm:hidden">{isLoggingOut ? '...' : 'Logout'}</span>
             </Button>
           </div>
-      </div>
+        </div>
 
         {/* Notifications Panel */}
         {showNotifications && notifications.length > 0 && (
@@ -542,19 +592,59 @@ function AdminDashboardContent() {
                           <Badge variant={admin.is_active ? "default" : "secondary"} className="text-xs">
                             {admin.is_active ? 'Active' : 'Inactive'}
                           </Badge>
-                          <Button
-                            onClick={() => {
-                              setResetEmail(admin.email);
-                              setAdminManagementOpen(true);
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1 h-7 sm:h-8 text-xs"
-                          >
-                            <Key className="h-3 w-3" />
-                            <span className="hidden sm:inline">Reset</span>
-                            <span className="sm:hidden">Reset</span>
-                          </Button>
+                          {user && (
+                            <>
+                              <Button
+                                onClick={() => {
+                                  setResetEmail(admin.email);
+                                  setAdminManagementOpen(true);
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 h-7 sm:h-8 text-xs"
+                              >
+                                <Key className="h-3 w-3" />
+                                <span className="hidden sm:inline">Reset</span>
+                                <span className="sm:hidden">Reset</span>
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    onClick={() => setSelectedAdminForDelete(admin)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-1 h-7 sm:h-8 text-xs text-red-600 hover:text-red-700"
+                                    disabled={isDeletingAdmin}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    <span className="hidden sm:inline">Delete</span>
+                                    <span className="sm:hidden">Del</span>
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="sm:max-w-md">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
+                                      Delete Admin Account
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="text-sm sm:text-base">
+                                      Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
+                                      This action cannot be undone and will remove all their access to the system.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                    <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteAdmin(admin)}
+                                      className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
+                                      disabled={isDeletingAdmin}
+                                    >
+                                      {isDeletingAdmin ? 'Deleting...' : 'Delete Admin'}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
                         </div>
                       </div>
             ))}
@@ -562,25 +652,27 @@ function AdminDashboardContent() {
         </div>
 
                 {/* Quick Reset */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <Input
-                    placeholder="Enter admin email to reset password"
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    className="flex-1 h-9 sm:h-10 text-sm sm:text-base"
-                  />
-                  <Button
-                    onClick={() => setAdminManagementOpen(true)}
-                    disabled={!resetEmail.trim()}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2 h-9 sm:h-10 text-xs sm:text-sm"
-                  >
-                    <Key className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Reset Password</span>
-                    <span className="sm:hidden">Reset</span>
-                  </Button>
-                </div>
+                {user && (
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <Input
+                      placeholder="Enter admin email to reset password"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="flex-1 h-9 sm:h-10 text-sm sm:text-base"
+                    />
+                    <Button
+                      onClick={() => setAdminManagementOpen(true)}
+                      disabled={!resetEmail.trim()}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2 h-9 sm:h-10 text-xs sm:text-sm"
+                    >
+                      <Key className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline">Reset Password</span>
+                      <span className="sm:hidden">Reset</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

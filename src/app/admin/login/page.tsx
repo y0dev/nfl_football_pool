@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { AuthProvider } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -26,7 +27,15 @@ function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
+  const router = useRouter();
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) {
+      router.push('/admin/dashboard');
+    }
+  }, [user, router]);
 
   const form = useForm<AdminLoginFormData>({
     resolver: zodResolver(adminLoginSchema),

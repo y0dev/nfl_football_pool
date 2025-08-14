@@ -7,10 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Users, Key, Plus, RefreshCw, Trash2, Eye, EyeOff, Activity } from 'lucide-react';
+import { Shield, Users, Key, Plus, RefreshCw, Trash2, Eye, EyeOff, Activity, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth';
 
 interface Admin {
   id: string;
@@ -21,7 +24,7 @@ interface Admin {
   created_at: string;
 }
 
-export default function SuperAdminPage() {
+function SuperAdminContent() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingSuperAdmin, setIsCreatingSuperAdmin] = useState(false);
@@ -31,6 +34,15 @@ export default function SuperAdminPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const { toast } = useToast();
+  const router = useRouter();
+  const { user } = useAuth();
+
+  // Redirect if user is not logged in or not a super admin
+  useEffect(() => {
+    if (user && !user.is_super_admin) {
+      router.push('/admin/dashboard');
+    }
+  }, [user, router]);
 
   // Form states for creating super admin
   const [superAdminForm, setSuperAdminForm] = useState({
@@ -260,6 +272,17 @@ export default function SuperAdminPage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -273,11 +296,30 @@ export default function SuperAdminPage() {
       <div className="container mx-auto p-4 sm:p-6">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
-          <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-            <h1 className="text-2xl sm:text-3xl font-bold">Super Admin Dashboard</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+                <h1 className="text-2xl sm:text-3xl font-bold">Super Admin Dashboard</h1>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">Manage admin accounts and system settings</p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Badge variant="outline" className="text-xs">
+                  Super Admin
+                </Badge>
+                <Button
+                  onClick={handleLogout}
+                  variant="destructive"
+                  size="sm"
+                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
+                >
+                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                  <span className="sm:hidden">Logout</span>
+                </Button>
+              </div>
+            </div>
           </div>
-          <p className="text-sm sm:text-base text-gray-600">Manage admin accounts and system settings</p>
         </div>
 
         <Tabs defaultValue="admins" className="space-y-4 sm:space-y-6">
@@ -360,147 +402,151 @@ export default function SuperAdminPage() {
                       </div>
                       
                       <div className="flex flex-col sm:flex-row gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedAdmin(admin)}
-                              className="text-xs sm:text-sm h-8 sm:h-9"
-                            >
-                              <Key className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                              <span className="hidden sm:inline">Reset Password</span>
-                              <span className="sm:hidden">Reset</span>
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                              <DialogTitle className="text-lg sm:text-xl">Reset Password for {admin.full_name}</DialogTitle>
-                              <DialogDescription className="text-sm sm:text-base">
-                                Enter a new password for {admin.email}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <Label htmlFor="newPassword" className="text-sm font-medium">New Password</Label>
-                                <div className="relative">
-                                  <Input
-                                    id="newPassword"
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="Enter new password"
-                                    className="pr-12 h-10 sm:h-11 text-sm sm:text-base"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                  >
-                                    {showPassword ? (
-                                      <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                      <Eye className="h-4 w-4" />
-                                    )}
-                                  </Button>
+                        {user && (
+                          <>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedAdmin(admin)}
+                                  className="text-xs sm:text-sm h-8 sm:h-9"
+                                >
+                                  <Key className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Reset Password</span>
+                                  <span className="sm:hidden">Reset</span>
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle className="text-lg sm:text-xl">Reset Password for {admin.full_name}</DialogTitle>
+                                  <DialogDescription className="text-sm sm:text-base">
+                                    Enter a new password for {admin.email}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="newPassword" className="text-sm font-medium">New Password</Label>
+                                    <div className="relative">
+                                      <Input
+                                        id="newPassword"
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Enter new password"
+                                        className="pr-12 h-10 sm:h-11 text-sm sm:text-base"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                      >
+                                        {showPassword ? (
+                                          <EyeOff className="h-4 w-4" />
+                                        ) : (
+                                          <Eye className="h-4 w-4" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button
-                                onClick={resetAdminPassword}
-                                disabled={isResettingPassword || !newPassword}
-                                className="w-full sm:w-auto"
-                              >
-                                {isResettingPassword ? 'Resetting...' : 'Reset Password'}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                                <DialogFooter>
+                                  <Button
+                                    onClick={resetAdminPassword}
+                                    disabled={isResettingPassword || !newPassword}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    {isResettingPassword ? 'Resetting...' : 'Reset Password'}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedAdmin(admin)}
-                              className="text-xs sm:text-sm h-8 sm:h-9"
-                            >
-                              {admin.is_active ? (
-                                <>
-                                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                  <span className="hidden sm:inline">Deactivate</span>
-                                  <span className="sm:hidden">Deactivate</span>
-                                </>
-                              ) : (
-                                <>
-                                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                  <span className="hidden sm:inline">Activate</span>
-                                  <span className="sm:hidden">Activate</span>
-                                </>
-                              )}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="sm:max-w-md">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="text-lg sm:text-xl">
-                                {admin.is_active ? 'Deactivate' : 'Activate'} Admin
-                              </AlertDialogTitle>
-                              <AlertDialogDescription className="text-sm sm:text-base">
-                                Are you sure you want to {admin.is_active ? 'deactivate' : 'activate'} {admin.full_name}?
-                                {admin.is_active ? ' They will no longer be able to access the admin dashboard.' : ' They will be able to access the admin dashboard again.'}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                              <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => toggleAdminStatus(admin)}
-                                className={`w-full sm:w-auto ${admin.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                              >
-                                {admin.is_active ? 'Deactivate' : 'Activate'}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedAdmin(admin)}
+                                  className="text-xs sm:text-sm h-8 sm:h-9"
+                                >
+                                  {admin.is_active ? (
+                                    <>
+                                      <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                      <span className="hidden sm:inline">Deactivate</span>
+                                      <span className="sm:hidden">Deactivate</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                      <span className="hidden sm:inline">Activate</span>
+                                      <span className="sm:hidden">Activate</span>
+                                    </>
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="sm:max-w-md">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="text-lg sm:text-xl">
+                                    {admin.is_active ? 'Deactivate' : 'Activate'} Admin
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm sm:text-base">
+                                    Are you sure you want to {admin.is_active ? 'deactivate' : 'activate'} {admin.full_name}?
+                                    {admin.is_active ? ' They will no longer be able to access the admin dashboard.' : ' They will be able to access the admin dashboard again.'}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                  <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => toggleAdminStatus(admin)}
+                                    className={`w-full sm:w-auto ${admin.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                                  >
+                                    {admin.is_active ? 'Deactivate' : 'Activate'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setSelectedAdmin(admin)}
-                              className="text-xs sm:text-sm h-8 sm:h-9"
-                              disabled={isDeletingAdmin}
-                            >
-                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                              <span className="hidden sm:inline">Delete</span>
-                              <span className="sm:hidden">Delete</span>
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="sm:max-w-md">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
-                                Delete Admin Account
-                              </AlertDialogTitle>
-                              <AlertDialogDescription className="text-sm sm:text-base">
-                                Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
-                                This action cannot be undone and will remove all their access to the system.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                              <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteAdmin(admin)}
-                                className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
-                                disabled={isDeletingAdmin}
-                              >
-                                {isDeletingAdmin ? 'Deleting...' : 'Delete Admin'}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => setSelectedAdmin(admin)}
+                                  className="text-xs sm:text-sm h-8 sm:h-9"
+                                  disabled={isDeletingAdmin}
+                                >
+                                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Delete</span>
+                                  <span className="sm:hidden">Delete</span>
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="sm:max-w-md">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
+                                    Delete Admin Account
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm sm:text-base">
+                                    Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
+                                    This action cannot be undone and will remove all their access to the system.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                  <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteAdmin(admin)}
+                                    className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
+                                    disabled={isDeletingAdmin}
+                                  >
+                                    {isDeletingAdmin ? 'Deleting...' : 'Delete Admin'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -583,5 +629,13 @@ export default function SuperAdminPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function SuperAdminPage() {
+  return (
+    <AuthProvider>
+      <SuperAdminContent />
+    </AuthProvider>
   );
 }

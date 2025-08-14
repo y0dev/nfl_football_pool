@@ -10,12 +10,14 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize, Lock, Unlock, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
+import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
@@ -47,6 +49,18 @@ function ParticipantContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   const { toast } = useToast();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
 
   // Countdown timer effect
   useEffect(() => {
@@ -163,10 +177,24 @@ function ParticipantContent() {
         if (session) {
           const { data: admin } = await supabase
             .from('admins')
-            .select('id')
+            .select('id, is_super_admin')
             .eq('id', session.user.id)
             .single();
           setIsAdmin(!!admin);
+          setIsSuperAdmin(admin?.is_super_admin || false);
+          
+          // Check if user is the pool admin (created the pool)
+          if (poolId) {
+            const { data: pool } = await supabase
+              .from('pools')
+              .select('created_by')
+              .eq('id', poolId)
+              .single();
+            
+            if (pool && pool.created_by === session.user.email) {
+              setIsPoolAdmin(true);
+            }
+          }
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
@@ -623,6 +651,17 @@ function ParticipantContent() {
                     {isFullscreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                     <span className="hidden xl:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
                   </Button>
+                  {isAdmin && (
+                                         <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={handleLogout}
+                       className="flex items-center gap-2"
+                     >
+                       <LogOut className="h-4 w-4" />
+                       Log Out
+                     </Button>
+                  )}
                 </div>
               </div>
             </div>
