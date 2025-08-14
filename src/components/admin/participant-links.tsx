@@ -173,7 +173,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
         {/* Quick Share Options */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Quick Share</Label>
-          <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-2">
             <Button
               variant="outline"
               size="sm"

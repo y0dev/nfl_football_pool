@@ -62,6 +62,9 @@ export interface LeaderboardEntry {
   participants: {
     name: string;
   };
+  game_points?: {
+    [gameId: string]: number;
+  };
 }
 
 export interface Pool {

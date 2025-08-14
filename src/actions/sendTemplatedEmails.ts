@@ -24,6 +24,42 @@ export async function sendTemplatedEmails({
   try {
     const supabase = getSupabaseClient();
     
+    // Validate admin ID
+    if (!adminId) {
+      console.error('Admin ID is empty or undefined');
+      return {
+        success: false,
+        error: 'Admin ID is required but not provided'
+      };
+    }
+    
+    // Get admin's email address
+    const { data: adminData, error: adminError } = await supabase
+      .from('admins')
+      .select('email')
+      .eq('id', adminId)
+      .single();
+    
+    if (adminError) {
+      console.error('Error fetching admin email:', adminError);
+      console.error('Admin ID:', adminId);
+      return {
+        success: false,
+        error: `Could not fetch admin email address: ${adminError.message}`
+      };
+    }
+    
+    if (!adminData?.email) {
+      console.error('Admin record found but no email:', adminData);
+      console.error('Admin ID:', adminId);
+      return {
+        success: false,
+        error: 'Admin record exists but has no email address'
+      };
+    }
+    
+    const adminEmail = adminData.email;
+    
     // Get all participants
     const allParticipants = await loadUsers();
     
@@ -47,101 +83,85 @@ export async function sendTemplatedEmails({
       };
     }
     
-    // Send emails to each participant
-    const emailResults = [];
+    // Prepare the email template for the first participant (we'll use this as the base)
+    const firstParticipant = targetParticipants[0];
     
-    for (const participant of targetParticipants) {
-      try {
-        // Prepare variables for this participant
-        const baseVariables = {
-          poolName,
-          poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
-          currentWeek: weekNumber,
-          season: 2024, // This could be made dynamic
-          adminName: 'Pool Administrator', // This could be fetched from admin table
-          participantName: participant.name,
-          deadline: 'Sunday 1:00 PM ET', // This could be made dynamic
-          gameCount: 16, // This could be made dynamic
-          timeRemaining: '2 hours', // This could be made dynamic
-          pointsEarned: 0, // This would be calculated
-          correctPicks: 0, // This would be calculated
-          totalPicks: 16, // This would be calculated
-          currentRank: 0, // This would be calculated
-          topPerformers: 'To be determined', // This would be calculated
-          overallStandings: 'To be determined', // This would be calculated
-          nextWeek: weekNumber + 1,
-          updateMessage: 'Please check the pool for updates.',
-          currentStandings: 'To be determined', // This would be calculated
-          finalResults: 'To be determined', // This would be calculated
-          seasonHighlights: 'To be determined', // This would be calculated
-          customSubject: 'Message from Pool Administrator',
-          customMessage: 'This is a custom message from the pool administrator.'
-        };
-        
-        // Merge with custom variables
-        const variables = { ...baseVariables, ...customVariables };
-        
-        // Process template
-        const subject = processTemplate(template.subject, variables);
-        const body = processTemplate(template.body, variables);
-        
-        // Send email using your existing email service
-        // For now, we'll log the email and store it in the database
-        const { data: emailLog, error: emailError } = await supabase
-          .from('email_logs')
-          .insert({
-            pool_id: poolId,
-            admin_id: adminId,
-            participant_id: participant.id,
-            template_id: template.id,
-            subject,
-            body,
-            sent_at: new Date().toISOString(),
-            status: 'sent'
-          })
-          .select()
-          .single();
-        
-        if (emailError) {
-          console.error('Error logging email:', emailError);
-        }
-        
-        emailResults.push({
-          participant,
-          success: true,
-          subject,
-          body
-        });
-        
-        // TODO: Actually send the email using your email service
-        // For now, we'll just log it
-        console.log('Email prepared for:', participant.email, { subject, body });
-        
-      } catch (error) {
-        console.error('Error processing email for participant:', participant.id, error);
-        emailResults.push({
-          participant,
-          success: false,
-          error: error.message
-        });
-      }
+    // Prepare variables for this participant
+    const baseVariables = {
+      poolName,
+      poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
+      currentWeek: weekNumber,
+      season: 2024, // This could be made dynamic
+      adminName: 'Pool Administrator', // This could be fetched from admin table
+      participantName: firstParticipant.name,
+      deadline: 'Sunday 1:00 PM ET', // This could be made dynamic
+      gameCount: 16, // This could be made dynamic
+      timeRemaining: '2 hours', // This could be made dynamic
+      pointsEarned: 0, // This would be calculated
+      correctPicks: 0, // This would be calculated
+      totalPicks: 16, // This would be calculated
+      currentRank: 0, // This would be calculated
+      topPerformers: 'To be determined', // This would be calculated
+      overallStandings: 'To be determined', // This would be calculated
+      nextWeek: weekNumber + 1,
+      updateMessage: 'Please check the pool for updates.',
+      currentStandings: 'To be determined', // This would be calculated
+      finalResults: 'To be determined', // This would be calculated
+      seasonHighlights: 'To be determined', // This would be calculated
+      customSubject: 'Message from Pool Administrator',
+      customMessage: 'This is a custom message from the pool administrator.'
+    };
+    
+    // Merge with custom variables
+    const variables = { ...baseVariables, ...customVariables };
+    
+    // Process template
+    const subject = processTemplate(template.subject, variables);
+    const body = processTemplate(template.body, variables);
+    
+    // Create mailto link with all participant emails in BCC
+    const participantEmails = targetParticipants.map(p => p.email).join(',');
+    
+    // Use a simpler mailto format similar to the provided example
+    const mailtoUrl = `mailto:?bcc=${encodeURIComponent(participantEmails)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    // Log the email preparation
+    const { data: emailLog, error: emailError } = await supabase
+      .from('email_logs')
+      .insert({
+        pool_id: poolId,
+        admin_id: adminId,
+        participant_id: null, // Multiple participants
+        template_id: template.id,
+        subject,
+        body,
+        sent_at: new Date().toISOString(),
+        status: 'prepared',
+        recipient_count: targetParticipants.length
+      })
+      .select()
+      .single();
+    
+    if (emailError) {
+      console.error('Error logging email:', emailError);
     }
     
-    const successfulEmails = emailResults.filter(r => r.success);
-    const failedEmails = emailResults.filter(r => !r.success);
-    
+    // Return the mailto URL for the client to open
     return {
       success: true,
-      totalSent: successfulEmails.length,
-      totalFailed: failedEmails.length,
-      results: emailResults
+      mailtoUrl,
+      subject,
+      body,
+      recipientCount: targetParticipants.length,
+      participants: targetParticipants,
+      message: `Email prepared for ${targetParticipants.length} participants. Click to open your email client.`
     };
     
   } catch (error) {
-    console.error('Error sending templated emails:', error);
+    console.error('Error preparing templated emails:', error);
     return {
       success: false,
-      error: 'Failed to send emails'
+      error: 'Failed to prepare emails'
     };
   }
 }

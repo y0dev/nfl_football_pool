@@ -100,8 +100,6 @@ export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
     // Prepare picks for database insertion with additional metadata
     const picksToInsert = picks.map(pick => ({
       ...pick,
-      week: games?.[0]?.week,
-      season_type: games?.[0]?.season_type,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }));

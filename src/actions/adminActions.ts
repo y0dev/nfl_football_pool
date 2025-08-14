@@ -408,10 +408,10 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
         .from('audit_logs')
         .insert({
           action: 'add_participant',
-          admin_id: userData?.user?.id || 'system',
-          entity: 'participants',
-          entity_id: data.id,
-          details: { pool_id: poolId, name, email }
+          user_id: userData?.user?.id || 'system',
+          pool_id: poolId,
+          details: JSON.stringify({ pool_id: poolId, name, email }),
+          created_at: new Date().toISOString()
         });
     } catch (logError) {
       console.warn('Failed to log participant addition:', logError);
@@ -428,6 +428,18 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
 // Remove participant from a pool
 export async function removeParticipantFromPool(participantId: string) {
   try {
+    // First get the participant to get the pool_id
+    const { data: participant, error: fetchError } = await getSupabaseClient()
+      .from('participants')
+      .select('pool_id')
+      .eq('id', participantId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching participant:', fetchError);
+      throw new Error(fetchError.message);
+    }
+
     const { error } = await getSupabaseClient()
       .from('participants')
       .update({ is_active: false })
@@ -445,10 +457,10 @@ export async function removeParticipantFromPool(participantId: string) {
         .from('audit_logs')
         .insert({
           action: 'remove_participant',
-          admin_id: userData?.user?.id || 'system',
-          entity: 'participants',
-          entity_id: participantId,
-          details: { action: 'deactivated' }
+          user_id: userData?.user?.id || 'system',
+          pool_id: participant.pool_id,
+          details: JSON.stringify({ participant_id: participantId, action: 'deactivated' }),
+          created_at: new Date().toISOString()
         });
     } catch (logError) {
       console.warn('Failed to log participant removal:', logError);
@@ -463,21 +475,25 @@ export async function removeParticipantFromPool(participantId: string) {
 }
 
 // Get all submissions for a week in a format suitable for screenshot
-export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number) {
+export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, seasonType?: number) {
   try {
     // If no week provided, get the current week from games
     let weekToUse = week;
-    if (!weekToUse) {
+    let seasonTypeToUse = seasonType;
+    
+    if (!weekToUse || !seasonTypeToUse) {
       const { getCurrentWeekFromGames } = await import('./getCurrentWeekFromGames');
       const currentWeekData = await getCurrentWeekFromGames();
-      weekToUse = currentWeekData.week;
+      weekToUse = weekToUse || currentWeekData.week;
+      seasonTypeToUse = seasonTypeToUse || currentWeekData.seasonType;
     }
     
-    // First get all games for the week
+    // First get all games for the week and season type
     const { data: games, error: gamesError } = await getSupabaseClient()
       .from('games')
       .select('*')
       .eq('week', weekToUse)
+      .eq('season_type', seasonTypeToUse)
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
@@ -486,7 +502,7 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: n
     }
 
     if (!games || games.length === 0) {
-      console.log('No games found for week:', week);
+      console.log('No games found for week:', weekToUse, 'season type:', seasonTypeToUse);
       return { games: [], participants: [] };
     }
 
@@ -500,11 +516,14 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: n
         participant_id,
         predicted_winner,
         confidence_points,
-        game_id
+        game_id,
+        games!inner(week, season_type)
       `)
       .eq('pool_id', poolId)
+      .eq('games.week', weekToUse)
+      .eq('games.season_type', seasonTypeToUse)
       .in('game_id', gameIds);
-
+    
     if (picksError) {
       console.error('Error fetching picks for screenshot:', picksError);
       return null;
@@ -547,13 +566,10 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: n
 
     const result = {
       games,
-      participants: Array.from(participantsMap.values())
+      participants: Array.from(participantsMap.values()),
+      week: weekToUse,
+      seasonType: seasonTypeToUse
     };
-
-    console.log('Screenshot data prepared:', {
-      gamesCount: games.length,
-      participantsCount: participantsMap.size
-    });
 
     return result;
   } catch (error) {

@@ -18,7 +18,9 @@ interface SharePoolButtonProps {
 export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
+  const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(2);
   const [shareUrl, setShareUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
@@ -31,17 +33,21 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
         const week = weekData?.week_number || 1;
         const seasonType = weekData?.season_type || 2;
         setCurrentWeek(week);
+        setCurrentSeasonType(seasonType);
         setSelectedWeek(week);
+        setSelectedSeasonType(seasonType);
         
-        // Generate available weeks (1-18 for regular season, 1-4 for preseason, 1-4 for postseason)
+        // Generate available weeks based on season type
         const maxWeeks = seasonType === 1 ? 4 : seasonType === 3 ? 4 : 18;
         const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
         setAvailableWeeks(weeks);
       } catch (error) {
         console.error('Error loading current week:', error);
-        // Fallback to week 1
+        // Fallback to week 1, regular season
         setCurrentWeek(1);
+        setCurrentSeasonType(2);
         setSelectedWeek(1);
+        setSelectedSeasonType(2);
         setAvailableWeeks(Array.from({ length: 18 }, (_, i) => i + 1));
       }
     };
@@ -50,9 +56,39 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=2`;
+    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=${selectedSeasonType}`;
     setShareUrl(url);
-  }, [poolId, selectedWeek]);
+  }, [poolId, selectedWeek, selectedSeasonType]);
+
+  const getSeasonTypeName = (seasonType: number) => {
+    switch (seasonType) {
+      case 1: return 'Preseason';
+      case 2: return 'Regular Season';
+      case 3: return 'Postseason';
+      default: return 'Unknown';
+    }
+  };
+
+  const getMaxWeeksForSeason = (seasonType: number) => {
+    switch (seasonType) {
+      case 1: return 4; // Preseason
+      case 2: return 18; // Regular Season
+      case 3: return 4; // Postseason
+      default: return 18;
+    }
+  };
+
+  const handleSeasonTypeChange = (seasonType: number) => {
+    setSelectedSeasonType(seasonType);
+    const maxWeeks = getMaxWeeksForSeason(seasonType);
+    const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
+    setAvailableWeeks(weeks);
+    
+    // Reset week to 1 if current week is beyond the new season's max weeks
+    if (selectedWeek > maxWeeks) {
+      setSelectedWeek(1);
+    }
+  };
 
   const handleCopy = async () => {
     try {
@@ -60,7 +96,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
       setCopied(true);
       toast({
         title: "Copied!",
-        description: `Pool link for Week ${selectedWeek} copied to clipboard`,
+        description: `${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek} pool link copied to clipboard`,
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -77,8 +113,8 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Join ${poolName} - NFL Confidence Pool Week ${selectedWeek}`,
-          text: `Join my NFL Confidence Pool for Week ${selectedWeek}!`,
+          title: `Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`,
+          text: `Join my NFL Confidence Pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!`,
           url: shareUrl,
         });
       } catch (error) {
@@ -98,9 +134,9 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   };
 
   const handleEmailShare = () => {
-    const subject = encodeURIComponent(`Join ${poolName} - NFL Confidence Pool Week ${selectedWeek}`);
+    const subject = encodeURIComponent(`Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`);
     const body = encodeURIComponent(
-      `Hi!\n\nI'd like to invite you to join my NFL Confidence Pool for Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
+      `Hi!\n\nI'd like to invite you to join my NFL Confidence Pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
     );
     const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
     window.open(mailtoUrl);
@@ -127,6 +163,24 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Season Type Selector */}
+          <div>
+            <Label htmlFor="season-type-select">Season Type</Label>
+            <Select value={selectedSeasonType.toString()} onValueChange={(value) => handleSeasonTypeChange(parseInt(value))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select season type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Preseason</SelectItem>
+                <SelectItem value="2">Regular Season</SelectItem>
+                <SelectItem value="3">Postseason</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              {getSeasonTypeName(selectedSeasonType)} (Weeks {availableWeeks[0]} - {availableWeeks[availableWeeks.length - 1]})
+            </p>
+          </div>
+
           {/* Week Selector */}
           <div>
             <Label htmlFor="week-select">Select Week</Label>
@@ -152,14 +206,11 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
                 )}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500 mt-1">
-              Regular Season (Weeks 1-18)
-            </p>
           </div>
 
           {/* Pool Link */}
           <div>
-            <Label htmlFor="share-url">Pool Link for Week {selectedWeek}</Label>
+            <Label htmlFor="share-url">Pool Link for {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}</Label>
             <div className="flex gap-2">
               <Input
                 id="share-url"
@@ -196,7 +247,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
               className="w-full flex items-center gap-2"
             >
               <Calendar className="h-4 w-4" />
-              Test Week {selectedWeek} Picks
+              Test {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek} Picks
             </Button>
           </div>
 
@@ -227,8 +278,8 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
 
           <div className="bg-blue-50 p-3 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Note:</strong> This link will take participants directly to Week {selectedWeek} picks for {poolName}.
-              {selectedWeek === currentWeek && " (Current Week)"}
+              <strong>Note:</strong> This link will take participants directly to {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek} picks for {poolName}.
+              {selectedWeek === currentWeek && selectedSeasonType === currentSeasonType && " (Current Week)"}
             </p>
           </div>
         </div>

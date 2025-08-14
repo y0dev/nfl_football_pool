@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -30,12 +30,16 @@ function ParticipantContent() {
   const [games, setGames] = useState<Game[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
+    const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showGameDetails, setShowGameDetails] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
+  const [showQuickStats, setShowQuickStats] = useState(false);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [submittedCount, setSubmittedCount] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const { toast } = useToast();
 
@@ -176,6 +180,10 @@ function ParticipantContent() {
     loadData();
   }, [poolId, weekParam]);
 
+  useEffect(() => {
+    loadParticipantStats();
+  }, [poolId, currentWeek, currentSeasonType]);
+
   const handleRefresh = async () => {
     setIsLoading(true);
     await loadData();
@@ -262,6 +270,66 @@ function ParticipantContent() {
     }
   };
 
+  const loadParticipantStats = async () => {
+    if (!poolId) return;
+    
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Get total participants
+      const { data: participants } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('pool_id', poolId)
+        .eq('is_active', true);
+      
+      setParticipantCount(participants?.length || 0);
+      
+      // Get submitted participants
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('participant_id, games!inner(week, season_type)')
+        .eq('pool_id', poolId)
+        .eq('games.week', currentWeek)
+        .eq('games.season_type', currentSeasonType);
+      
+      const submittedIds = new Set(picks?.map(p => p.participant_id) || []);
+      setSubmittedCount(submittedIds.size);
+    } catch (error) {
+      console.error('Error loading participant stats:', error);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleQuickShare = () => {
+    const url = window.location.href;
+    const text = `🏈 Join ${poolName} - ${currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'} Week ${currentWeek}!\n\n${url}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: `${poolName} - Week ${currentWeek}`,
+        text: text,
+        url: url
+      });
+    } else {
+      navigator.clipboard.writeText(text);
+      toast({
+        title: "Quick Share",
+        description: "Pool info copied to clipboard!",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
@@ -303,13 +371,13 @@ function ParticipantContent() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Floating Back Button for Mobile - Only show if admin */}
       {isAdmin && (
-        <div className="fixed top-4 left-4 z-50 sm:hidden">
+      <div className="fixed top-4 left-4 z-50 sm:hidden">
           <Link href="/admin/dashboard">
-            <Button variant="outline" size="sm" className="shadow-lg">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-        </div>
+          <Button variant="outline" size="sm" className="shadow-lg">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
       )}
       
       <div className="container mx-auto p-4">
@@ -319,12 +387,12 @@ function ParticipantContent() {
             <div className="flex items-center gap-4">
               {isAdmin && (
                 <Link href="/admin/dashboard">
-                  <Button variant="outline" size="sm" className="flex items-center gap-2">
-                    <ArrowLeft className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
                     <span className="hidden sm:inline">Back to Dashboard</span>
-                    <span className="sm:hidden">Back</span>
-                  </Button>
-                </Link>
+                  <span className="sm:hidden">Back</span>
+                </Button>
+              </Link>
               )}
               <div className="flex items-center gap-2">
                 <Trophy className="h-6 w-6 text-blue-600" />
@@ -391,6 +459,15 @@ function ParticipantContent() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={handleQuickShare}
+                    className="flex items-center gap-2"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Quick Share</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setShowLeaderboard(!showLeaderboard);
                       if (!showLeaderboard) {
@@ -415,6 +492,24 @@ function ParticipantContent() {
                   >
                     {showGameDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     <span className="hidden sm:inline">Game Details</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowQuickStats(!showQuickStats)}
+                    className="flex items-center gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span className="hidden sm:inline">Stats</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleFullscreen}
+                    className="flex items-center gap-2"
+                  >
+                    {isFullscreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                    <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
                   </Button>
                 </div>
               </div>
@@ -457,6 +552,92 @@ function ParticipantContent() {
 
         {/* Main Content */}
         <div className="space-y-6">
+          {/* Quick Stats */}
+          {showQuickStats && (
+            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-900">
+                  <Users className="h-5 w-5" />
+                  Pool Statistics
+                </CardTitle>
+                <CardDescription className="text-green-700">
+                  Current participation and submission status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{participantCount}</div>
+                    <div className="text-sm text-green-700">Total Participants</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{submittedCount}</div>
+                    <div className="text-sm text-blue-700">Submitted Picks</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{participantCount - submittedCount}</div>
+                    <div className="text-sm text-orange-700">Pending</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {participantCount > 0 ? Math.round((submittedCount / participantCount) * 100) : 0}%
+                    </div>
+                    <div className="text-sm text-purple-700">Completion Rate</div>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-white rounded-lg border">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Submission Progress:</span>
+                    <span className="font-medium">
+                      {submittedCount} of {participantCount} participants
+                    </span>
+                  </div>
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Game Stats */}
+          {(() => {
+            const stats = getGameStatusStats();
+            if (!stats) return null;
+            
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                    <div className="text-sm text-gray-600">Total Games</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-green-600">{stats.upcoming}</div>
+                    <div className="text-sm text-gray-600">Upcoming</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-orange-600">{stats.inProgress}</div>
+                    <div className="text-sm text-gray-600">In Progress</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-gray-600">{stats.finished}</div>
+                    <div className="text-sm text-gray-600">Finished</div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
           {/* Countdown Timer */}
           {countdown === null && (
             <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
@@ -555,36 +736,36 @@ function ParticipantContent() {
                 <Zap className="h-5 w-5 text-blue-600" />
                 Week {currentWeek} Picks
               </CardTitle>
-              <CardDescription>
-                Select the winner for each game and assign confidence points
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {selectedUser ? (
-                games.length > 0 ? (
-                  <WeeklyPick 
+                <CardDescription>
+                  Select the winner for each game and assign confidence points
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedUser ? (
+                  games.length > 0 ? (
+                    <WeeklyPick 
+                      poolId={poolId!} 
+                      weekNumber={currentWeek} 
+                      seasonType={currentSeasonType}
+                      selectedUser={selectedUser}
+                      games={games}
+                      preventGameLoading={true}
+                    />
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No games found for Week {currentWeek}
+                    </div>
+                  )
+                ) : (
+                  <PickUserSelection 
                     poolId={poolId!} 
                     weekNumber={currentWeek} 
-                    seasonType={currentSeasonType}
-                    selectedUser={selectedUser}
-                    games={games}
-                    preventGameLoading={true}
+                    onUserSelected={handleUserSelected}
                   />
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No games found for Week {currentWeek}
-                  </div>
-                )
-              ) : (
-                <PickUserSelection 
-                  poolId={poolId!} 
-                  weekNumber={currentWeek} 
-                  onUserSelected={handleUserSelected}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                )}
+              </CardContent>
+            </Card>
+                </div>
       </div>
     </div>
   );

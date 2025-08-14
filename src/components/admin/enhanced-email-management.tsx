@@ -130,29 +130,24 @@ export function EnhancedEmailManagement({
   };
 
   const handleSendEmails = async () => {
-    if (!selectedTemplate) {
-      toast({
-        title: 'Error',
-        description: 'Please select a template',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!selectedTemplate) return;
 
-    const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
-    if (!template) return;
-
+    setIsSending(true);
     try {
-      setIsSending(true);
-      
-      const customVariables: Partial<TemplateVariables> = {};
-      
-      // Handle custom template
-      if (template.id === 'custom-message') {
-        customVariables.customSubject = customSubject;
-        customVariables.customMessage = customMessage;
+      const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
+      if (!template) {
+        toast({
+          title: 'Error',
+          description: 'Template not found',
+          variant: 'destructive',
+        });
+        return;
       }
 
+      const customVariables: Partial<TemplateVariables> = {};
+      if (customSubject) customVariables.customSubject = customSubject;
+      if (customMessage) customVariables.customMessage = customMessage;
+      
       const result = await sendTemplatedEmails({
         poolId,
         poolName,
@@ -161,31 +156,72 @@ export function EnhancedEmailManagement({
         template,
         customVariables
       });
-
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: `Emails sent to ${result.totalSent} participants${(result.totalFailed || 0) > 0 ? ` (${result.totalFailed} failed)` : ''}`,
-        });
-
-        // Reset form
-        setSelectedTemplate('');
-        setCustomSubject('');
-        setCustomMessage('');
-        setSelectedParticipants([]);
-      } else {
+      
+              if (result.success && result.mailtoUrl) {
+          console.log('Mailto URL:', result.mailtoUrl);
+          
+          // Try multiple approaches to open email client
+          try {
+            // Method 1: Direct window.open
+            const newWindow = window.open(result.mailtoUrl, '_blank');
+            
+            // Check if popup was blocked
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+              throw new Error('Popup blocked or failed to open');
+            }
+            
+            toast({
+              title: 'Email Client Opened',
+              description: `Email prepared for ${result.recipientCount} participants. Your email client should open automatically.`,
+            });
+          } catch (openError) {
+            console.error('Failed to open email client:', openError);
+            
+            // Method 2: Try with location.href
+            try {
+              window.location.href = result.mailtoUrl;
+              toast({
+                title: 'Email Client Opening',
+                description: `Email prepared for ${result.recipientCount} participants. Redirecting to email client...`,
+              });
+            } catch (hrefError) {
+              console.error('Failed with location.href:', hrefError);
+              
+              // Method 3: Copy to clipboard as fallback
+              try {
+                await navigator.clipboard.writeText(result.mailtoUrl);
+                toast({
+                  title: 'Email URL Copied',
+                  description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
+                });
+              } catch (clipboardError) {
+                console.error('Failed to copy to clipboard:', clipboardError);
+                toast({
+                  title: 'Manual Action Required',
+                  description: `Please copy this URL and paste it in your browser: ${result.mailtoUrl}`,
+                  variant: 'destructive',
+                });
+              }
+            }
+          }
+        } else if (result.success) {
+          toast({
+            title: 'Error',
+            description: 'Email prepared but no mailto URL generated',
+            variant: 'destructive',
+          });
+        } else {
         toast({
           title: 'Error',
-          description: result.error || 'Failed to send emails',
+          description: result.error || 'Failed to prepare emails',
           variant: 'destructive',
         });
       }
-
     } catch (error) {
       console.error('Error sending emails:', error);
       toast({
         title: 'Error',
-        description: 'Failed to send emails',
+        description: 'Failed to prepare emails',
         variant: 'destructive',
       });
     } finally {
@@ -332,6 +368,12 @@ export function EnhancedEmailManagement({
                 <Send className="h-4 w-4" />
                 {isSending ? 'Sending...' : 'Send Emails'}
               </Button>
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> This will open your default email client with all participants in BCC. 
+                  This ensures participants cannot see each other&apos;s email addresses.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -439,7 +481,7 @@ export function EnhancedEmailManagement({
                     </span>
                   </div>
                   <Badge variant="outline">
-                    {getTemplateCount(audience as any)} templates
+                    {getTemplateCount(audience as 'all' | 'submitted' | 'not_submitted')} templates
                   </Badge>
                 </div>
               ))}

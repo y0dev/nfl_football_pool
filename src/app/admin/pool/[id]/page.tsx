@@ -14,7 +14,7 @@ import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, Trash2, Sh
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
-import { SubmissionsScreenshot } from '@/components/admin/submissions-screenshot';
+import { SubmissionsShare } from '@/components/admin/submissions-share';
 import { EmailManagement } from '@/components/admin/email-management';
 import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { TestPicks } from '@/components/admin/test-picks';
@@ -23,6 +23,8 @@ import { SubmissionStatus } from '@/components/admin/submission-status';
 import { PoolSettings } from '@/components/admin/pool-settings';
 import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth';
 
 interface Pool {
   id: string;
@@ -37,15 +39,17 @@ interface Pool {
   tie_breaker_answer?: number;
 }
 
-export default function PoolDetailsPage() {
+function PoolDetailsContent() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const poolId = params.id as string;
   
   const [pool, setPool] = useState<Pool | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
+  const [currentSeasonType, setCurrentSeasonType] = useState(2); // Default to regular season
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
@@ -107,6 +111,7 @@ export default function PoolDetailsPage() {
     try {
       const weekData = await loadCurrentWeek();
       setCurrentWeek(weekData?.week_number || 1);
+      setCurrentSeasonType(weekData?.season_type || 2); // Default to regular season
     } catch (error) {
       console.error('Error loading current week:', error);
     }
@@ -199,7 +204,7 @@ export default function PoolDetailsPage() {
         <div className="text-center py-12">
           <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Pool not found</h3>
-          <p className="text-gray-600 mb-4">The pool you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-4">The pool you&apos;re looking for doesn&apos;t exist.</p>
           <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
             Back to Dashboard
           </Button>
@@ -382,7 +387,6 @@ export default function PoolDetailsPage() {
             <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
             <TabsTrigger value="submissions" className="text-xs whitespace-nowrap px-2 py-1">Submissions</TabsTrigger>
             <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
-            <TabsTrigger value="scores" className="text-xs whitespace-nowrap px-2 py-1">Scores</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
             <TabsTrigger value="tiebreakers" className="text-xs whitespace-nowrap px-2 py-1">Tie-Breakers</TabsTrigger>
           </TabsList>
@@ -414,10 +418,11 @@ export default function PoolDetailsPage() {
         </TabsContent>
 
         <TabsContent value="submissions" className="space-y-6 mt-6">
-          <SubmissionsScreenshot 
+          <SubmissionsShare 
             poolId={pool.id} 
             poolName={pool.name}
             week={currentWeek}
+            seasonType={currentSeasonType}
           />
         </TabsContent>
 
@@ -425,21 +430,9 @@ export default function PoolDetailsPage() {
           <EnhancedEmailManagement 
             poolId={pool.id}
             weekNumber={currentWeek}
-            adminId="1" // This should be dynamic based on logged in admin
+            adminId={user?.id || ''} // This should be dynamic based on logged in admin
             poolName={pool.name}
           />
-        </TabsContent>
-
-        <TabsContent value="scores" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Scores</CardTitle>
-              <CardDescription>View and manage weekly scores</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500">Score management features coming soon...</p>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6 mt-6">
@@ -458,5 +451,13 @@ export default function PoolDetailsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function PoolDetailsPage() {
+  return (
+    <AuthProvider>
+      <PoolDetailsContent />
+    </AuthProvider>
   );
 }
