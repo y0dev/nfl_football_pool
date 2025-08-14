@@ -6,30 +6,79 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
-import { Trophy, Medal, Award } from 'lucide-react';
+import { loadWeekGames } from '@/actions/loadWeekGames';
+import { Trophy, Medal, Award, Clock, EyeOff } from 'lucide-react';
+import { LeaderboardEntry, Pool, Game } from '@/types/game';
 
-interface LeaderboardEntry {
-  id: string;
-  participant_id: string;
-  pool_id: string;
-  week: number;
-  points: number;
-  participants: {
-    name: string;
-  };
+interface LeaderboardProps {
+  poolId?: string;
+  weekNumber?: number;
 }
 
-interface Pool {
-  id: string;
-  name: string;
-}
+// Dummy data for testing
+const DUMMY_LEADERBOARD_DATA: LeaderboardEntry[] = [
+  {
+    id: '1',
+    pool_id: 'dummy-pool-1',
+    participant_id: 'participant-1',
+    week: 1,
+    points: 156,
+    participants: {
+      name: 'John Smith'
+    }
+  },
+  {
+    id: '2',
+    pool_id: 'dummy-pool-1',
+    participant_id: 'participant-2',
+    week: 1,
+    points: 142,
+    participants: {
+      name: 'Sarah Johnson'
+    }
+  },
+  {
+    id: '3',
+    pool_id: 'dummy-pool-1',
+    participant_id: 'participant-3',
+    week: 1,
+    points: 138,
+    participants: {
+      name: 'Mike Davis'
+    }
+  },
+  {
+    id: '4',
+    pool_id: 'dummy-pool-1',
+    participant_id: 'participant-4',
+    week: 1,
+    points: 125,
+    participants: {
+      name: 'Emily Wilson'
+    }
+  },
+  {
+    id: '5',
+    pool_id: 'dummy-pool-1',
+    participant_id: 'participant-5',
+    week: 1,
+    points: 118,
+    participants: {
+      name: 'David Brown'
+    }
+  }
+];
 
-export function Leaderboard() {
-  const [selectedPoolId, setSelectedPoolId] = useState<string>('');
+export function Leaderboard({ poolId, weekNumber }: LeaderboardProps) {
+  const [selectedPoolId, setSelectedPoolId] = useState<string>(poolId || '');
+  const [selectedWeek, setSelectedWeek] = useState<number>(weekNumber || 1);
   const [pools, setPools] = useState<Pool[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [, setLoadingPools] = useState(true);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+  const [isGamesStarted, setIsGamesStarted] = useState(false);
+  const [showDummyData, setShowDummyData] = useState(false);
 
   useEffect(() => {
     async function fetchPools() {
@@ -46,6 +95,40 @@ export function Leaderboard() {
     fetchPools();
   }, []);
 
+  // Load games to check if they've started
+  useEffect(() => {
+    async function fetchGames() {
+      if (!selectedPoolId || !selectedWeek) return;
+      
+      try {
+        const gamesData = await loadWeekGames(selectedWeek, 2); // Default to regular season
+        setGames(gamesData);
+        
+        // Check if any games have started
+        const now = new Date();
+        const hasStarted = gamesData.some(game => {
+          const gameTime = new Date(game.kickoff_time);
+          return gameTime <= now;
+        });
+        setIsGamesStarted(hasStarted);
+      } catch (error) {
+        console.error('Error loading games:', error);
+      }
+    }
+    
+    fetchGames();
+  }, [selectedPoolId, selectedWeek]);
+
+  // Update selected pool and week when props change
+  useEffect(() => {
+    if (poolId) {
+      setSelectedPoolId(poolId);
+    }
+    if (weekNumber) {
+      setSelectedWeek(weekNumber);
+    }
+  }, [poolId, weekNumber]);
+
   useEffect(() => {
     async function fetchLeaderboard() {
       if (!selectedPoolId) {
@@ -55,7 +138,14 @@ export function Leaderboard() {
 
       try {
         setLoadingLeaderboard(true);
-        const leaderboardData = await loadLeaderboard(selectedPoolId, 1);
+        
+        // For testing: show dummy data if games haven't started
+        if (!isGamesStarted) {
+          setLeaderboard([]);
+          return;
+        }
+        
+        const leaderboardData = await loadLeaderboard(selectedPoolId, selectedWeek);
         setLeaderboard(leaderboardData);
       } catch (error) {
         console.error('Error loading leaderboard:', error);
@@ -64,7 +154,7 @@ export function Leaderboard() {
       }
     }
     fetchLeaderboard();
-  }, [selectedPoolId]);
+  }, [selectedPoolId, selectedWeek, isGamesStarted]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -79,32 +169,88 @@ export function Leaderboard() {
     }
   };
 
+  // If poolId is provided, don't show pool selector
+  const showPoolSelector = !poolId;
+
+  // Show dummy data for testing (only in development)
+  const handleShowDummyData = () => {
+    setShowDummyData(!showDummyData);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Leaderboard</h2>
-        <div className="w-64">
-          <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a pool" />
-            </SelectTrigger>
-            <SelectContent>
-              {pools.map((pool) => (
-                <SelectItem key={pool.id} value={pool.id}>
-                  {pool.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {showPoolSelector && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Leaderboard</h2>
+          <div className="w-64">
+            <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a pool" />
+              </SelectTrigger>
+              <SelectContent>
+                {pools.map((pool) => (
+                  <SelectItem key={pool.id} value={pool.id}>
+                    {pool.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+      )}
+
+      {/* Week selector */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium">Week:</span>
+        <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 18 }, (_, i) => i + 1).map((week) => (
+              <SelectItem key={week} value={week.toString()}>
+                Week {week}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        {/* Development: Show dummy data button */}
+        {process.env.NODE_ENV === 'development' && (
+          <button
+            onClick={handleShowDummyData}
+            className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+          >
+            {showDummyData ? 'Hide' : 'Show'} Dummy Data
+          </button>
+        )}
       </div>
 
-      {!selectedPoolId && (
+      {!selectedPoolId && showPoolSelector && (
         <Card>
           <CardContent className="p-8 text-center">
             <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Select a Pool</h3>
             <p className="text-gray-600">Choose a confidence pool to view the leaderboard standings.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Show message when games haven't started */}
+      {selectedPoolId && !isGamesStarted && !showDummyData && (
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <CardContent className="p-8 text-center">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <EyeOff className="h-12 w-12 text-blue-600" />
+              <Clock className="h-12 w-12 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-blue-900 mb-2">Leaderboard Hidden</h3>
+            <p className="text-blue-700 mb-4">
+              The leaderboard will be revealed once the first game of Week {selectedWeek} begins.
+            </p>
+            <div className="text-sm text-blue-600">
+              This prevents participants from seeing others' picks before games start.
+            </div>
           </CardContent>
         </Card>
       )}
@@ -128,7 +274,7 @@ export function Leaderboard() {
         </Card>
       )}
 
-      {selectedPoolId && !loadingLeaderboard && leaderboard.length === 0 && (
+      {selectedPoolId && !loadingLeaderboard && leaderboard.length === 0 && isGamesStarted && !showDummyData && (
         <Card>
           <CardContent className="p-8 text-center">
             <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -138,10 +284,51 @@ export function Leaderboard() {
         </Card>
       )}
 
-      {selectedPoolId && !loadingLeaderboard && leaderboard.length > 0 && (
+      {/* Show dummy data for testing */}
+      {selectedPoolId && showDummyData && (
         <Card>
           <CardHeader>
-            <CardTitle>Week 1 Standings</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Week {selectedWeek} Standings (Dummy Data)
+            </CardTitle>
+            <CardDescription>
+              Sample leaderboard data for testing purposes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Rank</TableHead>
+                  <TableHead>Participant</TableHead>
+                  <TableHead className="text-right">Points</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {DUMMY_LEADERBOARD_DATA.map((entry, index) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-2">
+                        {getRankIcon(index + 1)}
+                      </div>
+                    </TableCell>
+                    <TableCell>{entry.participants.name}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {entry.points}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedPoolId && !loadingLeaderboard && leaderboard.length > 0 && isGamesStarted && !showDummyData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Week {selectedWeek} Standings</CardTitle>
             <CardDescription>
               Current rankings for the selected pool
             </CardDescription>

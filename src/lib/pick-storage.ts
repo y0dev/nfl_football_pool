@@ -1,11 +1,4 @@
-export interface StoredPick {
-  participant_id: string;
-  pool_id: string;
-  game_id: string;
-  predicted_winner: string;
-  confidence_points: number;
-  timestamp: number;
-}
+import { StoredPick } from '@/types/game';
 
 export interface StoredPicksData {
   picks: StoredPick[];

@@ -29,11 +29,13 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
       try {
         const weekData = await loadCurrentWeek();
         const week = weekData?.week_number || 1;
+        const seasonType = weekData?.season_type || 2;
         setCurrentWeek(week);
         setSelectedWeek(week);
         
-        // Generate available weeks (1-18 for regular season)
-        const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+        // Generate available weeks (1-18 for regular season, 1-4 for preseason, 1-4 for postseason)
+        const maxWeeks = seasonType === 1 ? 4 : seasonType === 3 ? 4 : 18;
+        const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
         setAvailableWeeks(weeks);
       } catch (error) {
         console.error('Error loading current week:', error);
@@ -48,7 +50,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}`;
+    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=2`;
     setShareUrl(url);
   }, [poolId, selectedWeek]);
 
@@ -150,6 +152,9 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
                 )}
               </SelectContent>
             </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              Regular Season (Weeks 1-18)
+            </p>
           </div>
 
           {/* Pool Link */}

@@ -51,6 +51,11 @@ function AppContent() {
           <p className="text-gray-600">Welcome, {user?.full_name || user?.email}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/leaderboard">
+            <Button variant="outline" size="sm">
+              View Leaderboards
+            </Button>
+          </Link>
           <Link href="/admin/login">
             <Button variant="outline" size="sm">
               Admin Login

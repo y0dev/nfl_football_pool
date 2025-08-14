@@ -8,27 +8,12 @@ import { Camera, Share2, Loader2, Download } from 'lucide-react';
 import { getWeeklySubmissionsForScreenshot } from '@/actions/adminActions';
 import { useToast } from '@/hooks/use-toast';
 import html2canvas from 'html2canvas';
+import { Game, Participant } from '@/types/game';
 
 interface SubmissionsScreenshotProps {
   poolId: string;
   poolName: string;
   week: number;
-}
-
-interface Game {
-  id: string;
-  home_team: string;
-  away_team: string;
-  kickoff_time: string;
-  winner?: string | null;
-  home_score?: number | null;
-  away_score?: number | null;
-  status?: string;
-}
-
-interface Participant {
-  name: string;
-  picks: Map<string, { predicted_winner: string; confidence_points: number }>;
 }
 
 export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScreenshotProps) {
@@ -133,7 +118,7 @@ export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScr
     submissionsData.participants.forEach((participant) => {
       text += `${participant.name}:\n`;
       submissionsData.games.forEach((game, index) => {
-        const pick = participant.picks.get(game.id);
+        const pick = participant.picks?.get(game.id);
         if (pick) {
           const result = getGameResult(game, pick.predicted_winner);
           const resultIcon = result === 'win' ? '✅' : result === 'loss' ? '❌' : '⏳';
@@ -306,7 +291,7 @@ export function SubmissionsScreenshot({ poolId, poolName, week }: SubmissionsScr
                       {participant.name}
                     </td>
                     {submissionsData.games.map((game) => {
-                      const pick = participant.picks.get(game.id);
+                      const pick = participant.picks?.get(game.id);
                       const result = pick ? getGameResult(game, pick.predicted_winner) : null;
                       
                       return (

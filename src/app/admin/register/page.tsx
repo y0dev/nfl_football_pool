@@ -60,10 +60,12 @@ export default function AdminRegisterPage() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Admin account created successfully! You can now sign in.',
+          description: 'Admin account created successfully! Check your email for confirmation. Redirecting to dashboard...',
         });
-        // Redirect to admin login
-        window.location.href = '/admin/login';
+        // Redirect to admin dashboard
+        setTimeout(() => {
+          window.location.href = result.redirect || '/admin/dashboard';
+        }, 2000);
       } else {
         toast({
           title: 'Error',

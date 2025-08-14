@@ -58,7 +58,7 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
       }
       setCurrentWeek(weekToUse);
       
-      // Load users who haven't submitted picks
+      // Load users who haven't submitted picks for this specific pool
       const availableUsers = await loadUsers(poolId, weekToUse);
       setUsers(availableUsers);
     } catch (error) {
