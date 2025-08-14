@@ -122,7 +122,7 @@ export function PickConfirmationDialog({
                         {getTeamName(pick.pickedTeamId!)}
                       </div>
                       <div className="text-sm text-gray-600">
-                        vs {game.home_team_id?.toString() === pick.pickedTeamId 
+                        vs {game.home_team?.toString() === pick.pickedTeamId 
                           ? game.away_team 
                           : game.home_team}
                       </div>

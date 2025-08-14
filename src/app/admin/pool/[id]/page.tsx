@@ -165,9 +165,17 @@ function PoolDetailsContent() {
       const result = await response.json();
 
       if (result.success) {
+        const deletedData = result.deletedData || {};
+        const totalItems = (deletedData.participants || 0) + (deletedData.picks || 0) + (deletedData.scores || 0) + (deletedData.tieBreakers || 0);
+        
+        let description = "Pool deleted successfully";
+        if (totalItems > 0) {
+          description += `. Also deleted: ${deletedData.participants || 0} participants, ${deletedData.picks || 0} picks, ${deletedData.scores || 0} scores, and ${deletedData.tieBreakers || 0} tie breakers.`;
+        }
+        
         toast({
           title: "Success",
-          description: "Pool deleted successfully",
+          description: description,
         });
         router.push('/admin/dashboard');
       } else {

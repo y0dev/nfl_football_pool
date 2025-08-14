@@ -437,6 +437,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 `;
 
+export const reminderLogsTable = `
+CREATE TABLE IF NOT EXISTS reminder_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE,
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  season_type INTEGER NOT NULL,
+  sent_by UUID REFERENCES admins(id) ON DELETE SET NULL,
+  email_sent BOOLEAN DEFAULT true,
+  email_content JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
 // Teams table
 export const teamsTable = `
 CREATE TABLE IF NOT EXISTS teams (

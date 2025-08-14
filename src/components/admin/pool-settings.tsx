@@ -113,9 +113,17 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       const result = await response.json();
 
       if (result.success) {
+        const deletedData = result.deletedData || {};
+        const totalItems = (deletedData.participants || 0) + (deletedData.picks || 0) + (deletedData.scores || 0) + (deletedData.tieBreakers || 0);
+        
+        let description = "Pool deleted successfully";
+        if (totalItems > 0) {
+          description += `. Also deleted: ${deletedData.participants || 0} participants, ${deletedData.picks || 0} picks, ${deletedData.scores || 0} scores, and ${deletedData.tieBreakers || 0} tie breakers.`;
+        }
+        
         toast({
           title: "Success",
-          description: "Pool deleted successfully",
+          description: description,
         });
         onPoolDeleted?.();
       } else {
@@ -397,6 +405,14 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                   <DialogTitle>Delete Pool</DialogTitle>
                   <DialogDescription>
                     Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.
+                    <br /><br />
+                    <strong>This will also permanently delete:</strong>
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                      <li>All participants in this pool</li>
+                      <li>All picks submitted by participants</li>
+                      <li>All scores and standings</li>
+                      <li>All tie breaker responses</li>
+                    </ul>
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

@@ -39,7 +39,7 @@ export async function sendTemplatedEmails({
       .select('email')
       .eq('id', adminId)
       .single();
-    
+    console.log('adminData', adminData);
     if (adminError) {
       console.error('Error fetching admin email:', adminError);
       console.error('Admin ID:', adminId);
