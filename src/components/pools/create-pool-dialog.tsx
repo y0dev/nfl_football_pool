@@ -35,7 +35,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     defaultValues: {
       name: '',
       description: '',
-      require_access_code: true,
+      require_access_code: false,
     },
   });
 

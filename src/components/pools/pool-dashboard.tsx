@@ -25,7 +25,11 @@ interface Pool {
   created_at: string;
 }
 
-export function PoolDashboard() {
+interface PoolDashboardProps {
+  hideCreateButton?: boolean;
+}
+
+export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) {
   const [pools, setPools] = useState<Pool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +52,7 @@ export function PoolDashboard() {
         user?.email, 
         user?.is_super_admin
       );
-      console.log('PoolDashboard: Loaded pools:', poolsData);
-      console.log('PoolDashboard: Current user:', user);
+      
       setPools(poolsData);
     } catch (err) {
       setError('Failed to load pools');
@@ -62,6 +65,19 @@ export function PoolDashboard() {
   useEffect(() => {
     fetchPools();
   }, [user]);
+
+  // Listen for custom event to open create pool dialog
+  useEffect(() => {
+    const handleOpenCreatePool = () => {
+      setCreateDialogOpen(true);
+    };
+
+    document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    
+    return () => {
+      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    };
+  }, []);
 
   // Don't render anything if user is not authenticated
   if (user === null) {
@@ -115,38 +131,45 @@ export function PoolDashboard() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold">Confidence Pools</h2>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Pool
-        </Button>
+        {!hideCreateButton && (
+          <Button 
+            onClick={() => setCreateDialogOpen(true)}
+            data-create-pool
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Pool
+          </Button>
+        )}
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList>
-          <TabsTrigger value="all">All Pools</TabsTrigger>
-          <TabsTrigger value="my-pools">My Pools</TabsTrigger>
-          <TabsTrigger value="available">Available to Join</TabsTrigger>
-        </TabsList>
+      {/* For normal admins, show simple list */}
+      {!user?.is_super_admin ? (
+        <PoolGrid pools={pools} onPoolJoined={fetchPools} />
+      ) : (
+        /* For super admins, show tabs */
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList>
+            <TabsTrigger value="all">All Pools</TabsTrigger>
+            {user?.is_super_admin && (
+              <TabsTrigger value="my-pools">My Pools</TabsTrigger>
+            )}
+          </TabsList>
 
-        <TabsContent value="all" className="mt-6">
-          <PoolGrid pools={pools} onPoolJoined={fetchPools} />
-        </TabsContent>
+          <TabsContent value="all" className="mt-6">
+            <PoolGrid pools={pools} onPoolJoined={fetchPools} />
+          </TabsContent>
 
-        <TabsContent value="my-pools" className="mt-6">
-          <PoolGrid 
-            pools={pools.filter(pool => pool.created_by === user?.email)} 
-            onPoolJoined={fetchPools}
-            showJoinButton={true} // Allow joining own pools
-          />
-        </TabsContent>
-
-        <TabsContent value="available" className="mt-6">
-          <PoolGrid 
-            pools={pools.filter(pool => pool.created_by !== user?.email)} 
-            onPoolJoined={fetchPools}
-          />
-        </TabsContent>
-      </Tabs>
+          {user?.is_super_admin && (
+            <TabsContent value="my-pools" className="mt-6">
+              <PoolGrid 
+                pools={pools.filter(pool => pool.created_by === user?.email)} 
+                onPoolJoined={fetchPools}
+                showJoinButton={true} // Allow joining own pools
+              />
+            </TabsContent>
+          )}
+        </Tabs>
+      )}
 
       <CreatePoolDialog 
         open={createDialogOpen} 

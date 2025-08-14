@@ -11,23 +11,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/lib/auth';
 import { AlertTriangle, User } from 'lucide-react';
+import { Game } from '@/types/game';
 
 interface Pick {
-  gameId: number;
-  pickedTeamId: number | null;
+  gameId: string;
+  pickedTeamId: string | null;
   confidencePoints: number | null;
-}
-
-interface Game {
-  id: number;
-  home_team_id: number;
-  away_team_id: number;
-  home_team_name: string;
-  home_team_city: string;
-  away_team_name: string;
-  away_team_city: string;
 }
 
 interface PickConfirmationDialogProps {
@@ -38,6 +28,8 @@ interface PickConfirmationDialogProps {
   weekNumber: number;
   onConfirm: () => Promise<void>;
   isSubmitting: boolean;
+  userName: string;
+  userEmail?: string;
 }
 
 export function PickConfirmationDialog({
@@ -48,8 +40,9 @@ export function PickConfirmationDialog({
   weekNumber,
   onConfirm,
   isSubmitting,
+  userName,
+  userEmail,
 }: PickConfirmationDialogProps) {
-  const { user } = useAuth();
   const [userConfirmed, setUserConfirmed] = useState(false);
 
   const handleConfirm = () => {
@@ -57,14 +50,16 @@ export function PickConfirmationDialog({
     setUserConfirmed(false); // Reset for next time
   };
 
-  const getTeamName = (teamId: number) => {
+  const getTeamName = (teamId: string) => {
+    
     // Find team name from games data
     for (const game of games) {
-      if (game.home_team_id === teamId) {
-        return `${game.home_team_city} ${game.home_team_name}`;
+      
+      if (game.home_team.toString() === teamId) {
+        return game.home_team;
       }
-      if (game.away_team_id === teamId) {
-        return `${game.away_team_city} ${game.away_team_name}`;
+      if (game.away_team.toString() === teamId) {
+        return game.away_team;
       }
     }
     return 'Unknown Team';
@@ -95,7 +90,7 @@ export function PickConfirmationDialog({
               <span className="font-semibold text-blue-900">Submitting as:</span>
             </div>
             <div className="text-sm text-gray-600">
-              {user?.full_name} - {user?.email}
+              {userName} {userEmail && `- ${userEmail}`}
             </div>
             <div className="mt-3">
               <label className="flex items-center space-x-2">
@@ -106,7 +101,7 @@ export function PickConfirmationDialog({
                   className="rounded border-gray-300"
                 />
                 <span className="text-sm text-blue-800">
-                  I confirm that I am <strong>{user?.full_name}</strong> and these are my picks
+                  I confirm that I am <strong>{userName}</strong> and these are my picks
                 </span>
               </label>
             </div>
@@ -127,9 +122,9 @@ export function PickConfirmationDialog({
                         {getTeamName(pick.pickedTeamId!)}
                       </div>
                       <div className="text-sm text-gray-600">
-                        vs {game.home_team_id === pick.pickedTeamId 
-                          ? `${game.away_team_city} ${game.away_team_name}` 
-                          : `${game.home_team_city} ${game.home_team_name}`}
+                        vs {game.home_team_id?.toString() === pick.pickedTeamId 
+                          ? game.away_team 
+                          : game.home_team}
                       </div>
                     </div>
                     <Badge variant="outline" className="ml-2">

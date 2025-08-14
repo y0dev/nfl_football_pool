@@ -9,12 +9,12 @@ import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
+import { Game, SelectedUser } from '@/types/game';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
@@ -27,13 +27,53 @@ function ParticipantContent() {
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showGameDetails, setShowGameDetails] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
+  const [showQuickStats, setShowQuickStats] = useState(false);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [submittedCount, setSubmittedCount] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const { toast } = useToast();
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (games.length === 0) return;
+
+    const timer = setInterval(() => {
+      const firstGame = games[0];
+      const gameTime = new Date(firstGame.kickoff_time);
+      const now = new Date();
+      const timeDiff = gameTime.getTime() - now.getTime();
+      
+      if (timeDiff <= 0) {
+        setCountdown('Games Started');
+        return;
+      }
+      
+      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+      
+      if (days > 0) {
+        setCountdown(`${days}d ${hours}h ${minutes}m`);
+      } else if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+      } else {
+        setCountdown(`${minutes}m ${seconds}s`);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [games]);
 
   const loadData = async () => {
     try {
@@ -110,6 +150,23 @@ function ParticipantContent() {
         }
       }
 
+      // Check if user is admin (for back button visibility)
+      try {
+        const { getSupabaseClient } = await import('@/lib/supabase');
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: admin } = await supabase
+            .from('admins')
+            .select('id')
+            .eq('id', session.user.id)
+            .single();
+          setIsAdmin(!!admin);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading participant data:', error);
@@ -122,6 +179,10 @@ function ParticipantContent() {
   useEffect(() => {
     loadData();
   }, [poolId, weekParam]);
+
+  useEffect(() => {
+    loadParticipantStats();
+  }, [poolId, currentWeek, currentSeasonType]);
 
   const handleRefresh = async () => {
     setIsLoading(true);
@@ -153,6 +214,37 @@ function ParticipantContent() {
     }
   };
 
+  const getGameStatusStats = () => {
+    if (games.length === 0) return null;
+    
+    const now = new Date();
+    const stats = {
+      total: games.length,
+      upcoming: 0,
+      inProgress: 0,
+      finished: 0,
+      locked: 0
+    };
+
+    games.forEach(game => {
+      const gameTime = new Date(game.kickoff_time);
+      const timeDiff = gameTime.getTime() - now.getTime();
+      
+      if (timeDiff > 0) {
+        stats.upcoming++;
+        if (timeDiff <= 24 * 60 * 60 * 1000) { // Within 24 hours
+          stats.locked++;
+        }
+      } else if (game.status === 'finished' || game.winner) {
+        stats.finished++;
+      } else {
+        stats.inProgress++;
+      }
+    });
+
+    return stats;
+  };
+
   const getDeadlineInfo = () => {
     if (games.length === 0) return null;
 
@@ -175,6 +267,66 @@ function ParticipantContent() {
     } else {
       const days = Math.floor(hours / 24);
       return { status: 'info', message: `Picks close in ${days} days` };
+    }
+  };
+
+  const loadParticipantStats = async () => {
+    if (!poolId) return;
+    
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Get total participants
+      const { data: participants } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('pool_id', poolId)
+        .eq('is_active', true);
+      
+      setParticipantCount(participants?.length || 0);
+      
+      // Get submitted participants
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('participant_id, games!inner(week, season_type)')
+        .eq('pool_id', poolId)
+        .eq('games.week', currentWeek)
+        .eq('games.season_type', currentSeasonType);
+      
+      const submittedIds = new Set(picks?.map(p => p.participant_id) || []);
+      setSubmittedCount(submittedIds.size);
+    } catch (error) {
+      console.error('Error loading participant stats:', error);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleQuickShare = () => {
+    const url = window.location.href;
+    const text = `🏈 Join ${poolName} - ${currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'} Week ${currentWeek}!\n\n${url}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: `${poolName} - Week ${currentWeek}`,
+        text: text,
+        url: url
+      });
+    } else {
+      navigator.clipboard.writeText(text);
+      toast({
+        title: "Quick Share",
+        description: "Pool info copied to clipboard!",
+      });
     }
   };
 
@@ -217,27 +369,31 @@ function ParticipantContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Floating Back Button for Mobile */}
+      {/* Floating Back Button for Mobile - Only show if admin */}
+      {isAdmin && (
       <div className="fixed top-4 left-4 z-50 sm:hidden">
-        <Link href="/">
+          <Link href="/admin/dashboard">
           <Button variant="outline" size="sm" className="shadow-lg">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
       </div>
+      )}
       
       <div className="container mx-auto p-4">
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <div className="flex items-center gap-4">
-              <Link href="/">
+              {isAdmin && (
+                <Link href="/admin/dashboard">
                 <Button variant="outline" size="sm" className="flex items-center gap-2">
                   <ArrowLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline">Back to Home</span>
+                    <span className="hidden sm:inline">Back to Dashboard</span>
                   <span className="sm:hidden">Back</span>
                 </Button>
               </Link>
+              )}
               <div className="flex items-center gap-2">
                 <Trophy className="h-6 w-6 text-blue-600" />
                 <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
@@ -280,7 +436,6 @@ function ParticipantContent() {
                 </div>
                 {lastUpdated && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <RefreshCw className="h-3 w-3" />
                     Last updated: {lastUpdated.toLocaleTimeString()}
                   </div>
                 )}
@@ -295,20 +450,66 @@ function ParticipantContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleRefresh}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    <span className="hidden sm:inline">Refresh</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
                     onClick={handleShare}
                     className="flex items-center gap-2"
                   >
                     <Share2 className="h-4 w-4" />
                     <span className="hidden sm:inline">Share</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleQuickShare}
+                    className="flex items-center gap-2"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Quick Share</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowLeaderboard(!showLeaderboard);
+                      if (!showLeaderboard) {
+                        setShowGameDetails(false);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Leaderboard</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowGameDetails(!showGameDetails);
+                      if (!showGameDetails) {
+                        setShowLeaderboard(false);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    {showGameDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <span className="hidden sm:inline">Game Details</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowQuickStats(!showQuickStats)}
+                    className="flex items-center gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span className="hidden sm:inline">Stats</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleFullscreen}
+                    className="flex items-center gap-2"
+                  >
+                    {isFullscreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                    <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
                   </Button>
                 </div>
               </div>
@@ -339,7 +540,7 @@ function ParticipantContent() {
             };
             
             return (
-              <div className={`p-3 rounded-lg border ${getStatusColor(deadlineInfo.status)}`}>
+              <div className={`mt-2 p-3 rounded-lg border ${getStatusColor(deadlineInfo.status)}`}>
                 <div className="flex items-center gap-2">
                   {getStatusIcon(deadlineInfo.status)}
                   <span className="text-sm font-medium">{deadlineInfo.message}</span>
@@ -350,17 +551,191 @@ function ParticipantContent() {
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="picks" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="picks">Make Picks</TabsTrigger>
-            <TabsTrigger value="games">Games ({games.length})</TabsTrigger>
-            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
-          </TabsList>
+        <div className="space-y-6">
+          {/* Quick Stats */}
+          {showQuickStats && (
+            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-900">
+                  <Users className="h-5 w-5" />
+                  Pool Statistics
+                </CardTitle>
+                <CardDescription className="text-green-700">
+                  Current participation and submission status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{participantCount}</div>
+                    <div className="text-sm text-green-700">Total Participants</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{submittedCount}</div>
+                    <div className="text-sm text-blue-700">Submitted Picks</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{participantCount - submittedCount}</div>
+                    <div className="text-sm text-orange-700">Pending</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {participantCount > 0 ? Math.round((submittedCount / participantCount) * 100) : 0}%
+                    </div>
+                    <div className="text-sm text-purple-700">Completion Rate</div>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-white rounded-lg border">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Submission Progress:</span>
+                    <span className="font-medium">
+                      {submittedCount} of {participantCount} participants
+                    </span>
+                  </div>
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          <TabsContent value="picks" className="space-y-6">
+          {/* Game Stats */}
+          {(() => {
+            const stats = getGameStatusStats();
+            if (!stats) return null;
+            
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                    <div className="text-sm text-gray-600">Total Games</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-green-600">{stats.upcoming}</div>
+                    <div className="text-sm text-gray-600">Upcoming</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-orange-600">{stats.inProgress}</div>
+                    <div className="text-sm text-gray-600">In Progress</div>
+                  </CardContent>
+                </Card>
+                <Card className="text-center">
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-bold text-gray-600">{stats.finished}</div>
+                    <div className="text-sm text-gray-600">Finished</div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
+          {/* Countdown Timer */}
+          {countdown === null && (
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-center gap-3">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-blue-900">
+                      {countdown === 'Games Started' ? 'Games Have Started!' : `Picks Close In: ${countdown}`}
+                    </div>
+                    <div className="text-sm text-blue-700">
+                      {countdown === 'Games Started' 
+                        ? 'All picks are now locked' 
+                        : 'Make sure to submit your picks before kickoff'
+                      }
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Game Details Toggle */}
+          {showGameDetails && games.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Week {currentWeek} Picks</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Week {currentWeek} Game Details
+                </CardTitle>
+                <CardDescription>
+                  Detailed view of all games and their status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {games.map((game, index) => {
+                    const gameTime = new Date(game.kickoff_time);
+                    const now = new Date();
+                    const timeDiff = gameTime.getTime() - now.getTime();
+                    const isLocked = timeDiff <= 0;
+                    const isUpcoming = timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
+                    
+                    return (
+                      <div key={game.id} className={`p-3 border rounded-lg ${isLocked ? 'bg-gray-50' : isUpcoming ? 'bg-orange-50' : 'bg-green-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-sm">Game {index + 1}</span>
+                              {isLocked && <Badge variant="secondary" className="text-xs">Locked</Badge>}
+                              {isUpcoming && <Badge variant="outline" className="text-xs text-orange-600">Upcoming</Badge>}
+                              {!isLocked && !isUpcoming && <Badge variant="outline" className="text-xs text-green-600">Available</Badge>}
+                            </div>
+                            <div className="text-sm font-medium">
+                              {game.away_team} @ {game.home_team}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {game.winner && (
+                              <Badge variant="default" className="bg-green-100 text-green-800">
+                                Winner: {game.winner}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Leaderboard Section */}
+          {showLeaderboard && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Week {currentWeek} Leaderboard</CardTitle>
+                <CardDescription>
+                  Current standings for {poolName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Leaderboard poolId={poolId!} weekNumber={currentWeek} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Picks Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-600" />
+                Week {currentWeek} Picks
+              </CardTitle>
                 <CardDescription>
                   Select the winner for each game and assign confidence points
                 </CardDescription>
@@ -390,79 +765,7 @@ function ParticipantContent() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="games" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Week {currentWeek} Games</CardTitle>
-                <CardDescription>
-                  All NFL games for this week
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {games.map((game, index) => {
-                    const gameTime = new Date(game.kickoff_time);
-                    const isLocked = gameTime < new Date();
-                    
-                    return (
-                      <div key={game.id} className={`p-4 border rounded-lg ${isLocked ? 'bg-gray-50' : 'bg-white'}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold text-sm text-gray-600">Game {index + 1}</span>
-                              {isLocked && (
-                                <Badge variant="secondary" className="text-xs">Locked</Badge>
-                              )}
-                            </div>
-                            <div className="text-lg font-semibold">
-                              {game.away_team} @ {game.home_team}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            {game.status && game.status !== 'scheduled' && (
-                              <div className="text-sm text-gray-500 mt-1">
-                                Status: {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            {game.winner && (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
-                                Winner: {game.winner}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {games.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      No games found for Week {currentWeek}
-                    </div>
-                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="leaderboard" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Leaderboard</CardTitle>
-                <CardDescription>
-                  Current standings for Week {currentWeek}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Leaderboard />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
       </div>
     </div>
   );

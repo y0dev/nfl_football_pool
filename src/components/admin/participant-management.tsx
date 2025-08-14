@@ -251,15 +251,17 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addTestParticipants}
-              className="flex items-center gap-2"
-            >
-              <Users className="h-4 w-4" />
-              Add Test Data
-            </Button>
+            {process.env.NEXT_PUBLIC_NODE_ENV === 'development' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addTestParticipants}
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Add Test Data
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

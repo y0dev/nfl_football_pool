@@ -12,38 +12,21 @@ import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/acti
 import { PickUserSelection } from './pick-user-selection';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
-import { pickStorage, StoredPick } from '@/lib/pick-storage';
+import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
+import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
 
 interface WeeklyPickProps {
   poolId: string;
   weekNumber?: number;
   seasonType?: number;
-  selectedUser?: any;
+  selectedUser?: SelectedUser;
   games?: Game[];
   preventGameLoading?: boolean;
 }
 
-interface Game {
-  id: string;
-  home_team: string;
-  away_team: string;
-  kickoff_time: string;
-  game_status?: string;
-  status?: string;
-  winner?: string;
-}
-
-interface Pick {
-  participant_id: string;
-  pool_id: string;
-  game_id: string;
-  predicted_winner: string;
-  confidence_points: number;
-}
-
 export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading }: WeeklyPickProps) {
-  const [selectedUser, setSelectedUser] = useState<any>(propSelectedUser || null);
+  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [currentWeek, setCurrentWeek] = useState<number>(1);
@@ -79,8 +62,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         }
         
         // Initialize picks array
-        const initialPicks: Pick[] = propGames.map((game: any) => ({
-          participant_id: '',
+        const initialPicks: Pick[] = propGames.map((game: Game) => ({
+          participant_id: selectedUser?.id || '',
           pool_id: poolId,
           game_id: game.id,
           predicted_winner: '',
@@ -120,7 +103,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map(game => ({
-          participant_id: '',
+          participant_id: selectedUser?.id || '',
           pool_id: poolId,
           game_id: game.id,
           predicted_winner: '',
@@ -138,7 +121,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     };
 
     loadData();
-  }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast]);
+  }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast, selectedUser]);
 
   // Update selectedUser when prop changes
   useEffect(() => {
@@ -153,18 +136,25 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       const savedPicks = pickStorage.loadPicks(selectedUser.id, poolId, currentWeek);
       
       if (savedPicks.length > 0) {
-        // Map saved picks to the current picks array
-        const updatedPicks = picks.map(pick => {
-          const savedPick = savedPicks.find(sp => sp.game_id === pick.game_id);
+        // Map saved picks to the current games array
+        const updatedPicks = games.map(game => {
+          const savedPick = savedPicks.find(sp => sp.game_id === game.id);
           if (savedPick) {
             return {
-              ...pick,
               participant_id: selectedUser.id,
+              pool_id: poolId,
+              game_id: game.id,
               predicted_winner: savedPick.predicted_winner || '',
               confidence_points: savedPick.confidence_points || 0
             };
           }
-          return { ...pick, participant_id: selectedUser.id };
+          return {
+            participant_id: selectedUser.id,
+            pool_id: poolId,
+            game_id: game.id,
+            predicted_winner: '',
+            confidence_points: 0
+          };
         });
         
         setPicks(updatedPicks);
@@ -178,7 +168,14 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         });
       } else {
         // Initialize picks with selected user
-        setPicks(picks.map(pick => ({ ...pick, participant_id: selectedUser.id })));
+        const initialPicks = games.map(game => ({
+          participant_id: selectedUser.id,
+          pool_id: poolId,
+          game_id: game.id,
+          predicted_winner: '',
+          confidence_points: 0
+        }));
+        setPicks(initialPicks);
       }
     }
   }, [selectedUser, games, poolId, currentWeek, toast]);
@@ -186,7 +183,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Auto-save picks to localStorage when picks change (backup mechanism)
   useEffect(() => {
     if (selectedUser && picks.length > 0 && hasUnsavedChanges) {
-      // Only auto-save if we haven't already saved in the last second
+      // Only auto-save if we haven&apos;t already saved in the last second
       const now = Date.now();
       const lastSavedTime = lastSaved?.getTime() || 0;
       
@@ -224,6 +221,44 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
+    // Check if confidence point is already used
+    if (field === 'confidence_points' && typeof value === 'number') {
+      const existingPick = picks.find(p => p.confidence_points === value && p.game_id !== gameId);
+      if (existingPick) {
+        // Show confirmation dialog for override
+        if (window.confirm(`Confidence point ${value} is already used by another game. Do you want to override it?`)) {
+          // Remove the confidence point from the other game
+          const updatedPicks = picks.map(pick => 
+            pick.confidence_points === value && pick.game_id !== gameId
+              ? { ...pick, confidence_points: 0 }
+              : pick
+          );
+          
+          // Set the new confidence point
+          const finalPicks = updatedPicks.map(pick => 
+            pick.game_id === gameId 
+              ? { ...pick, [field]: value }
+              : pick
+          );
+          
+          setPicks(finalPicks);
+          setHasUnsavedChanges(true);
+          
+          // Immediately save to localStorage
+          if (selectedUser) {
+            const storedPicks: StoredPick[] = finalPicks.map(pick => ({
+              ...pick,
+              timestamp: Date.now()
+            }));
+            
+            pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+            setLastSaved(new Date());
+          }
+        }
+        return;
+      }
+    }
+    
     const updatedPicks = picks.map(pick => 
       pick.game_id === gameId 
         ? { ...pick, [field]: value }
@@ -250,6 +285,12 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     const errors: string[] = [];
     const usedConfidencePoints = new Set<number>();
     const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+
+    // Check if participant_id is set
+    if (!selectedUser?.id || picks.some(pick => !pick.participant_id || pick.participant_id !== selectedUser.id)) {
+      errors.push('Please select a user before submitting picks');
+      return errors;
+    }
 
     if (validPicks.length !== games.length) {
       errors.push('Please make a pick for all games');
@@ -278,7 +319,6 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const handleSubmit = async () => {
     const validationErrors = validatePicks();
     setErrors(validationErrors);
-
     if (validationErrors.length > 0) {
       // Scroll to errors
       if (errorsRef.current) {
@@ -296,10 +336,16 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     setShowConfirmation(false);
 
     try {
-      const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+      // Ensure all picks have the correct participant_id
+      const picksWithParticipantId = picks.map(pick => ({
+        ...pick,
+        participant_id: selectedUser!.id
+      }));
+      
+      const validPicks = picksWithParticipantId.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
       const result = await submitPicks(validPicks);
 
-      if (result) {
+      if (result.success) {
         toast({
           title: 'Success',
           description: 'Picks submitted successfully!',
@@ -311,12 +357,18 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setSelectedUser(null);
         setHasUnsavedChanges(false);
         setLastSaved(null);
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to submit picks',
+          variant: 'destructive',
+        });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error submitting picks:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to submit picks',
+        description: error instanceof Error ? error.message : 'Failed to submit picks',
         variant: 'destructive',
       });
     } finally {
@@ -325,10 +377,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   };
 
   // Handle user selection
-  const handleUserSelected = (user: any) => {
+  const handleUserSelected = (userId: string, userName: string) => {
+    const user: SelectedUser = { id: userId, name: userName };
     setSelectedUser(user);
-    // Note: We'll need to get the pool name and access code from the user selection
-    // For now, we'll use a default pool name and access code
+    // Note: We&apos;ll need to get the pool name and access code from the user selection
+    // For now, we&apos;ll use a default pool name and access code
     userSessionManager.createSession(user.id, user.name, poolId, 'NFL Pool', 'DEFAULT');
   };
 
@@ -381,7 +434,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-blue-600" />
             <span className="text-blue-800">
-              Your picks are being auto-saved. They will be automatically submitted in 5 minutes if you don't submit them manually.
+              Your picks are being auto-saved. They will be automatically submitted in 5 minutes if you don&apos;t submit them manually.
             </span>
           </div>
         </div>
@@ -397,7 +450,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                 Picks for Week {currentWeek} are not yet available.
               </div>
               <div className="text-sm mt-1">
-                Picks unlock within 3 days of the first game's kickoff time.
+                Picks unlock within 3 days of the first game&apos;s kickoff time.
                 {unlockTime && (
                   <span className="block mt-1">
                     <strong>Unlocks:</strong> {unlockTime}
@@ -478,6 +531,49 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
               !usedConfidencePoints.includes(points) // Exclude used by other picks
             ) : [];
           
+          // Shorten team names for mobile
+          const getShortTeamName = (teamName: string) => {
+            if (window.innerWidth < 640) { // sm breakpoint
+              // Remove city names and keep just the team name
+              const teamNameMap: { [key: string]: string } = {
+                'New England Patriots': 'NE Patriots',
+                'New York Jets': 'NY Jets',
+                'New York Giants': 'NY Giants',
+                'Buffalo Bills': 'Buf Bills',
+                'Miami Dolphins': 'Mia Dolphins',
+                'Baltimore Ravens': 'Bal Ravens',
+                'Cincinnati Bengals': 'Cin Bengals',
+                'Cleveland Browns': 'Cle Browns',
+                'Pittsburgh Steelers': 'Pit Steelers',
+                'Houston Texans': 'Hou Texans',
+                'Indianapolis Colts': 'Ind Colts',
+                'Jacksonville Jaguars': 'Jax Jaguars',
+                'Tennessee Titans': 'Ten Titans',
+                'Denver Broncos': 'Den Broncos',
+                'Kansas City Chiefs': 'Kan Chiefs',
+                'Las Vegas Raiders': 'LV Raiders',
+                'Los Angeles Chargers': 'LA Chargers',
+                'Dallas Cowboys': 'Dal Cowboys',
+                'Philadelphia Eagles': 'Phi Eagles',
+                'Washington Commanders': 'Was Commanders',
+                'Chicago Bears': 'Chi Bears',
+                'Detroit Lions': 'Det Lions',
+                'Green Bay Packers': 'GB Packers',
+                'Minnesota Vikings': 'Min Vikings',
+                'Atlanta Falcons': 'Atl Falcons',
+                'Carolina Panthers': 'Car Panthers',
+                'New Orleans Saints': 'NO Saints',
+                'Tampa Bay Buccaneers': 'TB Buccaneers',
+                'Arizona Cardinals': 'Ari Cardinals',
+                'Los Angeles Rams': 'LA Rams',
+                'San Francisco 49ers': 'SF 49ers',
+                'Seattle Seahawks': 'Sea Seahawks'
+              };
+              return teamNameMap[teamName] || teamName;
+            }
+            return teamName;
+          };
+          
           return (
             <Card key={game.id} className={isLocked ? 'opacity-75' : ''}>
               <CardHeader>
@@ -486,7 +582,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                   {isLocked && <Badge variant="secondary">Locked</Badge>}
                 </CardTitle>
                 <CardDescription>
-                  {game.away_team} @ {game.home_team}
+                  {getShortTeamName(game.away_team)} @ {getShortTeamName(game.home_team)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -496,17 +592,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                     variant={pick?.predicted_winner === game.away_team ? 'default' : 'outline'}
                     onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.away_team)}
                     disabled={isLocked}
-                    className="h-12"
+                    className="h-12 text-sm sm:text-base"
                   >
-                    {game.away_team}
+                    <span className="hidden sm:inline">{game.away_team}</span>
+                    <span className="sm:hidden">{getShortTeamName(game.away_team)}</span>
                   </Button>
                   <Button
                     variant={pick?.predicted_winner === game.home_team ? 'default' : 'outline'}
                     onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.home_team)}
                     disabled={isLocked}
-                    className="h-12"
+                    className="h-12 text-sm sm:text-base"
                   >
-                    {game.home_team}
+                    <span className="hidden sm:inline">{game.home_team}</span>
+                    <span className="sm:hidden">{getShortTeamName(game.home_team)}</span>
                   </Button>
                 </div>
 
@@ -574,6 +672,23 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           {isLoading ? 'Submitting...' : !isWeekUnlocked ? 'Week Locked' : 'Submit Picks'}
         </Button>
       </div>
+
+      {/* Pick Confirmation Dialog */}
+      <PickConfirmationDialog
+        open={showConfirmation}
+        onOpenChange={setShowConfirmation}
+        picks={picks.map(pick => ({
+          gameId: pick.game_id,
+          pickedTeamId: pick.predicted_winner,
+          confidencePoints: pick.confidence_points
+        }))}
+        games={games}
+        weekNumber={currentWeek}
+        onConfirm={confirmSubmission}
+        isSubmitting={isLoading}
+        userName={selectedUser?.name || 'Unknown User'}
+        userEmail={selectedUser?.email}
+      />
     </div>
   );
 }

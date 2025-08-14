@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Key } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 
 const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
@@ -34,6 +35,10 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const { toast } = useToast();
 
   const form = useForm<PoolSettingsData>({
@@ -130,6 +135,76 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast({
+        title: 'Error',
+        description: 'Please enter both password fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: 'Error',
+        description: 'Passwords do not match',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 8 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId,
+          newPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'Password reset successfully',
+        });
+        setShowPasswordReset(false);
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to reset password',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reset password',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -244,6 +319,67 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* Password Reset */}
+          <div>
+            <h4 className="font-semibold text-red-600 mb-2">Reset Pool Password</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Reset the access code for this pool. All participants will need the new code.
+            </p>
+            <Dialog open={showPasswordReset} onOpenChange={setShowPasswordReset}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  Reset Password
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Reset Pool Password</DialogTitle>
+                  <DialogDescription>
+                    Enter a new access code for &quot;{poolName}&quot;. This will replace the current access code.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="new-password">New Access Code</Label>
+                    <Input
+                      id="new-password"
+                      type="text"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new access code"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="confirm-password">Confirm Access Code</Label>
+                    <Input
+                      id="confirm-password"
+                      type="text"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new access code"
+                      maxLength={10}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowPasswordReset(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handlePasswordReset} 
+                    disabled={isResettingPassword}
+                  >
+                    {isResettingPassword ? 'Resetting...' : 'Reset Password'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Delete Pool */}
           <div>
             <h4 className="font-semibold text-red-600 mb-2">Delete Pool</h4>
             <p className="text-sm text-gray-600 mb-4">
@@ -260,7 +396,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                 <DialogHeader>
                   <DialogTitle>Delete Pool</DialogTitle>
                   <DialogDescription>
-                    Are you sure you want to delete "{poolName}"? This action cannot be undone.
+                    Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

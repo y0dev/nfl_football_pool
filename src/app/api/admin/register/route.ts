@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         details: `Created admin account for ${email}`
       });
 
-    // Send email notification
+    // Send email notification to the newly created admin
     try {
       await emailService.sendAdminCreationNotification(
         newAdmin.email,
@@ -104,7 +104,8 @@ export async function POST(request: NextRequest) {
         email: newAdmin.email,
         full_name: newAdmin.full_name,
         is_super_admin: newAdmin.is_super_admin
-      }
+      },
+      redirect: '/admin/dashboard'
     });
 
   } catch (error) {
