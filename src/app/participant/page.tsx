@@ -10,7 +10,7 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Shield, Edit3, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -466,6 +466,8 @@ function ParticipantContent() {
 
 
 
+
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
@@ -640,6 +642,7 @@ function ParticipantContent() {
                       <span className="hidden md:inline">Recent Picks</span>
                     </Button>
                   )}
+
 
                   {isAdmin && (
                     <Button
@@ -883,6 +886,8 @@ function ParticipantContent() {
               onUnlock={unlockParticipantPicks}
             />
           )}
+
+          
 
           {/* Picks Section */}
           <Card>
