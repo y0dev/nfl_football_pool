@@ -336,46 +336,49 @@ function AdminDashboardContent() {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
               {user?.is_super_admin ? 'Admin Dashboard' : 'My Dashboard'}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600">
               {user?.is_super_admin 
                 ? 'Manage all NFL Confidence Pools' 
                 : 'Manage your NFL Confidence Pools'
               }
             </p>
-            {user?.is_super_admin && (
-              <Badge variant="outline" className="mt-2">
-                Super Admin
-              </Badge>
-            )}
-            {!user?.is_super_admin && (
-              <Badge variant="secondary" className="mt-2">
-                Pool Admin
-              </Badge>
-            )}
+            <div className="flex flex-wrap gap-2 mt-2">
+        {user?.is_super_admin && (
+                <Badge variant="outline" className="text-xs">
+            Super Admin
+          </Badge>
+        )}
+              {!user?.is_super_admin && (
+                <Badge variant="secondary" className="text-xs">
+                  Pool Admin
+                </Badge>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleRefresh}
               disabled={isRefreshing}
               variant="outline"
               size="sm"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
             >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
             </Button>
             <Button
               onClick={() => setShowNotifications(!showNotifications)}
               variant="outline"
               size="sm"
-              className="flex items-center gap-2 relative"
+              className="flex items-center gap-2 relative h-8 sm:h-9 text-xs sm:text-sm"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
               {notifications.length > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs">
+                <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
                   {notifications.length}
                 </Badge>
               )}
@@ -385,29 +388,30 @@ function AdminDashboardContent() {
               disabled={isLoggingOut}
               variant="outline"
               size="sm"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
             >
-              <LogOut className="h-4 w-4" />
-              {isLoggingOut ? 'Logging out...' : 'Logout'}
+              <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
+              <span className="sm:hidden">{isLoggingOut ? '...' : 'Logout'}</span>
             </Button>
           </div>
-        </div>
+      </div>
 
         {/* Notifications Panel */}
         {showNotifications && notifications.length > 0 && (
           <Card className="mb-4 border-orange-200 bg-orange-50">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-orange-900">
-                <Bell className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-orange-900 text-sm sm:text-base">
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
                 Notifications
               </CardTitle>
-            </CardHeader>
-            <CardContent>
+                </CardHeader>
+                <CardContent>
               <div className="space-y-2">
                 {notifications.map((notification, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm text-orange-800">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    {notification}
+                  <div key={index} className="flex items-center gap-2 text-xs sm:text-sm text-orange-800">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                    <span className="break-words">{notification}</span>
                   </div>
                 ))}
               </div>
@@ -416,33 +420,33 @@ function AdminDashboardContent() {
         )}
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
           <Card className="text-center">
-            <CardContent className="p-4">
-              <Trophy className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-blue-600">{dashboardStats.totalPools}</div>
-              <div className="text-sm text-gray-600">Total Pools</div>
+            <CardContent className="p-3 sm:p-4">
+              <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-blue-600">{dashboardStats.totalPools}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Total Pools</div>
             </CardContent>
           </Card>
           <Card className="text-center">
-            <CardContent className="p-4">
-              <Activity className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-green-600">{dashboardStats.activePools}</div>
-              <div className="text-sm text-gray-600">Active Pools</div>
+            <CardContent className="p-3 sm:p-4">
+              <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-green-600">{dashboardStats.activePools}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Active Pools</div>
             </CardContent>
           </Card>
           <Card className="text-center">
-            <CardContent className="p-4">
-              <Users className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-purple-600">{dashboardStats.totalParticipants}</div>
-              <div className="text-sm text-gray-600">Participants</div>
+            <CardContent className="p-3 sm:p-4">
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-purple-600">{dashboardStats.totalParticipants}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Participants</div>
             </CardContent>
           </Card>
           <Card className="text-center">
-            <CardContent className="p-4">
-              <Calendar className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-orange-600">{dashboardStats.totalGames}</div>
-              <div className="text-sm text-gray-600">
+            <CardContent className="p-3 sm:p-4">
+              <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-orange-600">{dashboardStats.totalGames}</div>
+              <div className="text-xs sm:text-sm text-gray-600">
                 Week {currentWeek} Games
               </div>
               <div className="text-xs text-gray-500 mt-1">
@@ -451,87 +455,87 @@ function AdminDashboardContent() {
             </CardContent>
           </Card>
           <Card className="text-center">
-            <CardContent className="p-4">
-              <Clock className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
-              <div className="text-sm text-gray-600">Pending</div>
+            <CardContent className="p-3 sm:p-4">
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Pending</div>
             </CardContent>
           </Card>
           <Card className="text-center">
-            <CardContent className="p-4">
-              <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
-              <div className="text-sm text-gray-600">Submitted</div>
+            <CardContent className="p-3 sm:p-4">
+              <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Submitted</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
+          <CardHeader className="pb-4 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
               Quick Actions
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm sm:text-base">
               Common tasks and shortcuts
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               <Button
                 onClick={() => handleQuickAction('create-pool')}
                 variant="outline"
-                className="flex flex-col items-center gap-2 h-20"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
               >
-                <Plus className="h-6 w-6" />
-                <span className="text-sm">Create Pool</span>
+                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Create Pool</span>
               </Button>
               <Button
                 onClick={() => handleQuickAction('view-leaderboard')}
                 variant="outline"
-                className="flex flex-col items-center gap-2 h-20"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
               >
-                <BarChart3 className="h-6 w-6" />
-                <span className="text-sm">View Leaderboard</span>
+                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">View Leaderboard</span>
               </Button>
               <Button
                 onClick={() => handleQuickAction('send-reminders')}
                 variant="outline"
-                className="flex flex-col items-center gap-2 h-20"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
               >
-                <Mail className="h-6 w-6" />
-                <span className="text-sm">Send Reminders</span>
+                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Send Reminders</span>
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
         {/* Super Admin Management */}
         {user?.is_super_admin && (
           <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
+            <CardHeader className="pb-4 sm:pb-6">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
                 Admin Management
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm sm:text-base">
                 Manage other admin accounts and reset passwords
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="space-y-4">
                 {/* Admin List */}
                 <div>
-                  <h4 className="font-medium mb-3">All Admins ({admins.length})</h4>
+                  <h4 className="font-medium mb-3 text-sm sm:text-base">All Admins ({admins.length})</h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {admins.map((admin) => (
-                      <div key={admin.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <div className="font-medium">{admin.full_name || 'No name'}</div>
-                          <div className="text-sm text-gray-600">{admin.email}</div>
+                      <div key={admin.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg gap-2 sm:gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm sm:text-base truncate">{admin.full_name || 'No name'}</div>
+                          <div className="text-xs sm:text-sm text-gray-600 truncate">{admin.email}</div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                           {admin.is_super_admin && (
                             <Badge variant="outline" className="text-xs">Super Admin</Badge>
                           )}
@@ -545,34 +549,36 @@ function AdminDashboardContent() {
                             }}
                             variant="outline"
                             size="sm"
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 h-7 sm:h-8 text-xs"
                           >
                             <Key className="h-3 w-3" />
-                            Reset
+                            <span className="hidden sm:inline">Reset</span>
+                            <span className="sm:hidden">Reset</span>
                           </Button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+            ))}
+          </div>
+        </div>
 
                 {/* Quick Reset */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <Input
                     placeholder="Enter admin email to reset password"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 h-9 sm:h-10 text-sm sm:text-base"
                   />
                   <Button
                     onClick={() => setAdminManagementOpen(true)}
                     disabled={!resetEmail.trim()}
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 h-9 sm:h-10 text-xs sm:text-sm"
                   >
-                    <Key className="h-4 w-4" />
-                    Reset Password
+                    <Key className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Reset Password</span>
+                    <span className="sm:hidden">Reset</span>
                   </Button>
                 </div>
               </div>
@@ -581,23 +587,23 @@ function AdminDashboardContent() {
         )}
 
         {/* Current Week Info */}
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-2">Current Week: {currentWeek}</h3>
-              <p className="text-blue-700 text-sm">
-                {user?.is_super_admin 
+        <div className="mt-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
+              <p className="text-blue-700 text-xs sm:text-sm">
+            {user?.is_super_admin 
                   ? 'Manage all pools, participants, and view current standings.'
                   : `Manage your ${dashboardStats.totalPools} pool${dashboardStats.totalPools !== 1 ? 's' : ''}, ${dashboardStats.totalParticipants} participant${dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.`
-                }
-              </p>
+            }
+          </p>
               {!user?.is_super_admin && dashboardStats.totalPools > 0 && (
                 <p className="text-blue-600 text-xs mt-1">
                   {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
                 </p>
               )}
             </div>
-            <div className="text-right text-sm text-blue-600">
+            <div className="text-right text-xs sm:text-sm text-blue-600 flex-shrink-0">
               <div>Last updated:</div>
               <div>{lastRefresh.toLocaleTimeString()}</div>
             </div>
@@ -609,42 +615,44 @@ function AdminDashboardContent() {
 
       {/* Password Reset Dialog */}
       <Dialog open={adminManagementOpen} onOpenChange={setAdminManagementOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reset Admin Password</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Reset Admin Password</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
               This will send a password reset email to the specified admin account.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="reset-email">Admin Email</Label>
+              <Label htmlFor="reset-email" className="text-sm font-medium">Admin Email</Label>
               <Input
                 id="reset-email"
                 type="email"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
                 placeholder="admin@example.com"
+                className="h-10 sm:h-11 text-sm sm:text-base"
               />
             </div>
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
+              <p className="text-xs sm:text-sm text-yellow-800">
                 <strong>Note:</strong> This will send a password reset email to {resetEmail}. 
                 The admin will need to click the link in the email to set a new password.
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => setAdminManagementOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               onClick={resetAdminPassword}
               disabled={isResetting || !resetEmail.trim()}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 w-full sm:w-auto"
             >
               <Key className="h-4 w-4" />
               {isResetting ? 'Sending...' : 'Send Reset Email'}

@@ -26,7 +26,6 @@ async function setupPicksTable() {
             week INTEGER,
             season_type INTEGER DEFAULT 2,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             UNIQUE(participant_id, pool_id, game_id, week)
           );
 
@@ -36,19 +35,6 @@ async function setupPicksTable() {
 
           CREATE INDEX IF NOT EXISTS idx_picks_pool_week 
           ON picks(pool_id, week);
-
-          -- Create trigger to update updated_at timestamp
-          CREATE OR REPLACE FUNCTION update_updated_at_column()
-          RETURNS TRIGGER AS $$
-          BEGIN
-            NEW.updated_at = NOW();
-            RETURN NEW;
-          END;
-          $$ language 'plpgsql';
-
-          CREATE TRIGGER IF NOT EXISTS update_picks_updated_at 
-          BEFORE UPDATE ON picks 
-          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
         `
       });
 
@@ -134,9 +120,8 @@ async function setupPicksTable() {
     console.log('  • Foreign key constraints to participants, pools, and games');
     console.log('  • Unique constraint on participant/pool/game/week combination');
     console.log('  • Confidence points validation (must be > 0)');
-    console.log('  • Automatic timestamps (created_at, updated_at)');
+    console.log('  • Automatic timestamps (created_at)');
     console.log('  • Indexes for better query performance');
-    console.log('  • Trigger to update updated_at timestamp');
 
   } catch (error) {
     console.error('❌ Fatal error during picks table setup:', error);
@@ -156,7 +141,6 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log('  • Creates the picks table with proper structure');
   console.log('  • Sets up foreign key constraints');
   console.log('  • Creates indexes for performance');
-  console.log('  • Adds triggers for automatic timestamps');
   console.log('  • Tests the table structure');
   console.log('');
   console.log('Options:');

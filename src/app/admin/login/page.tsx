@@ -74,30 +74,31 @@ function AdminLoginContent() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back to main page link */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <Link 
             href="/" 
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to main page
+            <span className="hidden sm:inline">Back to main page</span>
+            <span className="sm:hidden">Back</span>
           </Link>
         </div>
 
         {/* Admin Login Card */}
         <Card className="w-full shadow-lg">
-          <CardHeader className="text-center pb-4">
-            <div className="flex items-center justify-center mb-4">
-              <Shield className="h-12 w-12 text-blue-600" />
+          <CardHeader className="text-center pb-4 sm:pb-6">
+            <div className="flex items-center justify-center mb-3 sm:mb-4">
+              <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
             </div>
-            <CardTitle className="text-2xl font-bold">Admin Access</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-xl sm:text-2xl font-bold">Admin Access</CardTitle>
+            <CardDescription className="text-sm sm:text-base">
               Sign in to manage your NFL Confidence Pool
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
                 <FormField
                   control={form.control}
                   name="email"
@@ -108,12 +109,12 @@ function AdminLoginContent() {
                         <Input 
                           type="email" 
                           placeholder="admin@example.com" 
-                          className="h-12 text-base"
+                          className="h-10 sm:h-12 text-sm sm:text-base"
                           autoComplete="email"
                           {...field} 
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-xs sm:text-sm" />
                     </FormItem>
                   )}
                 />
@@ -128,7 +129,7 @@ function AdminLoginContent() {
                           <Input 
                             type={showPassword ? 'text' : 'password'} 
                             placeholder="Enter your password" 
-                            className="h-12 text-base pr-12"
+                            className="h-10 sm:h-12 text-sm sm:text-base pr-12"
                             autoComplete="current-password"
                             {...field} 
                           />
@@ -147,13 +148,13 @@ function AdminLoginContent() {
                           </Button>
                         </div>
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-xs sm:text-sm" />
                     </FormItem>
                   )}
                 />
                 <Button 
                   type="submit" 
-                  className="w-full h-12 text-base font-medium" 
+                  className="w-full h-10 sm:h-12 text-sm sm:text-base font-medium" 
                   disabled={isLoading}
                 >
                   {isLoading ? 'Signing in...' : 'Sign In as Admin'}
@@ -164,21 +165,21 @@ function AdminLoginContent() {
         </Card>
 
         {/* Help text */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+        <div className="mt-4 sm:mt-6 text-center">
+          <p className="text-xs sm:text-sm text-gray-600">
             Need help? Contact your pool administrator
           </p>
         </div>
         
         {/* Additional links */}
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 sm:mt-4 space-y-2">
           <div className="text-center">
-            <Link href="/admin/register" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+            <Link href="/admin/register" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
               Create Admin Account
             </Link>
           </div>
           <div className="text-center">
-            <Link href="/super-admin" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+            <Link href="/super-admin" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
               Super Admin Dashboard
             </Link>
           </div>

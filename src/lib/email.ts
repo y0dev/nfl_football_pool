@@ -116,7 +116,7 @@ class EmailService {
     `;
 
     return this.sendEmail({
-      to: process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@example.com',
+      to: adminEmail,
       subject,
       html
     });

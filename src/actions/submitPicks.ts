@@ -100,8 +100,7 @@ export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
     // Prepare picks for database insertion with additional metadata
     const picksToInsert = picks.map(pick => ({
       ...pick,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: new Date().toISOString()
     }));
 
     // Insert picks

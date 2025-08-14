@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
+import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize, Lock, Unlock } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -40,6 +41,10 @@ function ParticipantContent() {
   const [participantCount, setParticipantCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showRecentPicks, setShowRecentPicks] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isPoolAdmin, setIsPoolAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   const { toast } = useToast();
 
@@ -182,7 +187,12 @@ function ParticipantContent() {
 
   useEffect(() => {
     loadParticipantStats();
+    checkAdminPermissions();
   }, [poolId, currentWeek, currentSeasonType]);
+
+  useEffect(() => {
+    checkUserSubmissionStatus();
+  }, [selectedUser, poolId, currentWeek, currentSeasonType]);
 
   const handleRefresh = async () => {
     setIsLoading(true);
@@ -301,6 +311,125 @@ function ParticipantContent() {
     }
   };
 
+  const checkUserSubmissionStatus = async () => {
+    if (!poolId || !selectedUser) return;
+    
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Check if user has submitted picks for this week
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('id, games!inner(week, season_type)')
+        .eq('participant_id', selectedUser.id)
+        .eq('pool_id', poolId)
+        .eq('games.week', currentWeek)
+        .eq('games.season_type', currentSeasonType);
+      
+      setHasSubmitted(Boolean(picks && picks.length > 0));
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+    }
+  };
+
+  const checkAdminPermissions = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // Check if user is an admin
+        const { data: admin } = await supabase
+          .from('admins')
+          .select('id, is_super_admin')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (admin) {
+          setIsAdmin(true);
+          setIsSuperAdmin(admin.is_super_admin);
+          
+          // Check if user is the pool admin (created the pool)
+          if (poolId) {
+            const { data: pool } = await supabase
+              .from('pools')
+              .select('created_by')
+              .eq('id', poolId)
+              .single();
+            
+            if (pool && pool.created_by === session.user.email) {
+              setIsPoolAdmin(true);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking admin permissions:', error);
+    }
+  };
+
+  const unlockParticipantPicks = async (participantId: string) => {
+    if (!isPoolAdmin && !isSuperAdmin) {
+      toast({
+        title: "Permission Denied",
+        description: "Only pool admins or super admins can unlock picks",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Delete the picks for this participant for this week
+      const { error } = await supabase
+        .from('picks')
+        .delete()
+        .eq('participant_id', participantId)
+        .eq('pool_id', poolId)
+        .in('game_id', games.map(g => g.id));
+      
+      if (error) {
+        throw error;
+      }
+
+      // Log the unlock action
+      await supabase
+        .from('audit_logs')
+        .insert({
+          action: 'unlock_participant_picks',
+          user_id: participantId,
+          pool_id: poolId,
+          details: JSON.stringify({ 
+            participant_id: participantId, 
+            week: currentWeek, 
+            season_type: currentSeasonType,
+            unlocked_by: isSuperAdmin ? 'super_admin' : 'pool_admin'
+          }),
+          created_at: new Date().toISOString()
+        });
+
+      toast({
+        title: "Picks Unlocked",
+        description: "Participant can now make new picks",
+      });
+
+      // Refresh the submission status
+      await checkUserSubmissionStatus();
+      await loadParticipantStats();
+    } catch (error) {
+      console.error('Error unlocking picks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to unlock picks",
+        variant: "destructive",
+      });
+    }
+  };
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
@@ -308,25 +437,6 @@ function ParticipantContent() {
     } else {
       document.exitFullscreen();
       setIsFullscreen(false);
-    }
-  };
-
-  const handleQuickShare = () => {
-    const url = window.location.href;
-    const text = `🏈 Join ${poolName} - ${currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'} Week ${currentWeek}!\n\n${url}`;
-    
-    if (navigator.share) {
-      navigator.share({
-        title: `${poolName} - Week ${currentWeek}`,
-        text: text,
-        url: url
-      });
-    } else {
-      navigator.clipboard.writeText(text);
-      toast({
-        title: "Quick Share",
-        description: "Pool info copied to clipboard!",
-      });
     }
   };
 
@@ -459,15 +569,6 @@ function ParticipantContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleQuickShare}
-                    className="flex items-center gap-2"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Quick Share</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
                     onClick={() => {
                       setShowLeaderboard(!showLeaderboard);
                       if (!showLeaderboard) {
@@ -502,6 +603,17 @@ function ParticipantContent() {
                     <Users className="h-4 w-4" />
                     <span className="hidden sm:inline">Stats</span>
                   </Button>
+                  {hasSubmitted && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRecentPicks(!showRecentPicks)}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span className="hidden sm:inline">Recent Picks</span>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -509,7 +621,7 @@ function ParticipantContent() {
                     className="flex items-center gap-2"
                   >
                     {isFullscreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-                    <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
+                    <span className="hidden xl:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
                   </Button>
                 </div>
               </div>
@@ -729,6 +841,20 @@ function ParticipantContent() {
             </Card>
           )}
 
+          {/* Recent Picks Section */}
+          {showRecentPicks && selectedUser && (
+            <RecentPicksViewer
+              poolId={poolId!}
+              participantId={selectedUser.id}
+              participantName={selectedUser.name}
+              weekNumber={currentWeek}
+              seasonType={currentSeasonType}
+              games={games}
+              canUnlock={isPoolAdmin || isSuperAdmin}
+              onUnlock={unlockParticipantPicks}
+            />
+          )}
+
           {/* Picks Section */}
           <Card>
             <CardHeader>
@@ -736,35 +862,56 @@ function ParticipantContent() {
                 <Zap className="h-5 w-5 text-blue-600" />
                 Week {currentWeek} Picks
               </CardTitle>
-                <CardDescription>
-                  Select the winner for each game and assign confidence points
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {selectedUser ? (
-                  games.length > 0 ? (
-                    <WeeklyPick 
-                      poolId={poolId!} 
-                      weekNumber={currentWeek} 
-                      seasonType={currentSeasonType}
-                      selectedUser={selectedUser}
-                      games={games}
-                      preventGameLoading={true}
-                    />
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      No games found for Week {currentWeek}
+              <CardDescription>
+                {hasSubmitted 
+                  ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
+                  : "Select the winner for each game and assign confidence points"
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selectedUser ? (
+                hasSubmitted ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-500 mb-4">
+                      <Lock className="h-12 w-12 mx-auto mb-2" />
+                      <p className="text-lg font-medium">Picks Submitted</p>
+                      <p className="text-sm">Your picks are locked for this week</p>
                     </div>
-                  )
-                ) : (
-                  <PickUserSelection 
+                    {(isPoolAdmin || isSuperAdmin) && (
+                      <Button
+                        onClick={() => unlockParticipantPicks(selectedUser.id)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <Unlock className="h-4 w-4" />
+                        Unlock Picks
+                      </Button>
+                    )}
+                  </div>
+                ) : games.length > 0 ? (
+                  <WeeklyPick 
                     poolId={poolId!} 
                     weekNumber={currentWeek} 
-                    onUserSelected={handleUserSelected}
+                    seasonType={currentSeasonType}
+                    selectedUser={selectedUser}
+                    games={games}
+                    preventGameLoading={true}
                   />
-                )}
-              </CardContent>
-            </Card>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No games found for Week {currentWeek}
+                  </div>
+                )
+              ) : (
+                <PickUserSelection 
+                  poolId={poolId!} 
+                  weekNumber={currentWeek} 
+                  onUserSelected={handleUserSelected}
+                />
+              )}
+            </CardContent>
+          </Card>
                 </div>
       </div>
     </div>

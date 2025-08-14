@@ -203,26 +203,26 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps)
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {pools.map((pool) => (
-        <Card key={pool.id} className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-xl">{pool.name}</CardTitle>
-                <CardDescription className="mt-1">
+        <Card key={pool.id} className="hover:shadow-lg transition-shadow flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <div className="flex justify-between items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-xl truncate">{pool.name}</CardTitle>
+                <CardDescription className="mt-1 truncate">
                   Created by {pool.created_by}
                 </CardDescription>
               </div>
-              <Badge variant={pool.is_active ? "default" : "secondary"}>
+              <Badge variant={pool.is_active ? "default" : "secondary"} className="flex-shrink-0">
                 {pool.is_active ? "Active" : "Inactive"}
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600 text-sm">
+          <CardContent className="space-y-4 flex-1 flex flex-col">
+            <p className="text-gray-600 text-sm flex-shrink-0">
               {pool.description || "No description provided"}
             </p>
             
-            <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center justify-between text-sm text-gray-500 flex-shrink-0">
               <div className="flex items-center space-x-1">
                 <Calendar className="h-4 w-4" />
                 <span>Season {pool.season}</span>
@@ -233,15 +233,16 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps)
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 mt-auto">
               <SharePoolButton 
                 poolId={pool.id} 
                 poolName={pool.name}
               />
               <Link href={`/admin/pool/${pool.id}`}>
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Details
+                <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
+                  <Settings className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Details</span>
+                  <span className="sm:hidden">Details</span>
                 </Button>
               </Link>
               {showJoinButton && (
