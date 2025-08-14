@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseServiceClient } from '@/lib/supabase';
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { adminId } = await request.json();
+
+    if (!adminId) {
+      return NextResponse.json(
+        { success: false, error: 'Admin ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseServiceClient();
+
+    // First, check if the admin exists and get their details
+    const { data: admin, error: fetchError } = await supabase
+      .from('admins')
+      .select('id, email, is_super_admin')
+      .eq('id', adminId)
+      .single();
+
+    if (fetchError || !admin) {
+      return NextResponse.json(
+        { success: false, error: 'Admin not found' },
+        { status: 404 }
+      );
+    }
+
+    // Prevent deletion of super admins (optional safety measure)
+    if (admin.is_super_admin) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete super admin accounts' },
+        { status: 403 }
+      );
+    }
+
+    // Delete the admin from the admins table
+    const { error: deleteError } = await supabase
+      .from('admins')
+      .delete()
+      .eq('id', adminId);
+
+    if (deleteError) {
+      console.error('Error deleting admin:', deleteError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete admin account' },
+        { status: 500 }
+      );
+    }
+
+    // Optionally, also delete the user from Supabase Auth
+    try {
+      await supabase.auth.admin.deleteUser(adminId);
+    } catch (authDeleteError) {
+      console.warn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
+      // Don't fail the entire operation if auth deletion fails
+    }
+
+    // Log the deletion action
+    try {
+      await supabase
+        .from('audit_logs')
+        .insert({
+          action: 'delete_admin',
+          user_id: adminId, // The deleted admin's ID
+          entity: 'admin',
+          entity_id: adminId,
+          details: JSON.stringify({ 
+            deleted_admin_email: admin.email,
+            deleted_admin_id: adminId 
+          }),
+          created_at: new Date().toISOString()
+        });
+    } catch (auditError) {
+      console.warn('Failed to log admin deletion to audit_logs:', auditError);
+      // Don't fail the operation if audit logging fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Admin account deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting admin:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

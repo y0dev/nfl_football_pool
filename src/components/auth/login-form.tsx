@@ -71,23 +71,31 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Sign In</CardTitle>
-        <CardDescription>Enter your credentials to access your account</CardDescription>
+      <CardHeader className="pb-4 sm:pb-6">
+        <CardTitle className="text-xl sm:text-2xl">Sign In</CardTitle>
+        <CardDescription className="text-sm sm:text-base">
+          Enter your credentials to access your account
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
             <FormField
               control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel className="text-sm font-medium">Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter your email" autoComplete="email" {...field} />
+                    <Input 
+                      type="email" 
+                      placeholder="Enter your email" 
+                      className="h-10 sm:h-11 text-sm sm:text-base"
+                      autoComplete="email" 
+                      {...field} 
+                    />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-xs sm:text-sm" />
                 </FormItem>
               )}
             />
@@ -96,12 +104,13 @@ export function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel className="text-sm font-medium">Password</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
                         type={showPassword ? 'text' : 'password'} 
                         placeholder="Enter your password" 
+                        className="h-10 sm:h-11 text-sm sm:text-base pr-12"
                         autoComplete="current-password"
                         {...field} 
                       />
@@ -120,11 +129,15 @@ export function LoginForm() {
                       </Button>
                     </div>
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-xs sm:text-sm" />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className="w-full h-10 sm:h-11 text-sm sm:text-base font-medium" 
+              disabled={isLoading}
+            >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>

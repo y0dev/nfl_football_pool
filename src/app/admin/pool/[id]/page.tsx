@@ -243,18 +243,18 @@ function PoolDetailsContent() {
               variant="outline"
               size="sm"
               onClick={() => setIsEditing(!isEditing)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-w-0"
             >
-              {isEditing ? <X className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
+              {isEditing ? <X className="h-4 w-4 flex-shrink-0" /> : <Edit className="h-4 w-4 flex-shrink-0" />}
               <span className="hidden sm:inline">{isEditing ? 'Cancel' : 'Edit'}</span>
             </Button>
             {isEditing && (
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 min-w-0"
               >
-                <Save className="h-4 w-4" />
+                <Save className="h-4 w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
               </Button>
             )}

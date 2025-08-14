@@ -149,9 +149,10 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-2">
-          <Share2 className="h-4 w-4" />
-          Share
+        <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
+          <Share2 className="h-4 w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Share</span>
+          <span className="sm:hidden">Share</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
