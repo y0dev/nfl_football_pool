@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, ArrowLeft, Eye, EyeOff, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/lib/auth';
+import { useAuth, AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 
 const adminRegisterSchema = z.object({
@@ -27,7 +27,7 @@ const adminRegisterSchema = z.object({
 
 type AdminRegisterFormData = z.infer<typeof adminRegisterSchema>;
 
-export default function AdminRegisterPage() {
+function AdminRegisterContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -267,5 +267,13 @@ export default function AdminRegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminRegisterPage() {
+  return (
+    <AuthProvider>
+      <AdminRegisterContent />
+    </AuthProvider>
   );
 }
