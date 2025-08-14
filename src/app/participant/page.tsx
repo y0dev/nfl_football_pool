@@ -10,7 +10,7 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, X, Maximize, Lock, Unlock, LogOut } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Shield, Edit3, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -42,7 +42,7 @@ function ParticipantContent() {
   const [showQuickStats, setShowQuickStats] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const [showRecentPicks, setShowRecentPicks] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
@@ -139,7 +139,6 @@ function ParticipantContent() {
       // Load games for the week using the determined week and season type
       try {
         const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
-        console.log('Loaded games:', gamesData.length, 'for week', weekToUse, 'season type', seasonTypeToUse);
         setGames(gamesData);
       } catch (error) {
         console.error('Error loading games:', error);
@@ -225,6 +224,13 @@ function ParticipantContent() {
   const handleRefresh = async () => {
     setIsLoading(true);
     await loadData();
+  };
+
+  const handlePicksSubmitted = async () => {
+    // Refresh the page data when picks are submitted
+    await loadData();
+    await loadParticipantStats();
+    await checkUserSubmissionStatus();
   };
 
   const handleUserSelected = (userId: string, userName: string) => {
@@ -458,15 +464,7 @@ function ParticipantContent() {
     }
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -518,7 +516,7 @@ function ParticipantContent() {
       </div>
       )}
       
-      <div className="container mx-auto p-4">
+      <div className="container mx-auto p-4 md:p-6">
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
@@ -540,8 +538,8 @@ function ParticipantContent() {
           </div>
           
           {/* Pool Info */}
-          <div className="bg-white rounded-lg p-4 shadow-sm border">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-gray-500" />
@@ -550,7 +548,7 @@ function ParticipantContent() {
                     <Badge variant="secondary" className="text-xs">Test Mode</Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Calendar className="h-4 w-4 text-gray-500" />
                   <Badge variant="outline">Week {currentWeek}</Badge>
                   <span className="text-sm text-gray-500">
@@ -566,7 +564,7 @@ function ParticipantContent() {
                     );
                   })()}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Info className="h-4 w-4 text-gray-500" />
                   <Badge variant={poolRequiresAccessCode ? "default" : "secondary"} className="text-xs">
                     {poolRequiresAccessCode ? "Access Code Required" : "No Access Code Required"}
@@ -579,20 +577,20 @@ function ParticipantContent() {
                 )}
               </div>
               
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <div className="text-sm text-gray-600 text-center sm:text-right">
+              <div className="flex flex-col lg:flex-row items-center gap-4">
+                <div className="text-sm text-gray-600 text-center lg:text-right">
                   <p>Welcome to the pool!</p>
                   <p>Make your picks below to participate.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-center gap-2 max-w-full px-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleShare}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 min-w-fit px-3 py-2"
                   >
                     <Share2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Share</span>
+                    <span className="hidden md:inline">Share</span>
                   </Button>
                   <Button
                     variant="outline"
@@ -603,10 +601,10 @@ function ParticipantContent() {
                         setShowGameDetails(false);
                       }
                     }}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 min-w-fit px-3 py-2"
                   >
                     <BarChart3 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Leaderboard</span>
+                    <span className="hidden md:inline">Leaderboard</span>
                   </Button>
                   <Button
                     variant="outline"
@@ -617,50 +615,42 @@ function ParticipantContent() {
                         setShowLeaderboard(false);
                       }
                     }}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 min-w-fit px-3 py-2"
                   >
                     {showGameDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    <span className="hidden sm:inline">Game Details</span>
+                    <span className="hidden md:inline">Game Details</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowQuickStats(!showQuickStats)}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 min-w-fit px-3 py-2"
                   >
                     <Users className="h-4 w-4" />
-                    <span className="hidden sm:inline">Stats</span>
+                    <span className="hidden md:inline">Stats</span>
                   </Button>
                   {hasSubmitted && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowRecentPicks(!showRecentPicks)}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 min-w-fit px-3 py-2"
                     >
                       <Eye className="h-4 w-4" />
-                      <span className="hidden sm:inline">Recent Picks</span>
+                      <span className="hidden md:inline">Recent Picks</span>
                     </Button>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleFullscreen}
-                    className="flex items-center gap-2"
-                  >
-                    {isFullscreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-                    <span className="hidden xl:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
-                  </Button>
+
                   {isAdmin && (
-                                         <Button
-                       variant="outline"
-                       size="sm"
-                       onClick={handleLogout}
-                       className="flex items-center gap-2"
-                     >
-                       <LogOut className="h-4 w-4" />
-                       Log Out
-                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 min-w-fit px-3 py-2"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span className="hidden md:inline">Log Out</span>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -936,6 +926,7 @@ function ParticipantContent() {
                     selectedUser={selectedUser}
                     games={games}
                     preventGameLoading={true}
+                    onPicksSubmitted={handlePicksSubmitted}
                   />
                 ) : (
                   <div className="text-center py-8 text-gray-500">

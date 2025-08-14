@@ -10,6 +10,7 @@ import {
   scoresTable, 
   tieBreakersTable,
   auditLogsTable,
+  reminderLogsTable,
   teamsTable,
   updatedGamesTable,
   rlsPolicies,
@@ -55,6 +56,7 @@ async function setupDatabase() {
       { name: 'scores', sql: scoresTable },
       { name: 'tie_breakers', sql: tieBreakersTable },
       { name: 'audit_logs', sql: auditLogsTable },
+      { name: 'reminder_logs', sql: reminderLogsTable },
     ];
 
     for (const table of tables) {

@@ -23,9 +23,10 @@ interface WeeklyPickProps {
   selectedUser?: SelectedUser;
   games?: Game[];
   preventGameLoading?: boolean;
+  onPicksSubmitted?: () => void;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, onPicksSubmitted }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -357,6 +358,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setSelectedUser(null);
         setHasUnsavedChanges(false);
         setLastSaved(null);
+        
+        // Call the callback to refresh the parent component
+        if (onPicksSubmitted) {
+          onPicksSubmitted();
+        }
       } else {
         toast({
           title: 'Error',

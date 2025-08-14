@@ -187,11 +187,11 @@ function AdminLoginContent() {
               Create Admin Account
             </Link>
           </div>
-          <div className="text-center">
+          {/* <div className="text-center">
             <Link href="/super-admin" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
               Super Admin Dashboard
             </Link>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

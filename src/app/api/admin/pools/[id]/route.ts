@@ -124,22 +124,38 @@ export async function DELETE(
       .eq('id', poolId)
       .single();
 
-    // Check if pool has active participants
+    // Get counts of related data for logging
     const { data: participants, error: participantsError } = await supabase
       .from('participants')
       .select('id')
-      .eq('pool_id', poolId)
-      .eq('is_active', true);
+      .eq('pool_id', poolId);
+
+    const { data: picks, error: picksError } = await supabase
+      .from('picks')
+      .select('id')
+      .eq('pool_id', poolId);
+
+    const { data: scores, error: scoresError } = await supabase
+      .from('scores')
+      .select('id')
+      .eq('pool_id', poolId);
+
+    const { data: tieBreakers, error: tieBreakersError } = await supabase
+      .from('tie_breakers')
+      .select('id')
+      .eq('pool_id', poolId);
 
     if (participantsError) {
       console.error('Error checking participants:', participantsError);
     }
-
-    if (participants && participants.length > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete pool with active participants. Please remove all participants first.' },
-        { status: 400 }
-      );
+    if (picksError) {
+      console.error('Error checking picks:', picksError);
+    }
+    if (scoresError) {
+      console.error('Error checking scores:', scoresError);
+    }
+    if (tieBreakersError) {
+      console.error('Error checking tie breakers:', tieBreakersError);
     }
 
     // Delete the pool
@@ -156,7 +172,7 @@ export async function DELETE(
       );
     }
 
-    // Log the action
+    // Log the action with details about related data that will be deleted
     await supabase
       .from('audit_logs')
       .insert({
@@ -166,13 +182,27 @@ export async function DELETE(
         entity_id: poolId,
         details: { 
           pool_name: pool?.name || 'Unknown',
-          action: 'deleted'
+          action: 'deleted',
+          related_data_deleted: {
+            participants_count: participants?.length || 0,
+            picks_count: picks?.length || 0,
+            scores_count: scores?.length || 0,
+            tie_breakers_count: tieBreakers?.length || 0
+          }
         }
       });
 
+    const deletedCounts = {
+      participants: participants?.length || 0,
+      picks: picks?.length || 0,
+      scores: scores?.length || 0,
+      tieBreakers: tieBreakers?.length || 0
+    };
+
     return NextResponse.json({
       success: true,
-      message: 'Pool deleted successfully'
+      message: 'Pool deleted successfully',
+      deletedData: deletedCounts
     });
 
   } catch (error) {

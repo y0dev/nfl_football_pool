@@ -187,7 +187,6 @@ interface PoolGridProps {
 }
 
 function PoolGrid({ pools, onPoolJoined, showJoinButton = true }: PoolGridProps) {
-  console.log('PoolGrid: Rendering with props:', { pools, showJoinButton, poolsCount: pools.length });
   
   if (pools.length === 0) {
     console.log('PoolGrid: No pools to display');

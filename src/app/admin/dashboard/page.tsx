@@ -294,11 +294,7 @@ function AdminDashboardContent() {
         break;
       case 'send-reminders':
         if (dashboardStats.pendingSubmissions > 0) {
-          router.push('/admin/pools');
-          toast({
-            title: 'Send Reminders',
-            description: 'Navigate to a specific pool to send email reminders to participants who haven\'t submitted',
-          });
+          router.push('/admin/reminders');
         } else {
           toast({
             title: 'No Reminders Needed',
@@ -319,6 +315,44 @@ function AdminDashboardContent() {
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
+    }
+  };
+
+  const toggleAdminStatus = async (admin: Admin) => {
+    try {
+      const response = await fetch('/api/super-admin/toggle-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminId: admin.id,
+          isActive: !admin.is_active,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: `Admin ${admin.is_active ? 'deactivated' : 'activated'} successfully`,
+        });
+        loadAdmins();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to update admin status',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling admin status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update admin status',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -561,121 +595,181 @@ function AdminDashboardContent() {
                 </CardContent>
               </Card>
 
-        {/* Super Admin Management */}
+                {/* Super Admin Management */}
         {user?.is_super_admin && (
-          <Card className="mb-6">
-            <CardHeader className="pb-4 sm:pb-6">
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
-                Admin Management
-              </CardTitle>
-              <CardDescription className="text-sm sm:text-base">
-                Manage other admin accounts and reset passwords
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-              <div className="space-y-4">
-                {/* Admin List */}
-                <div>
-                  <h4 className="font-medium mb-3 text-sm sm:text-base">All Admins ({admins.length})</h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {admins.map((admin) => (
-                      <div key={admin.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg gap-2 sm:gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm sm:text-base truncate">{admin.full_name || 'No name'}</div>
-                          <div className="text-xs sm:text-sm text-gray-600 truncate">{admin.email}</div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                          {admin.is_super_admin && (
-                            <Badge variant="outline" className="text-xs">Super Admin</Badge>
-                          )}
-                          <Badge variant={admin.is_active ? "default" : "secondary"} className="text-xs">
-                            {admin.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                          {user && (
-                            <>
-                              <Button
-                                onClick={() => {
-                                  setResetEmail(admin.email);
-                                  setAdminManagementOpen(true);
-                                }}
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 h-7 sm:h-8 text-xs"
-                              >
-                                <Key className="h-3 w-3" />
-                                <span className="hidden sm:inline">Reset</span>
-                                <span className="sm:hidden">Reset</span>
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    onClick={() => setSelectedAdminForDelete(admin)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-1 h-7 sm:h-8 text-xs text-red-600 hover:text-red-700"
-                                    disabled={isDeletingAdmin}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                    <span className="hidden sm:inline">Delete</span>
-                                    <span className="sm:hidden">Del</span>
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="sm:max-w-md">
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
-                                      Delete Admin Account
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription className="text-sm sm:text-base">
-                                      Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
-                                      This action cannot be undone and will remove all their access to the system.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                                    <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => deleteAdmin(admin)}
-                                      className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
+          <>
+            {/* Admin Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <Card className="text-center">
+                <CardContent className="p-3 sm:p-4">
+                  <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600">{admins.length}</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Total Admins</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center">
+                <CardContent className="p-3 sm:p-4">
+                  <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-2" />
+                  <div className="text-lg sm:text-2xl font-bold text-purple-600">
+                    {admins.filter(admin => admin.is_super_admin).length}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600">Super Admins</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center">
+                <CardContent className="p-3 sm:p-4">
+                  <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
+                  <div className="text-lg sm:text-2xl font-bold text-green-600">
+                    {admins.filter(admin => admin.is_active).length}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600">Active Admins</div>
+                </CardContent>
+              </Card>
+              <Card className="text-center">
+                <CardContent className="p-3 sm:p-4">
+                  <RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600 mx-auto mb-2" />
+                  <div className="text-lg sm:text-2xl font-bold text-orange-600">
+                    {admins.filter(admin => !admin.is_active).length}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600">Inactive Admins</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="mb-6">
+              <CardHeader className="pb-4 sm:pb-6">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Admin Management
+                </CardTitle>
+                <CardDescription className="text-sm sm:text-base">
+                  Manage other admin accounts and reset passwords
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="space-y-4">
+                  {/* Admin List */}
+                  <div>
+                    <h4 className="font-medium mb-3 text-sm sm:text-base">All Admins ({admins.length})</h4>
+                    <div className="space-y-3 sm:space-y-4 max-h-60 overflow-y-auto">
+                      {admins.map((admin) => (
+                        <div key={admin.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border rounded-lg gap-2 sm:gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-sm sm:text-base truncate">{admin.full_name || 'No name'}</h3>
+                                <p className="text-xs sm:text-sm text-gray-600 truncate">{admin.email}</p>
+                              </div>
+                              <div className="flex flex-wrap gap-1 sm:gap-2">
+                                {admin.is_super_admin && (
+                                  <Badge variant="default" className="text-xs">Super Admin</Badge>
+                                )}
+                                <Badge variant={admin.is_active ? "default" : "secondary"} className="text-xs">
+                                  {admin.is_active ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Created: {new Date(admin.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            {user && (
+                              <>
+                                <Button
+                                  onClick={() => {
+                                    setResetEmail(admin.email);
+                                    setAdminManagementOpen(true);
+                                  }}
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-1 h-7 sm:h-8 text-xs"
+                                >
+                                  <Key className="h-3 w-3" />
+                                  <span className="hidden sm:inline">Reset</span>
+                                  <span className="sm:hidden">Reset</span>
+                                </Button>
+                                <Button
+                                  onClick={() => toggleAdminStatus(admin)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-1 h-7 sm:h-8 text-xs"
+                                >
+                                  <RefreshCw className="h-3 w-3" />
+                                  <span className="hidden sm:inline">{admin.is_active ? 'Deactivate' : 'Activate'}</span>
+                                  <span className="sm:hidden">{admin.is_active ? 'Deactivate' : 'Activate'}</span>
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      onClick={() => setSelectedAdminForDelete(admin)}
+                                      variant="outline"
+                                      size="sm"
+                                      className="flex items-center gap-1 h-7 sm:h-8 text-xs text-red-600 hover:text-red-700"
                                       disabled={isDeletingAdmin}
                                     >
-                                      {isDeletingAdmin ? 'Deleting...' : 'Delete Admin'}
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </>
-                          )}
+                                      <Trash2 className="h-3 w-3" />
+                                      <span className="hidden sm:inline">Delete</span>
+                                      <span className="sm:hidden">Del</span>
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="sm:max-w-md">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
+                                        Delete Admin Account
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription className="text-sm sm:text-base">
+                                        Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
+                                        This action cannot be undone and will remove all their access to the system.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                      <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deleteAdmin(admin)}
+                                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
+                                        disabled={isDeletingAdmin}
+                                      >
+                                        {isDeletingAdmin ? 'Deleting...' : 'Delete Admin'}
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-            ))}
-          </div>
-        </div>
-
-                {/* Quick Reset */}
-                {user && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <Input
-                      placeholder="Enter admin email to reset password"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      className="flex-1 h-9 sm:h-10 text-sm sm:text-base"
-                    />
-                    <Button
-                      onClick={() => setAdminManagementOpen(true)}
-                      disabled={!resetEmail.trim()}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2 h-9 sm:h-10 text-xs sm:text-sm"
-                    >
-                      <Key className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Reset Password</span>
-                      <span className="sm:hidden">Reset</span>
-                    </Button>
+                      ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+
+                  {/* Quick Reset */}
+                  {user && (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <Input
+                        placeholder="Enter admin email to reset password"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        className="flex-1 h-9 sm:h-10 text-sm sm:text-base"
+                      />
+                      <Button
+                        onClick={() => setAdminManagementOpen(true)}
+                        disabled={!resetEmail.trim()}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 h-9 sm:h-10 text-xs sm:text-sm"
+                      >
+                        <Key className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Reset Password</span>
+                        <span className="sm:hidden">Reset</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Current Week Info */}
