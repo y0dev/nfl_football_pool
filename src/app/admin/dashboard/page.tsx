@@ -302,6 +302,9 @@ function AdminDashboardContent() {
           });
         }
         break;
+      case 'override-picks':
+        router.push('/admin/override-picks');
+        break;
     }
   };
 
@@ -590,6 +593,14 @@ function AdminDashboardContent() {
               >
                 <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
                 <span className="text-xs sm:text-sm">Send Reminders</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('override-picks')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Override Picks</span>
               </Button>
                   </div>
                 </CardContent>

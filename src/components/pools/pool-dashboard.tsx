@@ -14,9 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 // import { format } from 'date-fns';
 
 interface Pool {
@@ -38,10 +36,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [adminOverrideOpen, setAdminOverrideOpen] = useState(false);
-  const [selectedPoolForOverride, setSelectedPoolForOverride] = useState<Pool | null>(null);
-  const [overrideReason, setOverrideReason] = useState('');
-  const [isOverridingPicks, setIsOverridingPicks] = useState(false);
+
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -88,113 +83,9 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
     };
   }, []);
 
-  const overridePoolPicks = async () => {
-    if (!selectedPoolForOverride || !user) {
-      toast({
-        title: "Error",
-        description: "No pool selected for override",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    if (!overrideReason.trim()) {
-      toast({
-        title: "Reason Required",
-        description: "Please provide a reason for overriding picks",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    // Check if user has permission to override this pool
-    if (!user.is_super_admin && selectedPoolForOverride.created_by !== user.email) {
-      toast({
-        title: "Permission Denied",
-        description: "You can only override picks in pools you created",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setIsOverridingPicks(true);
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      // Get current week and season type
-      const { data: currentWeek } = await supabase
-        .from('games')
-        .select('week, season_type')
-        .order('week', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!currentWeek) {
-        throw new Error('No current week found');
-      }
-
-      // Get game IDs for the current week
-      const { data: gameIds } = await supabase
-        .from('games')
-        .select('id')
-        .eq('week', currentWeek.week)
-        .eq('season_type', currentWeek.season_type);
-
-      if (!gameIds || gameIds.length === 0) {
-        throw new Error('No games found for current week');
-      }
-
-      // Delete all picks for this pool for the current week
-      const { error } = await supabase
-        .from('picks')
-        .delete()
-        .eq('pool_id', selectedPoolForOverride.id)
-        .in('game_id', gameIds.map(g => g.id));
-      
-      if (error) {
-        throw error;
-      }
-
-      // Log the override action
-      await supabase
-        .from('audit_logs')
-        .insert({
-          action: 'override_pool_picks',
-          admin_id: user.id,
-          pool_id: selectedPoolForOverride.id,
-          details: JSON.stringify({ 
-            pool_name: selectedPoolForOverride.name,
-            week: currentWeek.week, 
-            season_type: currentWeek.season_type,
-            override_reason: overrideReason,
-            overridden_by: user.is_super_admin ? 'super_admin' : 'pool_admin',
-            overridden_at: new Date().toISOString()
-          }),
-          created_at: new Date().toISOString()
-        });
-
-      toast({
-        title: "Picks Overridden",
-        description: `All picks for ${selectedPoolForOverride.name} have been overridden. Reason: ${overrideReason}`,
-      });
-
-      // Reset state
-      setOverrideReason('');
-      setSelectedPoolForOverride(null);
-      setAdminOverrideOpen(false);
-
-    } catch (error) {
-      console.error('Error overriding pool picks:', error);
-      toast({
-        title: "Error",
-        description: "Failed to override picks",
-        variant: "destructive",
-      });
-    } finally {
-      setIsOverridingPicks(false);
-    }
-  };
 
   // Don't render anything if user is not authenticated
   if (user === null) {
@@ -265,10 +156,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
           pools={pools} 
           onPoolJoined={fetchPools} 
           user={user}
-          onOverridePicks={(pool) => {
-            setSelectedPoolForOverride(pool);
-            setAdminOverrideOpen(true);
-          }}
+
         />
       ) : (
         /* For super admins, show tabs */
@@ -285,10 +173,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
               pools={pools} 
               onPoolJoined={fetchPools} 
               user={user}
-              onOverridePicks={(pool) => {
-                setSelectedPoolForOverride(pool);
-                setAdminOverrideOpen(true);
-              }}
+
             />
           </TabsContent>
 
@@ -299,10 +184,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
                 onPoolJoined={fetchPools}
                 showJoinButton={true} // Allow joining own pools
                 user={user}
-                onOverridePicks={(pool) => {
-                  setSelectedPoolForOverride(pool);
-                  setAdminOverrideOpen(true);
-                }}
+
               />
             </TabsContent>
           )}
@@ -315,57 +197,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
         onPoolCreated={fetchPools}
       />
 
-      {/* Admin Override Dialog */}
-      <AlertDialog open={adminOverrideOpen} onOpenChange={setAdminOverrideOpen}>
-        <AlertDialogContent className="sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
-              Override Pool Picks
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm sm:text-base">
-              This will permanently delete all picks for <strong>{selectedPoolForOverride?.name}</strong> for the current week.
-              <br /><br />
-              This action should only be used in exceptional circumstances (e.g., technical issues, rule violations, or pool-wide problems).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="override-reason" className="text-sm font-medium">Reason for Override *</Label>
-              <textarea
-                id="override-reason"
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="Explain why you are overriding all picks for this pool..."
-                className="w-full p-3 border border-orange-300 rounded-lg bg-white text-sm resize-none mt-2"
-                rows={3}
-                maxLength={500}
-              />
-              <div className="text-xs text-orange-600 mt-1">
-                {overrideReason.length}/500 characters
-              </div>
-            </div>
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-orange-800">
-                  <p className="font-medium mb-1">Warning: This action will affect ALL participants in this pool.</p>
-                  <p>All picks for the current week will be permanently deleted and participants will need to resubmit.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={overridePoolPicks}
-              className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
-              disabled={isOverridingPicks || !overrideReason.trim()}
-            >
-              {isOverridingPicks ? 'Overriding...' : 'Override All Picks'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </div>
   );
 }
@@ -375,10 +207,9 @@ interface PoolGridProps {
   onPoolJoined: () => void;
   showJoinButton?: boolean;
   user?: { email: string; is_super_admin?: boolean } | null;
-  onOverridePicks?: (pool: Pool) => void;
 }
 
-function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user, onOverridePicks }: PoolGridProps) {
+function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGridProps) {
   
   if (pools.length === 0) {
     console.log('PoolGrid: No pools to display');
@@ -443,17 +274,18 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user, onOverride
                 />
               )}
               {/* Admin Override Button - only show for pool admins or super admins */}
-              {(user?.is_super_admin || pool.created_by === user?.email) && onOverridePicks && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onOverridePicks(pool)}
-                  className="flex items-center gap-2 min-w-0 border-orange-300 text-orange-700 hover:bg-orange-50"
-                >
-                  <Shield className="h-4 w-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">Override</span>
-                  <span className="sm:hidden">Override</span>
-                </Button>
+              {(user?.is_super_admin || pool.created_by === user?.email) && (
+                <Link href={`/admin/override-picks?pool=${pool.id}`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 min-w-0 border-orange-300 text-orange-700 hover:bg-orange-50"
+                  >
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Override</span>
+                    <span className="sm:hidden">Override</span>
+                  </Button>
+                </Link>
               )}
             </div>
           </CardContent>
