@@ -25,7 +25,7 @@ interface Admin {
 }
 
 function AdminDashboardContent() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -314,6 +314,7 @@ function AdminDashboardContent() {
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
+      await signOut();
       router.push('/admin/login');
     } catch (error) {
       console.error('Error logging out:', error);
