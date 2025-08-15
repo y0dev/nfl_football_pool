@@ -12,7 +12,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff, Clock } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff, Clock, Download, FileSpreadsheet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
@@ -44,15 +44,18 @@ function LeaderboardContent() {
   const [isGamesStarted, setIsGamesStarted] = useState(false);
   const [showDummyData, setShowDummyData] = useState(false);
   const [screenWidth, setScreenWidth] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [allParticipantsSubmitted, setAllParticipantsSubmitted] = useState(false);
 
   // Dummy data for testing
   const DUMMY_LEADERBOARD_DATA: LeaderboardEntry[] = [
     {
-      rank: 1,
-      participant: { name: 'John Smith' },
-      total_points: 85,
-      correct_picks: 6,
-      total_picks: 8,
+      id: '1',
+      participant_id: '1',
+      pool_id: selectedPool,
+      week: selectedWeek,
+      points: 85,
+      participants: { name: 'John Smith' },
       game_points: {
         'game1': 12,
         'game2': 8,
@@ -65,11 +68,12 @@ function LeaderboardContent() {
       }
     },
     {
-      rank: 2,
-      participant: { name: 'Sarah Johnson' },
-      total_points: 82,
-      correct_picks: 5,
-      total_picks: 8,
+      id: '2',
+      participant_id: '2',
+      pool_id: selectedPool,
+      week: selectedWeek,
+      points: 82,
+      participants: { name: 'Sarah Johnson' },
       game_points: {
         'game1': 10,
         'game2': 12,
@@ -82,11 +86,12 @@ function LeaderboardContent() {
       }
     },
     {
-      rank: 3,
-      participant: { name: 'Mike Davis' },
-      total_points: 78,
-      correct_picks: 5,
-      total_picks: 8,
+      id: '3',
+      participant_id: '3',
+      pool_id: selectedPool,
+      week: selectedWeek,
+      points: 78,
+      participants: { name: 'Mike Davis' },
       game_points: {
         'game1': 8,
         'game2': 10,
@@ -99,11 +104,12 @@ function LeaderboardContent() {
       }
     },
     {
-      rank: 4,
-      participant: { name: 'Emily Wilson' },
-      total_points: 75,
-      correct_picks: 4,
-      total_picks: 8,
+      id: '4',
+      participant_id: '4',
+      pool_id: selectedPool,
+      week: selectedWeek,
+      points: 75,
+      participants: { name: 'Emily Wilson' },
       game_points: {
         'game1': 15,
         'game2': 6,
@@ -116,11 +122,12 @@ function LeaderboardContent() {
       }
     },
     {
-      rank: 5,
-      participant: { name: 'David Brown' },
-      total_points: 72,
-      correct_picks: 4,
-      total_picks: 8,
+      id: '5',
+      participant_id: '5',
+      pool_id: selectedPool,
+      week: selectedWeek,
+      points: 72,
+      participants: { name: 'David Brown' },
       game_points: {
         'game1': 6,
         'game2': 15,
@@ -128,8 +135,7 @@ function LeaderboardContent() {
         'game4': 10,
         'game5': 12,
         'game6': 8,
-        'game7': 6,
-        'game7': 7
+        'game7': 6
       }
     }
   ];
@@ -168,6 +174,12 @@ function LeaderboardContent() {
     }
   }, [selectedPool, selectedWeek, selectedSeasonType]);
 
+  useEffect(() => {
+    if (games.length > 0 && selectedPool) {
+      checkAllParticipantsSubmitted();
+    }
+  }, [games, selectedPool]);
+
   const loadPoolsData = async () => {
     try {
       const poolsData = await loadPools(user?.email, user?.is_super_admin);
@@ -184,7 +196,7 @@ function LeaderboardContent() {
 
   const loadLeaderboardData = async () => {
     try {
-      const leaderboardData = await loadLeaderboard(selectedPool, selectedWeek, selectedSeasonType);
+      const leaderboardData = await loadLeaderboard(selectedPool, selectedWeek);
       setLeaderboard(leaderboardData);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
@@ -207,6 +219,103 @@ function LeaderboardContent() {
     } catch (error) {
       console.error('Error loading games:', error);
       setGames([]);
+    }
+  };
+
+  const checkAllParticipantsSubmitted = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Get total participants in the pool
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('pool_id', selectedPool)
+        .eq('is_active', true);
+
+      if (participantsError) {
+        console.error('Error fetching participants:', participantsError);
+        return;
+      }
+
+      // Get participants who have submitted picks for this week
+      const { data: submittedPicks, error: picksError } = await supabase
+        .from('picks')
+        .select('participant_id')
+        .eq('pool_id', selectedPool)
+        .in('game_id', games.map(game => game.id));
+
+      if (picksError) {
+        console.error('Error fetching picks:', picksError);
+        return;
+      }
+
+      // Count unique participants who have submitted
+      const submittedParticipantIds = new Set(submittedPicks.map(pick => pick.participant_id));
+      const totalParticipants = participants.length;
+      const submittedParticipants = submittedParticipantIds.size;
+
+      setAllParticipantsSubmitted(totalParticipants > 0 && submittedParticipants === totalParticipants);
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+    }
+  };
+
+  const exportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      const dataToExport = showDummyData ? DUMMY_LEADERBOARD_DATA : leaderboard;
+      const poolName = pools.find(p => p.id === selectedPool)?.name || 'Unknown Pool';
+      const seasonTypeName = getSeasonTypeName(selectedSeasonType);
+      
+      // Create CSV content
+      const headers = ['Rank', 'Participant', 'Total Points'];
+      games.forEach((game, index) => {
+        headers.push(`Game ${index + 1} (${game.away_team} @ ${game.home_team})`);
+      });
+
+      const csvContent = [
+        headers.join(','),
+        ...dataToExport.map((entry, index) => {
+          const row = [
+            index + 1, // Rank
+            `"${entry.participants.name}"`,
+            entry.points
+          ];
+          
+          games.forEach(game => {
+            row.push(entry.game_points?.[game.id] || 0);
+          });
+          
+          return row.join(',');
+        })
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${poolName}_Week${selectedWeek}_${seasonTypeName}_Leaderboard.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: 'Export Successful',
+        description: `Leaderboard data exported to Excel format`,
+      });
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export leaderboard data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -272,6 +381,17 @@ function LeaderboardContent() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Export Button */}
+            {(isGamesStarted || showDummyData || allParticipantsSubmitted) && (
+              <Button
+                onClick={exportToExcel}
+                disabled={isExporting}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {isExporting ? 'Exporting...' : 'Export to Excel'}
+              </Button>
+            )}
             {process.env.NEXT_PUBLIC_NODE_ENV === 'development' && (
               <Button
                 onClick={() => setShowDummyData(!showDummyData)}
@@ -285,6 +405,23 @@ function LeaderboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Export Status Banner */}
+      {allParticipantsSubmitted && !isGamesStarted && (
+        <Card className="mb-6 border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-green-900">All Participants Submitted</h3>
+                <p className="text-green-700 text-sm">
+                  All participants have made their picks for this week. You can export the leaderboard data now.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card className="mb-6">
@@ -363,6 +500,11 @@ function LeaderboardContent() {
             <div className="text-right">
               <div className="text-sm text-gray-600">Games: {games.length}</div>
               <div className="text-sm text-gray-600">Participants: {leaderboard.length}</div>
+              {allParticipantsSubmitted && (
+                <Badge variant="outline" className="mt-1 border-green-500 text-green-700">
+                  All Submitted
+                </Badge>
+              )}
             </div>
           </div>
         </CardContent>
@@ -389,12 +531,12 @@ function LeaderboardContent() {
             </CardHeader>
             <CardContent>
               {/* Show leaderboard hidden message if games haven't started */}
-              {!isGamesStarted && !showDummyData && (
+              {!isGamesStarted && !showDummyData && !allParticipantsSubmitted && (
                 <div className="text-center py-12">
                   <EyeOff className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Leaderboard Hidden</h3>
                   <p className="text-gray-600 mb-4">
-                    Leaderboard will be visible once the first game starts
+                    Leaderboard will be visible once the first game starts or all participants submit their picks
                   </p>
                   <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                     <Clock className="h-4 w-4" />
@@ -404,7 +546,7 @@ function LeaderboardContent() {
               )}
 
               {/* Show narrow screen message */}
-              {isScreenTooNarrow && (isGamesStarted || showDummyData) && (
+              {isScreenTooNarrow && (isGamesStarted || showDummyData || allParticipantsSubmitted) && (
                 <div className="text-center py-8 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
                   <h3 className="text-lg font-semibold text-yellow-900 mb-2">Rotate Your Device</h3>
                   <p className="text-yellow-800">
@@ -414,7 +556,7 @@ function LeaderboardContent() {
               )}
 
               {/* Leaderboard Table */}
-              {(isGamesStarted || showDummyData) && (
+              {(isGamesStarted || showDummyData || allParticipantsSubmitted) && (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -431,24 +573,25 @@ function LeaderboardContent() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(showDummyData ? DUMMY_LEADERBOARD_DATA : leaderboard).map((entry) => (
-                        <TableRow key={entry.rank}>
+                      {(showDummyData ? DUMMY_LEADERBOARD_DATA : leaderboard).map((entry, index) => (
+                        <TableRow key={entry.id}>
                           <TableCell className="sticky left-0 bg-white z-10 font-medium">
                             <div className="flex items-center gap-2">
-                              {entry.rank === 1 && <Trophy className="h-4 w-4 text-yellow-500" />}
-                              {entry.rank === 2 && <Trophy className="h-4 w-4 text-gray-400" />}
-                              {entry.rank === 3 && <Trophy className="h-4 w-4 text-orange-600" />}
-                              {entry.rank}
+                              {index === 0 && <Trophy className="h-4 w-4 text-yellow-500" />}
+                              {index === 1 && <Trophy className="h-4 w-4 text-gray-400" />}
+                              {index === 2 && <Trophy className="h-4 w-4 text-orange-600" />}
+                              {index + 1}
                             </div>
                           </TableCell>
                           <TableCell className="sticky left-12 bg-white z-10 font-medium">
-                            {entry.participant.name}
+                            {entry.participants.name}
                           </TableCell>
                           <TableCell className="text-center font-bold">
-                            {entry.total_points}
+                            {entry.points}
                           </TableCell>
                           <TableCell className="text-center">
-                            {entry.correct_picks}/{entry.total_picks}
+                            {/* Placeholder for correct/total picks - would need to be calculated */}
+                            -
                           </TableCell>
                           {games.map((game, index) => (
                             <TableCell key={game.id} className="text-center">
@@ -489,7 +632,7 @@ function LeaderboardContent() {
                   <CardContent className="p-4 text-center">
                     <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
                     <div className="text-2xl font-bold text-green-600">
-                      {leaderboard.length > 0 ? leaderboard[0].total_points : 0}
+                      {leaderboard.length > 0 ? leaderboard[0].points : 0}
                     </div>
                     <div className="text-sm text-gray-600">Highest Score</div>
                   </CardContent>
@@ -499,7 +642,7 @@ function LeaderboardContent() {
                     <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
                     <div className="text-2xl font-bold text-purple-600">
                       {leaderboard.length > 0 
-                        ? Math.round(leaderboard.reduce((sum, entry) => sum + entry.total_points, 0) / leaderboard.length)
+                        ? Math.round(leaderboard.reduce((sum, entry) => sum + entry.points, 0) / leaderboard.length)
                         : 0
                       }
                     </div>
