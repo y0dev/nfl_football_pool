@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createReminderEmail, createSubmissionSummaryEmail } from '@/lib/mailto-utils';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -224,42 +225,48 @@ function RemindersContent() {
     setIsSendingReminders(true);
     try {
       const selectedParticipantsData = participants.filter(p => selectedParticipants.has(p.id));
+      const poolName = pools.find(p => p.id === selectedPool)?.name || 'NFL Pool';
       
-      const response = await fetch('/api/admin/send-reminders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          participantIds: Array.from(selectedParticipants),
-          week: currentWeek,
-          seasonType: currentSeasonType,
-        }),
-      });
+      // Create reminder email using utility
+      const emailOptions = createReminderEmail(poolName, currentWeek);
+      emailOptions.bcc = selectedParticipantsData.map(p => p.email).join(',');
+      
+      const mailtoUrl = createMailtoUrl(emailOptions);
 
-      const result = await response.json();
-
-      if (result.success) {
+      // Try to open email client
+      const opened = await openEmailClient(mailtoUrl);
+      
+      if (opened) {
         toast({
-          title: 'Reminders Sent',
-          description: `Successfully sent ${selectedParticipants.size} reminder(s)`,
+          title: 'Email Client Opened',
+          description: `Email prepared for ${selectedParticipants.size} participant(s). Your email client should open automatically.`,
         });
-        
-        // Clear selection and refresh data
-        setSelectedParticipants(new Set());
-        await loadParticipants();
       } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to send reminders',
-          variant: 'destructive',
-        });
+        // Fallback: copy mailto URL to clipboard
+        const copied = await copyMailtoToClipboard(mailtoUrl);
+        
+        if (copied) {
+          toast({
+            title: 'Email URL Copied',
+            description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
+          });
+        } else {
+          toast({
+            title: 'Manual Action Required',
+            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
+            variant: 'destructive',
+          });
+        }
       }
+      
+      // Clear selection and refresh data
+      setSelectedParticipants(new Set());
+      await loadParticipants();
     } catch (error) {
-      console.error('Error sending reminders:', error);
+      console.error('Error preparing reminders:', error);
       toast({
         title: 'Error',
-        description: 'Failed to send reminders',
+        description: 'Failed to prepare reminders',
         variant: 'destructive',
       });
     } finally {
@@ -280,39 +287,55 @@ function RemindersContent() {
 
     setIsSendingSummary(true);
     try {
-      const response = await fetch('/api/admin/send-submission-summary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          poolId: selectedPool,
-          week: currentWeek,
-          seasonType: currentSeasonType,
-          adminEmail: summaryEmail,
-        }),
-      });
+      const submittedParticipants = participants.filter(p => p.has_submitted);
+      const notSubmittedParticipants = participants.filter(p => !p.has_submitted);
+      const poolName = pools.find(p => p.id === selectedPool)?.name || 'NFL Pool';
+      
+      // Create submission summary email using utility
+      const emailOptions = createSubmissionSummaryEmail(
+        poolName,
+        currentWeek,
+        participants.length,
+        submittedParticipants.length,
+        submittedParticipants,
+        notSubmittedParticipants
+      );
+      emailOptions.to = summaryEmail;
+      
+      const mailtoUrl = createMailtoUrl(emailOptions);
 
-      const result = await response.json();
-
-      if (result.success) {
+      // Try to open email client
+      const opened = await openEmailClient(mailtoUrl);
+      
+      if (opened) {
         toast({
-          title: 'Summary Sent',
-          description: `Submission summary sent to ${summaryEmail}`,
+          title: 'Email Client Opened',
+          description: `Submission summary prepared and sent to ${summaryEmail}. Your email client should open automatically.`,
         });
-        setSummaryEmail('');
       } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to send summary',
-          variant: 'destructive',
-        });
+        // Fallback: copy mailto URL to clipboard
+        const copied = await copyMailtoToClipboard(mailtoUrl);
+        
+        if (copied) {
+          toast({
+            title: 'Email URL Copied',
+            description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
+          });
+        } else {
+          toast({
+            title: 'Manual Action Required',
+            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
+            variant: 'destructive',
+          });
+        }
       }
+      
+      setSummaryEmail('');
     } catch (error) {
-      console.error('Error sending summary:', error);
+      console.error('Error preparing summary:', error);
       toast({
         title: 'Error',
-        description: 'Failed to send summary',
+        description: 'Failed to prepare summary',
         variant: 'destructive',
       });
     } finally {

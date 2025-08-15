@@ -17,6 +17,7 @@ import { processTemplate, getDefaultVariables, TemplateVariables } from '@/lib/t
 import { loadUsers } from '@/actions/loadUsers';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { sendTemplatedEmails } from '@/actions/sendTemplatedEmails';
+import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 
 interface EnhancedEmailManagementProps {
   poolId: string;
@@ -82,7 +83,11 @@ export function EnhancedEmailManagement({
     }
 
     try {
-      const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber);
+      // Get current week data to get season type
+      const weekData = await loadCurrentWeek();
+      const seasonType = weekData?.season_type || 2;
+      
+      const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
       
       if (targetAudience === 'submitted') {
         return participants.filter(p => submittedIds.includes(p.id));
@@ -131,7 +136,7 @@ export function EnhancedEmailManagement({
 
   const handleSendEmails = async () => {
     if (!selectedTemplate) return;
-
+    console.log('selectedTemplate', selectedTemplate);
     setIsSending(true);
     try {
       const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
@@ -157,60 +162,60 @@ export function EnhancedEmailManagement({
         customVariables
       });
       
-              if (result.success && result.mailtoUrl) {
-          console.log('Mailto URL:', result.mailtoUrl);
+      if (result.success && result.mailtoUrl) {
+        console.log('Mailto URL:', result.mailtoUrl);
+        
+        // Try multiple approaches to open email client
+        try {
+          // Method 1: Direct window.open
+          const newWindow = window.open(result.mailtoUrl, '_blank');
           
-          // Try multiple approaches to open email client
+          // Check if popup was blocked
+          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            throw new Error('Popup blocked or failed to open');
+          }
+          
+          toast({
+            title: 'Email Client Opened',
+            description: `Email prepared for ${result.recipientCount} participants. Your email client should open automatically.`,
+          });
+        } catch (openError) {
+          console.error('Failed to open email client:', openError);
+          
+          // Method 2: Try with location.href
           try {
-            // Method 1: Direct window.open
-            const newWindow = window.open(result.mailtoUrl, '_blank');
-            
-            // Check if popup was blocked
-            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-              throw new Error('Popup blocked or failed to open');
-            }
-            
+            window.location.href = result.mailtoUrl;
             toast({
-              title: 'Email Client Opened',
-              description: `Email prepared for ${result.recipientCount} participants. Your email client should open automatically.`,
+              title: 'Email Client Opening',
+              description: `Email prepared for ${result.recipientCount} participants. Redirecting to email client...`,
             });
-          } catch (openError) {
-            console.error('Failed to open email client:', openError);
+          } catch (hrefError) {
+            console.error('Failed with location.href:', hrefError);
             
-            // Method 2: Try with location.href
+            // Method 3: Copy to clipboard as fallback
             try {
-              window.location.href = result.mailtoUrl;
+              await navigator.clipboard.writeText(result.mailtoUrl);
               toast({
-                title: 'Email Client Opening',
-                description: `Email prepared for ${result.recipientCount} participants. Redirecting to email client...`,
+                title: 'Email URL Copied',
+                description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
               });
-            } catch (hrefError) {
-              console.error('Failed with location.href:', hrefError);
-              
-              // Method 3: Copy to clipboard as fallback
-              try {
-                await navigator.clipboard.writeText(result.mailtoUrl);
-                toast({
-                  title: 'Email URL Copied',
-                  description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
-                });
-              } catch (clipboardError) {
-                console.error('Failed to copy to clipboard:', clipboardError);
-                toast({
-                  title: 'Manual Action Required',
-                  description: `Please copy this URL and paste it in your browser: ${result.mailtoUrl}`,
-                  variant: 'destructive',
-                });
-              }
+            } catch (clipboardError) {
+              console.error('Failed to copy to clipboard:', clipboardError);
+              toast({
+                title: 'Manual Action Required',
+                description: `Please copy this URL and paste it in your browser: ${result.mailtoUrl}`,
+                variant: 'destructive',
+              });
             }
           }
-        } else if (result.success) {
-          toast({
-            title: 'Error',
-            description: 'Email prepared but no mailto URL generated',
-            variant: 'destructive',
-          });
-        } else {
+        }
+      } else if (result.success) {
+        toast({
+          title: 'Error',
+          description: 'Email prepared but no mailto URL generated',
+          variant: 'destructive',
+        });
+      } else {
         toast({
           title: 'Error',
           description: result.error || 'Failed to prepare emails',

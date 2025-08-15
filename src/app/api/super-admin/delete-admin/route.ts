@@ -52,7 +52,14 @@ export async function DELETE(request: NextRequest) {
 
     // Optionally, also delete the user from Supabase Auth
     try {
-      await supabase.auth.admin.deleteUser(adminId);
+      // Get the auth user ID by email
+      const { data: authUser, error: authFetchError } = await supabase.auth.admin.listUsers();
+      if (!authFetchError && authUser.users) {
+        const userToDelete = authUser.users.find(user => user.email === admin.email);
+        if (userToDelete) {
+          await supabase.auth.admin.deleteUser(userToDelete.id);
+        }
+      }
     } catch (authDeleteError) {
       console.warn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
       // Don't fail the entire operation if auth deletion fails

@@ -43,8 +43,8 @@ Best regards,
 
 Just a friendly reminder that it's time to make your picks for Week {currentWeek} in {poolName}!
 
-📅 **Deadline**: {deadline}
-🎯 **Games**: {gameCount} games this week
+📅 **Deadline**: Sunday 1:00 PM ET
+🎯 **Games**: 16 games this week
 🏆 **Current Standings**: Check the leaderboard after making your picks
 
 **Make Your Picks Now**: {poolUrl}
@@ -70,7 +70,7 @@ Best regards,
 
 You haven't submitted your picks for Week {currentWeek} in {poolName} yet!
 
-**Deadline**: {deadline} (in {timeRemaining})
+**Deadline**: Sunday 1:00 PM ET
 
 **Quick Link**: {poolUrl}
 
@@ -86,36 +86,6 @@ Best regards,
     category: 'reminder'
   },
   {
-    id: 'week-results',
-    name: 'Week Results & Standings',
-    subject: 'Week {currentWeek} Results - {poolName}',
-    body: `Hi {participantName}!
-
-Week {currentWeek} results are in for {poolName}!
-
-🏆 **Your Performance**:
-• Points Earned: {pointsEarned}
-• Correct Picks: {correctPicks}/{totalPicks}
-• Current Rank: {currentRank}
-
-📊 **Top Performers This Week**:
-{topPerformers}
-
-🎯 **Overall Standings**:
-{overallStandings}
-
-**View Full Results**: {poolUrl}
-
-Great job this week! Keep up the momentum for Week {nextWeek}.
-
-Best regards,
-{adminName}
-{poolName} Administrator`,
-    description: 'Share weekly results and standings with participants',
-    targetAudience: 'all',
-    category: 'update'
-  },
-  {
     id: 'pool-update',
     name: 'Pool Update',
     subject: 'Important Update - {poolName}',
@@ -123,7 +93,7 @@ Best regards,
 
 We have an important update regarding {poolName}:
 
-{updateMessage}
+Please check the pool for the latest updates and information.
 
 **Pool Link**: {poolUrl}
 
@@ -133,59 +103,6 @@ Best regards,
 {adminName}
 {poolName} Administrator`,
     description: 'Send general pool updates to all participants',
-    targetAudience: 'all',
-    category: 'update'
-  },
-  {
-    id: 'playoff-reminder',
-    name: 'Playoff Reminder',
-    subject: 'Playoff Time! - {poolName}',
-    body: `Hi {participantName}!
-
-🏈 **PLAYOFFS ARE HERE!** 🏈
-
-The NFL playoffs have begun, and {poolName} is still going strong!
-
-**Current Standings**:
-{currentStandings}
-
-**Make Your Playoff Picks**: {poolUrl}
-
-The stakes are higher now - make sure to submit your picks for the playoff games!
-
-Good luck in the playoffs!
-
-Best regards,
-{adminName}
-{poolName} Administrator`,
-    description: 'Special reminder for playoff weeks',
-    targetAudience: 'all',
-    category: 'reminder'
-  },
-  {
-    id: 'season-wrap-up',
-    name: 'Season Wrap-Up',
-    subject: 'Season Wrap-Up - {poolName}',
-    body: `Hi {participantName}!
-
-🏆 **SEASON COMPLETE!** 🏆
-
-Congratulations! We've made it through the {season} NFL season in {poolName}!
-
-**Final Results**:
-{finalResults}
-
-**Season Highlights**:
-{seasonHighlights}
-
-Thank you for participating this season! We hope you had fun and enjoyed the competition.
-
-We'll be back next season - stay tuned for updates!
-
-Best regards,
-{adminName}
-{poolName} Administrator`,
-    description: 'End-of-season wrap-up message',
     targetAudience: 'all',
     category: 'update'
   },

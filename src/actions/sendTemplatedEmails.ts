@@ -39,7 +39,7 @@ export async function sendTemplatedEmails({
       .select('email')
       .eq('id', adminId)
       .single();
-    console.log('adminData', adminData);
+    
     if (adminError) {
       console.error('Error fetching admin email:', adminError);
       console.error('Admin ID:', adminId);
@@ -61,13 +61,18 @@ export async function sendTemplatedEmails({
     const adminEmail = adminData.email;
     
     // Get all participants
-    const allParticipants = await loadUsers();
+    const allParticipants = await loadUsers(poolId);
     
     // Filter participants based on template target audience
     let targetParticipants = allParticipants;
     
     if (template.targetAudience !== 'all') {
-      const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber);
+      // Get current week data to get season type
+      const { loadCurrentWeek } = await import('./loadCurrentWeek');
+      const weekData = await loadCurrentWeek();
+      const seasonType = weekData?.season_type || 2;
+      
+      const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
       
       if (template.targetAudience === 'submitted') {
         targetParticipants = allParticipants.filter(p => submittedIds.includes(p.id));
