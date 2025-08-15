@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
 import { LogOut } from 'lucide-react';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 function LoadingSpinner() {
   return (
@@ -22,8 +23,21 @@ function LoadingSpinner() {
 
 function AppContent() {
   const { user, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  // Redirect admins and super-admins to admin dashboard
+  useEffect(() => {
+    if (!loading && user && user.is_super_admin) {
+      router.push('/admin/dashboard');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  // Show loading while redirecting admins
+  if (user && user.is_super_admin) {
     return <LoadingSpinner />;
   }
 

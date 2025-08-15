@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { ArrowLeft, Mail, Users, Clock, AlertTriangle, CheckCircle, RefreshCw, Send, Filter, Search } from 'lucide-react';
+import { ArrowLeft, Mail, Users, Clock, AlertTriangle, CheckCircle, RefreshCw, Send, Filter, Search, BarChart3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
@@ -49,6 +49,8 @@ function RemindersContent() {
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set());
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [filterSubmitted, setFilterSubmitted] = useState<'all' | 'submitted' | 'not_submitted'>('not_submitted');
+  const [isSendingSummary, setIsSendingSummary] = useState(false);
+  const [summaryEmail, setSummaryEmail] = useState('');
 
   useEffect(() => {
     loadData();
@@ -125,7 +127,10 @@ function RemindersContent() {
         participantsQuery = participantsQuery.eq('pool_id', selectedPool);
       } else if (!user?.is_super_admin) {
         // For non-super admins, only show participants from their pools
-        const userPoolIds = pools.map(p => p.id);
+        // Get pools data directly since the state might not be updated yet
+        const poolsData = await loadPools();
+        const userPools = poolsData.filter(pool => pool.created_by === user?.email);
+        const userPoolIds = userPools.map(p => p.id);
         participantsQuery = participantsQuery.in('pool_id', userPoolIds);
       }
 
@@ -157,7 +162,7 @@ function RemindersContent() {
 
           return {
             ...participant,
-            pool_name: participant.pools.name,
+            pool_name: (participant.pools as { name: string }[])[0]?.name || 'Unknown Pool',
             has_submitted: Boolean(picks && picks.length > 0),
             last_reminder_sent: reminders?.[0]?.created_at
           };
@@ -263,6 +268,58 @@ function RemindersContent() {
     }
   };
 
+  const sendSubmissionSummary = async () => {
+    if (!summaryEmail.trim()) {
+      toast({
+        title: 'Email Required',
+        description: 'Please enter an email address to send the summary to',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSendingSummary(true);
+    try {
+      const response = await fetch('/api/admin/send-submission-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId: selectedPool,
+          week: currentWeek,
+          seasonType: currentSeasonType,
+          adminEmail: summaryEmail,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Summary Sent',
+          description: `Submission summary sent to ${summaryEmail}`,
+        });
+        setSummaryEmail('');
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to send summary',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error sending summary:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send summary',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingSummary(false);
+    }
+  };
+
   const getStats = () => {
     const total = participants.length;
     const submitted = participants.filter(p => p.has_submitted).length;
@@ -304,7 +361,7 @@ function RemindersContent() {
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Send Reminders</h1>
             <p className="text-sm sm:text-base text-gray-600">
-              Send email reminders to participants who haven't submitted their picks for Week {currentWeek}
+              Send email reminders to participants who haven&apos;t submitted their picks for Week {currentWeek}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -417,43 +474,70 @@ function RemindersContent() {
               </div>
             </div>
             
-            {stats.selected > 0 && (
-              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-blue-600" />
-                  <span className="text-blue-800 font-medium">
-                    {stats.selected} participant{stats.selected !== 1 ? 's' : ''} selected for reminders
-                  </span>
-                </div>
-                <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      onClick={() => setShowConfirmDialog(true)}
-                      disabled={isSendingReminders}
-                      className="flex items-center gap-2"
-                    >
-                      <Send className="h-4 w-4" />
-                      {isSendingReminders ? 'Sending...' : 'Send Reminders'}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Send Reminders</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to send reminder emails to {stats.selected} participant{stats.selected !== 1 ? 's' : ''}? 
-                        This will notify them that they haven't submitted their picks for Week {currentWeek}.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={sendReminders}>
-                        Send Reminders
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            )}
+                         {stats.selected > 0 && (
+               <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                 <div className="flex items-center gap-2">
+                   <Mail className="h-5 w-5 text-blue-600" />
+                   <span className="text-blue-800 font-medium">
+                     {stats.selected} participant{stats.selected !== 1 ? 's' : ''} selected for reminders
+                   </span>
+                 </div>
+                 <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                   <AlertDialogTrigger asChild>
+                     <Button
+                       onClick={() => setShowConfirmDialog(true)}
+                       disabled={isSendingReminders}
+                       className="flex items-center gap-2"
+                     >
+                       <Send className="h-4 w-4" />
+                       {isSendingReminders ? 'Sending...' : 'Send Reminders'}
+                     </Button>
+                   </AlertDialogTrigger>
+                   <AlertDialogContent>
+                     <AlertDialogHeader>
+                       <AlertDialogTitle>Send Reminders</AlertDialogTitle>
+                       <AlertDialogDescription>
+                         Are you sure you want to send reminder emails to {stats.selected} participant{stats.selected !== 1 ? 's' : ''}? 
+                         This will notify them that they haven&apos;t submitted their picks for Week {currentWeek}.
+                       </AlertDialogDescription>
+                     </AlertDialogHeader>
+                     <AlertDialogFooter>
+                       <AlertDialogCancel>Cancel</AlertDialogCancel>
+                       <AlertDialogAction onClick={sendReminders}>
+                         Send Reminders
+                       </AlertDialogAction>
+                     </AlertDialogFooter>
+                   </AlertDialogContent>
+                 </AlertDialog>
+               </div>
+             )}
+
+             {/* Summary Email Section */}
+             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
+               <div className="flex items-center gap-2 flex-1">
+                 <BarChart3 className="h-5 w-5 text-green-600" />
+                 <span className="text-green-800 font-medium">
+                   Send Submission Summary
+                 </span>
+               </div>
+               <div className="flex flex-col sm:flex-row gap-2">
+                 <Input
+                   type="email"
+                   placeholder="Enter email address"
+                   value={summaryEmail}
+                   onChange={(e) => setSummaryEmail(e.target.value)}
+                   className="w-full sm:w-64"
+                 />
+                 <Button
+                   onClick={sendSubmissionSummary}
+                   disabled={isSendingSummary || !summaryEmail.trim()}
+                   className="flex items-center gap-2"
+                 >
+                   <BarChart3 className="h-4 w-4" />
+                   {isSendingSummary ? 'Sending...' : 'Send Summary'}
+                 </Button>
+               </div>
+             </div>
           </CardContent>
         </Card>
 
