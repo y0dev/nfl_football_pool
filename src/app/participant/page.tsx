@@ -5,12 +5,13 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools, loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -34,6 +35,7 @@ function ParticipantContent() {
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
+  const [poolAccessCode, setPoolAccessCode] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -50,6 +52,7 @@ function ParticipantContent() {
   const [gamesStarted, setGamesStarted] = useState(false);
   const [hasPicks, setHasPicks] = useState(false);
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
+  const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
   
   const { toast } = useToast();
   const router = useRouter();
@@ -132,6 +135,12 @@ function ParticipantContent() {
         if (pool) {
           setPoolName(pool.name);
           setPoolRequiresAccessCode(pool.require_access_code);
+          setPoolAccessCode(pool.access_code || '');
+          
+          // Check if access code is required but not set
+          if (pool.require_access_code && !pool.access_code) {
+            setShowAccessCodeDialog(true);
+          }
         } else {
           setError('Pool not found. Please check the pool link.');
         }
@@ -1126,6 +1135,82 @@ function ParticipantContent() {
           )}
         </div>
       </div>
+
+      {/* Access Code Validation Dialog */}
+      <Dialog open={showAccessCodeDialog} onOpenChange={setShowAccessCodeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Lock className="h-5 w-5 text-red-500" />
+              Access Code Required
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              {isAdmin ? (
+                "This pool requires an access code, but none has been set. You need to add an access code or disable the requirement."
+              ) : (
+                "This pool requires an access code, but the administrator hasn't set one yet. Please contact the pool administrator."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {isAdmin ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Admin Action Required:</strong> You need to either:
+                  </p>
+                  <ul className="list-disc list-inside mt-2 text-sm text-blue-700 space-y-1">
+                    <li>Add an access code in the pool settings</li>
+                    <li>Disable the access code requirement</li>
+                  </ul>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={() => {
+                      setShowAccessCodeDialog(false);
+                      // Navigate to pool settings
+                      router.push(`/admin/pool/${poolId}?tab=settings`);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Go to Pool Settings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAccessCodeDialog(false)}
+                  >
+                    Continue Anyway
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    <strong>Pool Configuration Issue:</strong> The pool administrator has enabled access code requirements but hasn&apos;t set a code yet.
+                  </p>
+                </div>
+                <div className="text-sm text-gray-600">
+                  <p>Please contact the pool administrator to:</p>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Add an access code for the pool</li>
+                    <li>Disable the access code requirement</li>
+                  </ul>
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAccessCodeDialog(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
