@@ -1034,15 +1034,15 @@ function LeaderboardContent() {
                             className={`${isHighlighted ? 'bg-blue-50' : ''} ${isFavorite ? 'ring-2 ring-yellow-300' : ''} hover:bg-gray-50`}
                             onClick={() => setHighlightedParticipant(isHighlighted ? null : participantId)}
                           >
-                            <TableCell className="sticky left-0 bg-white z-10 font-medium">
-                              <div className="flex items-center gap-2">
+                          <TableCell className="sticky left-0 bg-white z-10 font-medium">
+                            <div className="flex items-center gap-2">
                                 {index === 0 && <Trophy className="h-4 w-4 text-yellow-500" />}
                                 {index === 1 && <Trophy className="h-4 w-4 text-gray-400" />}
                                 {index === 2 && <Trophy className="h-4 w-4 text-orange-600" />}
                                 {index + 1}
-                              </div>
-                            </TableCell>
-                            <TableCell className="sticky left-12 bg-white z-10 font-medium">
+                            </div>
+                          </TableCell>
+                          <TableCell className="sticky left-12 bg-white z-10 font-medium">
                               <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
@@ -1087,19 +1087,19 @@ function LeaderboardContent() {
                                   )}
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell className="text-center font-bold">
+                          </TableCell>
+                          <TableCell className="text-center font-bold">
                               {totalPoints}
-                            </TableCell>
-                            <TableCell className="text-center">
+                          </TableCell>
+                          <TableCell className="text-center">
                               {isDummy ? '-' : `${correctPicks}/${totalPicks}`}
-                            </TableCell>
+                          </TableCell>
                                                       {games.map((game, gameIndex) => {
                             if (isDummy) {
                               return (
-                                <TableCell key={game.id} className="text-center">
+                            <TableCell key={game.id} className="text-center">
                                   {(entry as LeaderboardEntry).game_points?.[game.id] || 0}
-                                </TableCell>
+                            </TableCell>
                               );
                             } else {
                               const realEntry = entry as LeaderboardEntryWithPicks;
@@ -1150,7 +1150,7 @@ function LeaderboardContent() {
                               );
                             }
                           })}
-                          </TableRow>
+                        </TableRow>
                         );
                       })}
                     </TableBody>
@@ -1164,46 +1164,46 @@ function LeaderboardContent() {
         <TabsContent value="analytics" className="mt-6">
           <div className="space-y-6">
             {/* Key Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
                   Key Metrics - {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}
-                </CardTitle>
-                <CardDescription>
-                  Statistical analysis of pool performance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              </CardTitle>
+              <CardDescription>
+                Statistical analysis of pool performance
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
                       <div className="text-2xl font-bold text-blue-600">{leaderboardWithPicks.length}</div>
                       <div className="text-sm text-gray-600">Participants</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                      <div className="text-2xl font-bold text-green-600">
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-green-600">
                         {leaderboardWithPicks.length > 0 ? leaderboardWithPicks[0].total_points : 0}
-                      </div>
+                    </div>
                       <div className="text-sm text-gray-600">Best Score</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                      <div className="text-2xl font-bold text-purple-600">
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-purple-600">
                         {leaderboardWithPicks.length > 0 
                           ? Math.round(leaderboardWithPicks.reduce((sum, entry) => sum + entry.total_points, 0) / leaderboardWithPicks.length)
-                          : 0
-                        }
-                      </div>
+                        : 0
+                      }
+                    </div>
                       <div className="text-sm text-gray-600">Avg Score</div>
-                    </CardContent>
-                  </Card>
+                  </CardContent>
+                </Card>
                   <Card>
                     <CardContent className="p-4 text-center">
                       <Target className="h-8 w-8 text-orange-600 mx-auto mb-2" />
@@ -1213,10 +1213,10 @@ function LeaderboardContent() {
                                        leaderboardWithPicks.reduce((sum, entry) => sum + entry.total_picks, 0)) * 100)
                           : 0
                         }%
-                      </div>
+              </div>
                       <div className="text-sm text-gray-600">Pick Accuracy</div>
-                    </CardContent>
-                  </Card>
+            </CardContent>
+          </Card>
                 </div>
               </CardContent>
             </Card>
@@ -1510,13 +1510,13 @@ function LeaderboardContent() {
         <TabsContent value="performance" className="mt-6">
           <Card>
             <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Performance Trends
-            </CardTitle>
-            <CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Performance Trends
+              </CardTitle>
+              <CardDescription>
               Individual performance tracking and trends for {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}
-            </CardDescription>
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {leaderboardWithPicks.length > 0 ? (
@@ -1836,13 +1836,13 @@ function LeaderboardContent() {
                    )}
                  </div>
                ) : (
-                <div className="text-center py-12">
-                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <div className="text-center py-12">
+                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Performance Data</h3>
-                  <p className="text-gray-600">
+                <p className="text-gray-600">
                     Performance data will be available once participants submit their picks.
-                  </p>
-                </div>
+                </p>
+              </div>
               )}
             </CardContent>
           </Card>

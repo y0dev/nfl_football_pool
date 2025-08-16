@@ -47,6 +47,9 @@ function ParticipantContent() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [gamesStarted, setGamesStarted] = useState(false);
+  const [hasPicks, setHasPicks] = useState(false);
+  const [isLoadingPicks, setIsLoadingPicks] = useState(false);
   
   const { toast } = useToast();
   const router = useRouter();
@@ -140,6 +143,19 @@ function ParticipantContent() {
       try {
         const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
         setGames(gamesData);
+        
+        // Check if any games have started
+        const now = new Date();
+        const hasStarted = gamesData.some(game => {
+          const gameTime = new Date(game.kickoff_time);
+          return gameTime <= now;
+        });
+        setGamesStarted(hasStarted);
+        
+        // Automatically show leaderboard when games start
+        if (hasStarted) {
+          setShowLeaderboard(true);
+        }
       } catch (error) {
         console.error('Error loading games:', error);
         toast({
@@ -215,6 +231,7 @@ function ParticipantContent() {
   useEffect(() => {
     loadParticipantStats();
     checkAdminPermissions();
+    checkWeekPicksStatus();
   }, [poolId, currentWeek, currentSeasonType]);
 
   useEffect(() => {
@@ -367,6 +384,31 @@ function ParticipantContent() {
     }
   };
 
+  const checkWeekPicksStatus = async () => {
+    if (!poolId) return;
+    
+    try {
+      setIsLoadingPicks(true);
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      // Check if any participants have submitted picks for this week
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('id, games!inner(week, season_type)')
+        .eq('pool_id', poolId)
+        .eq('games.week', currentWeek)
+        .eq('games.season_type', currentSeasonType);
+      
+      setHasPicks(Boolean(picks && picks.length > 0));
+    } catch (error) {
+      console.error('Error checking week picks status:', error);
+      setHasPicks(false);
+    } finally {
+      setIsLoadingPicks(false);
+    }
+  };
+
   const checkAdminPermissions = async () => {
     try {
       const { getSupabaseClient } = await import('@/lib/supabase');
@@ -505,6 +547,127 @@ function ParticipantContent() {
     );
   }
 
+  // Check if this is a past week with no picks
+  const isPastWeek = games.length > 0 && games.every(game => {
+    const gameTime = new Date(game.kickoff_time);
+    return gameTime < new Date();
+  });
+
+  // Show loading state while checking picks status for past weeks
+  if (isPastWeek && isLoadingPicks) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-8 bg-gray-200 rounded"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isPastWeek && !hasPicks && !isLoadingPicks) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="container mx-auto p-4 md:p-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                {isAdmin && (
+                  <Link href="/admin/dashboard">
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Back to Dashboard</span>
+                      <span className="sm:hidden">Back</span>
+                    </Button>
+                  </Link>
+                )}
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+                </div>
+              </div>
+            </div>
+            
+            {/* Pool Info */}
+            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold text-lg">{poolName}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <Badge variant="outline">Week {currentWeek}</Badge>
+                    <span className="text-sm text-gray-500">
+                      {games.length} games
+                    </span>
+                    {(() => {
+                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                        return (
+                        <Badge variant="secondary" className="text-xs">
+                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                        </Badge>
+                      );
+                      })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* No Picks Available Message */}
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-8 w-8 text-gray-400" />
+              </div>
+              <CardTitle className="text-gray-900">Week {currentWeek} Not Available</CardTitle>
+              <CardDescription className="text-gray-600">
+                No picks were submitted for this week in {poolName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <div className="text-sm text-gray-500 space-y-2">
+                <p>This week has already passed, but no participants submitted picks.</p>
+                <p>This could happen if:</p>
+                <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
+                  <li>The pool was created after this week</li>
+                  <li>No participants joined the pool for this week</li>
+                  <li>All picks were deleted by an admin</li>
+                </ul>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                <Link href="/">
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Home
+                  </Button>
+                </Link>
+                {isAdmin && (
+                  <Link href="/admin/dashboard">
+                    <Button className="flex items-center gap-2">
+                      <Trophy className="h-4 w-4" />
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Floating Back Button for Mobile - Only show if admin */}
@@ -594,20 +757,7 @@ function ParticipantContent() {
                     <Share2 className="h-4 w-4" />
                     <span className="hidden md:inline">Share</span>
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowLeaderboard(!showLeaderboard);
-                      if (!showLeaderboard) {
-                        setShowGameDetails(false);
-                      }
-                    }}
-                    className="flex items-center gap-2 min-w-fit px-3 py-2"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                    <span className="hidden md:inline">Leaderboard</span>
-                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -631,17 +781,7 @@ function ParticipantContent() {
                     <Users className="h-4 w-4" />
                     <span className="hidden md:inline">Stats</span>
                   </Button>
-                  {hasSubmitted && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowRecentPicks(!showRecentPicks)}
-                      className="flex items-center gap-2 min-w-fit px-3 py-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      <span className="hidden md:inline">Recent Picks</span>
-                    </Button>
-                  )}
+
 
 
                   {isAdmin && (
@@ -858,96 +998,133 @@ function ParticipantContent() {
             </Card>
           )}
 
-          {/* Leaderboard Section */}
-          {showLeaderboard && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Week {currentWeek} Leaderboard</CardTitle>
-                <CardDescription>
-                  Current standings for {poolName}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Leaderboard poolId={poolId!} weekNumber={currentWeek} />
-              </CardContent>
-            </Card>
-          )}
+          {/* Show Leaderboard when games have started, otherwise show picks */}
+          {gamesStarted ? (
+            <>
+              {/* Leaderboard Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-600" />
+                    Week {currentWeek} Leaderboard
+                  </CardTitle>
+                  <CardDescription>
+                    Current standings for {poolName} - Games are in progress
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} />
+                </CardContent>
+              </Card>
 
-          {/* Recent Picks Section */}
-          {showRecentPicks && selectedUser && (
-            <RecentPicksViewer
-              poolId={poolId!}
-              participantId={selectedUser.id}
-              participantName={selectedUser.name}
-              weekNumber={currentWeek}
-              seasonType={currentSeasonType}
-              games={games}
-              canUnlock={isPoolAdmin || isSuperAdmin}
-              onUnlock={unlockParticipantPicks}
-            />
-          )}
-
-          
-
-          {/* Picks Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-blue-600" />
-                Week {currentWeek} Picks
-              </CardTitle>
-              <CardDescription>
-                {hasSubmitted 
-                  ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
-                  : "Select the winner for each game and assign confidence points"
-                }
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {selectedUser ? (
-                hasSubmitted ? (
-                  <div className="text-center py-8">
-                    <div className="text-gray-500 mb-4">
-                      <Lock className="h-12 w-12 mx-auto mb-2" />
-                      <p className="text-lg font-medium">Picks Submitted</p>
-                      <p className="text-sm">Your picks are locked for this week</p>
-                    </div>
-                    {(isPoolAdmin || isSuperAdmin) && (
-                      <Button
-                        onClick={() => unlockParticipantPicks(selectedUser.id)}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        <Unlock className="h-4 w-4" />
-                        Unlock Picks
-                      </Button>
-                    )}
-                  </div>
-                ) : games.length > 0 ? (
-                  <WeeklyPick 
-                    poolId={poolId!} 
-                    weekNumber={currentWeek} 
-                    seasonType={currentSeasonType}
-                    selectedUser={selectedUser}
-                    games={games}
-                    preventGameLoading={true}
-                    onPicksSubmitted={handlePicksSubmitted}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No games found for Week {currentWeek}
-                  </div>
-                )
-              ) : (
-                <PickUserSelection 
-                  poolId={poolId!} 
-                  weekNumber={currentWeek} 
-                  onUserSelected={handleUserSelected}
-                />
+              {/* Recent Picks Section - Show when games have started */}
+              {selectedUser && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Eye className="h-5 w-5 text-blue-600" />
+                      Your Picks for Week {currentWeek}
+                    </CardTitle>
+                    <CardDescription>
+                      Review your submitted picks for this week
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RecentPicksViewer
+                      poolId={poolId!}
+                      participantId={selectedUser.id}
+                      participantName={selectedUser.name}
+                      weekNumber={currentWeek}
+                      seasonType={currentSeasonType}
+                      games={games}
+                      canUnlock={isPoolAdmin || isSuperAdmin}
+                      onUnlock={unlockParticipantPicks}
+                    />
+                  </CardContent>
+                </Card>
               )}
-            </CardContent>
-          </Card>
-                </div>
+            </>
+          ) : (
+            <>
+              {/* Picks Section - Only show when games haven't started */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-blue-600" />
+                    Week {currentWeek} Picks
+                  </CardTitle>
+                  <CardDescription>
+                    {hasSubmitted 
+                      ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
+                      : "Select the winner for each game and assign confidence points"
+                    }
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {selectedUser ? (
+                    hasSubmitted ? (
+                      <div className="text-center py-8">
+                        <div className="text-gray-500 mb-4">
+                          <Lock className="h-12 w-12 mx-auto mb-2" />
+                          <p className="text-lg font-medium">Picks Submitted</p>
+                          <p className="text-sm">Your picks are locked for this week</p>
+                        </div>
+                        {(isPoolAdmin || isSuperAdmin) && (
+                          <Button
+                            onClick={() => unlockParticipantPicks(selectedUser.id)}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            <Unlock className="h-4 w-4" />
+                            Unlock Picks
+                          </Button>
+                        )}
+                      </div>
+                    ) : games.length > 0 ? (
+                      <WeeklyPick 
+                        poolId={poolId!} 
+                        weekNumber={currentWeek} 
+                        seasonType={currentSeasonType}
+                        selectedUser={selectedUser}
+                        games={games}
+                        preventGameLoading={true}
+                        onPicksSubmitted={handlePicksSubmitted}
+                      />
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        No games found for Week {currentWeek}
+                      </div>
+                    )
+                  ) : (
+                    <PickUserSelection 
+                      poolId={poolId!} 
+                      weekNumber={currentWeek} 
+                      onUserSelected={handleUserSelected}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Optional Leaderboard Button - Only show when games haven't started */}
+              {showLeaderboard && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-green-600" />
+                      Week {currentWeek} Leaderboard
+                    </CardTitle>
+                    <CardDescription>
+                      Current standings for {poolName}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} />
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
