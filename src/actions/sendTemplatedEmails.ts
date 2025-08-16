@@ -36,7 +36,7 @@ export async function sendTemplatedEmails({
     // Get admin's email address
     const { data: adminData, error: adminError } = await supabase
       .from('admins')
-      .select('email, name')
+      .select('email, full_name')
       .eq('id', adminId)
       .single();
     
@@ -59,7 +59,7 @@ export async function sendTemplatedEmails({
     }
     
     const adminEmail = adminData.email;
-    const adminName = adminData.name || 'Pool Administrator'; // Use actual name or fallback
+    const adminName = adminData.full_name || 'Pool Administrator'; // Use actual name or fallback
     
     // Get all participants
     const allParticipants = await loadUsers(poolId);

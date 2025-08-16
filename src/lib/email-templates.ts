@@ -86,6 +86,108 @@ Best regards,
     category: 'reminder'
   },
   {
+    id: 'week-results',
+    name: 'Week Results Available',
+    subject: 'Week {currentWeek} Results Are In! - {poolName}',
+    body: `Hi {participantName}!
+
+🏈 **Week {currentWeek} Results Are Available!** 🏈
+
+The results for Week {currentWeek} in {poolName} have been posted!
+
+**Check Your Results**: {poolUrl}
+
+See how you performed this week and check the updated leaderboard. Don't forget to make your picks for next week!
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Notify participants that week results are available',
+    targetAudience: 'submitted',
+    category: 'update'
+  },
+  {
+    id: 'playoff-reminder',
+    name: 'Playoff Reminder',
+    subject: 'Playoffs Start This Week! - {poolName}',
+    body: `Hi {participantName}!
+
+🏆 **PLAYOFFS ARE HERE!** 🏆
+
+The NFL playoffs begin this week, and {poolName} is ready for the postseason!
+
+**Important Changes for Playoffs:**
+• Fewer games each week
+• Higher stakes for each pick
+• Championship bracket format
+• Super Bowl picks coming soon!
+
+**Make Your Playoff Picks**: {poolUrl}
+
+The playoffs are where legends are made! Make your picks carefully and good luck!
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Remind participants about playoff format changes',
+    targetAudience: 'all',
+    category: 'reminder'
+  },
+  {
+    id: 'super-bowl-reminder',
+    name: 'Super Bowl Reminder',
+    subject: 'Super Bowl Picks Due! - {poolName}',
+    body: `Hi {participantName}!
+
+🏈 **SUPER BOWL PICKS DUE!** 🏈
+
+The biggest game of the year is here! Make your Super Bowl picks for {poolName}!
+
+**Super Bowl Picks Include:**
+• Winner of the game
+• Total points scored
+• MVP selection
+• First touchdown scorer
+
+**Make Your Super Bowl Picks**: {poolUrl}
+
+This is your chance to win it all! Don't miss out on the championship picks.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Remind participants to make Super Bowl picks',
+    targetAudience: 'all',
+    category: 'reminder'
+  },
+  {
+    id: 'season-wrap-up',
+    name: 'Season Wrap-Up',
+    subject: 'Season Wrap-Up - {poolName}',
+    body: `Hi {participantName}!
+
+🏆 **Season Wrap-Up** 🏆
+
+The {season} NFL season has come to an end, and we want to thank you for participating in {poolName}!
+
+**Final Results**: {poolUrl}
+
+**Season Highlights:**
+• Check out the final standings
+• See who won the championship
+• Review your season performance
+• Plan for next season
+
+Thank you for making this season great! We hope to see you back next year.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Send season wrap-up message to all participants',
+    targetAudience: 'all',
+    category: 'update'
+  },
+  {
     id: 'pool-update',
     name: 'Pool Update',
     subject: 'Important Update - {poolName}',
@@ -103,6 +205,52 @@ Best regards,
 {adminName}
 {poolName} Administrator`,
     description: 'Send general pool updates to all participants',
+    targetAudience: 'all',
+    category: 'update'
+  },
+  {
+    id: 'rule-change',
+    name: 'Rule Change Notification',
+    subject: 'Important Rule Change - {poolName}',
+    body: `Hi {participantName}!
+
+📋 **IMPORTANT RULE CHANGE** 📋
+
+We've made some changes to the rules for {poolName}:
+
+Please review the updated rules and contact us if you have any questions.
+
+**Updated Rules**: {poolUrl}
+
+These changes will take effect immediately. Thank you for your understanding.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Notify participants about rule changes',
+    targetAudience: 'all',
+    category: 'update'
+  },
+  {
+    id: 'technical-issue',
+    name: 'Technical Issue Alert',
+    subject: 'Technical Issue - {poolName}',
+    body: `Hi {participantName}!
+
+⚠️ **TECHNICAL ISSUE ALERT** ⚠️
+
+We're experiencing some technical difficulties with {poolName}:
+
+We're working to resolve this as quickly as possible. Please check back later or contact us if you need immediate assistance.
+
+**Pool Status**: {poolUrl}
+
+We apologize for any inconvenience and appreciate your patience.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Alert participants about technical issues',
     targetAudience: 'all',
     category: 'update'
   },

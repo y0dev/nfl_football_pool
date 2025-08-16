@@ -171,10 +171,15 @@ export function EnhancedEmailManagement({
 
   const loadAdminName = async () => {
     try {
-      const response = await fetch(`/api/admin/profile/${adminId}`);
-      const result = await response.json();
-      if (result.success && result.admin?.name) {
-        setAdminName(result.admin.name);
+      const supabase = await import('@/lib/supabase').then(m => m.getSupabaseClient());
+      const { data: adminData, error } = await supabase
+        .from('admins')
+        .select('full_name')
+        .eq('id', adminId)
+        .single();
+      
+      if (!error && adminData?.full_name) {
+        setAdminName(adminData.full_name);
       }
     } catch (error) {
       console.error('Error loading admin name:', error);
@@ -184,7 +189,6 @@ export function EnhancedEmailManagement({
 
   useEffect(() => {
     if (selectedTemplate && participants.length > 0) {
-      console.log('Template or participants changed, updating preview...');
       updatePreview();
     }
   }, [selectedTemplate, participants]);
@@ -225,8 +229,8 @@ export function EnhancedEmailManagement({
       const seasonType = weekData?.season_type || 2;
       
       const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
-      console.log('Submitted IDs:', submittedIds);
-      console.log('All participants:', participants);
+      // console.log('Submitted IDs:', submittedIds);
+      // console.log('All participants:', participants);
       
       if (targetAudience === 'submitted') {
         const submittedParticipants = participants.filter(p => submittedIds.includes(p.id));
@@ -271,8 +275,6 @@ export function EnhancedEmailManagement({
     }
 
     try {
-      console.log('Updating preview for template:', template.name);
-      
       // Wait for participants to be loaded
       if (participants.length === 0) {
         console.log('No participants loaded yet, waiting...');
@@ -284,7 +286,6 @@ export function EnhancedEmailManagement({
       }
       
       const filteredParticipants = await getFilteredParticipants(template.targetAudience);
-      console.log('Filtered participants:', filteredParticipants.length);
       
       if (filteredParticipants.length === 0) {
         setEmailPreview({ 
@@ -315,8 +316,8 @@ export function EnhancedEmailManagement({
       const subject = processTemplate(template.subject, variables);
       const body = processTemplate(template.body, variables);
 
-      console.log('Final preview - Subject:', subject);
-      console.log('Final preview - Body:', body.substring(0, 100) + '...');
+      // console.log('Final preview - Subject:', subject);
+      // console.log('Final preview - Body:', body.substring(0, 100) + '...');
 
       setEmailPreview({ subject, body });
     } catch (error) {
@@ -332,7 +333,6 @@ export function EnhancedEmailManagement({
   };
 
   const handleTemplateChange = (templateId: string) => {
-    console.log('Template changed to:', templateId);
     setSelectedTemplate(templateId);
     const template = EMAIL_TEMPLATES.find(t => t.id === templateId);
     if (template?.id === 'custom-message') {
@@ -343,7 +343,7 @@ export function EnhancedEmailManagement({
     setShowPreview(true);
     // Wait for state to update before triggering preview
     setTimeout(() => {
-      console.log('Triggering preview update for template:', templateId);
+      // console.log('Triggering preview update for template:', templateId);
       updatePreview();
     }, 200);
   };
