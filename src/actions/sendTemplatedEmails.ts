@@ -36,16 +36,16 @@ export async function sendTemplatedEmails({
     // Get admin's email address
     const { data: adminData, error: adminError } = await supabase
       .from('admins')
-      .select('email')
+      .select('email, name')
       .eq('id', adminId)
       .single();
     
     if (adminError) {
-      console.error('Error fetching admin email:', adminError);
+      console.error('Error fetching admin data:', adminError);
       console.error('Admin ID:', adminId);
       return {
         success: false,
-        error: `Could not fetch admin email address: ${adminError.message}`
+        error: `Could not fetch admin data: ${adminError.message}`
       };
     }
     
@@ -59,6 +59,7 @@ export async function sendTemplatedEmails({
     }
     
     const adminEmail = adminData.email;
+    const adminName = adminData.name || 'Pool Administrator'; // Use actual name or fallback
     
     // Get all participants
     const allParticipants = await loadUsers(poolId);
@@ -91,13 +92,18 @@ export async function sendTemplatedEmails({
     // Prepare the email template for the first participant (we'll use this as the base)
     const firstParticipant = targetParticipants[0];
     
+    // Get current week data to get the actual season
+    const { loadCurrentWeek } = await import('./loadCurrentWeek');
+    const weekData = await loadCurrentWeek();
+    const actualSeason = weekData?.season_year || 2024;
+    
     // Prepare variables for this participant
     const baseVariables = {
       poolName,
       poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
       currentWeek: weekNumber,
-      season: 2024, // This could be made dynamic
-      adminName: 'Pool Administrator', // This could be fetched from admin table
+      season: actualSeason, // Use actual season instead of hardcoded 2024
+      adminName: adminName, // Use the fetched admin name
       participantName: firstParticipant.name,
       deadline: 'Sunday 1:00 PM ET', // This could be made dynamic
       gameCount: 16, // This could be made dynamic
@@ -131,25 +137,25 @@ export async function sendTemplatedEmails({
     const mailtoUrl = `mailto:?bcc=${encodeURIComponent(participantEmails)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
     // Log the email preparation
-    const { data: emailLog, error: emailError } = await supabase
-      .from('email_logs')
-      .insert({
-        pool_id: poolId,
-        admin_id: adminId,
-        participant_id: null, // Multiple participants
-        template_id: template.id,
-        subject,
-        body,
-        sent_at: new Date().toISOString(),
-        status: 'prepared',
-        recipient_count: targetParticipants.length
-      })
-      .select()
-      .single();
+    // const { data: emailLog, error: emailError } = await supabase
+    //   .from('email_logs')
+    //   .insert({
+    //     pool_id: poolId,
+    //     admin_id: adminId,
+    //     participant_id: null, // Multiple participants
+    //     template_id: template.id,
+    //     subject,
+    //     body,
+    //     sent_at: new Date().toISOString(),
+    //     status: 'prepared',
+    //     recipient_count: targetParticipants.length
+    //   })
+    //   .select()
+    //   .single();
     
-    if (emailError) {
-      console.error('Error logging email:', emailError);
-    }
+    // if (emailError) {
+    //   console.error('Error logging email:', emailError);
+    // }
     
     // Return the mailto URL for the client to open
     return {

@@ -31,12 +31,18 @@ export function generatePoolUrl(poolId: string, week?: number): string {
   return `${baseUrl}/participant?pool=${poolId}`;
 }
 
-export function getDefaultVariables(poolName: string, poolId: string, currentWeek: number, adminName: string): TemplateVariables {
+export function getDefaultVariables(
+  poolName: string, 
+  poolId: string, 
+  currentWeek: number, 
+  adminName: string, 
+  season?: number
+): TemplateVariables {
   return {
     poolName,
     poolUrl: generatePoolUrl(poolId, currentWeek),
     currentWeek,
-    season: 2024, // This could be made dynamic
+    season: season || 2024, // Use provided season or fallback to 2024
     adminName,
     customSubject: 'Message from Pool Administrator',
     customMessage: 'This is a custom message from the pool administrator.'

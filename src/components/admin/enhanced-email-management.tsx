@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Mail, Users, Send, Copy, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Users, Send, Copy, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EMAIL_TEMPLATES, EmailTemplate, getTemplatesByCategory } from '@/lib/email-templates';
 import { processTemplate, getDefaultVariables, TemplateVariables } from '@/lib/template-processor';
@@ -32,6 +32,116 @@ interface Participant {
   email: string;
 }
 
+// Component to show participant count warning for selected template
+function ParticipantCountWarning({ 
+  template, 
+  participants, 
+  poolId, 
+  weekNumber 
+}: { 
+  template: EmailTemplate | undefined; 
+  participants: Participant[]; 
+  poolId: string; 
+  weekNumber: number; 
+}) {
+  const [targetCount, setTargetCount] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (template) {
+      loadTargetCount();
+    }
+  }, [template, participants, poolId, weekNumber]);
+
+  const loadTargetCount = async () => {
+    if (!template) return;
+    
+    setIsLoading(true);
+    try {
+      if (template.targetAudience === 'all') {
+        setTargetCount(participants.length);
+      } else {
+        // Get current week data to get season type
+        const weekData = await loadCurrentWeek();
+        const seasonType = weekData?.season_type || 2;
+        
+        if (template.targetAudience === 'submitted') {
+          const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+          setTargetCount(submittedIds.length);
+        } else if (template.targetAudience === 'not_submitted') {
+          const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+          // Ensure we don't get negative values
+          const notSubmittedCount = Math.max(0, participants.length - submittedIds.length);
+          setTargetCount(notSubmittedCount);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading target count:', error);
+      setTargetCount(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getWarningVariant = () => {
+    if (targetCount === null) return 'default';
+    if (template?.targetAudience === 'all') return null; // Don't show warnings for all templates
+    if (targetCount === 0) return 'destructive';
+    if (targetCount <= 2) return 'secondary';
+    return 'default';
+  };
+
+  const getWarningMessage = () => {
+    if (targetCount === null || !template) return 'Calculating participant count...';
+    
+    // Additional safety check for invalid counts
+    if (targetCount < 0) {
+      console.error('Invalid participant count detected:', targetCount);
+      return '⚠️ Error calculating participant count. Please refresh the page.';
+    }
+    
+    // All template types don't need warnings or messages
+    if (template.targetAudience === 'all') {
+      return null;
+    }
+    
+    if (targetCount === 0) {
+      return `⚠️ No participants match the criteria for "${template.name}". This template targets ${
+        template.targetAudience === 'submitted' ? 'participants who have submitted picks' :
+        template.targetAudience === 'not_submitted' ? 'participants who have not submitted picks' :
+        'the selected participant group'
+      }.`;
+    }
+    if (targetCount <= 2) {
+      return `⚠️ Only ${targetCount} participant${targetCount === 1 ? '' : 's'} will receive this email.`;
+    }
+    return `✓ ${targetCount} participant${targetCount === 1 ? '' : 's'} will receive this email.`;
+  };
+
+  // Don't render anything for all template types
+  if (!template || isLoading) return null;
+  if (template.targetAudience === 'all') return null;
+
+  // At this point, template is guaranteed to be defined and not 'all'
+  const safeTemplate = template!;
+
+  return (
+    <div className={`p-3 rounded-lg border ${
+      getWarningVariant() === 'destructive' ? 'bg-red-50 border-red-200' :
+      getWarningVariant() === 'secondary' ? 'bg-yellow-50 border-yellow-200' :
+      'bg-green-50 border-green-200'
+    }`}>
+      <p className={`text-sm ${
+        getWarningVariant() === 'destructive' ? 'text-red-800' :
+        getWarningVariant() === 'secondary' ? 'text-yellow-800' :
+        'text-green-800'
+      }`}>
+        {getWarningMessage()}
+      </p>
+    </div>
+  );
+}
+
 export function EnhancedEmailManagement({ 
   poolId, 
   poolName, 
@@ -47,23 +157,50 @@ export function EnhancedEmailManagement({
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [emailPreview, setEmailPreview] = useState({ subject: '', body: '' });
+  const [isUpdatingPreview, setIsUpdatingPreview] = useState(false);
+  const [adminName, setAdminName] = useState('Pool Administrator');
   const { toast } = useToast();
 
   useEffect(() => {
     loadParticipants();
+    loadAdminName();
   }, [poolId, weekNumber]);
 
+  const loadAdminName = async () => {
+    try {
+      const response = await fetch(`/api/admin/profile/${adminId}`);
+      const result = await response.json();
+      if (result.success && result.admin?.name) {
+        setAdminName(result.admin.name);
+      }
+    } catch (error) {
+      console.error('Error loading admin name:', error);
+      // Keep default 'Pool Administrator' if loading fails
+    }
+  };
+
   useEffect(() => {
-    if (selectedTemplate) {
+    if (selectedTemplate && participants.length > 0) {
+      console.log('Template or participants changed, updating preview...');
       updatePreview();
     }
-  }, [selectedTemplate, customSubject, customMessage, selectedParticipants]);
+  }, [selectedTemplate, participants]);
+
+  // Handle custom field changes separately
+  useEffect(() => {
+    if (selectedTemplate && participants.length > 0 && (customSubject || customMessage)) {
+      console.log('Custom fields changed, updating preview...');
+      updatePreview();
+    }
+  }, [customSubject, customMessage]);
 
   const loadParticipants = async () => {
     try {
       setIsLoading(true);
-      const allParticipants = await loadUsers();
+      const allParticipants = await loadUsers(poolId);
       setParticipants(allParticipants);
     } catch (error) {
       console.error('Error loading participants:', error);
@@ -88,55 +225,131 @@ export function EnhancedEmailManagement({
       const seasonType = weekData?.season_type || 2;
       
       const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+      console.log('Submitted IDs:', submittedIds);
+      console.log('All participants:', participants);
       
       if (targetAudience === 'submitted') {
-        return participants.filter(p => submittedIds.includes(p.id));
+        const submittedParticipants = participants.filter(p => submittedIds.includes(p.id));
+        console.log('Submitted participants:', submittedParticipants.length);
+        return submittedParticipants;
       } else {
-        return participants.filter(p => !submittedIds.includes(p.id));
+        const notSubmittedParticipants = participants.filter(p => !submittedIds.includes(p.id));
+        console.log('Not submitted participants:', notSubmittedParticipants.length);
+        return notSubmittedParticipants;
       }
     } catch (error) {
       console.error('Error filtering participants:', error);
+      // Return all participants as fallback
       return participants;
     }
   };
 
   const updatePreview = async () => {
-    if (!selectedTemplate) return;
-
-    const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
-    if (!template) return;
-
-    const filteredParticipants = await getFilteredParticipants(template.targetAudience);
-    if (filteredParticipants.length === 0) return;
-
-    const sampleParticipant = filteredParticipants[0];
-    const variables = getDefaultVariables(poolName, poolId, weekNumber, 'Pool Administrator');
-    variables.participantName = sampleParticipant.name;
-
-    // Handle custom template
-    if (template.id === 'custom-message') {
-      variables.customSubject = customSubject;
-      variables.customMessage = customMessage;
+    // Prevent multiple simultaneous updates
+    if (isUpdatingPreview) {
+      console.log('Preview update already in progress, skipping...');
+      return;
+    }
+    
+    setIsUpdatingPreview(true);
+    
+    // Clear preview immediately when starting
+    setEmailPreview({ subject: '', body: '' });
+    setIsPreviewLoading(true);
+    
+    if (!selectedTemplate) {
+      setIsPreviewLoading(false);
+      setIsUpdatingPreview(false);
+      return;
     }
 
-    const subject = processTemplate(template.subject, variables);
-    const body = processTemplate(template.body, variables);
+    const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
+    if (!template) {
+      setIsPreviewLoading(false);
+      setIsUpdatingPreview(false);
+      return;
+    }
 
-    setEmailPreview({ subject, body });
+    try {
+      console.log('Updating preview for template:', template.name);
+      
+      // Wait for participants to be loaded
+      if (participants.length === 0) {
+        console.log('No participants loaded yet, waiting...');
+        setTimeout(() => {
+          setIsUpdatingPreview(false);
+          updatePreview();
+        }, 500);
+        return;
+      }
+      
+      const filteredParticipants = await getFilteredParticipants(template.targetAudience);
+      console.log('Filtered participants:', filteredParticipants.length);
+      
+      if (filteredParticipants.length === 0) {
+        setEmailPreview({ 
+          subject: 'No participants match criteria', 
+          body: 'This template targets participants who do not match the current criteria.' 
+        });
+        setIsPreviewLoading(false);
+        setIsUpdatingPreview(false);
+        return;
+      }
+
+      const sampleParticipant = filteredParticipants[0];
+      
+      // Get current week data to get the actual season
+      const weekData = await loadCurrentWeek();
+      const actualSeason = weekData?.season_year || 2024;
+      
+      const variables = getDefaultVariables(poolName, poolId, weekNumber, adminName, actualSeason);
+      variables.participantName = sampleParticipant.name;
+      // Remove the manual season assignment since it's now passed to getDefaultVariables
+
+      // Handle custom template
+      if (template.id === 'custom-message') {
+        variables.customSubject = customSubject;
+        variables.customMessage = customMessage;
+      }
+
+      const subject = processTemplate(template.subject, variables);
+      const body = processTemplate(template.body, variables);
+
+      console.log('Final preview - Subject:', subject);
+      console.log('Final preview - Body:', body.substring(0, 100) + '...');
+
+      setEmailPreview({ subject, body });
+    } catch (error) {
+      console.error('Error updating preview:', error);
+      setEmailPreview({ 
+        subject: 'Error generating preview', 
+        body: 'There was an error generating the email preview. Please try again.' 
+      });
+    } finally {
+      setIsPreviewLoading(false);
+      setIsUpdatingPreview(false);
+    }
   };
 
   const handleTemplateChange = (templateId: string) => {
+    console.log('Template changed to:', templateId);
     setSelectedTemplate(templateId);
     const template = EMAIL_TEMPLATES.find(t => t.id === templateId);
     if (template?.id === 'custom-message') {
       setCustomSubject('Message from Pool Administrator');
       setCustomMessage('This is a custom message from the pool administrator.');
     }
+    // Show preview when template is selected
+    setShowPreview(true);
+    // Wait for state to update before triggering preview
+    setTimeout(() => {
+      console.log('Triggering preview update for template:', templateId);
+      updatePreview();
+    }, 200);
   };
 
   const handleSendEmails = async () => {
     if (!selectedTemplate) return;
-    console.log('selectedTemplate', selectedTemplate);
     setIsSending(true);
     try {
       const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
@@ -163,7 +376,7 @@ export function EnhancedEmailManagement({
       });
       
       if (result.success && result.mailtoUrl) {
-        console.log('Mailto URL:', result.mailtoUrl);
+        // console.log('Mailto URL:', result.mailtoUrl);
         
         // Try multiple approaches to open email client
         try {
@@ -216,9 +429,36 @@ export function EnhancedEmailManagement({
           variant: 'destructive',
         });
       } else {
+        // Handle specific error cases with better user feedback
+        let errorMessage = result.error || 'Failed to prepare emails';
+        
+        if (result.error === 'No participants match the selected criteria') {
+          const template = EMAIL_TEMPLATES.find(t => t.id === selectedTemplate);
+          if (template) {
+            const targetAudience = template.targetAudience;
+            let audienceDescription = '';
+            
+            switch (targetAudience) {
+              case 'submitted':
+                audienceDescription = 'participants who have already submitted their picks';
+                break;
+              case 'not_submitted':
+                audienceDescription = 'participants who have not submitted their picks yet';
+                break;
+              case 'all':
+                audienceDescription = 'all participants';
+                break;
+              default:
+                audienceDescription = 'the selected participant group';
+            }
+            
+            errorMessage = `No participants match the criteria for "${template.name}". This template targets ${audienceDescription}.`;
+          }
+        }
+        
         toast({
-          title: 'Error',
-          description: result.error || 'Failed to prepare emails',
+          title: 'Cannot Send Email',
+          description: errorMessage,
           variant: 'destructive',
         });
       }
@@ -255,6 +495,16 @@ export function EnhancedEmailManagement({
     return EMAIL_TEMPLATES.filter(t => t.targetAudience === targetAudience).length;
   };
 
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    // Clear selected template when category changes
+    setSelectedTemplate('');
+    setShowPreview(false);
+    setEmailPreview({ subject: '', body: '' });
+    setCustomSubject('');
+    setCustomMessage('');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -272,9 +522,8 @@ export function EnhancedEmailManagement({
       </div>
 
       <Tabs defaultValue="templates" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="templates">Email Templates</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
           <TabsTrigger value="participants">Participants</TabsTrigger>
         </TabsList>
 
@@ -291,7 +540,7 @@ export function EnhancedEmailManagement({
               {/* Category Filter */}
               <div>
                 <Label>Filter by Category</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
@@ -310,30 +559,46 @@ export function EnhancedEmailManagement({
                 <Label>Email Template</Label>
                 <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a template" />
+                    <SelectValue placeholder={selectedCategory === 'all' ? "Select a template" : `Select a ${selectedCategory} template`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {getTemplatesByCategory(selectedCategory).map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{template.name}</span>
-                          <Badge variant="outline" className="ml-2">
-                            {template.targetAudience === 'all' ? 'All' : 
-                             template.targetAudience === 'submitted' ? 'Submitted' : 'Not Submitted'}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {getTemplatesByCategory(selectedCategory === 'all' ? undefined : selectedCategory).length === 0 ? (
+                      <div className="p-2 text-sm text-gray-500">
+                        No templates available for this category
+                      </div>
+                    ) : (
+                      getTemplatesByCategory(selectedCategory === 'all' ? undefined : selectedCategory).map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{template.name}</span>
+                            <Badge variant="outline" className="ml-2">
+                              {template.targetAudience === 'all' ? 'All' : 
+                               template.targetAudience === 'submitted' ? 'Submitted' : 'Not Submitted'}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Template Description */}
               {selectedTemplate && (
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    {EMAIL_TEMPLATES.find(t => t.id === selectedTemplate)?.description}
-                  </p>
+                <div className="space-y-3">
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      {EMAIL_TEMPLATES.find(t => t.id === selectedTemplate)?.description}
+                    </p>
+                  </div>
+                  
+                  {/* Participant Count Warning */}
+                  <ParticipantCountWarning 
+                    template={EMAIL_TEMPLATES.find(t => t.id === selectedTemplate)}
+                    participants={participants}
+                    poolId={poolId}
+                    weekNumber={weekNumber}
+                  />
                 </div>
               )}
 
@@ -381,62 +646,77 @@ export function EnhancedEmailManagement({
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="preview" className="space-y-6">
-          {/* Email Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Email Preview
-              </CardTitle>
-              <CardDescription>
-                Preview how the email will look to participants
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {emailPreview.subject ? (
-                <>
-                  <div>
-                    <Label>Subject</Label>
-                    <div className="p-3 bg-gray-50 rounded border">
-                      {emailPreview.subject}
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Message</Label>
-                    <div className="p-3 bg-gray-50 rounded border whitespace-pre-wrap">
-                      {emailPreview.body}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleCopyToClipboard(emailPreview.subject)}
-                      className="flex items-center gap-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Subject
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleCopyToClipboard(emailPreview.body)}
-                      className="flex items-center gap-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Message
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Mail className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Select a template to preview the email</p>
+          {/* Email Preview - Inline */}
+          {showPreview && selectedTemplate && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Email Preview
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPreview(false)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <CardDescription>
+                  Preview how the email will look to participants
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isPreviewLoading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p>Generating preview...</p>
+                  </div>
+                ) : emailPreview.subject ? (
+                  <>
+                    <div>
+                      <Label>Subject</Label>
+                      <div className="p-3 bg-gray-50 rounded border">
+                        {emailPreview.subject}
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Message</Label>
+                      <div className="p-3 bg-gray-50 rounded border whitespace-pre-wrap">
+                        {emailPreview.body}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleCopyToClipboard(emailPreview.subject)}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy Subject
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleCopyToClipboard(emailPreview.body)}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy Message
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Mail className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Select a template to preview the email</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="participants" className="space-y-6">
