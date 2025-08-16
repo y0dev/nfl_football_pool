@@ -474,6 +474,60 @@ export async function removeParticipantFromPool(participantId: string) {
   }
 }
 
+// Update participant name
+export async function updateParticipantName(participantId: string, newName: string) {
+  try {
+    // First get the participant to get the pool_id for logging
+    const { data: participant, error: fetchError } = await getSupabaseClient()
+      .from('participants')
+      .select('pool_id, name')
+      .eq('id', participantId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching participant:', fetchError);
+      throw new Error(fetchError.message);
+    }
+
+    const { error } = await getSupabaseClient()
+      .from('participants')
+      .update({ name: newName })
+      .eq('id', participantId);
+
+    if (error) {
+      console.error('Error updating participant:', error);
+      throw new Error(error.message);
+    }
+
+    // Log the action
+    try {
+      const { data: userData } = await getSupabaseClient().auth.getUser();
+      await getSupabaseClient()
+        .from('audit_logs')
+        .insert({
+          action: 'update_participant',
+          user_id: userData?.user?.id || 'system',
+          pool_id: participant.pool_id,
+          details: JSON.stringify({ 
+            participant_id: participantId, 
+            old_name: participant.name,
+            new_name: newName,
+            action: 'name_updated' 
+          }),
+          created_at: new Date().toISOString()
+        });
+    } catch (logError) {
+      console.warn('Failed to log participant update:', logError);
+      // Don't throw error for logging failure
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to update participant:', error);
+    throw error;
+  }
+}
+
 // Get all submissions for a week in a format suitable for screenshot
 export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, seasonType?: number) {
   try {

@@ -51,6 +51,8 @@ function AdminDashboardContent() {
   const [isResetting, setIsResetting] = useState(false);
   const [isDeletingAdmin, setIsDeletingAdmin] = useState(false);
   const [selectedAdminForDelete, setSelectedAdminForDelete] = useState<Admin | null>(null);
+  const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
+  const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string}>>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -314,7 +316,7 @@ function AdminDashboardContent() {
 
   const handleSendInvite = async () => {
     try {
-      // Get the first pool for this admin (or show a dialog to select one)
+      // Get pools for this admin
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
       
@@ -339,9 +341,28 @@ function AdminDashboardContent() {
         return;
       }
       
-      // For now, use the first pool. In the future, could add a dialog to select which pool
-      const selectedPool = pools[0];
+      // If only one pool, use it directly
+      if (pools.length === 1) {
+        await sendInviteForPool(pools[0]);
+        return;
+      }
       
+      // If multiple pools, show selection dialog
+      setAvailablePools(pools);
+      setPoolSelectionOpen(true);
+      
+    } catch (error) {
+      console.error('Error preparing invite email:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to prepare invite email',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const sendInviteForPool = async (selectedPool: {id: string, name: string}) => {
+    try {
       // Create a pool invite email
       const emailOptions = createPoolInviteEmail(
         selectedPool.name, 
@@ -377,8 +398,11 @@ function AdminDashboardContent() {
           });
         }
       }
+      
+      // Close the dialog if it was open
+      setPoolSelectionOpen(false);
     } catch (error) {
-      console.error('Error preparing invite email:', error);
+      console.error('Error sending invite for pool:', error);
       toast({
         title: 'Error',
         description: 'Failed to prepare invite email',
@@ -944,6 +968,61 @@ function AdminDashboardContent() {
             >
               <Key className="h-4 w-4" />
               {isResetting ? 'Sending...' : 'Send Reset Email'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pool Selection Dialog */}
+      <Dialog open={poolSelectionOpen} onOpenChange={setPoolSelectionOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl">Select Pool for Invitation</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Choose which pool you&apos;d like to send an invitation for.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {availablePools.map((pool) => (
+                <div
+                  key={pool.id}
+                  className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => sendInviteForPool(pool)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-sm sm:text-base">{pool.name}</h4>
+                      {user?.is_super_admin && (
+                        <p className="text-xs text-gray-500">Pool ID: {pool.id}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1 h-7 sm:h-8 text-xs"
+                    >
+                      <Mail className="h-3 w-3" />
+                      <span className="hidden sm:inline">Send Invite</span>
+                      <span className="sm:hidden">Invite</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs sm:text-sm text-blue-800">
+                <strong>Note:</strong> Click on any pool above to send an invitation email for that specific pool.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPoolSelectionOpen(false)}
+              className="w-full sm:w-auto"
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
