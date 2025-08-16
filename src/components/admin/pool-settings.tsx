@@ -49,6 +49,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showAccessCodePrompt, setShowAccessCodePrompt] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<PoolSettingsData>({
@@ -93,6 +94,14 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const onSubmit = async (data: PoolSettingsData) => {
     try {
       setIsSaving(true);
+      
+      // Check if access code is required but not provided
+      if (data.require_access_code && (!data.access_code || data.access_code.trim() === '')) {
+        setShowAccessCodePrompt(true);
+        setIsSaving(false);
+        return;
+      }
+      
       await updatePool(poolId, {
         name: data.name,
         description: data.description,
@@ -466,6 +475,44 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         </div>
       </CardContent>
     </Card>
+
+    {/* Access Code Prompt Dialog */}
+    <Dialog open={showAccessCodePrompt} onOpenChange={setShowAccessCodePrompt}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+            <Key className="h-5 w-5 text-orange-500" />
+            Access Code Required
+          </DialogTitle>
+          <DialogDescription className="text-sm sm:text-base">
+            You have enabled access code requirement but haven&apos;t provided an access code.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm text-orange-800">
+              <strong>Action Required:</strong> Please either:
+            </p>
+            <ul className="list-disc list-inside mt-2 text-sm text-orange-700 space-y-1">
+              <li>Enter an access code in the field above</li>
+              <li>Uncheck the &quot;Require Access Code&quot; option</li>
+            </ul>
+          </div>
+          <div className="text-sm text-gray-600">
+            <p>Access codes help secure your pool and ensure only invited participants can make picks.</p>
+          </div>
+          <div className="flex justify-center">
+            <Button
+              onClick={() => setShowAccessCodePrompt(false)}
+              className="flex items-center gap-2"
+            >
+              <Key className="h-4 w-4" />
+              I Understand
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
   );
 }
