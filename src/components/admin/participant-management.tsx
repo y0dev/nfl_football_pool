@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Trash2, Loader2, Plus, Search, Users, Download, Upload } from 'lucide-react';
-import { getPoolParticipants, removeParticipantFromPool, addParticipantToPool } from '@/actions/adminActions';
+import { Trash2, Loader2, Plus, Search, Users, Download, Upload, Edit, Save, X } from 'lucide-react';
+import { getPoolParticipants, removeParticipantFromPool, addParticipantToPool, updateParticipantName } from '@/actions/adminActions';
 import { AddUserDialog } from './add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -34,6 +34,10 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [bulkAddDialogOpen, setBulkAddDialogOpen] = useState(false);
   const [bulkAddText, setBulkAddText] = useState('');
+  const [bulkAddWithEmail, setBulkAddWithEmail] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -125,37 +129,50 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     if (!bulkAddText.trim()) {
       toast({
         title: "Error",
-        description: "Please enter participant names",
+        description: "Please enter participant data",
         variant: "destructive",
       });
       return;
     }
 
-    const names = bulkAddText
+    const lines = bulkAddText
       .split('\n')
-      .map(name => name.trim())
-      .filter(name => name.length > 0);
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
 
-    if (names.length === 0) {
+    if (lines.length === 0) {
       toast({
         title: "Error",
-        description: "No valid names found",
+        description: "No valid data found",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      for (const name of names) {
-        await addParticipantToPool(poolId, name, '');
+      for (const line of lines) {
+        if (bulkAddWithEmail) {
+          // Format: "Name,email@example.com" or "Name email@example.com"
+          const parts = line.includes(',') ? line.split(',') : line.split(' ');
+          const name = parts[0]?.trim();
+          const email = parts[1]?.trim() || '';
+          
+          if (name) {
+            await addParticipantToPool(poolId, name, email);
+          }
+        } else {
+          // Just names, one per line
+          await addParticipantToPool(poolId, line, '');
+        }
       }
       
       toast({
         title: "Success",
-        description: `${names.length} participant(s) have been added to the pool`,
+        description: `${lines.length} participant(s) have been added to the pool`,
       });
       
       setBulkAddText('');
+      setBulkAddWithEmail(false);
       setBulkAddDialogOpen(false);
       loadParticipants(); // Refresh the list
     } catch (error) {
@@ -164,6 +181,49 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
         description: "Failed to add some participants",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleStartEdit = (participant: Participant) => {
+    setEditingParticipant(participant.id);
+    setEditName(participant.name);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingParticipant(null);
+    setEditName('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingParticipant || !editName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      await updateParticipantName(editingParticipant, editName.trim());
+      
+      toast({
+        title: "Success",
+        description: "Participant name updated successfully",
+      });
+      
+      setEditingParticipant(null);
+      setEditName('');
+      loadParticipants(); // Refresh the list
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update participant name",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -282,23 +342,48 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                 <DialogHeader>
                   <DialogTitle>Bulk Add Participants</DialogTitle>
                   <DialogDescription>
-                    Add multiple participants at once. Enter one name per line.
+                    Add multiple participants at once. Choose your format below.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="bulk-with-email"
+                      checked={bulkAddWithEmail}
+                      onChange={(e) => setBulkAddWithEmail(e.target.checked)}
+                      className="rounded"
+                    />
+                    <Label htmlFor="bulk-with-email">Include email addresses</Label>
+                  </div>
                   <div>
-                    <Label htmlFor="bulk-names">Participant Names (one per line)</Label>
+                    <Label htmlFor="bulk-names">
+                      {bulkAddWithEmail ? 'Participant Data (one per line)' : 'Participant Names (one per line)'}
+                    </Label>
                     <textarea
                       id="bulk-names"
                       value={bulkAddText}
                       onChange={(e) => setBulkAddText(e.target.value)}
-                      placeholder="John Doe&#10;Jane Smith&#10;Mike Johnson"
+                      placeholder={
+                        bulkAddWithEmail 
+                          ? "John Doe,john@example.com\nJane Smith jane@example.com\nMike Johnson"
+                          : "John Doe\nJane Smith\nMike Johnson"
+                      }
                       className="w-full h-32 p-3 border rounded-md resize-none"
                     />
+                    {bulkAddWithEmail && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Format: "Name,email@example.com" or "Name email@example.com"
+                      </p>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setBulkAddDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setBulkAddDialogOpen(false);
+                    setBulkAddText('');
+                    setBulkAddWithEmail(false);
+                  }}>
                     Cancel
                   </Button>
                   <Button onClick={handleBulkAdd}>
@@ -366,7 +451,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
               </TableHeader>
               <TableBody>
                 {activeParticipants.map((participant) => (
-                  <TableRow key={participant.id}>
+                  <TableRow key={participant.id} className="group">
                     <TableCell>
                       <input
                         type="checkbox"
@@ -376,7 +461,54 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                       />
                     </TableCell>
                     <TableCell className="font-medium text-xs sm:text-sm">
-                      {participant.name}
+                      {editingParticipant === participant.id ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="h-8 text-xs sm:text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveEdit();
+                              } else if (e.key === 'Escape') {
+                                handleCancelEdit();
+                              }
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={handleSaveEdit}
+                            disabled={isUpdating}
+                            className="h-8 px-2"
+                          >
+                            {isUpdating ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Save className="h-3 w-3" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCancelEdit}
+                            className="h-8 px-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{participant.name}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStartEdit(participant)}
+                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-xs sm:text-sm">
                       {participant.email || (

@@ -4,6 +4,7 @@ export async function updatePool(poolId: string, updates: {
   name?: string;
   description?: string;
   require_access_code?: boolean;
+  access_code?: string;
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;

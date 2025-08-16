@@ -53,12 +53,20 @@ export async function copyMailtoToClipboard(mailtoUrl: string): Promise<boolean>
   }
 }
 
-export function createPoolInviteEmail(poolName: string, participantLink: string, weekNumber: number): MailtoOptions {
+export function createPoolInviteEmail(poolName: string, poolId: string, weekNumber: number, adminEmail?: string): MailtoOptions {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+  const inviteLink = `${baseUrl}/invite?pool=${poolId}&week=${weekNumber}${adminEmail ? `&admin=${encodeURIComponent(adminEmail)}` : ''}`;
+  
   return {
-    subject: `${poolName} - Week ${weekNumber} NFL Pool`,
-    body: `Join our NFL Confidence Pool for Week ${weekNumber}!
+    subject: `${poolName} - Week ${weekNumber} NFL Pool Invitation`,
+    body: `You're invited to join our NFL Confidence Pool for Week ${weekNumber}!
 
-Click this link to participate: ${participantLink}
+Pool: ${poolName}
+Current Week: ${weekNumber}
+
+Click this link to join: ${inviteLink}
+
+Once you join, you'll be able to make your picks for all the NFL games this week.
 
 Looking forward to seeing your picks!
 Pool Administrator`

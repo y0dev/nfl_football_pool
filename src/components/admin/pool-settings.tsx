@@ -20,6 +20,16 @@ const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   description: z.string().optional(),
   require_access_code: z.boolean(),
+  access_code: z.string().optional(),
+}).refine((data) => {
+  // If require_access_code is true, access_code must be provided
+  if (data.require_access_code && (!data.access_code || data.access_code.trim() === '')) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Access code is required when access code is enabled",
+  path: ["access_code"],
 });
 
 type PoolSettingsData = z.infer<typeof poolSettingsSchema>;
@@ -47,6 +57,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       name: poolName,
       description: '',
       require_access_code: true,
+      access_code: '',
     },
   });
 
@@ -61,6 +72,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             name: pool.name,
             description: pool.description || '',
             require_access_code: pool.require_access_code,
+            access_code: pool.access_code || '',
           });
         }
       } catch (error) {
@@ -85,6 +97,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         name: data.name,
         description: data.description,
         require_access_code: data.require_access_code,
+        access_code: data.require_access_code ? data.access_code : undefined,
       });
       
       toast({
@@ -300,6 +313,30 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                 </FormItem>
               )}
             />
+            
+            {form.watch('require_access_code') && (
+              <FormField
+                control={form.control}
+                name="access_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Access Code</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter access code (e.g., FOOTBALL2024)" 
+                        {...field} 
+                        maxLength={20}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      This code will be required for participants to access the pool and make picks.
+                      Keep it simple but secure.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             
             <div className="flex justify-end space-x-2 pt-4">
               <Button 
