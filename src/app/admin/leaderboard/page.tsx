@@ -49,6 +49,7 @@ function LeaderboardContent() {
   const [screenWidth, setScreenWidth] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [allParticipantsSubmitted, setAllParticipantsSubmitted] = useState(false);
+  const [allGamesFinished, setAllGamesFinished] = useState(false);
   
   // Admin-specific features
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,14 +154,14 @@ function LeaderboardContent() {
         'game8': 9
       },
       picks: [
-        { id: '17', participant_id: '3', game_id: 'game1', predicted_winner: 'Buffalo Bills', confidence_points: 8 },
-        { id: '18', participant_id: '3', game_id: 'game2', predicted_winner: 'New England Patriots', confidence_points: 10 },
-        { id: '19', participant_id: '3', game_id: 'game3', predicted_winner: 'Kansas City Chiefs', confidence_points: 12 },
-        { id: '20', participant_id: '3', game_id: 'game4', predicted_winner: 'Baltimore Ravens', confidence_points: 8 },
-        { id: '21', participant_id: '3', game_id: 'game5', predicted_winner: 'Miami Dolphins', confidence_points: 15 },
-        { id: '22', participant_id: '3', game_id: 'game6', predicted_winner: 'Cincinnati Bengals', confidence_points: 10 },
-        { id: '23', participant_id: '3', game_id: 'game7', predicted_winner: 'Cleveland Browns', confidence_points: 6 },
-        { id: '24', participant_id: '3', game_id: 'game8', predicted_winner: 'Pittsburgh Steelers', confidence_points: 9 }
+        { id: '17', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game1', home_team: 'Buffalo Bills', away_team: 'New England Patriots', predicted_winner: 'Buffalo Bills', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 24, away_score: 17 },
+        { id: '18', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game2', home_team: 'New England Patriots', away_team: 'Buffalo Bills', predicted_winner: 'New England Patriots', confidence_points: 10, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 17, away_score: 24 },
+        { id: '19', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game3', home_team: 'Kansas City Chiefs', away_team: 'Baltimore Ravens', predicted_winner: 'Kansas City Chiefs', confidence_points: 12, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 28, away_score: 21 },
+        { id: '20', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game4', home_team: 'Baltimore Ravens', away_team: 'Kansas City Chiefs', predicted_winner: 'Baltimore Ravens', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 21, away_score: 28 },
+        { id: '21', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game5', home_team: 'Miami Dolphins', away_team: 'Cincinnati Bengals', predicted_winner: 'Miami Dolphins', confidence_points: 15, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 31, away_score: 24 },
+        { id: '22', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game6', home_team: 'Cincinnati Bengals', away_team: 'Miami Dolphins', predicted_winner: 'Cincinnati Bengals', confidence_points: 10, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 24, away_score: 31 },
+        { id: '23', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game7', home_team: 'Cleveland Browns', away_team: 'Pittsburgh Steelers', predicted_winner: 'Cleveland Browns', confidence_points: 6, week: 1, season_type: 2, game_status: 'final', game_winner: 'Cleveland Browns', home_score: 27, away_score: 21 },
+        { id: '24', participant_id: '3', participant_name: 'Emily Wilson', game_id: 'game8', home_team: 'Pittsburgh Steelers', away_team: 'Cleveland Browns', predicted_winner: 'Pittsburgh Steelers', confidence_points: 9, week: 1, season_type: 2, game_status: 'final', game_winner: 'Cleveland Browns', home_score: 21, away_score: 27 }
       ]
     },
     {
@@ -180,14 +181,14 @@ function LeaderboardContent() {
         'game8': 8
       },
       picks: [
-        { id: '25', participant_id: '4', game_id: 'game1', predicted_winner: 'New England Patriots', confidence_points: 15 },
-        { id: '26', participant_id: '4', game_id: 'game2', predicted_winner: 'Buffalo Bills', confidence_points: 6 },
-        { id: '27', participant_id: '4', game_id: 'game3', predicted_winner: 'Baltimore Ravens', confidence_points: 10 },
-        { id: '28', participant_id: '4', game_id: 'game4', predicted_winner: 'Kansas City Chiefs', confidence_points: 12 },
-        { id: '29', participant_id: '4', game_id: 'game5', predicted_winner: 'Cincinnati Bengals', confidence_points: 8 },
-        { id: '30', participant_id: '4', game_id: 'game6', predicted_winner: 'Miami Dolphins', confidence_points: 6 },
-        { id: '31', participant_id: '4', game_id: 'game7', predicted_winner: 'Pittsburgh Steelers', confidence_points: 10 },
-        { id: '32', participant_id: '4', game_id: 'game8', predicted_winner: 'Cleveland Browns', confidence_points: 8 }
+        { id: '25', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game1', home_team: 'New England Patriots', away_team: 'Buffalo Bills', predicted_winner: 'New England Patriots', confidence_points: 15, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 17, away_score: 24 },
+        { id: '26', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game2', home_team: 'Buffalo Bills', away_team: 'New England Patriots', predicted_winner: 'Buffalo Bills', confidence_points: 6, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 24, away_score: 17 },
+        { id: '27', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game3', home_team: 'Baltimore Ravens', away_team: 'Kansas City Chiefs', predicted_winner: 'Baltimore Ravens', confidence_points: 10, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 21, away_score: 28 },
+        { id: '28', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game4', home_team: 'Kansas City Chiefs', away_team: 'Baltimore Ravens', predicted_winner: 'Kansas City Chiefs', confidence_points: 12, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 28, away_score: 21 },
+        { id: '29', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game5', home_team: 'Cincinnati Bengals', away_team: 'Miami Dolphins', predicted_winner: 'Cincinnati Bengals', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 24, away_score: 31 },
+        { id: '30', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game6', home_team: 'Miami Dolphins', away_team: 'Cincinnati Bengals', predicted_winner: 'Miami Dolphins', confidence_points: 6, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 31, away_score: 24 },
+        { id: '31', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game7', home_team: 'Pittsburgh Steelers', away_team: 'Cleveland Browns', predicted_winner: 'Pittsburgh Steelers', confidence_points: 10, week: 1, season_type: 2, game_status: 'final', game_winner: 'Cleveland Browns', home_score: 21, away_score: 27 },
+        { id: '32', participant_id: '4', participant_name: 'Emily Wilson', game_id: 'game8', home_team: 'Cleveland Browns', away_team: 'Pittsburgh Steelers', predicted_winner: 'Cleveland Browns', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Cleveland Browns', home_score: 27, away_score: 21 }
       ]
     },
     {
@@ -206,13 +207,13 @@ function LeaderboardContent() {
         'game7': 6
       },
       picks: [
-        { id: '33', participant_id: '5', game_id: 'game1', predicted_winner: 'Buffalo Bills', confidence_points: 6 },
-        { id: '34', participant_id: '5', game_id: 'game2', predicted_winner: 'New England Patriots', confidence_points: 15 },
-        { id: '35', participant_id: '5', game_id: 'game3', predicted_winner: 'Baltimore Ravens', confidence_points: 8 },
-        { id: '36', participant_id: '5', game_id: 'game4', predicted_winner: 'Kansas City Chiefs', confidence_points: 10 },
-        { id: '37', participant_id: '5', game_id: 'game5', predicted_winner: 'Miami Dolphins', confidence_points: 12 },
-        { id: '38', participant_id: '5', game_id: 'game6', predicted_winner: 'Cincinnati Bengals', confidence_points: 8 },
-        { id: '39', participant_id: '5', game_id: 'game7', predicted_winner: 'Pittsburgh Steelers', confidence_points: 6 }
+        { id: '33', participant_id: '5', participant_name: 'David Brown', game_id: 'game1', home_team: 'Buffalo Bills', away_team: 'New England Patriots', predicted_winner: 'Buffalo Bills', confidence_points: 6, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 24, away_score: 17 },
+        { id: '34', participant_id: '5', participant_name: 'David Brown', game_id: 'game2', home_team: 'New England Patriots', away_team: 'Buffalo Bills', predicted_winner: 'New England Patriots', confidence_points: 15, week: 1, season_type: 2, game_status: 'final', game_winner: 'Buffalo Bills', home_score: 17, away_score: 24 },
+        { id: '35', participant_id: '5', participant_name: 'David Brown', game_id: 'game3', home_team: 'Baltimore Ravens', away_team: 'Kansas City Chiefs', predicted_winner: 'Baltimore Ravens', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 21, away_score: 28 },
+        { id: '36', participant_id: '5', participant_name: 'David Brown', game_id: 'game4', home_team: 'Kansas City Chiefs', away_team: 'Baltimore Ravens', predicted_winner: 'Kansas City Chiefs', confidence_points: 10, week: 1, season_type: 2, game_status: 'final', game_winner: 'Kansas City Chiefs', home_score: 28, away_score: 21 },
+        { id: '37', participant_id: '5', participant_name: 'David Brown', game_id: 'game5', home_team: 'Miami Dolphins', away_team: 'Cincinnati Bengals', predicted_winner: 'Miami Dolphins', confidence_points: 12, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 31, away_score: 24 },
+        { id: '38', participant_id: '5', participant_name: 'David Brown', game_id: 'game6', home_team: 'Cincinnati Bengals', away_team: 'Miami Dolphins', predicted_winner: 'Cincinnati Bengals', confidence_points: 8, week: 1, season_type: 2, game_status: 'final', game_winner: 'Miami Dolphins', home_score: 24, away_score: 31 },
+        { id: '39', participant_id: '5', participant_name: 'David Brown', game_id: 'game7', home_team: 'Pittsburgh Steelers', away_team: 'Cleveland Browns', predicted_winner: 'Pittsburgh Steelers', confidence_points: 6, week: 1, season_type: 2, game_status: 'final', game_winner: 'Cleveland Browns', home_score: 21, away_score: 27 }
       ]
     }
   ];
@@ -278,7 +279,7 @@ function LeaderboardContent() {
         loadLeaderboard(selectedPool, selectedWeek),
         loadLeaderboardWithPicks(selectedPool, selectedWeek, selectedSeasonType)
       ]);
-      
+
       setLeaderboard(leaderboardData);
       setLeaderboardWithPicks(leaderboardWithPicksData);
       
@@ -326,6 +327,12 @@ function LeaderboardContent() {
         return gameTime < now;
       });
       setIsGamesStarted(hasStarted);
+      
+      // Check if all games are finished
+      const allFinished = gamesData.every(game => 
+        game.status === 'final' || game.status === 'post'
+      );
+      setAllGamesFinished(allFinished);
     } catch (error) {
       console.error('Error loading games:', error);
       setGames([]);
@@ -592,10 +599,10 @@ function LeaderboardContent() {
 
   const getPerformanceStatus = (entry: LeaderboardEntryWithPicks) => {
     const accuracy = entry.total_picks > 0 ? (entry.correct_picks / entry.total_picks) * 100 : 0;
-    if (accuracy >= 80) return { status: 'excellent', color: 'text-green-600', bg: 'bg-green-50' };
-    if (accuracy >= 60) return { status: 'good', color: 'text-blue-600', bg: 'bg-blue-50' };
-    if (accuracy >= 40) return { status: 'average', color: 'text-yellow-600', bg: 'bg-yellow-50' };
-    return { status: 'needs_improvement', color: 'text-red-600', bg: 'bg-red-50' };
+    if (accuracy >= 80) return { status: 'Excellent', color: 'text-green-600', bg: 'bg-green-50' };
+    if (accuracy >= 60) return { status: 'Good', color: 'text-blue-600', bg: 'bg-blue-50' };
+    if (accuracy >= 40) return { status: 'Average', color: 'text-yellow-600', bg: 'bg-yellow-50' };
+    return { status: 'Poor', color: 'text-red-600', bg: 'bg-red-50' };
   };
 
   const getPerformanceAlerts = () => {
@@ -1041,7 +1048,7 @@ function LeaderboardContent() {
                                   <div className="flex items-center gap-2">
                                     {participantName}
                                     {isFavorite && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
-                                    {performanceStatus && (
+                                    {performanceStatus && allGamesFinished && (
                                       <Badge variant="outline" className={`text-xs ${performanceStatus.color} ${performanceStatus.bg}`}>
                                         {performanceStatus.status}
                                       </Badge>
@@ -1049,7 +1056,7 @@ function LeaderboardContent() {
                                   </div>
                                   {!isDummy && (
                                     <div className="text-xs text-gray-500">
-                                      {totalPicks > 0 ? `${Math.round((correctPicks / totalPicks) * 100)}% accuracy` : 'No picks submitted'}
+                                      {totalPicks as number > 0 ? `${Math.round((correctPicks as number / totalPicks as number) * 100)}% accuracy` : 'No picks submitted'}
                                     </div>
                                   )}
                                 </div>
@@ -1097,25 +1104,47 @@ function LeaderboardContent() {
                             } else {
                               const realEntry = entry as LeaderboardEntryWithPicks;
                               const pick = realEntry.picks.find(p => p.game_id === game.id);
-                              const isCorrect = pick && game.winner && pick.predicted_winner === game.winner;
+                              const isCorrect = pick && pick.game_winner && pick.predicted_winner === pick.game_winner;
                               const confidence = pick?.confidence_points || 0;
+                              const gameStatus = pick?.game_status || 'unknown';
+                              const isGameFinal = gameStatus === 'final' || gameStatus === 'post';
+                              // if(isGameFinal) {
+                              //   console.log('pick', pick);
+                              
+                              //   // Debug logging
+                              //   console.log('Game cell data:', {
+                              //     gameId: game.id,
+                              //     pick,
+                              //     gameStatus,
+                              //     isGameFinal,
+                              //     isCorrect,
+                              //     homeScore: pick?.home_score,
+                              //     awayScore: pick?.away_score
+                              //   });
+                              // }
                               
                               return (
                                 <TableCell key={game.id} className="text-center">
                                   <div className="text-xs">
                                     <div className={`font-medium ${
-                                      game.status !== 'final' ? 'text-yellow-800' :
+                                      !isGameFinal ? 'text-yellow-800' :
                                       isCorrect ? 'text-green-800' : 'text-red-800'
                                     }`}>
                                       {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
                                     </div>
                                     <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono ${
                                       confidence === 0 ? 'bg-gray-100 text-gray-500' :
-                                      game.status !== 'final' ? 'bg-yellow-100 text-yellow-800' :
+                                      !isGameFinal ? 'bg-yellow-100 text-yellow-800' :
                                       isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                     }`}>
                                       {confidence}
                                     </div>
+                                    {/* Show game result if available */}
+                                    {pick?.home_score !== null && pick?.away_score !== null && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {pick.away_score}-{pick.home_score}
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               );
@@ -1303,7 +1332,7 @@ function LeaderboardContent() {
                             entry.picks.filter(pick => pick.game_id === game.id)
                           );
                           const correctPicks = gamePicks.filter(pick => 
-                            pick.predicted_winner === game.winner
+                            pick.game_winner && pick.predicted_winner === pick.game_winner
                           ).length;
                           const accuracy = gamePicks.length > 0 
                             ? Math.round((correctPicks / gamePicks.length) * 100)
@@ -1338,7 +1367,7 @@ function LeaderboardContent() {
                             entry.picks.filter(pick => pick.game_id === game.id)
                           );
                           const correctPicks = gamePicks.filter(pick => 
-                            pick.predicted_winner === game.winner
+                            pick.game_winner && pick.predicted_winner === pick.game_winner
                           ).length;
                           const accuracy = gamePicks.length > 0 
                             ? Math.round((correctPicks / gamePicks.length) * 100)
@@ -1388,7 +1417,7 @@ function LeaderboardContent() {
                           entry.picks.filter(pick => pick.confidence_points === confidence)
                         );
                         const correctPicks = confidencePicks.filter(pick => 
-                          pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                          pick.game_winner && pick.predicted_winner === pick.game_winner
                         ).length;
                         const accuracy = confidencePicks.length > 0 
                           ? Math.round((correctPicks / confidencePicks.length) * 100)
@@ -1425,7 +1454,7 @@ function LeaderboardContent() {
                               entry.picks.filter(pick => pick.confidence_points >= 13)
                             );
                             const correct = highConfidencePicks.filter(pick => 
-                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                              pick.game_winner && pick.predicted_winner === pick.game_winner
                             ).length;
                             const accuracy = highConfidencePicks.length > 0 
                               ? Math.round((correct / highConfidencePicks.length) * 100)
@@ -1443,7 +1472,7 @@ function LeaderboardContent() {
                               entry.picks.filter(pick => pick.confidence_points >= 7 && pick.confidence_points <= 12)
                             );
                             const correct = mediumConfidencePicks.filter(pick => 
-                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                              pick.game_winner && pick.predicted_winner === pick.game_winner
                             ).length;
                             const accuracy = mediumConfidencePicks.length > 0 
                               ? Math.round((correct / mediumConfidencePicks.length) * 100)
@@ -1461,7 +1490,7 @@ function LeaderboardContent() {
                               entry.picks.filter(pick => pick.confidence_points >= 1 && pick.confidence_points <= 6)
                             );
                             const correct = lowConfidencePicks.filter(pick => 
-                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                              pick.game_winner && pick.predicted_winner === pick.game_winner
                             ).length;
                             const accuracy = lowConfidencePicks.length > 0 
                               ? Math.round((correct / lowConfidencePicks.length) * 100)
@@ -1633,7 +1662,7 @@ function LeaderboardContent() {
                                 entry.picks.filter(pick => pick.game_id === game.id)
                               );
                               const correctPicks = gamePicks.filter(pick => 
-                                pick.predicted_winner === game.winner
+                                pick.game_winner && pick.predicted_winner === pick.game_winner
                               ).length;
                               const accuracy = gamePicks.length > 0 
                                 ? Math.round((correctPicks / gamePicks.length) * 100)
