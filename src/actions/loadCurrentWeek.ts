@@ -80,7 +80,7 @@ export async function loadCurrentWeek() {
     const { getCurrentWeekFromGames } = await import('./getCurrentWeekFromGames');
     const { week, seasonType } = await getCurrentWeekFromGames();
     
-    // Get game count for this week
+    // Get game count and season for this week
     const supabase = getSupabaseClient();
     const { data: games, error } = await supabase
       .from('games')
@@ -89,13 +89,19 @@ export async function loadCurrentWeek() {
       .eq('season_type', seasonType);
 
     if (error) {
-      console.error('Error getting game count:', error);
+      console.error('Error getting game data:', error);
+    }
+
+    // Get the season from the first game, or fallback to current year
+    let seasonYear = new Date().getFullYear();
+    if (games && games.length > 0 && games[0].season) {
+      seasonYear = games[0].season;
     }
 
     return {
       id: week,
       week_number: week,
-      season_year: 2024, // This could be determined from games if needed
+      season_year: seasonYear, // Use actual season from games
       game_count: games?.length || 0,
       is_active: true,
       season_type: seasonType
@@ -106,7 +112,7 @@ export async function loadCurrentWeek() {
     return {
       id: 1,
       week_number: 1,
-      season_year: 2024,
+      season_year: new Date().getFullYear(), // Use current year as fallback
       game_count: 16,
       is_active: true
     };

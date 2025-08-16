@@ -39,7 +39,6 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
 
       try {
         const inPool = await isUserInPool(user.email, poolId);
-        console.log('JoinPoolButton: User in pool check result:', inPool);
         setIsInPool(inPool);
       } catch (error) {
         console.error('Error checking if user is in pool:', error);
@@ -52,10 +51,8 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
   }, [user?.email, poolId]);
 
   async function handleJoin() {
-    console.log('JoinPoolButton: handleJoin called', { user, poolId });
     
     if (!user?.email) {
-      console.log('JoinPoolButton: No user email, showing error');
       toast({
         title: "Error",
         description: "You must be logged in to join a pool",
@@ -66,7 +63,6 @@ export function JoinPoolButton({ poolId, onJoined }: JoinPoolButtonProps) {
 
     setIsJoining(true);
     try {
-      console.log('JoinPoolButton: Calling joinPoolServer with:', { poolId, email: user.email, name: user.full_name });
       const result = await joinPoolServer(poolId, user.email, user.full_name);
       
       if (result.success) {

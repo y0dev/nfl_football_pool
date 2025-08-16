@@ -43,8 +43,8 @@ Best regards,
 
 Just a friendly reminder that it's time to make your picks for Week {currentWeek} in {poolName}!
 
-📅 **Deadline**: {deadline}
-🎯 **Games**: {gameCount} games this week
+📅 **Deadline**: Sunday 1:00 PM ET
+🎯 **Games**: 16 games this week
 🏆 **Current Standings**: Check the leaderboard after making your picks
 
 **Make Your Picks Now**: {poolUrl}
@@ -70,7 +70,7 @@ Best regards,
 
 You haven't submitted your picks for Week {currentWeek} in {poolName} yet!
 
-**Deadline**: {deadline} (in {timeRemaining})
+**Deadline**: Sunday 1:00 PM ET
 
 **Quick Link**: {poolUrl}
 
@@ -87,31 +87,103 @@ Best regards,
   },
   {
     id: 'week-results',
-    name: 'Week Results & Standings',
-    subject: 'Week {currentWeek} Results - {poolName}',
+    name: 'Week Results Available',
+    subject: 'Week {currentWeek} Results Are In! - {poolName}',
     body: `Hi {participantName}!
 
-Week {currentWeek} results are in for {poolName}!
+🏈 **Week {currentWeek} Results Are Available!** 🏈
 
-🏆 **Your Performance**:
-• Points Earned: {pointsEarned}
-• Correct Picks: {correctPicks}/{totalPicks}
-• Current Rank: {currentRank}
+The results for Week {currentWeek} in {poolName} have been posted!
 
-📊 **Top Performers This Week**:
-{topPerformers}
+**Check Your Results**: {poolUrl}
 
-🎯 **Overall Standings**:
-{overallStandings}
-
-**View Full Results**: {poolUrl}
-
-Great job this week! Keep up the momentum for Week {nextWeek}.
+See how you performed this week and check the updated leaderboard. Don't forget to make your picks for next week!
 
 Best regards,
 {adminName}
 {poolName} Administrator`,
-    description: 'Share weekly results and standings with participants',
+    description: 'Notify participants that week results are available',
+    targetAudience: 'submitted',
+    category: 'update'
+  },
+  {
+    id: 'playoff-reminder',
+    name: 'Playoff Reminder',
+    subject: 'Playoffs Start This Week! - {poolName}',
+    body: `Hi {participantName}!
+
+🏆 **PLAYOFFS ARE HERE!** 🏆
+
+The NFL playoffs begin this week, and {poolName} is ready for the postseason!
+
+**Important Changes for Playoffs:**
+• Fewer games each week
+• Higher stakes for each pick
+• Championship bracket format
+• Super Bowl picks coming soon!
+
+**Make Your Playoff Picks**: {poolUrl}
+
+The playoffs are where legends are made! Make your picks carefully and good luck!
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Remind participants about playoff format changes',
+    targetAudience: 'all',
+    category: 'reminder'
+  },
+  {
+    id: 'super-bowl-reminder',
+    name: 'Super Bowl Reminder',
+    subject: 'Super Bowl Picks Due! - {poolName}',
+    body: `Hi {participantName}!
+
+🏈 **SUPER BOWL PICKS DUE!** 🏈
+
+The biggest game of the year is here! Make your Super Bowl picks for {poolName}!
+
+**Super Bowl Picks Include:**
+• Winner of the game
+• Total points scored
+• MVP selection
+• First touchdown scorer
+
+**Make Your Super Bowl Picks**: {poolUrl}
+
+This is your chance to win it all! Don't miss out on the championship picks.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Remind participants to make Super Bowl picks',
+    targetAudience: 'all',
+    category: 'reminder'
+  },
+  {
+    id: 'season-wrap-up',
+    name: 'Season Wrap-Up',
+    subject: 'Season Wrap-Up - {poolName}',
+    body: `Hi {participantName}!
+
+🏆 **Season Wrap-Up** 🏆
+
+The {season} NFL season has come to an end, and we want to thank you for participating in {poolName}!
+
+**Final Results**: {poolUrl}
+
+**Season Highlights:**
+• Check out the final standings
+• See who won the championship
+• Review your season performance
+• Plan for next season
+
+Thank you for making this season great! We hope to see you back next year.
+
+Best regards,
+{adminName}
+{poolName} Administrator`,
+    description: 'Send season wrap-up message to all participants',
     targetAudience: 'all',
     category: 'update'
   },
@@ -123,7 +195,7 @@ Best regards,
 
 We have an important update regarding {poolName}:
 
-{updateMessage}
+Please check the pool for the latest updates and information.
 
 **Pool Link**: {poolUrl}
 
@@ -137,55 +209,48 @@ Best regards,
     category: 'update'
   },
   {
-    id: 'playoff-reminder',
-    name: 'Playoff Reminder',
-    subject: 'Playoff Time! - {poolName}',
+    id: 'rule-change',
+    name: 'Rule Change Notification',
+    subject: 'Important Rule Change - {poolName}',
     body: `Hi {participantName}!
 
-🏈 **PLAYOFFS ARE HERE!** 🏈
+📋 **IMPORTANT RULE CHANGE** 📋
 
-The NFL playoffs have begun, and {poolName} is still going strong!
+We've made some changes to the rules for {poolName}:
 
-**Current Standings**:
-{currentStandings}
+Please review the updated rules and contact us if you have any questions.
 
-**Make Your Playoff Picks**: {poolUrl}
+**Updated Rules**: {poolUrl}
 
-The stakes are higher now - make sure to submit your picks for the playoff games!
-
-Good luck in the playoffs!
+These changes will take effect immediately. Thank you for your understanding.
 
 Best regards,
 {adminName}
 {poolName} Administrator`,
-    description: 'Special reminder for playoff weeks',
+    description: 'Notify participants about rule changes',
     targetAudience: 'all',
-    category: 'reminder'
+    category: 'update'
   },
   {
-    id: 'season-wrap-up',
-    name: 'Season Wrap-Up',
-    subject: 'Season Wrap-Up - {poolName}',
+    id: 'technical-issue',
+    name: 'Technical Issue Alert',
+    subject: 'Technical Issue - {poolName}',
     body: `Hi {participantName}!
 
-🏆 **SEASON COMPLETE!** 🏆
+⚠️ **TECHNICAL ISSUE ALERT** ⚠️
 
-Congratulations! We've made it through the {season} NFL season in {poolName}!
+We're experiencing some technical difficulties with {poolName}:
 
-**Final Results**:
-{finalResults}
+We're working to resolve this as quickly as possible. Please check back later or contact us if you need immediate assistance.
 
-**Season Highlights**:
-{seasonHighlights}
+**Pool Status**: {poolUrl}
 
-Thank you for participating this season! We hope you had fun and enjoyed the competition.
-
-We'll be back next season - stay tuned for updates!
+We apologize for any inconvenience and appreciate your patience.
 
 Best regards,
 {adminName}
 {poolName} Administrator`,
-    description: 'End-of-season wrap-up message',
+    description: 'Alert participants about technical issues',
     targetAudience: 'all',
     category: 'update'
   },

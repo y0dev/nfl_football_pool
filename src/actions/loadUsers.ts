@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '@/lib/supabase';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
 
-export async function loadUsers(poolId?: string, week?: number) {
+export async function loadUsers(poolId?: string, week?: number, seasonType: number = 2) {
   try {
     const supabase = getSupabaseClient();
     
@@ -9,7 +9,7 @@ export async function loadUsers(poolId?: string, week?: number) {
     if (poolId && week) {
       try {
         // Get participants who have already submitted picks for this week
-        const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week);
+        const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week, seasonType);
         
         // Query all participants for this specific pool
         const { data: allParticipants, error } = await supabase

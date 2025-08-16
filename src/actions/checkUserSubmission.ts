@@ -1,14 +1,15 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
-export async function checkUserSubmission(participantId: string, poolId: string, week: number) {
+export async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
   try {
     const supabase = getSupabaseClient();
     
-    // First get the games for this week
+    // First get the games for this week and season type
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('id')
-      .eq('week', week);
+      .eq('week', week)
+      .eq('season_type', seasonType);
 
     if (gamesError) {
       console.error('Error getting games for week:', gamesError);
@@ -42,7 +43,7 @@ export async function checkUserSubmission(participantId: string, poolId: string,
   }
 }
 
-export async function getUsersWhoSubmitted(poolId: string, week: number) {
+export async function getUsersWhoSubmitted(poolId: string, week: number, seasonType: number = 2) {
   try {
     
     // Validate inputs
@@ -60,11 +61,12 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
     
     const supabase = getSupabaseClient();
     
-    // First get the games for this week
+    // First get the games for this week and season type
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('id')
-      .eq('week', week);
+      .eq('week', week)
+      .eq('season_type', seasonType);
 
     if (gamesError) {
       console.error('Error getting games for week:', gamesError);
@@ -72,7 +74,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number) {
     }
 
     if (!games || games.length === 0) {
-      console.log('No games found for week:', week);
+      console.log('No games found for week:', week, 'season type:', seasonType);
       return [];
     }
 

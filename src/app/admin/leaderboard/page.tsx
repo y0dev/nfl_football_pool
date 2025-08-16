@@ -13,7 +13,7 @@ import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { loadLeaderboardWithPicks, LeaderboardEntryWithPicks, PickData } from '@/actions/loadPicksForLeaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff, Clock, Download, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff, Clock, Download, FileSpreadsheet, Target, Filter, Search, AlertTriangle, Crown, Star, TrendingDown, Award, Zap, Shield, Settings, RefreshCw, Copy, Share2, Bookmark, Flag, CheckCircle, XCircle, Minus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
@@ -49,16 +49,45 @@ function LeaderboardContent() {
   const [screenWidth, setScreenWidth] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [allParticipantsSubmitted, setAllParticipantsSubmitted] = useState(false);
+  
+  // Admin-specific features
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'points' | 'accuracy' | 'name' | 'correct_picks'>('points');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showOnlySubmitted, setShowOnlySubmitted] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [highlightedParticipant, setHighlightedParticipant] = useState<string | null>(null);
+  const [favoriteParticipants, setFavoriteParticipants] = useState<Set<string>>(new Set());
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [performanceThreshold, setPerformanceThreshold] = useState(50);
+  const [showPerformanceAlerts, setShowPerformanceAlerts] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastAutoRefresh, setLastAutoRefresh] = useState<Date>(new Date());
+
+  // Helper function to create dummy picks
+  const createDummyPicks = (participantId: string, participantName: string, picks: Array<{gameId: string, predictedWinner: string, confidence: number, homeTeam: string, awayTeam: string}>) => {
+    return picks.map((pick, index) => ({
+      id: `${participantId}-${index + 1}`,
+      participant_id: participantId,
+      participant_name: participantName,
+      game_id: pick.gameId,
+      home_team: pick.homeTeam,
+      away_team: pick.awayTeam,
+      predicted_winner: pick.predictedWinner,
+      confidence_points: pick.confidence,
+      week: selectedWeek,
+      season_type: selectedSeasonType
+    }));
+  };
 
   // Dummy data for testing
-  const DUMMY_LEADERBOARD_DATA: LeaderboardEntry[] = [
+  const DUMMY_LEADERBOARD_DATA: LeaderboardEntryWithPicks[] = [
     {
-      id: '1',
       participant_id: '1',
-      pool_id: selectedPool,
-      week: selectedWeek,
-      points: 85,
-      participants: { name: 'John Smith' },
+      participant_name: 'John Smith',
+      total_points: 85,
+      correct_picks: 6,
+      total_picks: 8,
       game_points: {
         'game1': 12,
         'game2': 8,
@@ -68,15 +97,24 @@ function LeaderboardContent() {
         'game6': 14,
         'game7': 8,
         'game8': 12
-      }
+      },
+      picks: createDummyPicks('1', 'John Smith', [
+        { gameId: 'game1', predictedWinner: 'New England Patriots', confidence: 12, homeTeam: 'New England Patriots', awayTeam: 'Buffalo Bills' },
+        { gameId: 'game2', predictedWinner: 'Buffalo Bills', confidence: 8, homeTeam: 'Kansas City Chiefs', awayTeam: 'Baltimore Ravens' },
+        { gameId: 'game3', predictedWinner: 'Kansas City Chiefs', confidence: 15, homeTeam: 'Miami Dolphins', awayTeam: 'Cincinnati Bengals' },
+        { gameId: 'game4', predictedWinner: 'Baltimore Ravens', confidence: 10, homeTeam: 'Pittsburgh Steelers', awayTeam: 'Cleveland Browns' },
+        { gameId: 'game5', predictedWinner: 'Miami Dolphins', confidence: 6, homeTeam: 'Dallas Cowboys', awayTeam: 'New York Giants' },
+        { gameId: 'game6', predictedWinner: 'Cincinnati Bengals', confidence: 14, homeTeam: 'Philadelphia Eagles', awayTeam: 'Washington Commanders' },
+        { gameId: 'game7', predictedWinner: 'Pittsburgh Steelers', confidence: 8, homeTeam: 'Chicago Bears', awayTeam: 'Detroit Lions' },
+        { gameId: 'game8', predictedWinner: 'Cleveland Browns', confidence: 12, homeTeam: 'Green Bay Packers', awayTeam: 'Minnesota Vikings' }
+      ])
     },
     {
-      id: '2',
       participant_id: '2',
-      pool_id: selectedPool,
-      week: selectedWeek,
-      points: 82,
-      participants: { name: 'Sarah Johnson' },
+      participant_name: 'Sarah Johnson',
+      total_points: 82,
+      correct_picks: 5,
+      total_picks: 8,
       game_points: {
         'game1': 10,
         'game2': 12,
@@ -86,15 +124,24 @@ function LeaderboardContent() {
         'game6': 8,
         'game7': 12,
         'game8': 7
-      }
+      },
+      picks: createDummyPicks('2', 'Sarah Johnson', [
+        { gameId: 'game1', predictedWinner: 'Buffalo Bills', confidence: 10, homeTeam: 'New England Patriots', awayTeam: 'Buffalo Bills' },
+        { gameId: 'game2', predictedWinner: 'New England Patriots', confidence: 12, homeTeam: 'Kansas City Chiefs', awayTeam: 'Baltimore Ravens' },
+        { gameId: 'game3', predictedWinner: 'Baltimore Ravens', confidence: 8, homeTeam: 'Miami Dolphins', awayTeam: 'Cincinnati Bengals' },
+        { gameId: 'game4', predictedWinner: 'Kansas City Chiefs', confidence: 15, homeTeam: 'Pittsburgh Steelers', awayTeam: 'Cleveland Browns' },
+        { gameId: 'game5', predictedWinner: 'Cincinnati Bengals', confidence: 10, homeTeam: 'Dallas Cowboys', awayTeam: 'New York Giants' },
+        { gameId: 'game6', predictedWinner: 'Miami Dolphins', confidence: 8, homeTeam: 'Philadelphia Eagles', awayTeam: 'Washington Commanders' },
+        { gameId: 'game7', predictedWinner: 'Pittsburgh Steelers', confidence: 12, homeTeam: 'Chicago Bears', awayTeam: 'Detroit Lions' },
+        { gameId: 'game8', predictedWinner: 'Cleveland Browns', confidence: 7, homeTeam: 'Green Bay Packers', awayTeam: 'Minnesota Vikings' }
+      ])
     },
     {
-      id: '3',
       participant_id: '3',
-      pool_id: selectedPool,
-      week: selectedWeek,
-      points: 78,
-      participants: { name: 'Mike Davis' },
+      participant_name: 'Mike Davis',
+      total_points: 78,
+      correct_picks: 4,
+      total_picks: 8,
       game_points: {
         'game1': 8,
         'game2': 10,
@@ -104,15 +151,24 @@ function LeaderboardContent() {
         'game6': 10,
         'game7': 6,
         'game8': 9
-      }
+      },
+      picks: [
+        { id: '17', participant_id: '3', game_id: 'game1', predicted_winner: 'Buffalo Bills', confidence_points: 8 },
+        { id: '18', participant_id: '3', game_id: 'game2', predicted_winner: 'New England Patriots', confidence_points: 10 },
+        { id: '19', participant_id: '3', game_id: 'game3', predicted_winner: 'Kansas City Chiefs', confidence_points: 12 },
+        { id: '20', participant_id: '3', game_id: 'game4', predicted_winner: 'Baltimore Ravens', confidence_points: 8 },
+        { id: '21', participant_id: '3', game_id: 'game5', predicted_winner: 'Miami Dolphins', confidence_points: 15 },
+        { id: '22', participant_id: '3', game_id: 'game6', predicted_winner: 'Cincinnati Bengals', confidence_points: 10 },
+        { id: '23', participant_id: '3', game_id: 'game7', predicted_winner: 'Cleveland Browns', confidence_points: 6 },
+        { id: '24', participant_id: '3', game_id: 'game8', predicted_winner: 'Pittsburgh Steelers', confidence_points: 9 }
+      ]
     },
     {
-      id: '4',
       participant_id: '4',
-      pool_id: selectedPool,
-      week: selectedWeek,
-      points: 75,
-      participants: { name: 'Emily Wilson' },
+      participant_name: 'Emily Wilson',
+      total_points: 75,
+      correct_picks: 3,
+      total_picks: 8,
       game_points: {
         'game1': 15,
         'game2': 6,
@@ -122,15 +178,24 @@ function LeaderboardContent() {
         'game6': 6,
         'game7': 10,
         'game8': 8
-      }
+      },
+      picks: [
+        { id: '25', participant_id: '4', game_id: 'game1', predicted_winner: 'New England Patriots', confidence_points: 15 },
+        { id: '26', participant_id: '4', game_id: 'game2', predicted_winner: 'Buffalo Bills', confidence_points: 6 },
+        { id: '27', participant_id: '4', game_id: 'game3', predicted_winner: 'Baltimore Ravens', confidence_points: 10 },
+        { id: '28', participant_id: '4', game_id: 'game4', predicted_winner: 'Kansas City Chiefs', confidence_points: 12 },
+        { id: '29', participant_id: '4', game_id: 'game5', predicted_winner: 'Cincinnati Bengals', confidence_points: 8 },
+        { id: '30', participant_id: '4', game_id: 'game6', predicted_winner: 'Miami Dolphins', confidence_points: 6 },
+        { id: '31', participant_id: '4', game_id: 'game7', predicted_winner: 'Pittsburgh Steelers', confidence_points: 10 },
+        { id: '32', participant_id: '4', game_id: 'game8', predicted_winner: 'Cleveland Browns', confidence_points: 8 }
+      ]
     },
     {
-      id: '5',
       participant_id: '5',
-      pool_id: selectedPool,
-      week: selectedWeek,
-      points: 72,
-      participants: { name: 'David Brown' },
+      participant_name: 'David Brown',
+      total_points: 72,
+      correct_picks: 2,
+      total_picks: 7,
       game_points: {
         'game1': 6,
         'game2': 15,
@@ -139,7 +204,16 @@ function LeaderboardContent() {
         'game5': 12,
         'game6': 8,
         'game7': 6
-      }
+      },
+      picks: [
+        { id: '33', participant_id: '5', game_id: 'game1', predicted_winner: 'Buffalo Bills', confidence_points: 6 },
+        { id: '34', participant_id: '5', game_id: 'game2', predicted_winner: 'New England Patriots', confidence_points: 15 },
+        { id: '35', participant_id: '5', game_id: 'game3', predicted_winner: 'Baltimore Ravens', confidence_points: 8 },
+        { id: '36', participant_id: '5', game_id: 'game4', predicted_winner: 'Kansas City Chiefs', confidence_points: 10 },
+        { id: '37', participant_id: '5', game_id: 'game5', predicted_winner: 'Miami Dolphins', confidence_points: 12 },
+        { id: '38', participant_id: '5', game_id: 'game6', predicted_winner: 'Cincinnati Bengals', confidence_points: 8 },
+        { id: '39', participant_id: '5', game_id: 'game7', predicted_winner: 'Pittsburgh Steelers', confidence_points: 6 }
+      ]
     }
   ];
 
@@ -309,7 +383,8 @@ function LeaderboardContent() {
       // Create CSV content
       const headers = ['Rank', 'Participant', 'Total Points', 'Correct Picks', 'Total Picks'];
       games.forEach((game, index) => {
-        headers.push(`Game ${index + 1} (${game.away_team} @ ${game.home_team})`);
+        headers.push(`${getTeamAbbreviation(game.away_team)} @ ${getTeamAbbreviation(game.home_team)} (Pick)`);
+        headers.push(`${getTeamAbbreviation(game.away_team)} @ ${getTeamAbbreviation(game.home_team)} (Confidence)`);
       });
 
       const csvContent = [
@@ -340,10 +415,20 @@ function LeaderboardContent() {
           }
           
           games.forEach(game => {
-            const gamePoints = isDummyData 
-              ? (entry as LeaderboardEntry).game_points?.[game.id] || 0
-              : (entry as LeaderboardEntryWithPicks).game_points?.[game.id] || 0;
-            row.push(gamePoints);
+            if (isDummyData) {
+              // For dummy data, use game points as before
+              const gamePoints = (entry as LeaderboardEntry).game_points?.[game.id] || 0;
+              row.push(gamePoints);
+              row.push('-'); // No confidence data for dummy
+            } else {
+              // For real data, show both pick and confidence
+              const realEntry = entry as LeaderboardEntryWithPicks;
+              const pick = realEntry.picks.find(p => p.game_id === game.id);
+              const confidence = pick?.confidence_points || 0;
+              const predictedWinner = pick?.predicted_winner || '';
+              row.push(predictedWinner ? getTeamAbbreviation(predictedWinner) : '-');
+              row.push(confidence);
+            }
           });
           
           return row.join(',');
@@ -386,6 +471,44 @@ function LeaderboardContent() {
     }
   };
 
+  const getTeamAbbreviation = (teamName: string) => {
+    const abbreviations: { [key: string]: string } = {
+      'New England Patriots': 'NE',
+      'Buffalo Bills': 'BUF',
+      'Miami Dolphins': 'MIA',
+      'New York Jets': 'NYJ',
+      'Baltimore Ravens': 'BAL',
+      'Cincinnati Bengals': 'CIN',
+      'Cleveland Browns': 'CLE',
+      'Pittsburgh Steelers': 'PIT',
+      'Houston Texans': 'HOU',
+      'Indianapolis Colts': 'IND',
+      'Jacksonville Jaguars': 'JAX',
+      'Tennessee Titans': 'TEN',
+      'Kansas City Chiefs': 'KC',
+      'Las Vegas Raiders': 'LV',
+      'Los Angeles Chargers': 'LAC',
+      'Denver Broncos': 'DEN',
+      'Dallas Cowboys': 'DAL',
+      'New York Giants': 'NYG',
+      'Philadelphia Eagles': 'PHI',
+      'Washington Commanders': 'WAS',
+      'Chicago Bears': 'CHI',
+      'Detroit Lions': 'DET',
+      'Green Bay Packers': 'GB',
+      'Minnesota Vikings': 'MIN',
+      'Atlanta Falcons': 'ATL',
+      'Carolina Panthers': 'CAR',
+      'New Orleans Saints': 'NO',
+      'Tampa Bay Buccaneers': 'TB',
+      'Arizona Cardinals': 'ARI',
+      'Los Angeles Rams': 'LAR',
+      'San Francisco 49ers': 'SF',
+      'Seattle Seahawks': 'SEA'
+    };
+    return abbreviations[teamName] || teamName.split(' ').map(word => word[0]).join('').toUpperCase();
+  };
+
   const getMaxWeeksForSeason = (seasonType: number) => {
     switch (seasonType) {
       case 1: return 4; // Preseason
@@ -393,6 +516,117 @@ function LeaderboardContent() {
       case 3: return 5; // Postseason
       default: return 18;
     }
+  };
+
+  // Admin-specific helper functions
+  const filteredAndSortedLeaderboard = () => {
+    let data = showDummyData ? DUMMY_LEADERBOARD_DATA : leaderboardWithPicks;
+    
+    // Filter by search term
+    if (searchTerm) {
+      data = data.filter(entry => 
+        entry.participant_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Filter by submission status
+    if (showOnlySubmitted) {
+      data = data.filter(entry => entry.total_picks > 0);
+    }
+    
+    // Sort data
+    data.sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+      
+      switch (sortBy) {
+        case 'points':
+          aValue = a.total_points;
+          bValue = b.total_points;
+          break;
+        case 'accuracy':
+          aValue = a.total_picks > 0 ? (a.correct_picks / a.total_picks) * 100 : 0;
+          bValue = b.total_picks > 0 ? (b.correct_picks / b.total_picks) * 100 : 0;
+          break;
+        case 'name':
+          aValue = a.participant_name.toLowerCase();
+          bValue = b.participant_name.toLowerCase();
+          break;
+        case 'correct_picks':
+          aValue = a.correct_picks;
+          bValue = b.correct_picks;
+          break;
+        default:
+          aValue = a.total_points;
+          bValue = b.total_points;
+      }
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      } else {
+        return sortOrder === 'asc' ? (aValue as number) - (bValue as number) : (bValue as number) - (aValue as number);
+      }
+    });
+    
+    return data;
+  };
+
+  const toggleFavorite = (participantId: string) => {
+    const newFavorites = new Set(favoriteParticipants);
+    if (newFavorites.has(participantId)) {
+      newFavorites.delete(participantId);
+    } else {
+      newFavorites.add(participantId);
+    }
+    setFavoriteParticipants(newFavorites);
+  };
+
+  const copyParticipantData = (entry: LeaderboardEntryWithPicks) => {
+    const data = `${entry.participant_name}: ${entry.total_points} points, ${entry.correct_picks}/${entry.total_picks} correct (${entry.total_picks > 0 ? Math.round((entry.correct_picks / entry.total_picks) * 100) : 0}%)`;
+    navigator.clipboard.writeText(data);
+    toast({
+      title: 'Copied to Clipboard',
+      description: `Data for ${entry.participant_name} copied`,
+    });
+  };
+
+  const getPerformanceStatus = (entry: LeaderboardEntryWithPicks) => {
+    const accuracy = entry.total_picks > 0 ? (entry.correct_picks / entry.total_picks) * 100 : 0;
+    if (accuracy >= 80) return { status: 'excellent', color: 'text-green-600', bg: 'bg-green-50' };
+    if (accuracy >= 60) return { status: 'good', color: 'text-blue-600', bg: 'bg-blue-50' };
+    if (accuracy >= 40) return { status: 'average', color: 'text-yellow-600', bg: 'bg-yellow-50' };
+    return { status: 'needs_improvement', color: 'text-red-600', bg: 'bg-red-50' };
+  };
+
+  const getPerformanceAlerts = () => {
+    const data = filteredAndSortedLeaderboard();
+    const alerts = [];
+    
+    // Low performers
+    const lowPerformers = data.filter(entry => {
+      const accuracy = entry.total_picks > 0 ? (entry.correct_picks / entry.total_picks) * 100 : 0;
+      return accuracy < performanceThreshold;
+    });
+    
+    if (lowPerformers.length > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${lowPerformers.length} participant(s) performing below ${performanceThreshold}% accuracy`,
+        icon: AlertTriangle
+      });
+    }
+    
+    // No submissions
+    const noSubmissions = data.filter(entry => entry.total_picks === 0);
+    if (noSubmissions.length > 0) {
+      alerts.push({
+        type: 'error',
+        message: `${noSubmissions.length} participant(s) haven't submitted picks`,
+        icon: Clock
+      });
+    }
+    
+    return alerts;
   };
 
   const handleSeasonTypeChange = (seasonType: number) => {
@@ -543,6 +777,140 @@ function LeaderboardContent() {
         </CardContent>
       </Card>
 
+      {/* Admin Controls */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Admin Controls
+          </CardTitle>
+          <CardDescription>
+            Advanced filtering, sorting, and management tools
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Search and Quick Actions */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search participants..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  {showAdvancedFilters ? 'Hide' : 'Show'} Filters
+                </Button>
+                <Button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  variant={autoRefresh ? "default" : "outline"}
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+                  Auto Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Advanced Filters */}
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Sort By</label>
+                  <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="points">Total Points</SelectItem>
+                      <SelectItem value="accuracy">Accuracy %</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="correct_picks">Correct Picks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Sort Order</label>
+                  <Select value={sortOrder} onValueChange={(value: any) => setSortOrder(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="desc">Descending</SelectItem>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Performance Threshold</label>
+                  <Select value={performanceThreshold.toString()} onValueChange={(value) => setPerformanceThreshold(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30%</SelectItem>
+                      <SelectItem value="40">40%</SelectItem>
+                      <SelectItem value="50">50%</SelectItem>
+                      <SelectItem value="60">60%</SelectItem>
+                      <SelectItem value="70">70%</SelectItem>
+                      <SelectItem value="80">80%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showOnlySubmitted}
+                      onChange={(e) => setShowOnlySubmitted(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">Show only submitted</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Performance Alerts */}
+            {showPerformanceAlerts && getPerformanceAlerts().length > 0 && (
+              <div className="space-y-2">
+                {getPerformanceAlerts().map((alert, index) => (
+                  <div key={index} className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    alert.type === 'warning' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
+                  }`}>
+                    <alert.icon className={`h-5 w-5 ${
+                      alert.type === 'warning' ? 'text-yellow-600' : 'text-red-600'
+                    }`} />
+                    <span className={`text-sm font-medium ${
+                      alert.type === 'warning' ? 'text-yellow-800' : 'text-red-800'
+                    }`}>
+                      {alert.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Current Selection Info */}
       <Card className="mb-6">
         <CardContent className="p-4">
@@ -624,14 +992,16 @@ function LeaderboardContent() {
                         <TableHead className="text-center">Total</TableHead>
                         <TableHead className="text-center">Correct</TableHead>
                         {games.map((game, index) => (
-                          <TableHead key={game.id} className="text-center min-w-[60px]">
-                            G{index + 1}
+                          <TableHead key={game.id} className="text-center min-w-[100px]">
+                            <div className="text-xs font-medium">
+                              {getTeamAbbreviation(game.away_team)} @ {getTeamAbbreviation(game.home_team)}
+                            </div>
                           </TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(showDummyData ? DUMMY_LEADERBOARD_DATA : leaderboardWithPicks).map((entry, index) => {
+                      {filteredAndSortedLeaderboard().map((entry, index) => {
                         const isDummy = showDummyData;
                         const participantName = isDummy 
                           ? (entry as LeaderboardEntry).participants.name 
@@ -646,8 +1016,17 @@ function LeaderboardContent() {
                           ? '-' 
                           : (entry as LeaderboardEntryWithPicks).total_picks;
                         
+                        const participantId = isDummy ? (entry as LeaderboardEntry).id : (entry as LeaderboardEntryWithPicks).participant_id;
+                        const isFavorite = favoriteParticipants.has(participantId);
+                        const isHighlighted = highlightedParticipant === participantId;
+                        const performanceStatus = !isDummy ? getPerformanceStatus(entry as LeaderboardEntryWithPicks) : null;
+                        
                         return (
-                          <TableRow key={isDummy ? (entry as LeaderboardEntry).id : (entry as LeaderboardEntryWithPicks).participant_id}>
+                          <TableRow 
+                            key={participantId}
+                            className={`${isHighlighted ? 'bg-blue-50' : ''} ${isFavorite ? 'ring-2 ring-yellow-300' : ''} hover:bg-gray-50`}
+                            onClick={() => setHighlightedParticipant(isHighlighted ? null : participantId)}
+                          >
                             <TableCell className="sticky left-0 bg-white z-10 font-medium">
                               <div className="flex items-center gap-2">
                                 {index === 0 && <Trophy className="h-4 w-4 text-yellow-500" />}
@@ -657,7 +1036,50 @@ function LeaderboardContent() {
                               </div>
                             </TableCell>
                             <TableCell className="sticky left-12 bg-white z-10 font-medium">
-                              {participantName}
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    {participantName}
+                                    {isFavorite && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
+                                    {performanceStatus && (
+                                      <Badge variant="outline" className={`text-xs ${performanceStatus.color} ${performanceStatus.bg}`}>
+                                        {performanceStatus.status}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {!isDummy && (
+                                    <div className="text-xs text-gray-500">
+                                      {totalPicks > 0 ? `${Math.round((correctPicks / totalPicks) * 100)}% accuracy` : 'No picks submitted'}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite(participantId);
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <Star className={`h-3 w-3 ${isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`} />
+                                  </Button>
+                                  {!isDummy && (
+                                    <Button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        copyParticipantData(entry as LeaderboardEntryWithPicks);
+                                      }}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Copy className="h-3 w-3 text-gray-400" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-bold">
                               {totalPoints}
@@ -665,14 +1087,40 @@ function LeaderboardContent() {
                             <TableCell className="text-center">
                               {isDummy ? '-' : `${correctPicks}/${totalPicks}`}
                             </TableCell>
-                            {games.map((game, gameIndex) => (
-                              <TableCell key={game.id} className="text-center">
-                                {isDummy 
-                                  ? (entry as LeaderboardEntry).game_points?.[game.id] || 0
-                                  : (entry as LeaderboardEntryWithPicks).game_points?.[game.id] || 0
-                                }
-                              </TableCell>
-                            ))}
+                                                      {games.map((game, gameIndex) => {
+                            if (isDummy) {
+                              return (
+                                <TableCell key={game.id} className="text-center">
+                                  {(entry as LeaderboardEntry).game_points?.[game.id] || 0}
+                                </TableCell>
+                              );
+                            } else {
+                              const realEntry = entry as LeaderboardEntryWithPicks;
+                              const pick = realEntry.picks.find(p => p.game_id === game.id);
+                              const isCorrect = pick && game.winner && pick.predicted_winner === game.winner;
+                              const confidence = pick?.confidence_points || 0;
+                              
+                              return (
+                                <TableCell key={game.id} className="text-center">
+                                  <div className="text-xs">
+                                    <div className={`font-medium ${
+                                      game.status !== 'final' ? 'text-yellow-800' :
+                                      isCorrect ? 'text-green-800' : 'text-red-800'
+                                    }`}>
+                                      {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
+                                    </div>
+                                    <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono ${
+                                      confidence === 0 ? 'bg-gray-100 text-gray-500' :
+                                      game.status !== 'final' ? 'bg-yellow-100 text-yellow-800' :
+                                      isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {confidence}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              );
+                            }
+                          })}
                           </TableRow>
                         );
                       })}
@@ -685,49 +1133,349 @@ function LeaderboardContent() {
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Analytics Overview
-              </CardTitle>
-              <CardDescription>
-                Statistical analysis of pool performance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-blue-600">{leaderboard.length}</div>
-                    <div className="text-sm text-gray-600">Total Participants</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-green-600">
-                      {leaderboardWithPicks.length > 0 ? leaderboardWithPicks[0].total_points : 0}
+          <div className="space-y-6">
+            {/* Key Metrics */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Key Metrics - {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}
+                </CardTitle>
+                <CardDescription>
+                  Statistical analysis of pool performance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-blue-600">{leaderboardWithPicks.length}</div>
+                      <div className="text-sm text-gray-600">Participants</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-green-600">
+                        {leaderboardWithPicks.length > 0 ? leaderboardWithPicks[0].total_points : 0}
+                      </div>
+                      <div className="text-sm text-gray-600">Best Score</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-purple-600">
+                        {leaderboardWithPicks.length > 0 
+                          ? Math.round(leaderboardWithPicks.reduce((sum, entry) => sum + entry.total_points, 0) / leaderboardWithPicks.length)
+                          : 0
+                        }
+                      </div>
+                      <div className="text-sm text-gray-600">Avg Score</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <Target className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+                      <div className="text-2xl font-bold text-orange-600">
+                        {leaderboardWithPicks.length > 0 
+                          ? Math.round((leaderboardWithPicks.reduce((sum, entry) => sum + entry.correct_picks, 0) / 
+                                       leaderboardWithPicks.reduce((sum, entry) => sum + entry.total_picks, 0)) * 100)
+                          : 0
+                        }%
+                      </div>
+                      <div className="text-sm text-gray-600">Pick Accuracy</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Performance Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Performance Distribution
+                </CardTitle>
+                <CardDescription>
+                  How participants performed across different score ranges
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3">Score Ranges</h4>
+                    <div className="space-y-2">
+                      {(() => {
+                        const ranges = [
+                          { min: 0, max: 50, label: '0-50', color: 'bg-red-100 text-red-800' },
+                          { min: 51, max: 80, label: '51-80', color: 'bg-yellow-100 text-yellow-800' },
+                          { min: 81, max: 110, label: '81-110', color: 'bg-blue-100 text-blue-800' },
+                          { min: 111, max: 136, label: '111-136', color: 'bg-green-100 text-green-800' }
+                        ];
+                        
+                        return ranges.map(range => {
+                          const count = leaderboardWithPicks.filter(entry => 
+                            entry.total_points >= range.min && entry.total_points <= range.max
+                          ).length;
+                          const percentage = leaderboardWithPicks.length > 0 
+                            ? Math.round((count / leaderboardWithPicks.length) * 100)
+                            : 0;
+                          
+                          return (
+                            <div key={range.label} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${range.color.split(' ')[0]}`}></div>
+                                <span className="text-sm font-medium">{range.label}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {count} ({percentage}%)
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
-                    <div className="text-sm text-gray-600">Highest Score</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                    <div className="text-2xl font-bold text-purple-600">
-                      {leaderboardWithPicks.length > 0 
-                        ? Math.round(leaderboardWithPicks.reduce((sum, entry) => sum + entry.total_points, 0) / leaderboardWithPicks.length)
-                        : 0
-                      }
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3">Pick Accuracy Ranges</h4>
+                    <div className="space-y-2">
+                      {(() => {
+                        const accuracyRanges = [
+                          { min: 0, max: 25, label: '0-25%', color: 'bg-red-100 text-red-800' },
+                          { min: 26, max: 50, label: '26-50%', color: 'bg-orange-100 text-orange-800' },
+                          { min: 51, max: 75, label: '51-75%', color: 'bg-yellow-100 text-yellow-800' },
+                          { min: 76, max: 100, label: '76-100%', color: 'bg-green-100 text-green-800' }
+                        ];
+                        
+                        return accuracyRanges.map(range => {
+                          const count = leaderboardWithPicks.filter(entry => {
+                            const accuracy = entry.total_picks > 0 
+                              ? Math.round((entry.correct_picks / entry.total_picks) * 100)
+                              : 0;
+                            return accuracy >= range.min && accuracy <= range.max;
+                          }).length;
+                          const percentage = leaderboardWithPicks.length > 0 
+                            ? Math.round((count / leaderboardWithPicks.length) * 100)
+                            : 0;
+                          
+                          return (
+                            <div key={range.label} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${range.color.split(' ')[0]}`}></div>
+                                <span className="text-sm font-medium">{range.label}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {count} ({percentage}%)
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
-                    <div className="text-sm text-gray-600">Average Score</div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Game Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Game Analysis
+                </CardTitle>
+                <CardDescription>
+                  Performance breakdown by individual games
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3">Most Challenging Games</h4>
+                    <div className="space-y-2">
+                      {games
+                        .map(game => {
+                          const gamePicks = leaderboardWithPicks.flatMap(entry => 
+                            entry.picks.filter(pick => pick.game_id === game.id)
+                          );
+                          const correctPicks = gamePicks.filter(pick => 
+                            pick.predicted_winner === game.winner
+                          ).length;
+                          const accuracy = gamePicks.length > 0 
+                            ? Math.round((correctPicks / gamePicks.length) * 100)
+                            : 0;
+                          
+                          return { game, accuracy, correctPicks, totalPicks: gamePicks.length };
+                        })
+                        .sort((a, b) => a.accuracy - b.accuracy)
+                        .slice(0, 5)
+                        .map((gameData, index) => (
+                          <div key={gameData.game.id} className="flex items-center justify-between p-2 bg-red-50 rounded border border-red-200">
+                            <div className="text-sm">
+                              <div className="font-medium text-red-800">
+                                {getTeamAbbreviation(gameData.game.away_team)} @ {getTeamAbbreviation(gameData.game.home_team)}
+                              </div>
+                              <div className="text-xs text-red-600">{gameData.correctPicks}/{gameData.totalPicks} correct</div>
+                            </div>
+                            <Badge variant={gameData.accuracy >= 70 ? "default" : gameData.accuracy >= 50 ? "secondary" : "destructive"}>
+                              {gameData.accuracy}%
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3">Easiest Games</h4>
+                    <div className="space-y-2">
+                      {games
+                        .map(game => {
+                          const gamePicks = leaderboardWithPicks.flatMap(entry => 
+                            entry.picks.filter(pick => pick.game_id === game.id)
+                          );
+                          const correctPicks = gamePicks.filter(pick => 
+                            pick.predicted_winner === game.winner
+                          ).length;
+                          const accuracy = gamePicks.length > 0 
+                            ? Math.round((correctPicks / gamePicks.length) * 100)
+                            : 0;
+                          
+                          return { game, accuracy, correctPicks, totalPicks: gamePicks.length };
+                        })
+                        .sort((a, b) => b.accuracy - a.accuracy)
+                        .slice(0, 5)
+                        .map((gameData, index) => (
+                          <div key={gameData.game.id} className="flex items-center justify-between p-2 bg-green-50 rounded border border-green-200">
+                            <div className="text-sm">
+                              <div className="font-medium text-green-800">
+                                {getTeamAbbreviation(gameData.game.away_team)} @ {getTeamAbbreviation(gameData.game.home_team)}
+                              </div>
+                              <div className="text-xs text-green-600">{gameData.correctPicks}/{gameData.totalPicks} correct</div>
+                            </div>
+                            <Badge variant={gameData.accuracy >= 70 ? "default" : gameData.accuracy >= 50 ? "secondary" : "destructive"}>
+                              {gameData.accuracy}%
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Confidence Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Confidence Analysis
+                </CardTitle>
+                <CardDescription>
+                  How confidence points were distributed and their success rates
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3">Confidence Point Distribution</h4>
+                    <div className="space-y-2">
+                      {[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(confidence => {
+                        const confidencePicks = leaderboardWithPicks.flatMap(entry => 
+                          entry.picks.filter(pick => pick.confidence_points === confidence)
+                        );
+                        const correctPicks = confidencePicks.filter(pick => 
+                          pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                        ).length;
+                        const accuracy = confidencePicks.length > 0 
+                          ? Math.round((correctPicks / confidencePicks.length) * 100)
+                          : 0;
+                        
+                        return (
+                          <div key={confidence} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-bold">
+                                {confidence}
+                              </div>
+                              <div className="text-sm">
+                                <div className="font-medium">{confidencePicks.length} picks</div>
+                                <div className="text-xs text-gray-500">{correctPicks} correct</div>
+                              </div>
+                            </div>
+                            <Badge variant={accuracy >= 70 ? "default" : accuracy >= 50 ? "secondary" : "destructive"}>
+                              {accuracy}%
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3">Confidence vs Success</h4>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <h5 className="font-semibold text-blue-800 mb-2">High Confidence (13-16)</h5>
+                        <div className="text-sm text-blue-600">
+                          {(() => {
+                            const highConfidencePicks = leaderboardWithPicks.flatMap(entry => 
+                              entry.picks.filter(pick => pick.confidence_points >= 13)
+                            );
+                            const correct = highConfidencePicks.filter(pick => 
+                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                            ).length;
+                            const accuracy = highConfidencePicks.length > 0 
+                              ? Math.round((correct / highConfidencePicks.length) * 100)
+                              : 0;
+                            return `${correct}/${highConfidencePicks.length} correct (${accuracy}%)`;
+                          })()}
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 bg-yellow-50 rounded-lg">
+                        <h5 className="font-semibold text-yellow-800 mb-2">Medium Confidence (7-12)</h5>
+                        <div className="text-sm text-yellow-600">
+                          {(() => {
+                            const mediumConfidencePicks = leaderboardWithPicks.flatMap(entry => 
+                              entry.picks.filter(pick => pick.confidence_points >= 7 && pick.confidence_points <= 12)
+                            );
+                            const correct = mediumConfidencePicks.filter(pick => 
+                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                            ).length;
+                            const accuracy = mediumConfidencePicks.length > 0 
+                              ? Math.round((correct / mediumConfidencePicks.length) * 100)
+                              : 0;
+                            return `${correct}/${mediumConfidencePicks.length} correct (${accuracy}%)`;
+                          })()}
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 bg-red-50 rounded-lg">
+                        <h5 className="font-semibold text-red-800 mb-2">Low Confidence (1-6)</h5>
+                        <div className="text-sm text-red-600">
+                          {(() => {
+                            const lowConfidencePicks = leaderboardWithPicks.flatMap(entry => 
+                              entry.picks.filter(pick => pick.confidence_points >= 1 && pick.confidence_points <= 6)
+                            );
+                            const correct = lowConfidencePicks.filter(pick => 
+                              pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
+                            ).length;
+                            const accuracy = lowConfidencePicks.length > 0 
+                              ? Math.round((correct / lowConfidencePicks.length) * 100)
+                              : 0;
+                            return `${correct}/${lowConfidencePicks.length} correct (${accuracy}%)`;
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="performance" className="mt-6">
@@ -907,47 +1655,86 @@ function LeaderboardContent() {
                         </CardContent>
                       </Card>
                       
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">Confidence Distribution</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(confidence => {
-                              const confidencePicks = leaderboardWithPicks.flatMap(entry => 
-                                entry.picks.filter(pick => pick.confidence_points === confidence)
-                              );
-                              const correctPicks = confidencePicks.filter(pick => 
-                                pick.predicted_winner === games.find(g => g.id === pick.game_id)?.winner
-                              ).length;
-                              const accuracy = confidencePicks.length > 0 
-                                ? Math.round((correctPicks / confidencePicks.length) * 100)
-                                : 0;
-                              
-                              return (
-                                <div key={confidence} className="flex items-center justify-between p-1">
-                                  <div className="text-sm font-mono w-8">{confidence}</div>
-                                  <div className="flex-1 mx-2">
-                                    <div className="bg-gray-200 rounded-full h-2">
-                                      <div 
-                                        className="bg-blue-600 h-2 rounded-full" 
-                                        style={{ width: `${(confidencePicks.length / Math.max(...[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(c => 
-                                          leaderboardWithPicks.flatMap(entry => 
-                                            entry.picks.filter(pick => pick.confidence_points === c)
-                                          ).length
-                                        ))) * 100}%` }}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-gray-500 w-12 text-right">
-                                    {confidencePicks.length} ({accuracy}%)
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CardContent>
-                      </Card>
+                                             <Card>
+                         <CardHeader>
+                           <CardTitle className="text-sm">Game Confidence Analysis</CardTitle>
+                         </CardHeader>
+                         <CardContent>
+                           <div className="space-y-3">
+                             {/* Games with Highest Confidence */}
+                             <div>
+                               <h4 className="text-sm font-medium text-green-700 mb-2">Highest Confidence Games</h4>
+                               <div className="space-y-2">
+                                 {games
+                                   .map(game => {
+                                     const gamePicks = leaderboardWithPicks.flatMap(entry => 
+                                       entry.picks.filter(pick => pick.game_id === game.id)
+                                     );
+                                     const avgConfidence = gamePicks.length > 0 
+                                       ? Math.round(gamePicks.reduce((sum, pick) => sum + pick.confidence_points, 0) / gamePicks.length)
+                                       : 0;
+                                     const maxConfidence = gamePicks.length > 0 
+                                       ? Math.max(...gamePicks.map(pick => pick.confidence_points))
+                                       : 0;
+                                     const confidence16Count = gamePicks.filter(pick => pick.confidence_points === 16).length;
+                                     
+                                     return { game, avgConfidence, maxConfidence, confidence16Count, totalPicks: gamePicks.length };
+                                   })
+                                   .sort((a, b) => b.avgConfidence - a.avgConfidence)
+                                   .slice(0, 5)
+                                   .map((gameData, index) => (
+                                     <div key={gameData.game.id} className="flex items-center justify-between p-2 bg-green-50 rounded border border-green-200">
+                                       <div className="text-sm">
+                                         <div className="font-medium text-green-800">G{index + 1}: {gameData.game.away_team} @ {gameData.game.home_team}</div>
+                                         <div className="text-xs text-green-600">{gameData.confidence16Count}/{gameData.totalPicks} picked with 16 confidence</div>
+                                       </div>
+                                       <div className="text-right">
+                                         <div className="text-sm font-bold text-green-800">{gameData.avgConfidence}</div>
+                                         <div className="text-xs text-green-600">avg</div>
+                                       </div>
+                                     </div>
+                                   ))}
+                               </div>
+                             </div>
+
+                             {/* Games with Lowest Confidence */}
+                             <div>
+                               <h4 className="text-sm font-medium text-red-700 mb-2">Lowest Confidence Games</h4>
+                               <div className="space-y-2">
+                                 {games
+                                   .map(game => {
+                                     const gamePicks = leaderboardWithPicks.flatMap(entry => 
+                                       entry.picks.filter(pick => pick.game_id === game.id)
+                                     );
+                                     const avgConfidence = gamePicks.length > 0 
+                                       ? Math.round(gamePicks.reduce((sum, pick) => sum + pick.confidence_points, 0) / gamePicks.length)
+                                       : 0;
+                                     const minConfidence = gamePicks.length > 0 
+                                       ? Math.min(...gamePicks.map(pick => pick.confidence_points))
+                                       : 0;
+                                     const confidence1Count = gamePicks.filter(pick => pick.confidence_points === 1).length;
+                                     
+                                     return { game, avgConfidence, minConfidence, confidence1Count, totalPicks: gamePicks.length };
+                                   })
+                                   .sort((a, b) => a.avgConfidence - b.avgConfidence)
+                                   .slice(0, 5)
+                                   .map((gameData, index) => (
+                                     <div key={gameData.game.id} className="flex items-center justify-between p-2 bg-red-50 rounded border border-red-200">
+                                       <div className="text-sm">
+                                         <div className="font-medium text-red-800">G{index + 1}: {gameData.game.away_team} @ {gameData.game.home_team}</div>
+                                         <div className="text-xs text-red-600">{gameData.confidence1Count}/{gameData.totalPicks} picked with 1 confidence</div>
+                                       </div>
+                                       <div className="text-right">
+                                         <div className="text-sm font-bold text-red-800">{gameData.avgConfidence}</div>
+                                         <div className="text-xs text-red-600">avg</div>
+                                       </div>
+                                     </div>
+                                   ))}
+                               </div>
+                             </div>
+                           </div>
+                         </CardContent>
+                       </Card>
                                          </div>
                    </div>
 
@@ -1031,6 +1818,8 @@ function LeaderboardContent() {
             </CardContent>
           </Card>
         </TabsContent>
+
+
       </Tabs>
     </div>
   );

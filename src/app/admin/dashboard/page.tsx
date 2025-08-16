@@ -8,6 +8,7 @@ import { PoolDashboard } from '@/components/pools/pool-dashboard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key, Trash2 } from 'lucide-react';
+import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createPoolInviteEmail } from '@/lib/mailto-utils';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -305,6 +306,55 @@ function AdminDashboardContent() {
       case 'override-picks':
         router.push('/admin/override-picks');
         break;
+      case 'send-invite':
+        handleSendInvite();
+        break;
+    }
+  };
+
+  const handleSendInvite = async () => {
+    try {
+      // Create a simple pool invite email
+      const emailOptions = createPoolInviteEmail(
+        'NFL Confidence Pool', 
+        `${window.location.origin}/participant`, 
+        currentWeek
+      );
+      
+      const mailtoUrl = createMailtoUrl(emailOptions);
+      
+      // Try to open email client
+      const opened = await openEmailClient(mailtoUrl);
+      
+      if (opened) {
+        toast({
+          title: 'Email Client Opened',
+          description: 'Pool invite email prepared. Your email client should open automatically.',
+        });
+      } else {
+        // Fallback: copy mailto URL to clipboard
+        const copied = await copyMailtoToClipboard(mailtoUrl);
+        
+        if (copied) {
+          toast({
+            title: 'Email URL Copied',
+            description: 'Email URL copied to clipboard. Paste it in your browser address bar to open your email client.',
+          });
+        } else {
+          toast({
+            title: 'Manual Action Required',
+            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error preparing invite email:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to prepare invite email',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -507,6 +557,89 @@ function AdminDashboardContent() {
           </Card>
         )}
 
+        
+        {/* Current Week Info */}
+        <div className="mb-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
+              <p className="text-blue-700 text-xs sm:text-sm">
+            {user?.is_super_admin 
+                  ? 'Manage all pools, participants, and view current standings.'
+                  : `Manage your ${dashboardStats.totalPools} pool${dashboardStats.totalPools !== 1 ? 's' : ''}, ${dashboardStats.totalParticipants} participant${dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.`
+            }
+          </p>
+              {!user?.is_super_admin && dashboardStats.totalPools > 0 && (
+                <p className="text-blue-600 text-xs mt-1">
+                  {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
+                </p>
+              )}
+            </div>
+            <div className="text-right text-xs sm:text-sm text-blue-600 flex-shrink-0">
+              <div>Last updated:</div>
+              <div>{lastRefresh.toLocaleTimeString()}</div>
+            </div>
+          </div>
+        </div>
+
+        
+        {/* Quick Actions */}
+        <Card className="mb-6">
+          <CardHeader className="pb-4 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
+              Quick Actions
+            </CardTitle>
+            <CardDescription className="text-sm sm:text-base">
+              Common tasks and shortcuts
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <Button
+                onClick={() => handleQuickAction('create-pool')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Create Pool</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('view-leaderboard')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">View Leaderboard</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('send-reminders')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Send Reminders</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('override-picks')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Override Picks</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('send-invite')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+              >
+                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="text-xs sm:text-sm">Send Invite</span>
+              </Button>
+                  </div>
+                </CardContent>
+        </Card>
+
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
           <Card className="text-center">
@@ -558,56 +691,7 @@ function AdminDashboardContent() {
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <Card className="mb-6">
-          <CardHeader className="pb-4 sm:pb-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
-              Quick Actions
-            </CardTitle>
-            <CardDescription className="text-sm sm:text-base">
-              Common tasks and shortcuts
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              <Button
-                onClick={() => handleQuickAction('create-pool')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Create Pool</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('view-leaderboard')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">View Leaderboard</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('send-reminders')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Send Reminders</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('override-picks')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Override Picks</span>
-              </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-                {/* Super Admin Management */}
+        {/* Super Admin Management */}
         {user?.is_super_admin && (
           <>
             {/* Admin Stats */}
@@ -784,29 +868,6 @@ function AdminDashboardContent() {
           </>
         )}
 
-        {/* Current Week Info */}
-        <div className="mt-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex-1">
-              <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
-              <p className="text-blue-700 text-xs sm:text-sm">
-            {user?.is_super_admin 
-                  ? 'Manage all pools, participants, and view current standings.'
-                  : `Manage your ${dashboardStats.totalPools} pool${dashboardStats.totalPools !== 1 ? 's' : ''}, ${dashboardStats.totalParticipants} participant${dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.`
-            }
-          </p>
-              {!user?.is_super_admin && dashboardStats.totalPools > 0 && (
-                <p className="text-blue-600 text-xs mt-1">
-                  {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
-                </p>
-              )}
-            </div>
-            <div className="text-right text-xs sm:text-sm text-blue-600 flex-shrink-0">
-              <div>Last updated:</div>
-              <div>{lastRefresh.toLocaleTimeString()}</div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <PoolDashboard hideCreateButton={true} />

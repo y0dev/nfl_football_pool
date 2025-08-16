@@ -10,6 +10,7 @@ import { CheckCircle, Clock, Users } from 'lucide-react';
 
 interface SubmissionStatusProps {
   poolId: string;
+  seasonType?: number;
 }
 
 interface User {
@@ -18,8 +19,9 @@ interface User {
   email: string;
 }
 
-export function SubmissionStatus({ poolId }: SubmissionStatusProps) {
+export function SubmissionStatus({ poolId, seasonType = 2 }: SubmissionStatusProps) {
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+  const [currentSeasonType, setCurrentSeasonType] = useState<number>(seasonType);
   const [submittedUsers, setSubmittedUsers] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +34,15 @@ export function SubmissionStatus({ poolId }: SubmissionStatusProps) {
         // Get current week
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData?.week_number || null);
+        setCurrentSeasonType(weekData?.season_type || seasonType);
         
         if (weekData) {
           // Get users who have submitted
-          const submittedIds = await getUsersWhoSubmitted(poolId, weekData.week_number);
+          const submittedIds = await getUsersWhoSubmitted(poolId, weekData.week_number, weekData.season_type || seasonType);
           setSubmittedUsers(submittedIds);
           
-          // Get all users
-          const allUsersData = await loadUsers();
+          // Get all users for this specific pool
+          const allUsersData = await loadUsers(poolId);
           setAllUsers(allUsersData);
         }
       } catch (error) {

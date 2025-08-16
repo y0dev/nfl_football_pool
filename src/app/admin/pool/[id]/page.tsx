@@ -14,7 +14,6 @@ import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, Trash2, Sh
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
-import { SubmissionsShare } from '@/components/admin/submissions-share';
 import { EmailManagement } from '@/components/admin/email-management';
 import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { TestPicks } from '@/components/admin/test-picks';
@@ -393,7 +392,7 @@ function PoolDetailsContent() {
             <TabsTrigger value="test-picks" className="text-xs whitespace-nowrap px-2 py-1">Test Picks</TabsTrigger>
             <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
             <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
-            <TabsTrigger value="submissions" className="text-xs whitespace-nowrap px-2 py-1">Submissions</TabsTrigger>
+
             <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
             <TabsTrigger value="tiebreakers" className="text-xs whitespace-nowrap px-2 py-1">Tie-Breakers</TabsTrigger>
@@ -401,7 +400,7 @@ function PoolDetailsContent() {
         </div>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
-          <SubmissionStatus poolId={pool.id} />
+          <SubmissionStatus poolId={pool.id} seasonType={currentSeasonType} />
         </TabsContent>
 
         <TabsContent value="participants" className="space-y-6 mt-6">
@@ -425,14 +424,7 @@ function PoolDetailsContent() {
           />
         </TabsContent>
 
-        <TabsContent value="submissions" className="space-y-6 mt-6">
-          <SubmissionsShare 
-            poolId={pool.id} 
-            poolName={pool.name}
-            week={currentWeek}
-            seasonType={currentSeasonType}
-          />
-        </TabsContent>
+
 
         <TabsContent value="emails" className="space-y-6 mt-6">
           <EnhancedEmailManagement 
