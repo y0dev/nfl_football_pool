@@ -314,11 +314,40 @@ function AdminDashboardContent() {
 
   const handleSendInvite = async () => {
     try {
-      // Create a simple pool invite email
+      // Get the first pool for this admin (or show a dialog to select one)
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      let poolsQuery = supabase.from('pools').select('id, name').eq('is_active', true);
+      
+      // If not super admin, only show pools created by this admin
+      if (!user?.is_super_admin) {
+        poolsQuery = poolsQuery.eq('created_by', user?.email || '');
+      }
+      
+      const { data: pools } = await poolsQuery;
+      
+      if (!pools || pools.length === 0) {
+        toast({
+          title: 'No Pools Available',
+          description: 'You need to create a pool first before sending invitations. Click "Create Pool" to get started.',
+          variant: 'destructive',
+        });
+        // Trigger the create pool dialog
+        const event = new CustomEvent('openCreatePoolDialog');
+        document.dispatchEvent(event);
+        return;
+      }
+      
+      // For now, use the first pool. In the future, could add a dialog to select which pool
+      const selectedPool = pools[0];
+      
+      // Create a pool invite email
       const emailOptions = createPoolInviteEmail(
-        'NFL Confidence Pool', 
-        `${window.location.origin}/participant`, 
-        currentWeek
+        selectedPool.name, 
+        selectedPool.id, 
+        currentWeek,
+        user?.email
       );
       
       const mailtoUrl = createMailtoUrl(emailOptions);
@@ -329,7 +358,7 @@ function AdminDashboardContent() {
       if (opened) {
         toast({
           title: 'Email Client Opened',
-          description: 'Pool invite email prepared. Your email client should open automatically.',
+          description: `Pool invite email prepared for ${selectedPool.name}. Your email client should open automatically.`,
         });
       } else {
         // Fallback: copy mailto URL to clipboard
