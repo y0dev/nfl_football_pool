@@ -299,8 +299,8 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <CardTitle className="flex items-center space-x-2">
               <Users className="h-5 w-5" />
               <span>Pool Participants</span>
@@ -310,7 +310,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
               Manage participants in {poolName}
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {process.env.NEXT_PUBLIC_NODE_ENV === 'development' && (
               <Button
                 variant="outline"
@@ -319,7 +319,8 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                 className="flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
-                Add Test Data
+                <span className="hidden sm:inline">Add Test Data</span>
+                <span className="sm:hidden">Test</span>
               </Button>
             )}
             <Button
@@ -329,16 +330,18 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
               className="flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
-              Export
+              <span className="hidden sm:inline">Export</span>
+              <span className="sm:hidden">Export</span>
             </Button>
             <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="flex items-center gap-2">
                   <Upload className="h-4 w-4" />
-                  Bulk Add
+                  <span className="hidden sm:inline">Bulk Add</span>
+                  <span className="sm:hidden">Bulk</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Bulk Add Participants</DialogTitle>
                   <DialogDescription>
@@ -373,7 +376,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                     />
                     {bulkAddWithEmail && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Format: "Name,email@example.com" or "Name email@example.com"
+                        Format: &quot;Name,email@example.com&quot; or &quot;Name email@example.com&quot;
                       </p>
                     )}
                   </div>
@@ -403,7 +406,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
       <CardContent>
         {/* Search and Bulk Actions */}
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search participants..."
@@ -417,10 +420,11 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
               variant="destructive"
               size="sm"
               onClick={handleBulkRemove}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               <Trash2 className="h-4 w-4" />
-              Remove Selected ({selectedParticipants.length})
+              <span className="hidden sm:inline">Remove Selected ({selectedParticipants.length})</span>
+              <span className="sm:hidden">Remove {selectedParticipants.length}</span>
             </Button>
           )}
         </div>
@@ -430,7 +434,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -443,8 +447,8 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                     />
                   </TableHead>
                   <TableHead className="text-xs sm:text-sm">Name</TableHead>
-                  <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Email</TableHead>
-                  <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Joined</TableHead>
+                  <TableHead className="text-xs sm:text-sm hidden md:table-cell">Email</TableHead>
+                  <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Joined</TableHead>
                   <TableHead className="text-xs sm:text-sm">Status</TableHead>
                   <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                 </TableRow>
@@ -498,24 +502,24 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span>{participant.name}</span>
+                          <span className="truncate max-w-[120px] sm:max-w-none">{participant.name}</span>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleStartEdit(participant)}
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-6 w-6 p-0"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs sm:text-sm">
+                    <TableCell className="hidden md:table-cell text-xs sm:text-sm">
                       {participant.email || (
                         <span className="text-gray-400 italic">No email</span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs sm:text-sm">
+                    <TableCell className="hidden lg:table-cell text-xs sm:text-sm">
                       {new Date(participant.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>

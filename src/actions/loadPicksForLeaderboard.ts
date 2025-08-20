@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
+import { applyTieBreakers, getTieBreakerSettings } from '@/lib/tie-breakers';
 
 export interface PickData {
   id: string;
@@ -73,7 +74,7 @@ export async function loadPicksForLeaderboard(poolId: string, weekNumber: number
       const transformedPick = {
         id: pick.id,
         participant_id: pick.participant_id,
-        participant_name: pick.participants.name || 'Unknown',
+        participant_name: (pick.participants as any)?.name || 'Unknown',
         game_id: pick.game_id,
         home_team: game?.home_team || 'Unknown',
         away_team: game?.away_team || 'Unknown',
@@ -108,7 +109,7 @@ export interface LeaderboardEntryWithPicks {
   picks: PickData[];
 }
 
-export async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seasonType: number): Promise<LeaderboardEntryWithPicks[]> {
+export async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seasonType: number, season?: number): Promise<LeaderboardEntryWithPicks[]> {
   try {
     const picks = await loadPicksForLeaderboard(poolId, weekNumber, seasonType);
     if (picks.length === 0) {
@@ -160,8 +161,79 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
       });
     });
 
-    // Sort by total points (descending)
-    return leaderboardEntries.sort((a, b) => b.total_points - a.total_points);
+    // Sort by total points (descending) and apply tie breakers
+    const sortedEntries = leaderboardEntries.sort((a, b) => b.total_points - a.total_points);
+    
+    // Apply tie breakers for participants with the same score
+    try {
+      const tieBreakerSettings = await getTieBreakerSettings(poolId);
+      if (tieBreakerSettings) {
+        // Get season from pool if not provided
+        let seasonToUse = season || 2024;
+        if (!season) {
+          try {
+            const { getSupabaseClient } = await import('@/lib/supabase');
+            const supabase = getSupabaseClient();
+            const { data: pool } = await supabase
+              .from('pools')
+              .select('season')
+              .eq('id', poolId)
+              .single();
+            seasonToUse = pool?.season || 2024;
+          } catch (error) {
+            seasonToUse = 2024; // Fallback
+          }
+        }
+        
+        // Group participants by score to identify ties
+        const scoreGroups = new Map<number, LeaderboardEntryWithPicks[]>();
+        sortedEntries.forEach(entry => {
+          if (!scoreGroups.has(entry.total_points)) {
+            scoreGroups.set(entry.total_points, []);
+          }
+          scoreGroups.get(entry.total_points)!.push(entry);
+        });
+        
+        // Apply tie breakers to each group with multiple participants
+        const finalEntries: LeaderboardEntryWithPicks[] = [];
+        
+        for (const [score, participants] of scoreGroups) {
+          if (participants.length === 1) {
+            // No tie, just add the participant
+            finalEntries.push(participants[0]);
+          } else {
+            // Apply tie breakers
+            const tieBreakerResults = await applyTieBreakers(
+              poolId,
+              weekNumber,
+              seasonToUse,
+              participants.map(p => ({
+                participant_id: p.participant_id,
+                participant_name: p.participant_name,
+                points: p.total_points
+              })),
+              tieBreakerSettings
+            );
+            
+            // Sort participants by tie breaker rank and add to final entries
+            const sortedParticipants = participants.sort((a, b) => {
+              const aResult = tieBreakerResults.find(r => r.participant_id === a.participant_id);
+              const bResult = tieBreakerResults.find(r => r.participant_id === b.participant_id);
+              return (aResult?.tie_breaker_rank || 0) - (bResult?.tie_breaker_rank || 0);
+            });
+            
+            finalEntries.push(...sortedParticipants);
+          }
+        }
+        
+        return finalEntries;
+      }
+    } catch (error) {
+      console.error('Error applying tie breakers:', error);
+      // Fall back to original sorting if tie breakers fail
+    }
+    
+    return sortedEntries;
   } catch (error) {
     console.error('Error loading leaderboard with picks:', error);
     return [];

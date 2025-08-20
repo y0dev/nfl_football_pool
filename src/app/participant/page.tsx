@@ -29,6 +29,7 @@ function ParticipantContent() {
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
+  const [poolSeason, setPoolSeason] = useState<number>(2024);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
@@ -53,6 +54,7 @@ function ParticipantContent() {
   const [hasPicks, setHasPicks] = useState(false);
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
   const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   
   const { toast } = useToast();
   const router = useRouter();
@@ -136,6 +138,7 @@ function ParticipantContent() {
           setPoolName(pool.name);
           setPoolRequiresAccessCode(pool.require_access_code);
           setPoolAccessCode(pool.access_code || '');
+          setPoolSeason(pool.season || 2024);
           
           // Check if access code is required but not set
           if (pool.require_access_code && !pool.access_code) {
@@ -252,15 +255,97 @@ function ParticipantContent() {
     await loadData();
   };
 
+  const handleUserSelected = (userId: string, userName: string) => {
+    const user = { id: userId, name: userName };
+    setSelectedUser(user);
+    
+    // Load picks from localStorage if they exist
+    loadPicksFromLocalStorage(userId, poolId!, currentWeek, currentSeasonType);
+  };
+
+  const loadPicksFromLocalStorage = async (participantId: string, poolId: string, week: number, seasonType: number) => {
+    try {
+      const { pickStorage } = await import('@/lib/pick-storage');
+      
+      // Check if there are stored picks for this user, pool, and week
+      if (pickStorage.hasValidPicks(participantId, poolId, week)) {
+        const storedPicks = pickStorage.loadPicks(participantId, poolId, week);
+        
+        if (storedPicks && storedPicks.length > 0) {
+          // Show a toast to inform the user about restored picks
+          toast({
+            title: "Picks Restored",
+            description: `Found ${storedPicks.length} saved picks from your previous session. You can review and submit them.`,
+            duration: 5000,
+          });
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Loaded picks from localStorage:', storedPicks);
+          }
+        }
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('No valid picks found in localStorage for:', { participantId, poolId, week });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading picks from localStorage:', error);
+      toast({
+        title: "Warning",
+        description: "Could not load saved picks from previous session",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePicksSubmitted = async () => {
+    // Show success dialog
+    setShowSuccessDialog(true);
+    
     // Refresh the page data when picks are submitted
     await loadData();
     await loadParticipantStats();
     await checkUserSubmissionStatus();
+    
+    // Clear the selected user after successful submission
+    setSelectedUser(null);
   };
 
-  const handleUserSelected = (userId: string, userName: string) => {
-    setSelectedUser({ id: userId, name: userName });
+  const handleUserChangeRequested = () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('User change requested. Current user:', selectedUser);
+    }
+    
+    // Clear the selected user to show the user selection interface
+    setSelectedUser(null);
+    
+    // Clear any stored picks for the previous user
+    if (selectedUser) {
+      const clearStoredPicks = async () => {
+        try {
+          const { pickStorage } = await import('@/lib/pick-storage');
+          pickStorage.clearPicks();
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Cleared stored picks for user:', selectedUser.id);
+          }
+        } catch (error) {
+          console.error('Error clearing stored picks:', error);
+        }
+      };
+      clearStoredPicks();
+    }
+    
+    // Reset submission status
+    setHasSubmitted(false);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('User selection interface should now be visible');
+    }
+    
+    toast({
+      title: "User Changed",
+      description: "Please select a new user to make picks",
+    });
   };
 
   const handleShare = async () => {
@@ -482,19 +567,23 @@ function ParticipantContent() {
       }
 
       // Log the unlock action
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentAdminId = session?.user?.id;
+      
       await supabase
         .from('audit_logs')
         .insert({
           action: 'unlock_participant_picks',
-          user_id: participantId,
-          pool_id: poolId,
-          details: JSON.stringify({ 
+          admin_id: currentAdminId || null,
+          entity: 'participant_picks',
+          entity_id: participantId,
+          details: { 
             participant_id: participantId, 
+            pool_id: poolId,
             week: currentWeek, 
             season_type: currentSeasonType,
             unlocked_by: isSuperAdmin ? 'super_admin' : 'pool_admin'
-          }),
-          created_at: new Date().toISOString()
+          }
         });
 
       toast({
@@ -1022,7 +1111,7 @@ function ParticipantContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} />
+                  <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
                 </CardContent>
               </Card>
 
@@ -1090,15 +1179,28 @@ function ParticipantContent() {
                         )}
                       </div>
                     ) : games.length > 0 ? (
-                      <WeeklyPick 
-                        poolId={poolId!} 
-                        weekNumber={currentWeek} 
-                        seasonType={currentSeasonType}
-                        selectedUser={selectedUser}
-                        games={games}
-                        preventGameLoading={true}
-                        onPicksSubmitted={handlePicksSubmitted}
-                      />
+                      <div>
+                        {process.env.NODE_ENV === 'development' && (
+                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>User Selected:</strong> {selectedUser.name} (ID: {selectedUser.id})
+                            </p>
+                            <p className="text-sm text-blue-700">
+                              Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
+                            </p>
+                          </div>
+                        )}
+                        <WeeklyPick 
+                          poolId={poolId!} 
+                          weekNumber={currentWeek} 
+                          seasonType={currentSeasonType}
+                          selectedUser={selectedUser}
+                          games={games}
+                          preventGameLoading={true}
+                          onPicksSubmitted={handlePicksSubmitted}
+                          onUserChangeRequested={handleUserChangeRequested}
+                        />
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         No games found for Week {currentWeek}
@@ -1127,7 +1229,7 @@ function ParticipantContent() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} />
+                    <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
                   </CardContent>
                 </Card>
               )}
@@ -1208,6 +1310,26 @@ function ParticipantContent() {
                 </div>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-green-500" />
+              Picks Submitted Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Your picks for Week {currentWeek} have been submitted. You can now review your picks or make changes if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowSuccessDialog(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

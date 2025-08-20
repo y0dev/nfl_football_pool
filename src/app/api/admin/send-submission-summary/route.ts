@@ -137,8 +137,9 @@ export async function POST(request: NextRequest) {
       .insert({
         action: 'send_submission_summary',
         admin_id: admin.id,
-        pool_id: poolId,
-        details: JSON.stringify({
+        entity: 'pool',
+        entity_id: poolId,
+        details: {
           pool_name: pool.name,
           week: week,
           season_type: seasonType,
@@ -147,8 +148,7 @@ export async function POST(request: NextRequest) {
           submitted_count: submittedParticipants.length,
           pending_count: pendingParticipants.length,
           sent_at: new Date().toISOString()
-        }),
-        created_at: new Date().toISOString()
+        }
       });
 
     return NextResponse.json({

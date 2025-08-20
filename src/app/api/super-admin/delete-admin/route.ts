@@ -71,14 +71,13 @@ export async function DELETE(request: NextRequest) {
         .from('audit_logs')
         .insert({
           action: 'delete_admin',
-          user_id: adminId, // The deleted admin's ID
+          admin_id: null, // No admin performing this action (system action)
           entity: 'admin',
           entity_id: adminId,
-          details: JSON.stringify({ 
+          details: { 
             deleted_admin_email: admin.email,
             deleted_admin_id: adminId 
-          }),
-          created_at: new Date().toISOString()
+          }
         });
     } catch (auditError) {
       console.warn('Failed to log admin deletion to audit_logs:', auditError);
