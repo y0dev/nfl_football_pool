@@ -141,9 +141,15 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
       .from('audit_logs')
       .insert({
         action: 'send_pick_reminders',
-        user_id: params.adminId,
-        pool_id: params.poolId,
-        details: `Prepared ${reminders.length} pick reminders for week ${params.weekNumber} (email service not configured)`
+        admin_id: params.adminId,
+        entity: 'email_campaign',
+        entity_id: params.poolId,
+        details: { 
+          pool_id: params.poolId,
+          week_number: params.weekNumber,
+          reminders_count: reminders.length,
+          message: 'Prepared pick reminders (email service not configured)'
+        }
       });
 
     return {
@@ -301,9 +307,15 @@ export async function sendAllSubmittedNotification(params: SendPickRemindersPara
       .from('audit_logs')
       .insert({
         action: 'send_all_submitted_notification',
-        user_id: params.adminId,
-        pool_id: params.poolId,
-        details: `Prepared ${notifications.length} all-submitted notifications for week ${params.weekNumber} (email service not configured)`
+        admin_id: params.adminId,
+        entity: 'email_campaign',
+        entity_id: params.poolId,
+        details: { 
+          pool_id: params.poolId,
+          week_number: params.weekNumber,
+          notifications_count: notifications.length,
+          message: 'Prepared all-submitted notifications (email service not configured)'
+        }
       });
 
     return {

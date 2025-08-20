@@ -15,6 +15,7 @@ interface LeaderboardProps {
   poolId?: string;
   weekNumber?: number;
   seasonType?: number;
+  season?: number;
 }
 
 // Helper function to get team abbreviation
@@ -57,7 +58,7 @@ const getTeamAbbreviation = (teamName: string): string => {
   return abbreviations[teamName] || teamName.split(' ').map(word => word[0]).join('').toUpperCase();
 };
 
-export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2 }: LeaderboardProps) {
+export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: LeaderboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntryWithPicks[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +72,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2 }: Leaderbo
         setIsLoading(true);
         
         // Load leaderboard data with picks
-        const leaderboard = await loadLeaderboardWithPicks(poolId, weekNumber, seasonType);
+        const leaderboard = await loadLeaderboardWithPicks(poolId, weekNumber, seasonType, season);
         setLeaderboardData(leaderboard);
         
         // Load games for the week
@@ -87,7 +88,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2 }: Leaderbo
     };
 
     loadData();
-  }, [poolId, weekNumber, seasonType]);
+  }, [poolId, weekNumber, seasonType, season]);
 
   if (isLoading) {
   return (

@@ -123,9 +123,15 @@ export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
       .from('audit_logs')
       .insert({
         action: 'submit_picks',
-        user_id: firstPick.participant_id,
-        pool_id: firstPick.pool_id,
-        details: `Submitted ${picks.length} picks for week ${week}`
+        admin_id: null, // No admin involved in participant pick submission
+        entity: 'picks',
+        entity_id: firstPick.pool_id,
+        details: { 
+          participant_id: firstPick.participant_id,
+          pool_id: firstPick.pool_id,
+          week: week,
+          picks_count: picks.length
+        }
       });
 
     return {

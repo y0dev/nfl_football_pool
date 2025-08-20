@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { PickUserSelection } from './pick-user-selection';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
@@ -24,9 +23,10 @@ interface WeeklyPickProps {
   games?: Game[];
   preventGameLoading?: boolean;
   onPicksSubmitted?: () => void;
+  onUserChangeRequested?: () => void;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, onPicksSubmitted }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -134,7 +134,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
     if (selectedUser && games.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Loading picks for user:', selectedUser.id, 'pool:', poolId, 'week:', currentWeek);
+      }
       const savedPicks = pickStorage.loadPicks(selectedUser.id, poolId, currentWeek);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Saved picks from localStorage:', savedPicks);
+      }
       
       if (savedPicks.length > 0) {
         // Map saved picks to the current games array
@@ -158,15 +164,20 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           };
         });
         
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Updated picks with localStorage data:', updatedPicks);
+        }
         setPicks(updatedPicks);
         setHasUnsavedChanges(false);
         setLastSaved(new Date(savedPicks[0]?.timestamp || Date.now()));
         
         const validPicks = savedPicks.filter(sp => sp.predicted_winner && sp.confidence_points > 0);
-        toast({
-          title: 'Picks Restored',
-          description: `Loaded ${validPicks.length} saved picks from localStorage`,
-        });
+        if (validPicks.length > 0) {
+          toast({
+            title: 'Picks Restored',
+            description: `Loaded ${validPicks.length} saved picks from localStorage`,
+          });
+        }
       } else {
         // Initialize picks with selected user
         const initialPicks = games.map(game => ({
@@ -176,10 +187,54 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           predicted_winner: '',
           confidence_points: 0
         }));
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Initializing new picks for user:', initialPicks);
+        }
         setPicks(initialPicks);
       }
     }
   }, [selectedUser, games, poolId, currentWeek, toast]);
+
+  // Check if week is unlocked for picks when games are loaded
+  useEffect(() => {
+    const checkWeekUnlocked = async () => {
+      if (games.length > 0 && currentWeek > 0) {
+        try {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
+          }
+          const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Week unlock result:', weekUnlocked);
+          }
+          setIsWeekUnlocked(weekUnlocked);
+          
+          // If week is locked, get unlock time
+          if (!weekUnlocked && games.length > 0) {
+            const firstGameTime = new Date(games[0].kickoff_time);
+            const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
+            setUnlockTime(threeDaysBefore.toLocaleString());
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Week is locked, unlock time:', threeDaysBefore.toLocaleString());
+            }
+          } else {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Week is unlocked for picks');
+            }
+          }
+        } catch (error) {
+          console.error('Error checking week unlock status:', error);
+          // Default to unlocked if there's an error
+          setIsWeekUnlocked(true);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Defaulting to unlocked due to error');
+          }
+        }
+      }
+    };
+    
+    checkWeekUnlocked();
+  }, [games, currentWeek, seasonType]);
 
   // Auto-save picks to localStorage when picks change (backup mechanism)
   useEffect(() => {
@@ -382,27 +437,24 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   };
 
-  // Handle user selection
-  const handleUserSelected = (userId: string, userName: string) => {
-    const user: SelectedUser = { id: userId, name: userName };
-    setSelectedUser(user);
-    // Note: We&apos;ll need to get the pool name and access code from the user selection
-    // For now, we&apos;ll use a default pool name and access code
-    userSessionManager.createSession(user.id, user.name, poolId, 'NFL Pool', 'DEFAULT');
-  };
-
   // Handle user change
   const handleChangeUser = () => {
-    setSelectedUser(null);
+    // Clear local state
     setPicks([]);
     setHasUnsavedChanges(false);
     setLastSaved(null);
     pickStorage.clearPicks();
     userSessionManager.removeSession(selectedUser?.id || '', poolId);
+    
+    // Notify parent component that user change is requested
+    if (onUserChangeRequested) {
+      onUserChangeRequested();
+    }
   };
 
   if (!selectedUser) {
-    return <PickUserSelection poolId={poolId} weekNumber={currentWeek} onUserSelected={handleUserSelected} />;
+    // Don't render anything if no user is selected - parent component handles this
+    return null;
   }
 
   return (
@@ -668,7 +720,17 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       </div>
 
       {/* Submit button */}
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-2">
+        {/* Debug information - only show in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="text-xs text-gray-500 text-center p-2 bg-gray-50 rounded border">
+            <p>Debug: isLoading={isLoading.toString()}, isWeekUnlocked={isWeekUnlocked.toString()}</p>
+            <p>Selected User: {selectedUser?.id || 'None'}</p>
+            <p>Picks Count: {picks.length}</p>
+            <p>Valid Picks: {picks.filter(p => p.predicted_winner && p.confidence_points > 0).length}</p>
+          </div>
+        )}
+        
         <Button 
           onClick={handleSubmit} 
           disabled={isLoading || !isWeekUnlocked}
@@ -677,6 +739,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         >
           {isLoading ? 'Submitting...' : !isWeekUnlocked ? 'Week Locked' : 'Submit Picks'}
         </Button>
+        
+        {!isWeekUnlocked && unlockTime && (
+          <div className="text-sm text-gray-600 text-center">
+            <p>Picks will unlock on {unlockTime}</p>
+            <p className="text-xs">You can make your selections now and submit when the week unlocks</p>
+          </div>
+        )}
+        
+        {isWeekUnlocked && (
+          <div className="text-sm text-green-600 text-center">
+            <p>✓ Week is unlocked - you can submit your picks</p>
+          </div>
+        )}
       </div>
 
       {/* Pick Confirmation Dialog */}

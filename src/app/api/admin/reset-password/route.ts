@@ -60,10 +60,14 @@ export async function POST(request: NextRequest) {
       .from('audit_logs')
       .insert({
         action: 'reset_pool_access_code',
-        pool_id: poolId,
+        admin_id: null, // No specific admin performing this action
         entity: 'pool',
         entity_id: poolId,
-        details: `Access code reset for pool: ${pool.name}`
+        details: { 
+          pool_id: poolId,
+          pool_name: pool.name,
+          action: 'access_code_reset'
+        }
       });
 
     return NextResponse.json({

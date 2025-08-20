@@ -128,15 +128,15 @@ export async function POST(request: NextRequest) {
         action: 'send_reminders',
         admin_id: session.user.id,
         entity: 'participants',
-        details: JSON.stringify({
+        entity_id: null, // Multiple participants
+        details: {
           participant_ids: participantIds,
           week: week,
           season_type: seasonType,
           successful: successful,
           failed: failed,
           total: participants.length
-        }),
-        created_at: new Date().toISOString()
+        }
       });
 
     return NextResponse.json({

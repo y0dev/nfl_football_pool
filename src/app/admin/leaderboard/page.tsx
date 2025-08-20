@@ -38,6 +38,7 @@ function LeaderboardContent() {
   const [selectedPool, setSelectedPool] = useState<string>('');
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedSeasonType, setSelectedSeasonType] = useState(2);
+  const [selectedPoolSeason, setSelectedPoolSeason] = useState<number>(2024);
   const [pools, setPools] = useState<Pool[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardWithPicks, setLeaderboardWithPicks] = useState<LeaderboardEntryWithPicks[]>([]);
@@ -274,10 +275,18 @@ function LeaderboardContent() {
 
   const loadLeaderboardData = async () => {
     try {
+      // Get pool season for tie breakers
+      if (selectedPool) {
+        const selectedPoolData = pools.find(p => p.id === selectedPool);
+        if (selectedPoolData) {
+          setSelectedPoolSeason(selectedPoolData.season || 2024);
+        }
+      }
+      
       // Load both old and new leaderboard data
       const [leaderboardData, leaderboardWithPicksData] = await Promise.all([
         loadLeaderboard(selectedPool, selectedWeek),
-        loadLeaderboardWithPicks(selectedPool, selectedWeek, selectedSeasonType)
+        loadLeaderboardWithPicks(selectedPool, selectedWeek, selectedSeasonType, selectedPoolSeason)
       ]);
 
       setLeaderboard(leaderboardData);
@@ -300,7 +309,7 @@ function LeaderboardContent() {
       // Load data for all weeks in the season type
       for (let week = 1; week <= maxWeeks; week++) {
         try {
-          const weekData = await loadLeaderboardWithPicks(selectedPool, week, selectedSeasonType);
+          const weekData = await loadLeaderboardWithPicks(selectedPool, week, selectedSeasonType, selectedPoolSeason);
           if (weekData.length > 0) {
             seasonData[week] = weekData;
           }

@@ -117,11 +117,10 @@ export async function POST(request: NextRequest) {
         .from('audit_logs')
         .insert({
           action: 'create_admin',
-          user_id: newAdmin.id,
+          admin_id: newAdmin.id,
           entity: 'admin',
           entity_id: newAdmin.id,
-          details: JSON.stringify({ email: email, full_name: fullName }),
-          created_at: new Date().toISOString()
+          details: { email: email, full_name: fullName }
         });
       console.log('Audit log created successfully');
     } catch (auditError) {

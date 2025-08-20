@@ -408,10 +408,10 @@ export async function addParticipantToPool(poolId: string, name: string, email: 
         .from('audit_logs')
         .insert({
           action: 'add_participant',
-          user_id: userData?.user?.id || 'system',
-          pool_id: poolId,
-          details: JSON.stringify({ pool_id: poolId, name, email }),
-          created_at: new Date().toISOString()
+          admin_id: userData?.user?.id || null,
+          entity: 'participant',
+          entity_id: poolId,
+          details: { pool_id: poolId, name, email }
         });
     } catch (logError) {
       console.warn('Failed to log participant addition:', logError);
@@ -457,10 +457,10 @@ export async function removeParticipantFromPool(participantId: string) {
         .from('audit_logs')
         .insert({
           action: 'remove_participant',
-          user_id: userData?.user?.id || 'system',
-          pool_id: participant.pool_id,
-          details: JSON.stringify({ participant_id: participantId, action: 'deactivated' }),
-          created_at: new Date().toISOString()
+          admin_id: userData?.user?.id || null,
+          entity: 'participant',
+          entity_id: participantId,
+          details: { participant_id: participantId, action: 'deactivated', pool_id: participant.pool_id }
         });
     } catch (logError) {
       console.warn('Failed to log participant removal:', logError);
@@ -506,15 +506,16 @@ export async function updateParticipantName(participantId: string, newName: stri
         .from('audit_logs')
         .insert({
           action: 'update_participant',
-          user_id: userData?.user?.id || 'system',
-          pool_id: participant.pool_id,
-          details: JSON.stringify({ 
+          admin_id: userData?.user?.id || null,
+          entity: 'participant',
+          entity_id: participantId,
+          details: { 
             participant_id: participantId, 
             old_name: participant.name,
             new_name: newName,
-            action: 'name_updated' 
-          }),
-          created_at: new Date().toISOString()
+            action: 'name_updated',
+            pool_id: participant.pool_id
+          }
         });
     } catch (logError) {
       console.warn('Failed to log participant update:', logError);
