@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
 import { Trash2 } from 'lucide-react';
+import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 
 const poolSettingsSchema = z.object({
@@ -46,7 +47,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     resolver: zodResolver(poolSettingsSchema),
     defaultValues: {
       name: poolName,
-      season: 2025, // Default to 2025 for new pools
+              season: DEFAULT_POOL_SEASON, // Default to current season for new pools
       is_active: true, // Default to active for new pools
       tie_breaker_method: 'none', // Default to no tie breaker
       tie_breaker_question: '',
@@ -210,7 +211,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                 <FormItem>
                   <FormLabel>Season</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="Enter season (e.g., 2025)" {...field} />
+                    <Input type="number" placeholder={`Enter season (e.g., ${DEFAULT_POOL_SEASON})`} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

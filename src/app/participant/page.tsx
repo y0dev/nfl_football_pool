@@ -20,6 +20,7 @@ import { Game, SelectedUser } from '@/types/game';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
+import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
@@ -30,7 +31,7 @@ function ParticipantContent() {
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
-  const [poolSeason, setPoolSeason] = useState<number>(2024);
+  const [poolSeason, setPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
@@ -162,7 +163,7 @@ function ParticipantContent() {
             if (result.success && result.pool) {
               const pool = result.pool;
               setPoolName(pool.name);
-              setPoolSeason(pool.season || 2025);
+              setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
               
               // Set participant stats from the API response
               setParticipantCount(pool.participant_count || 0);

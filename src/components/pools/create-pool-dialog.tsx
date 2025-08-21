@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { createPool } from '@/actions/createPool';
 import { useAuth } from '@/lib/auth';
+import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
@@ -33,7 +34,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     resolver: zodResolver(poolSchema),
     defaultValues: {
       name: '',
-      season: 2025, // Default to current season
+              season: DEFAULT_POOL_SEASON, // Default to current season
     },
   });
 
@@ -97,7 +98,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                       type="number" 
                       placeholder="Enter season" 
                       {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 2025)}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || DEFAULT_POOL_SEASON)}
                       value={field.value}
                     />
                   </FormControl>

@@ -18,6 +18,7 @@ import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff,
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
+import { DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -38,7 +39,7 @@ function LeaderboardContent() {
   const [selectedPool, setSelectedPool] = useState<string>('');
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedSeasonType, setSelectedSeasonType] = useState(2);
-  const [selectedPoolSeason, setSelectedPoolSeason] = useState<number>(2025);
+  const [selectedPoolSeason, setSelectedPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
   const [pools, setPools] = useState<Pool[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardWithPicks, setLeaderboardWithPicks] = useState<LeaderboardEntryWithPicks[]>([]);
@@ -126,7 +127,7 @@ function LeaderboardContent() {
       if (selectedPool) {
         const selectedPoolData = pools.find(p => p.id === selectedPool);
           if (selectedPoolData) {
-          setSelectedPoolSeason(selectedPoolData.season || 2025);
+          setSelectedPoolSeason(selectedPoolData.season || DEFAULT_POOL_SEASON);
         }
       }
       
@@ -183,15 +184,6 @@ function LeaderboardContent() {
     }
   };
 
-  const getSeasonTypeName = (seasonType: number) => {
-    switch (seasonType) {
-      case 1: return 'Preseason';
-      case 2: return 'Regular Season';
-      case 3: return 'Postseason';
-      default: return 'Unknown';
-    }
-  };
-
   const getTeamAbbreviation = (teamName: string) => {
     const abbreviations: { [key: string]: string } = {
       'New England Patriots': 'NE',
@@ -228,15 +220,6 @@ function LeaderboardContent() {
       'Seattle Seahawks': 'SEA'
     };
     return abbreviations[teamName] || teamName.split(' ').map(word => word[0]).join('').toUpperCase();
-  };
-
-  const getMaxWeeksForSeason = (seasonType: number) => {
-    switch (seasonType) {
-      case 1: return 4;
-      case 2: return 18;
-      case 3: return 5;
-      default: return 18;
-    }
   };
 
   const filteredAndSortedLeaderboard = () => {

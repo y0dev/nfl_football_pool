@@ -14,6 +14,7 @@ import { adminService } from '@/lib/admin-service';
 import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 // import { format } from 'date-fns';
 
@@ -70,7 +71,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
         name: pool.name,
         description: '',
         created_by: '',
-        season: pool.season || 2025,
+        season: pool.season || DEFAULT_POOL_SEASON,
         is_active: true,
         created_at: new Date().toISOString(),
         participant_count: 0

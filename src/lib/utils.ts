@@ -5,6 +5,85 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Application-wide constants
+ * These values are used throughout the project and can be easily updated in one place
+ */
+
+// NFL Season Configuration
+export const CURRENT_NFL_SEASON = 2025;
+export const DEFAULT_SEASON = 2025;
+export const DEFAULT_SEASON_TYPE = 2; // 1=Preseason, 2=Regular Season, 3=Postseason
+
+// Pool Configuration
+export const DEFAULT_POOL_SEASON = 2025;
+export const DEFAULT_POOL_IS_ACTIVE = true;
+export const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
+
+// Game Configuration
+export const MAX_WEEKS_PRESEASON = 4;
+export const MAX_WEEKS_REGULAR_SEASON = 18;
+export const MAX_WEEKS_POSTSEASON = 5;
+export const DEFAULT_WEEK = 1;
+
+// Confidence Points Configuration
+export const MIN_CONFIDENCE_POINTS = 1;
+export const MAX_CONFIDENCE_POINTS = 16;
+export const CONFIDENCE_POINTS_RANGE = Array.from(
+  { length: MAX_CONFIDENCE_POINTS }, 
+  (_, i) => MAX_CONFIDENCE_POINTS - i
+);
+
+// Performance Thresholds
+export const PERFORMANCE_THRESHOLDS = {
+  EXCELLENT: 80,
+  GOOD: 60,
+  AVERAGE: 40,
+  POOR: 0
+} as const;
+
+// UI Configuration
+export const SCREEN_BREAKPOINTS = {
+  MOBILE: 768,
+  TABLET: 1024,
+  DESKTOP: 1280
+} as const;
+
+// Date/Time Configuration
+export const DATE_FORMATS = {
+  SHORT: 'MMM dd',
+  MEDIUM: 'MMM dd, yyyy',
+  LONG: 'EEEE, MMMM dd, yyyy',
+  TIME: 'h:mm a',
+  DATETIME: 'MMM dd, yyyy h:mm a'
+} as const;
+
+// API Configuration
+export const API_ENDPOINTS = {
+  POOLS: '/api/pools',
+  PICKS: '/api/picks',
+  ADMIN: '/api/admin',
+  SUPER_ADMIN: '/api/super-admin'
+} as const;
+
+// Error Messages
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Network error. Please check your connection.',
+  UNAUTHORIZED: 'You are not authorized to perform this action.',
+  NOT_FOUND: 'The requested resource was not found.',
+  VALIDATION_ERROR: 'Please check your input and try again.',
+  SERVER_ERROR: 'An unexpected error occurred. Please try again later.'
+} as const;
+
+// Success Messages
+export const SUCCESS_MESSAGES = {
+  POOL_CREATED: 'Pool created successfully!',
+  POOL_UPDATED: 'Pool updated successfully!',
+  PICKS_SUBMITTED: 'Picks submitted successfully!',
+  USER_ADDED: 'User added to pool successfully!',
+  USER_REMOVED: 'User removed from pool successfully!'
+} as const;
+
 export function formatDate(date: string | Date) {
   const d = new Date(date)
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -105,32 +184,56 @@ export function getTeamAbbreviation(fullName: string): string {
     'Washington Commanders': 'WAS'
   }
   return teamAbbreviations[fullName] || fullName
-} 
+}
+
+/**
+ * Helper function to get max weeks for a season type
+ */
+export function getMaxWeeksForSeason(seasonType: number): number {
+  switch (seasonType) {
+    case 1: return MAX_WEEKS_PRESEASON;
+    case 2: return MAX_WEEKS_REGULAR_SEASON;
+    case 3: return MAX_WEEKS_POSTSEASON;
+    default: return MAX_WEEKS_REGULAR_SEASON;
+  }
+}
+
+/**
+ * Helper function to get season type name
+ */
+export function getSeasonTypeName(seasonType: number): string {
+  switch (seasonType) {
+    case 1: return 'Preseason';
+    case 2: return 'Regular Season';
+    case 3: return 'Postseason';
+    default: return 'Unknown';
+  }
+}
 
 /**
  * Development-only logging utilities
  * These functions only log when NODE_ENV === 'development'
  */
 
-export const debugLog = (...args: any[]) => {
+export const debugLog = (...args: unknown[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(...args);
   }
 };
 
-export const debugError = (...args: any[]) => {
+export const debugError = (...args: unknown[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.error(...args);
   }
 };
 
-export const debugWarn = (...args: any[]) => {
+export const debugWarn = (...args: unknown[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.warn(...args);
   }
 };
 
-export const debugInfo = (...args: any[]) => {
+export const debugInfo = (...args: unknown[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.info(...args);
   }
@@ -140,7 +243,7 @@ export const debugInfo = (...args: any[]) => {
  * Conditional debug logging with a custom flag
  * Usage: debugIf(process.env.NEXT_PUBLIC_DEBUG === 'true', 'Debug message')
  */
-export const debugIf = (condition: boolean, ...args: any[]) => {
+export const debugIf = (condition: boolean, ...args: unknown[]) => {
   if (condition && process.env.NODE_ENV === 'development') {
     console.log(...args);
   }
