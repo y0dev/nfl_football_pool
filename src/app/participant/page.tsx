@@ -46,7 +46,7 @@ function ParticipantContent() {
   const [submittedCount, setSubmittedCount] = useState(0);
 
   const [showRecentPicks, setShowRecentPicks] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState<Record<string, boolean>>({});
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [gamesStarted, setGamesStarted] = useState(false);
@@ -56,6 +56,12 @@ function ParticipantContent() {
   
   const { toast } = useToast();
   const router = useRouter();
+
+  // Helper function to get current user's submission status
+  const getCurrentUserSubmissionStatus = () => {
+    if (!selectedUser) return false;
+    return hasSubmitted[selectedUser.id] || false;
+  };
 
   const handleLogout = async () => {
     try {
@@ -113,6 +119,10 @@ function ParticipantContent() {
         seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
       } else {
         // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
@@ -120,6 +130,10 @@ function ParticipantContent() {
         seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
         
         // Show a helpful message for empty week parameter
         toast({
@@ -203,8 +217,16 @@ function ParticipantContent() {
 
       // Load games for the week using the determined week and season type
       try {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
+        
         const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
         setGames(gamesData);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Loaded games:', gamesData.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+        }
         
         // Check if any games have started
         const now = new Date();
@@ -324,6 +346,11 @@ function ParticipantContent() {
     // Show success dialog
     setShowSuccessDialog(true);
     
+    // Update the submission status for the current user
+    if (selectedUser) {
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: true }));
+    }
+    
     // Refresh the page data when picks are submitted
     await loadData();
     await loadParticipantStats();
@@ -361,7 +388,7 @@ function ParticipantContent() {
     }
     
     // Reset submission status
-    setHasSubmitted(false);
+    setHasSubmitted({});
     
     if (process.env.NODE_ENV === 'development') {
       console.log('User selection interface should now be visible');
@@ -500,11 +527,11 @@ function ParticipantContent() {
 
       const gameIds = gamesForWeek.map(g => g.id);
       
-      // Check if user has submitted picks for these games
+      // Check if THIS SPECIFIC USER has submitted picks for these games
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('id, game_id')
-        .eq('participant_id', selectedUser.id)
+        .eq('participant_id', selectedUser.id)  // Only check for the current user
         .eq('pool_id', poolId)
         .in('game_id', gameIds);
 
@@ -514,15 +541,15 @@ function ParticipantContent() {
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('Picks found:', { picks, count: picks?.length || 0 });
+        console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
       }
 
       // User has submitted if they have picks for all games in this week
       const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
-      setHasSubmitted(hasSubmitted);
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: hasSubmitted }));
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('Submission status updated:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
+        console.log('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
       }
     } catch (error) {
       console.error('Error checking submission status:', error);
@@ -593,6 +620,9 @@ function ParticipantContent() {
         title: "Picks Unlocked",
         description: "Participant can now make new picks",
       });
+
+      // Reset the submission status for this specific user
+      setHasSubmitted(prev => ({ ...prev, [participantId]: false }));
 
       // Refresh the submission status
       await checkUserSubmissionStatus();
@@ -1150,7 +1180,7 @@ function ParticipantContent() {
                     Week {currentWeek} Picks
                   </CardTitle>
                   <CardDescription>
-                    {hasSubmitted 
+                    {selectedUser && hasSubmitted[selectedUser.id]
                       ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
                       : "Select the winner for each game and assign confidence points"
                     }
@@ -1158,7 +1188,7 @@ function ParticipantContent() {
                 </CardHeader>
                 <CardContent>
                   {selectedUser ? (
-                    hasSubmitted ? (
+                    hasSubmitted[selectedUser.id] ? (
                       <div className="text-center py-8">
                         <div className="text-gray-500 mb-4">
                           <Lock className="h-12 w-12 mx-auto mb-2" />
@@ -1185,6 +1215,12 @@ function ParticipantContent() {
                             </p>
                             <p className="text-sm text-blue-700">
                               Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
+                            </p>
+                            <p className="text-sm text-blue-600">
+                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id] ? 'Submitted' : 'Not Submitted'}
+                            </p>
+                            <p className="text-sm text-blue-500">
+                              <strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}
                             </p>
                           </div>
                         )}

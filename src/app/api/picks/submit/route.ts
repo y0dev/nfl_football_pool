@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { Pick } from '@/types/game';
+import { pickStorage } from '@/lib/pick-storage';
 
 export async function POST(request: NextRequest) {
   try {
     const picks: Pick[] = await request.json();
-    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Picks:', picks);
+    }
     // Validate picks
     if (picks.length === 0) {
       return NextResponse.json(
@@ -31,14 +34,21 @@ export async function POST(request: NextRequest) {
       .from('picks')
       .select('id')
       .eq('participant_id', firstPick.participant_id)
-      .eq('pool_id', firstPick.pool_id);
-
+      .eq('pool_id', firstPick.pool_id)
+      .eq('game_id', firstPick.game_id);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Check error:', checkError);
+    }
     if (checkError) {
       console.error('Error checking existing picks:', checkError);
       return NextResponse.json(
         { success: false, error: 'Failed to check existing picks' },
         { status: 500 }
       );
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Existing picks:', existingPicks);
     }
 
     if (existingPicks && existingPicks.length > 0) {
@@ -55,7 +65,9 @@ export async function POST(request: NextRequest) {
       .from('games')
       .select('id, status, kickoff_time, week, season_type')
       .in('id', gameIds);
-
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Games:', games);
+    }
     if (gamesError) {
       console.error('Error checking games:', gamesError);
       return NextResponse.json(
@@ -117,6 +129,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Delete picks from localStorage
+    pickStorage.clearPicks();
 
     // Log the submission
     const week = games?.[0]?.week || 'unknown';

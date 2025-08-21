@@ -23,6 +23,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const { toast } = useToast();
   const { signIn } = useAuth();
 
@@ -36,10 +37,13 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
+    setLoginError(null); // Clear any previous errors
+    
     try {
       const result = await loginUser(data.email, data.password);
       
       if (result.success && result.user) {
+        console.log('LoginForm: Login successful:', result.user);
         // Set the user in the auth context
         await signIn(result.user);
         
@@ -51,17 +55,21 @@ export function LoginForm() {
         // Redirect to admin dashboard
         window.location.href = '/admin/dashboard';
       } else {
+        const errorMessage = result.error || 'Invalid credentials';
+        setLoginError(errorMessage);
         toast({
           title: 'Error',
-          description: result.error || 'Invalid credentials',
+          description: errorMessage,
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      setLoginError(errorMessage);
       toast({
         title: 'Error',
-        description: 'Login failed. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -133,6 +141,16 @@ export function LoginForm() {
                 </FormItem>
               )}
             />
+            
+            {/* Display login error prominently */}
+            {loginError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800 text-center font-medium">
+                  {loginError}
+                </p>
+              </div>
+            )}
+            
             <Button 
               type="submit" 
               className="w-full h-10 sm:h-11 text-sm sm:text-base font-medium" 

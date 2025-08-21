@@ -34,7 +34,8 @@ export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
     });
 
     const result = await response.json();
-
+    console.log('SubmitPicksResult:', result);
+    
     if (!response.ok) {
       return {
         success: false,
