@@ -13,23 +13,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2, Key } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import { Trash2 } from 'lucide-react';
+
 
 const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
-  description: z.string().optional(),
-  require_access_code: z.boolean(),
-  access_code: z.string().optional(),
-}).refine((data) => {
-  // If require_access_code is true, access_code must be provided
-  if (data.require_access_code && (!data.access_code || data.access_code.trim() === '')) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Access code is required when access code is enabled",
-  path: ["access_code"],
+  season: z.number().min(2020, 'Season must be 2020 or later'),
+  is_active: z.boolean(),
+  tie_breaker_method: z.string().optional(),
+  tie_breaker_question: z.string().optional(),
+  tie_breaker_answer: z.number().optional(),
 });
 
 type PoolSettingsData = z.infer<typeof poolSettingsSchema>;
@@ -45,20 +38,19 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showAccessCodePrompt, setShowAccessCodePrompt] = useState(false);
+
+
   const { toast } = useToast();
 
   const form = useForm<PoolSettingsData>({
     resolver: zodResolver(poolSettingsSchema),
     defaultValues: {
       name: poolName,
-      description: '',
-      require_access_code: true,
-      access_code: '',
+      season: 2024, // Default to 2024 for new pools
+      is_active: true, // Default to active for new pools
+      tie_breaker_method: 'none', // Default to no tie breaker
+      tie_breaker_question: '',
+      tie_breaker_answer: undefined,
     },
   });
 
@@ -71,9 +63,11 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         if (pool) {
           form.reset({
             name: pool.name,
-            description: pool.description || '',
-            require_access_code: pool.require_access_code,
-            access_code: pool.access_code || '',
+            season: pool.season,
+            is_active: pool.is_active,
+            tie_breaker_method: pool.tie_breaker_method || 'none',
+            tie_breaker_question: pool.tie_breaker_question || '',
+            tie_breaker_answer: pool.tie_breaker_answer || undefined,
           });
         }
       } catch (error) {
@@ -95,18 +89,13 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     try {
       setIsSaving(true);
       
-      // Check if access code is required but not provided
-      if (data.require_access_code && (!data.access_code || data.access_code.trim() === '')) {
-        setShowAccessCodePrompt(true);
-        setIsSaving(false);
-        return;
-      }
-      
       await updatePool(poolId, {
         name: data.name,
-        description: data.description,
-        require_access_code: data.require_access_code,
-        access_code: data.require_access_code ? data.access_code : undefined,
+        season: data.season,
+        is_active: data.is_active,
+        tie_breaker_method: data.tie_breaker_method,
+        tie_breaker_question: data.tie_breaker_question,
+        tie_breaker_answer: data.tie_breaker_answer,
       });
       
       toast({
@@ -168,75 +157,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!newPassword || !confirmPassword) {
-      toast({
-        title: 'Error',
-        description: 'Please enter both password fields',
-        variant: 'destructive',
-      });
-      return;
-    }
 
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: 'Error',
-        description: 'Passwords do not match',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      toast({
-        title: 'Error',
-        description: 'Password must be at least 8 characters',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsResettingPassword(true);
-    try {
-      const response = await fetch('/api/admin/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          poolId,
-          newPassword,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Password reset successfully',
-        });
-        setShowPasswordReset(false);
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to reset password',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to reset password',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsResettingPassword(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -284,16 +205,13 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             
             <FormField
               control={form.control}
-              name="description"
+              name="season"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormLabel>Season</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter pool description" {...field} />
+                    <Input type="number" placeholder="Enter season (e.g., 2024)" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    A brief description of your confidence pool.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -301,7 +219,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             
             <FormField
               control={form.control}
-              name="require_access_code"
+              name="is_active"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
@@ -312,39 +230,59 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>
-                      Require Access Code for Picks
+                      Active Pool
                     </FormLabel>
                     <FormDescription>
-                      When enabled, participants must enter an access code to make their picks. 
-                      When disabled, participants can make picks directly without any code.
+                      When enabled, participants can make picks. When disabled, they cannot.
                     </FormDescription>
                   </div>
                 </FormItem>
               )}
             />
             
-            {form.watch('require_access_code') && (
-              <FormField
-                control={form.control}
-                name="access_code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Access Code</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Enter access code (e.g., FOOTBALL2024)" 
-                        {...field} 
-                        maxLength={20}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      This code will be required for participants to access the pool and make picks.
-                      Keep it simple but secure.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={form.control}
+              name="tie_breaker_method"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tie Breaker Method</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Select tie breaker method" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {form.watch('tie_breaker_method') === 'question' && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="tie_breaker_question"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tie Breaker Question</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter tie breaker question" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tie_breaker_answer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tie Breaker Answer (Number)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="Enter tie breaker answer" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
             )}
             
             <div className="flex justify-end space-x-2 pt-4">
@@ -374,64 +312,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       <CardContent>
         <div className="space-y-4">
           {/* Password Reset */}
-          <div>
-            <h4 className="font-semibold text-red-600 mb-2">Reset Pool Password</h4>
-            <p className="text-sm text-gray-600 mb-4">
-              Reset the access code for this pool. All participants will need the new code.
-            </p>
-            <Dialog open={showPasswordReset} onOpenChange={setShowPasswordReset}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <Key className="h-4 w-4" />
-                  Reset Password
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Reset Pool Password</DialogTitle>
-                  <DialogDescription>
-                    Enter a new access code for &quot;{poolName}&quot;. This will replace the current access code.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="new-password">New Access Code</Label>
-                    <Input
-                      id="new-password"
-                      type="text"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new access code"
-                      maxLength={10}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="confirm-password">Confirm Access Code</Label>
-                    <Input
-                      id="confirm-password"
-                      type="text"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm new access code"
-                      maxLength={10}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowPasswordReset(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    onClick={handlePasswordReset} 
-                    disabled={isResettingPassword}
-                  >
-                    {isResettingPassword ? 'Resetting...' : 'Reset Password'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+
 
           {/* Delete Pool */}
           <div>
@@ -476,43 +357,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       </CardContent>
     </Card>
 
-    {/* Access Code Prompt Dialog */}
-    <Dialog open={showAccessCodePrompt} onOpenChange={setShowAccessCodePrompt}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
-            <Key className="h-5 w-5 text-orange-500" />
-            Access Code Required
-          </DialogTitle>
-          <DialogDescription className="text-sm sm:text-base">
-            You have enabled access code requirement but haven&apos;t provided an access code.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-            <p className="text-sm text-orange-800">
-              <strong>Action Required:</strong> Please either:
-            </p>
-            <ul className="list-disc list-inside mt-2 text-sm text-orange-700 space-y-1">
-              <li>Enter an access code in the field above</li>
-              <li>Uncheck the &quot;Require Access Code&quot; option</li>
-            </ul>
-          </div>
-          <div className="text-sm text-gray-600">
-            <p>Access codes help secure your pool and ensure only invited participants can make picks.</p>
-          </div>
-          <div className="flex justify-center">
-            <Button
-              onClick={() => setShowAccessCodePrompt(false)}
-              className="flex items-center gap-2"
-            >
-              <Key className="h-4 w-4" />
-              I Understand
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+
   </div>
   );
 }

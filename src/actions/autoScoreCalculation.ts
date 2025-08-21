@@ -65,7 +65,10 @@ export async function calculateScores(weekNumber: number = 1) {
     for (const score of scores.values()) {
       const { error } = await supabase
         .from('scores')
-        .upsert(score, { onConflict: 'participant_id,pool_id,week' });
+        .upsert({
+          ...score,
+          season: new Date().getFullYear() // Add season field
+        }, { onConflict: 'participant_id,pool_id,week,season' });
 
       if (error) {
         console.error('Error updating score:', error);

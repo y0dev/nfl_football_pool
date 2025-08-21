@@ -14,8 +14,7 @@ import { useAuth } from '@/lib/auth';
 
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
-  description: z.string().optional(),
-  require_access_code: z.boolean(),
+  season: z.number().min(2020, 'Season must be 2020 or later'),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -34,8 +33,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     resolver: zodResolver(poolSchema),
     defaultValues: {
       name: '',
-      description: '',
-      require_access_code: false,
+      season: 2024, // Default to current season
     },
   });
 
@@ -47,7 +45,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
       await createPool({
         name: data.name,
         created_by: user.email || '',
-        require_access_code: data.require_access_code,
+        season: data.season,
       });
       
       console.log('Pool created successfully');
@@ -90,41 +88,23 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
             
             <FormField
               control={form.control}
-              name="description"
+              name="season"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormLabel>Season</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter pool description" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    A brief description of your confidence pool.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="require_access_code"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                    <Input 
+                      type="number" 
+                      placeholder="Enter season" 
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 2024)}
+                      value={field.value}
                     />
                   </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>
-                      Require Access Code for Picks
-                    </FormLabel>
-                    <FormDescription>
-                      When enabled, participants must enter an access code to make their picks. 
-                      When disabled, participants can make picks directly without any code.
-                    </FormDescription>
-                  </div>
+                  <FormDescription>
+                    The season for which this pool is valid.
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />

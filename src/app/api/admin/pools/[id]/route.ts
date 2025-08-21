@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 // GET - Get pool details
 export async function GET(
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id: poolId } = await params;
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
 
     const { data: pool, error } = await supabase
       .from('pools')
@@ -46,7 +46,7 @@ export async function PUT(
   try {
     const { id: poolId } = await params;
     const body = await request.json();
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
 
     // Validate required fields
     if (!body.name || !body.season) {
@@ -61,7 +61,6 @@ export async function PUT(
       .from('pools')
       .update({
         name: body.name,
-        description: body.description || null,
         season: body.season,
         is_active: body.is_active,
         tie_breaker_method: body.tie_breaker_method || null,
@@ -85,7 +84,7 @@ export async function PUT(
       .from('audit_logs')
       .insert({
         action: 'update_pool',
-        admin_id: 'system', // This should be the actual admin ID
+        admin_id: null, // Service role doesn't have specific admin ID
         entity: 'pools',
         entity_id: poolId,
         details: { 
@@ -115,7 +114,7 @@ export async function DELETE(
 ) {
   try {
     const { id: poolId } = await params;
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
 
     // First, get the pool details for logging
     const { data: pool } = await supabase
@@ -177,7 +176,7 @@ export async function DELETE(
       .from('audit_logs')
       .insert({
         action: 'delete_pool',
-        admin_id: 'system', // This should be the actual admin ID
+        admin_id: null, // Service role doesn't have specific admin ID
         entity: 'pools',
         entity_id: poolId,
         details: { 

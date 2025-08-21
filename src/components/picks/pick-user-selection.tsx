@@ -3,29 +3,26 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { loadPool } from '@/actions/loadPools';
 import { userSessionManager } from '@/lib/user-session';
 
 interface PickUserSelectionProps {
   poolId: string;
   weekNumber?: number;
+  seasonType?: number;
   onUserSelected: (userId: string, userName: string) => void;
 }
 
-export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUserSelectionProps) {
+export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelected }: PickUserSelectionProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [accessCode, setAccessCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
-  const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState(true);
   
   const { toast } = useToast();
 
@@ -38,17 +35,11 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
     if (isMounted) {
       loadData();
     }
-  }, [isMounted, poolId]);
+  }, [isMounted, poolId, weekNumber, seasonType]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
-      // Load pool details to check access code requirement
-      const pool = await loadPool(poolId);
-      if (pool) {
-        setPoolRequiresAccessCode(pool.require_access_code);
-      }
       
       // Use provided week number or load current week
       let weekToUse = weekNumber;
@@ -58,11 +49,19 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
       }
       setCurrentWeek(weekToUse);
       
-      // Load users who haven't submitted picks for this specific pool
-      const availableUsers = await loadUsers(poolId, weekToUse);
-      setUsers(availableUsers);
+      // Load users who haven't submitted picks for this specific pool, week, and season type
+      const availableUsers = await loadUsers(poolId, weekToUse, seasonType || 2);
+      
+      // Ensure we have an array of users
+      if (Array.isArray(availableUsers)) {
+        setUsers(availableUsers);
+      } else {
+        console.error('loadUsers returned non-array:', availableUsers);
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
+      setUsers([]);
       toast({
         title: 'Error',
         description: 'Failed to load users',
@@ -83,15 +82,6 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
       return;
     }
 
-    if (poolRequiresAccessCode && !accessCode) {
-      toast({
-        title: 'Error',
-        description: 'Please enter the access code',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsVerifying(true);
 
     try {
@@ -100,29 +90,13 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
         throw new Error('User not found');
       }
 
-      // Only verify access code if pool requires it
-      if (poolRequiresAccessCode) {
-        // For now, we'll use a simple verification
-        // In a real app, you might want to store access codes in the database
-        const expectedCode = selectedUser.name.substring(0, 4).toUpperCase();
-        
-        if (accessCode.toUpperCase() !== expectedCode) {
-          toast({
-            title: 'Access Denied',
-            description: 'Invalid access code',
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
       // Create session
-      const session = userSessionManager.createSession(
+      userSessionManager.createSession(
         selectedUser.id,
         selectedUser.name,
         poolId,
         selectedUser.pool_name || 'Unknown Pool',
-        poolRequiresAccessCode ? accessCode : ''
+        '' // Empty access code since we no longer use them
       );
 
       toast({
@@ -211,15 +185,30 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
     );
   }
 
+  // Safety check - ensure users is an array
+  if (!Array.isArray(users)) {
+    console.error('Users is not an array:', users);
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Error Loading Participants</CardTitle>
+          <CardDescription>There was an error loading the participant list.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-red-600">
+            <p>Failed to load participants. Please refresh the page and try again.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Select User</CardTitle>
         <CardDescription>
-          {poolRequiresAccessCode 
-            ? `Choose your name and enter the access code to make your picks for Week ${currentWeek}`
-            : `Choose your name to make your picks for Week ${currentWeek}`
-          }
+          {`Choose your name to make your picks for Week ${currentWeek}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -240,26 +229,9 @@ export function PickUserSelection({ poolId, weekNumber, onUserSelected }: PickUs
           </select>
         </div>
 
-        {poolRequiresAccessCode && (
-          <div>
-            <Label htmlFor="access-code">Access Code</Label>
-            <Input
-              id="access-code"
-              type="text"
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-              placeholder="Enter 4-character access code"
-              maxLength={4}
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Use the first 4 letters of your name as the access code
-            </p>
-          </div>
-        )}
-
         <Button
           onClick={handleVerifyAccess}
-          disabled={!selectedUserId || (poolRequiresAccessCode && !accessCode) || isVerifying}
+          disabled={!selectedUserId || isVerifying}
           className="w-full"
         >
           {isVerifying ? 'Verifying...' : 'Continue'}

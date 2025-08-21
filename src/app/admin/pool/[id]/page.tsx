@@ -24,11 +24,11 @@ import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 
 interface Pool {
   id: string;
   name: string;
-  description: string;
   created_by: string;
   season: number;
   is_active: boolean;
@@ -56,7 +56,6 @@ function PoolDetailsContent() {
   // Form state for editing
   const [editForm, setEditForm] = useState({
     name: '',
-    description: '',
     season: 2024,
     is_active: true,
     tie_breaker_method: '',
@@ -80,7 +79,6 @@ function PoolDetailsContent() {
         setPool(result.pool);
         setEditForm({
           name: result.pool.name,
-          description: result.pool.description || '',
           season: result.pool.season,
           is_active: result.pool.is_active,
           tie_breaker_method: result.pool.tie_breaker_method || '',
@@ -457,7 +455,9 @@ function PoolDetailsContent() {
 export default function PoolDetailsPage() {
   return (
     <AuthProvider>
-      <PoolDetailsContent />
+      <AdminGuard>
+        <PoolDetailsContent />
+      </AdminGuard>
     </AuthProvider>
   );
 }

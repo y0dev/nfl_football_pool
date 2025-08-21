@@ -399,6 +399,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       }));
       
       const validPicks = picksWithParticipantId.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+      
       const result = await submitPicks(validPicks);
 
       if (result.success) {

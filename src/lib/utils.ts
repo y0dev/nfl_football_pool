@@ -106,3 +106,42 @@ export function getTeamAbbreviation(fullName: string): string {
   }
   return teamAbbreviations[fullName] || fullName
 } 
+
+/**
+ * Development-only logging utilities
+ * These functions only log when NODE_ENV === 'development'
+ */
+
+export const debugLog = (...args: any[]) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(...args);
+  }
+};
+
+export const debugError = (...args: any[]) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.error(...args);
+  }
+};
+
+export const debugWarn = (...args: any[]) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.warn(...args);
+  }
+};
+
+export const debugInfo = (...args: any[]) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.info(...args);
+  }
+};
+
+/**
+ * Conditional debug logging with a custom flag
+ * Usage: debugIf(process.env.NEXT_PUBLIC_DEBUG === 'true', 'Debug message')
+ */
+export const debugIf = (condition: boolean, ...args: any[]) => {
+  if (condition && process.env.NODE_ENV === 'development') {
+    console.log(...args);
+  }
+}; 

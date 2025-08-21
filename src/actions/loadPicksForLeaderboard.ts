@@ -74,7 +74,7 @@ export async function loadPicksForLeaderboard(poolId: string, weekNumber: number
       const transformedPick = {
         id: pick.id,
         participant_id: pick.participant_id,
-        participant_name: (pick.participants as any)?.name || 'Unknown',
+        participant_name: (pick.participants as { name: string }[])?.[0]?.name || 'Unknown',
         game_id: pick.game_id,
         home_team: game?.home_team || 'Unknown',
         away_team: game?.away_team || 'Unknown',
@@ -210,7 +210,8 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
               participants.map(p => ({
                 participant_id: p.participant_id,
                 participant_name: p.participant_name,
-                points: p.total_points
+                points: p.total_points,
+                correct_picks: p.correct_picks
               })),
               tieBreakerSettings
             );

@@ -12,7 +12,7 @@ import { Shield, Plus, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
-
+import { AdminGuard } from '@/components/auth/admin-guard';
 
 
 function SuperAdminContent() {
@@ -227,7 +227,9 @@ function SuperAdminContent() {
 export default function SuperAdminPage() {
   return (
     <AuthProvider>
-      <SuperAdminContent />
+      <AdminGuard requireSuperAdmin={true}>
+        <SuperAdminContent />
+      </AdminGuard>
     </AuthProvider>
   );
 }

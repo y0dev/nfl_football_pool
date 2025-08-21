@@ -24,18 +24,30 @@ serve(async (req) => {
     // Update game results from NFL API
     await updateGameResults(supabase, currentWeek)
     
-    // Calculate scores for all pools
-    await calculateAllPoolScores(supabase, currentWeek)
+    // Check if all games for the week are finished before calculating scores
+    const allGamesFinished = await checkIfAllGamesFinished(supabase, currentWeek)
     
-    // Check for quarterly winners after week 4
-    if (currentWeek === 4) {
-      await checkQuarterlyWinners(supabase)
+    if (allGamesFinished) {
+      // Calculate scores for all pools only when all games are finished
+      await calculateAllPoolScores(supabase, currentWeek)
+      
+      // Check for quarterly winners after week 4
+      if (currentWeek === 4) {
+        await checkQuarterlyWinners(supabase)
+      }
+      
+      console.log(`Week ${currentWeek} completed - scores calculated for all pools`)
+    } else {
+      console.log(`Week ${currentWeek} not yet complete - skipping score calculation`)
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Week ${currentWeek} processing completed`,
+        message: allGamesFinished 
+          ? `Week ${currentWeek} completed - scores calculated` 
+          : `Week ${currentWeek} not yet complete`,
+        allGamesFinished,
         timestamp: new Date().toISOString()
       }),
       { 
@@ -340,6 +352,35 @@ async function logQuarterlyWinner(supabase: any, poolId: string, winner: any) {
     }
   } catch (error) {
     console.error('Failed to log quarterly winner:', error)
+  }
+}
+
+// Check if all games for a given week are finished
+async function checkIfAllGamesFinished(supabase: any, week: number): Promise<boolean> {
+  try {
+    const { data: games, error } = await supabase
+      .from('games')
+      .select('*')
+      .eq('week', week)
+      .eq('is_active', true)
+
+    if (error) {
+      console.error('Error fetching games for completion check:', error)
+      return false
+    }
+
+    if (!games || games.length === 0) {
+      console.log(`No games found for week ${week} to check completion`)
+      return true // No games means it's finished
+    }
+
+    // Check if all games have a 'finished' status
+    const allFinished = games.every(game => game.status === 'finished')
+    console.log(`All games for week ${week} finished: ${allFinished}`)
+    return allFinished
+  } catch (error) {
+    console.error('Failed to check if all games are finished:', error)
+    return false
   }
 }
 

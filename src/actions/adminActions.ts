@@ -1,3 +1,5 @@
+'use server';
+
 import { getSupabaseClient } from '@/lib/supabase';
 
 // Get weekly submissions for a pool
@@ -354,114 +356,134 @@ export async function getAdminPools() {
   }
 }
 
-// Get participants for a pool
+// Get pool participants
 export async function getPoolParticipants(poolId: string) {
   try {
-    // Validate input
-    if (!poolId || typeof poolId !== 'string') {
-      console.error('Invalid poolId provided to getPoolParticipants:', poolId);
-      return [];
-    }
-
-    const { data, error } = await getSupabaseClient()
-      .from('participants')
-      .select('*')
-      .eq('pool_id', poolId)
-      .eq('is_active', true)
-      .order('name', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching participants:', error);
-      return [];
-    }
-
-    return data || [];
+    const { adminService } = await import('@/lib/admin-service');
+    return await adminService.getPoolParticipants(poolId);
   } catch (error) {
     console.error('Failed to get pool participants:', error);
-    return [];
+    throw error;
   }
 }
 
-// Add new participant to a pool
-export async function addParticipantToPool(poolId: string, name: string, email: string) {
+// Add participant to pool
+export async function addParticipantToPool(poolId: string, name: string, email?: string) {
   try {
-    const { data, error } = await getSupabaseClient()
+    // Get the service role client to bypass RLS policies
+    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseServiceClient();
+
+    // Check if participant already exists in this pool
+    const { data: existingParticipant, error: checkError } = await supabase
+      .from('participants')
+      .select('id')
+      .eq('pool_id', poolId)
+      .eq('email', email)
+      .single();
+
+    if (existingParticipant) {
+      throw new Error('Participant already exists in this pool');
+    }
+
+    // Add participant to pool
+    const { data: participant, error: insertError } = await supabase
       .from('participants')
       .insert({
         pool_id: poolId,
         name: name.trim(),
-        email: email.trim() || null,
+        email: email?.trim() || null,
         is_active: true
       })
       .select()
       .single();
 
-    if (error) {
-      console.error('Error adding participant:', error);
-      throw new Error(error.message);
+    if (insertError) {
+      throw new Error(insertError.message);
     }
 
     // Log the action
     try {
-      const { data: userData } = await getSupabaseClient().auth.getUser();
-      await getSupabaseClient()
+      const { error: logError } = await supabase
         .from('audit_logs')
         .insert({
           action: 'add_participant',
-          admin_id: userData?.user?.id || null,
+          admin_id: null, // Service role doesn't have a specific admin ID
           entity: 'participant',
-          entity_id: poolId,
-          details: { pool_id: poolId, name, email }
+          entity_id: participant.id,
+          details: { 
+            participant_id: participant.id,
+            participant_name: name,
+            participant_email: email,
+            pool_id: poolId,
+            action: 'participant_added'
+          }
         });
+      
+      if (logError) {
+        console.warn('Failed to log participant addition:', logError);
+      }
     } catch (logError) {
       console.warn('Failed to log participant addition:', logError);
       // Don't throw error for logging failure
     }
 
-    return data;
+    return participant;
   } catch (error) {
-    console.error('Failed to add participant:', error);
+    console.error('Failed to add participant to pool:', error);
     throw error;
   }
 }
 
-// Remove participant from a pool
+// Remove participant from pool
 export async function removeParticipantFromPool(participantId: string) {
   try {
-    // First get the participant to get the pool_id
-    const { data: participant, error: fetchError } = await getSupabaseClient()
+    // Get the service role client to bypass RLS policies
+    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseServiceClient();
+
+    // First get the participant to get the pool_id for logging
+    const { data: participant, error: fetchError } = await supabase
       .from('participants')
-      .select('pool_id')
+      .select('pool_id, name, email')
       .eq('id', participantId)
       .single();
 
     if (fetchError) {
-      console.error('Error fetching participant:', fetchError);
       throw new Error(fetchError.message);
     }
 
-    const { error } = await getSupabaseClient()
+    // Remove participant from pool
+    const { error: deleteError } = await supabase
       .from('participants')
-      .update({ is_active: false })
+      .delete()
       .eq('id', participantId);
 
-    if (error) {
-      console.error('Error removing participant:', error);
-      throw new Error(error.message);
+    if (deleteError) {
+      throw new Error(deleteError.message);
     }
 
     // Log the action
     try {
-      const { data: userData } = await getSupabaseClient().auth.getUser();
-      await getSupabaseClient()
+      const { error: logError } = await supabase
         .from('audit_logs')
         .insert({
           action: 'remove_participant',
-          admin_id: userData?.user?.id || null,
+          admin_id: null, // Service role doesn't have a specific admin ID
           entity: 'participant',
           entity_id: participantId,
-          details: { participant_id: participantId, action: 'deactivated', pool_id: participant.pool_id }
+          details: { 
+            participant_id: participantId,
+            participant_name: participant.name,
+            participant_email: participant.email,
+            pool_id: participant.pool_id,
+            action: 'participant_removed'
+          }
         });
+      
+      if (logError) {
+        console.warn('Failed to log participant removal:', logError);
+      }
     } catch (logError) {
       console.warn('Failed to log participant removal:', logError);
       // Don't throw error for logging failure
@@ -469,7 +491,7 @@ export async function removeParticipantFromPool(participantId: string) {
 
     return true;
   } catch (error) {
-    console.error('Failed to remove participant:', error);
+    console.error('Failed to remove participant from pool:', error);
     throw error;
   }
 }
@@ -477,46 +499,52 @@ export async function removeParticipantFromPool(participantId: string) {
 // Update participant name
 export async function updateParticipantName(participantId: string, newName: string) {
   try {
+    // Get the service role client to bypass RLS policies
+    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseServiceClient();
+    
     // First get the participant to get the pool_id for logging
-    const { data: participant, error: fetchError } = await getSupabaseClient()
+    const { data: participant, error: fetchError } = await supabase
       .from('participants')
       .select('pool_id, name')
       .eq('id', participantId)
       .single();
 
     if (fetchError) {
-      console.error('Error fetching participant:', fetchError);
       throw new Error(fetchError.message);
     }
 
-    const { error } = await getSupabaseClient()
+    // Actually update the participant name in the database using service role
+    const { error: updateError } = await supabase
       .from('participants')
-      .update({ name: newName })
+      .update({ name: newName.trim() })
       .eq('id', participantId);
 
-    if (error) {
-      console.error('Error updating participant:', error);
-      throw new Error(error.message);
+    if (updateError) {
+      throw new Error(updateError.message);
     }
 
     // Log the action
     try {
-      const { data: userData } = await getSupabaseClient().auth.getUser();
-      await getSupabaseClient()
+      const { error: logError } = await supabase
         .from('audit_logs')
         .insert({
           action: 'update_participant',
-          admin_id: userData?.user?.id || null,
+          admin_id: null, // Service role doesn't have a specific admin ID
           entity: 'participant',
           entity_id: participantId,
           details: { 
             participant_id: participantId, 
             old_name: participant.name,
-            new_name: newName,
+            new_name: newName.trim(),
             action: 'name_updated',
             pool_id: participant.pool_id
           }
         });
+      
+      if (logError) {
+        console.warn('Failed to log participant update:', logError);
+      }
     } catch (logError) {
       console.warn('Failed to log participant update:', logError);
       // Don't throw error for logging failure
@@ -524,7 +552,7 @@ export async function updateParticipantName(participantId: string, newName: stri
 
     return true;
   } catch (error) {
-    console.error('Failed to update participant:', error);
+    console.error('Failed to update participant name:', error);
     throw error;
   }
 }

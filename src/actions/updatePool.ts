@@ -1,16 +1,15 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function updatePool(poolId: string, updates: {
   name?: string;
-  description?: string;
-  require_access_code?: boolean;
-  access_code?: string;
+  season?: number;
+  is_active?: boolean;
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
 }) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     const { data, error } = await supabase
       .from('pools')
       .update(updates)
