@@ -8,9 +8,9 @@ export async function joinPoolServer(poolId: string, userEmail: string, userName
   // Debug environment variables
   console.log('joinPoolServer: Environment check:', {
     hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0,
-    serviceKeyPrefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 10) || 'none'
+    hasServiceKey: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY,
+    serviceKeyLength: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY?.length || 0,
+    serviceKeyPrefix: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY?.substring(0, 10) || 'none'
   });
   
   try {

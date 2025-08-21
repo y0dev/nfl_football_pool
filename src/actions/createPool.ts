@@ -1,21 +1,19 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function createPool(poolData: {
   name: string;
   created_by: string;
   season?: number;
-  require_access_code?: boolean;
 }) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     const { data, error } = await supabase
       .from('pools')
       .insert({
         name: poolData.name,
         created_by: poolData.created_by,
         season: poolData.season || 2025,
-        is_active: true,
-        require_access_code: poolData.require_access_code ?? true
+        is_active: true
       })
       .select()
       .single();

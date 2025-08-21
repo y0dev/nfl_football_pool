@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
@@ -791,7 +792,9 @@ function OverridePicksContent() {
 export default function OverridePicksPage() {
   return (
     <AuthProvider>
-      <OverridePicksContent />
+      <AdminGuard>
+        <OverridePicksContent />
+      </AdminGuard>
     </AuthProvider>
   );
 }

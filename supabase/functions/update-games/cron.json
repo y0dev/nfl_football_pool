@@ -1,6 +1,6 @@
 {
-  "cron": "0 */4 * * *",
-  "description": "Update NFL game results and recalculate pool scores every 4 hours during game days",
+  "cron": "0 6 * * 1",
+  "description": "Update NFL game results and recalculate pool scores at the end of each week (Monday 6 AM)",
   "function": "update-games",
   "enabled": true
 }

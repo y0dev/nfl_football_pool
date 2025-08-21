@@ -61,11 +61,11 @@ export class PickStorage {
         return [];
       }
 
-      // Check if data has expired
-      if (Date.now() > data.expiresAt) {
-        this.clearPicks();
-        return [];
-      }
+      // // Check if data has expired
+      // if (Date.now() > data.expiresAt) {
+      //   this.clearPicks();
+      //   return [];
+      // }
 
       console.log('📂 Loaded picks from localStorage:', data.picks.length, 'picks');
       return data.picks;

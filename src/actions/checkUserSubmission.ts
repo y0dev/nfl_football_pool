@@ -1,8 +1,8 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     
     // First get the games for this week and season type
     const { data: games, error: gamesError } = await supabase
@@ -59,7 +59,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
       return [];
     }
     
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     
     // First get the games for this week and season type
     const { data: games, error: gamesError } = await supabase
@@ -94,6 +94,17 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
 
     // Return unique participant IDs
     const uniqueParticipantIds = [...new Set(picks?.map(pick => pick.participant_id) || [])];
+    
+    console.log('getUsersWhoSubmitted - result:', {
+      poolId,
+      week,
+      seasonType,
+      gameIds: gameIds.length,
+      picksFound: picks?.length || 0,
+      uniqueParticipants: uniqueParticipantIds.length,
+      participantIds: uniqueParticipantIds
+    });
+    
     return uniqueParticipantIds;
   } catch (error) {
     console.error('Error getting users who submitted:', error);
@@ -116,7 +127,7 @@ export async function isUserInPool(userEmail: string, poolId: string) {
       return false;
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     
     const { data: participant, error } = await supabase
       .from('participants')

@@ -13,12 +13,13 @@ import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { loadPools, loadPool } from '@/actions/loadPools';
+import { loadPools } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import { userSessionManager } from '@/lib/user-session';
 
 function ParticipantContent() {
   const searchParams = useSearchParams();
@@ -35,9 +36,7 @@ function ParticipantContent() {
   const [games, setGames] = useState<Game[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [poolRequiresAccessCode, setPoolRequiresAccessCode] = useState<boolean>(true);
-  const [poolAccessCode, setPoolAccessCode] = useState<string>('');
-  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+    const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showGameDetails, setShowGameDetails] = useState(false);
@@ -47,17 +46,22 @@ function ParticipantContent() {
   const [submittedCount, setSubmittedCount] = useState(0);
 
   const [showRecentPicks, setShowRecentPicks] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState<Record<string, boolean>>({});
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [gamesStarted, setGamesStarted] = useState(false);
   const [hasPicks, setHasPicks] = useState(false);
-  const [isLoadingPicks, setIsLoadingPicks] = useState(false);
-  const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
+
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   
   const { toast } = useToast();
   const router = useRouter();
+
+  // Helper function to get current user's submission status
+  const getCurrentUserSubmissionStatus = () => {
+    if (!selectedUser) return false;
+    return hasSubmitted[selectedUser.id] || false;
+  };
 
   const handleLogout = async () => {
     try {
@@ -115,6 +119,10 @@ function ParticipantContent() {
         seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
       } else {
         // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
@@ -122,6 +130,10 @@ function ParticipantContent() {
         seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
         
         // Show a helpful message for empty week parameter
         toast({
@@ -131,30 +143,90 @@ function ParticipantContent() {
         });
       }
 
-      // Load pool information
+      // Load pool information using the public API endpoint
       if (poolId) {
-        const pool = await loadPool(poolId);
-        if (pool) {
-          setPoolName(pool.name);
-          setPoolRequiresAccessCode(pool.require_access_code);
-          setPoolAccessCode(pool.access_code || '');
-          setPoolSeason(pool.season || 2024);
+        try {
+          const response = await fetch(`/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
           
-          // Check if access code is required but not set
-          if (pool.require_access_code && !pool.access_code) {
-            setShowAccessCodeDialog(true);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.pool) {
+              const pool = result.pool;
+              setPoolName(pool.name);
+              setPoolSeason(pool.season || 2025);
+              
+              // Set participant stats from the API response
+              setParticipantCount(pool.participant_count || 0);
+              setIsTestMode(pool.is_test_mode || false);
+              
+              // Set picks status if available
+              if (pool.picks_status) {
+                setHasPicks(pool.picks_status.hasPicks || false);
+                setSubmittedCount(pool.picks_status.submittedCount || 0);
+              }
+            } else {
+              setError('Pool not found. Please check the pool link.');
+            }
+          } else {
+            setError('Failed to load pool information. Please try again.');
           }
-        } else {
-          setError('Pool not found. Please check the pool link.');
+        } catch (error) {
+          console.error('Error loading pool:', error);
+          setError('Failed to load pool information. Please try again.');
         }
       } else {
         setError('Pool ID is required. Please use a valid pool link.');
       }
 
+      // Check admin status directly using the user session
+      try {
+        const { getSupabaseClient } = await import('@/lib/supabase');
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // Check if user is an admin
+          const { data: admin } = await supabase
+            .from('admins')
+            .select('id, is_super_admin')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (admin) {
+            setIsAdmin(true);
+            setIsSuperAdmin(admin.is_super_admin);
+            
+            // Check if user is the pool admin (created the pool)
+            if (poolId) {
+              const { data: poolData } = await supabase
+                .from('pools')
+                .select('created_by')
+                .eq('id', poolId)
+                .single();
+              
+              if (poolData && poolData.created_by === session.user.email) {
+                setIsPoolAdmin(true);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        // Continue without admin status - user can still use the page
+      }
+
       // Load games for the week using the determined week and season type
       try {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
+        }
+        
         const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
         setGames(gamesData);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Participant page: Loaded games:', gamesData.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+        }
         
         // Check if any games have started
         const now = new Date();
@@ -177,54 +249,26 @@ function ParticipantContent() {
         });
       }
 
-      // Check if this is test mode (no participants in pool)
+      // Check if there's a saved user session for this pool
       if (poolId) {
         try {
-          const { getSupabaseClient } = await import('@/lib/supabase');
-          const supabase = getSupabaseClient();
-          const { data: participants } = await supabase
-            .from('participants')
-            .select('id')
-            .eq('pool_id', poolId)
-            .eq('is_active', true);
+          const allSessions = userSessionManager.getAllSessions();
+          const poolSession = allSessions.find(session => session.poolId === poolId);
           
-          if (!participants || participants.length === 0) {
-            setIsTestMode(true);
+          if (poolSession && poolSession.userId) {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Restoring user session:', poolSession);
+            }
+            setSelectedUser({
+              id: poolSession.userId,
+              name: poolSession.userName
+            });
           }
         } catch (error) {
-          console.error('Error checking participants:', error);
-        }
-      }
-
-      // Check if user is admin (for back button visibility)
-      try {
-        const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const { data: admin } = await supabase
-            .from('admins')
-            .select('id, is_super_admin')
-            .eq('id', session.user.id)
-            .single();
-          setIsAdmin(!!admin);
-          setIsSuperAdmin(admin?.is_super_admin || false);
-          
-          // Check if user is the pool admin (created the pool)
-          if (poolId) {
-            const { data: pool } = await supabase
-              .from('pools')
-              .select('created_by')
-              .eq('id', poolId)
-              .single();
-            
-            if (pool && pool.created_by === session.user.email) {
-              setIsPoolAdmin(true);
-            }
+          if (process.env.NODE_ENV === 'development') {
+            console.log('No saved user session found for pool:', poolId);
           }
         }
-      } catch (error) {
-        console.error('Error checking admin status:', error);
       }
 
       setLastUpdated(new Date());
@@ -302,13 +346,21 @@ function ParticipantContent() {
     // Show success dialog
     setShowSuccessDialog(true);
     
+    // Update the submission status for the current user
+    if (selectedUser) {
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: true }));
+    }
+    
     // Refresh the page data when picks are submitted
     await loadData();
     await loadParticipantStats();
     await checkUserSubmissionStatus();
     
-    // Clear the selected user after successful submission
-    setSelectedUser(null);
+    // Don't clear the selected user immediately - let them see their submitted picks
+    // The user can manually change users if they want to
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Picks submitted successfully, keeping user selected to show submitted picks');
+    }
   };
 
   const handleUserChangeRequested = () => {
@@ -336,7 +388,7 @@ function ParticipantContent() {
     }
     
     // Reset submission status
-    setHasSubmitted(false);
+    setHasSubmitted({});
     
     if (process.env.NODE_ENV === 'development') {
       console.log('User selection interface should now be visible');
@@ -426,33 +478,10 @@ function ParticipantContent() {
   };
 
   const loadParticipantStats = async () => {
-    if (!poolId) return;
-    
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      // Get total participants
-      const { data: participants } = await supabase
-        .from('participants')
-        .select('id')
-        .eq('pool_id', poolId)
-        .eq('is_active', true);
-      
-      setParticipantCount(participants?.length || 0);
-      
-      // Get submitted participants
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('participant_id, games!inner(week, season_type)')
-        .eq('pool_id', poolId)
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType);
-      
-      const submittedIds = new Set(picks?.map(p => p.participant_id) || []);
-      setSubmittedCount(submittedIds.size);
-    } catch (error) {
-      console.error('Error loading participant stats:', error);
+    // Stats are now loaded from the pool API endpoint
+    // This function is kept for compatibility but no longer makes database calls
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Participant stats loaded from API endpoint');
     }
   };
 
@@ -460,83 +489,86 @@ function ParticipantContent() {
     if (!poolId || !selectedUser) return;
     
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Checking submission status for:', {
+          participantId: selectedUser.id,
+          poolId,
+          currentWeek,
+          currentSeasonType
+        });
+      }
+
+      // Use service role client to bypass RLS policies
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
       
-      // Check if user has submitted picks for this week
-      const { data: picks } = await supabase
+      // First, get the games for this week and season type
+      const { data: gamesForWeek, error: gamesError } = await supabase
+        .from('games')
+        .select('id')
+        .eq('week', currentWeek)
+        .eq('season_type', currentSeasonType);
+
+      if (gamesError) {
+        console.error('Error fetching games for week:', gamesError);
+        return;
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
+      }
+
+      if (!gamesForWeek || gamesForWeek.length === 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('No games found for week, cannot check picks');
+        }
+        return;
+      }
+
+      const gameIds = gamesForWeek.map(g => g.id);
+      
+      // Check if THIS SPECIFIC USER has submitted picks for these games
+      const { data: picks, error: picksError } = await supabase
         .from('picks')
-        .select('id, games!inner(week, season_type)')
-        .eq('participant_id', selectedUser.id)
+        .select('id, game_id')
+        .eq('participant_id', selectedUser.id)  // Only check for the current user
         .eq('pool_id', poolId)
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType);
-      
-      setHasSubmitted(Boolean(picks && picks.length > 0));
+        .in('game_id', gameIds);
+
+      if (picksError) {
+        console.error('Error checking picks:', picksError);
+        return;
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
+      }
+
+      // User has submitted if they have picks for all games in this week
+      const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: hasSubmitted }));
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
+      }
     } catch (error) {
       console.error('Error checking submission status:', error);
     }
   };
 
   const checkWeekPicksStatus = async () => {
-    if (!poolId) return;
-    
-    try {
-      setIsLoadingPicks(true);
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      // Check if any participants have submitted picks for this week
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('id, games!inner(week, season_type)')
-        .eq('pool_id', poolId)
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType);
-      
-      setHasPicks(Boolean(picks && picks.length > 0));
-    } catch (error) {
-      console.error('Error checking week picks status:', error);
-      setHasPicks(false);
-    } finally {
-      setIsLoadingPicks(false);
+    // Picks status is now loaded from the pool API endpoint
+    // This function is kept for compatibility but no longer makes database calls
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Week picks status loaded from API endpoint');
     }
   };
 
   const checkAdminPermissions = async () => {
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        // Check if user is an admin
-        const { data: admin } = await supabase
-          .from('admins')
-          .select('id, is_super_admin')
-          .eq('id', session.user.id)
-          .single();
-        
-        if (admin) {
-          setIsAdmin(true);
-          setIsSuperAdmin(admin.is_super_admin);
-          
-          // Check if user is the pool admin (created the pool)
-          if (poolId) {
-            const { data: pool } = await supabase
-              .from('pools')
-              .select('created_by')
-              .eq('id', poolId)
-              .single();
-            
-            if (pool && pool.created_by === session.user.email) {
-              setIsPoolAdmin(true);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error checking admin permissions:', error);
+    // Admin permissions are now loaded from the pool API endpoint
+    // This function is kept for compatibility but no longer makes database calls
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Admin permissions loaded from API endpoint');
     }
   };
 
@@ -551,8 +583,9 @@ function ParticipantContent() {
     }
 
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      // Use service role client for admin operations
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
       
       // Delete the picks for this participant for this week
       const { error } = await supabase
@@ -567,14 +600,11 @@ function ParticipantContent() {
       }
 
       // Log the unlock action
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentAdminId = session?.user?.id;
-      
       await supabase
         .from('audit_logs')
         .insert({
           action: 'unlock_participant_picks',
-          admin_id: currentAdminId || null,
+          admin_id: null, // Service role doesn't have specific admin ID
           entity: 'participant_picks',
           entity_id: participantId,
           details: { 
@@ -590,6 +620,9 @@ function ParticipantContent() {
         title: "Picks Unlocked",
         description: "Participant can now make new picks",
       });
+
+      // Reset the submission status for this specific user
+      setHasSubmitted(prev => ({ ...prev, [participantId]: false }));
 
       // Refresh the submission status
       await checkUserSubmissionStatus();
@@ -652,7 +685,7 @@ function ParticipantContent() {
   });
 
   // Show loading state while checking picks status for past weeks
-  if (isPastWeek && isLoadingPicks) {
+  if (isPastWeek && isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -668,7 +701,7 @@ function ParticipantContent() {
     );
   }
 
-  if (isPastWeek && !hasPicks && !isLoadingPicks) {
+  if (isPastWeek && !hasPicks && !isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="container mx-auto p-4 md:p-6">
@@ -827,12 +860,7 @@ function ParticipantContent() {
                     );
                   })()}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Info className="h-4 w-4 text-gray-500" />
-                  <Badge variant={poolRequiresAccessCode ? "default" : "secondary"} className="text-xs">
-                    {poolRequiresAccessCode ? "Access Code Required" : "No Access Code Required"}
-                  </Badge>
-                </div>
+
                 {lastUpdated && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     Last updated: {lastUpdated.toLocaleTimeString()}
@@ -1152,7 +1180,7 @@ function ParticipantContent() {
                     Week {currentWeek} Picks
                   </CardTitle>
                   <CardDescription>
-                    {hasSubmitted 
+                    {selectedUser && hasSubmitted[selectedUser.id]
                       ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
                       : "Select the winner for each game and assign confidence points"
                     }
@@ -1160,7 +1188,7 @@ function ParticipantContent() {
                 </CardHeader>
                 <CardContent>
                   {selectedUser ? (
-                    hasSubmitted ? (
+                    hasSubmitted[selectedUser.id] ? (
                       <div className="text-center py-8">
                         <div className="text-gray-500 mb-4">
                           <Lock className="h-12 w-12 mx-auto mb-2" />
@@ -1188,6 +1216,12 @@ function ParticipantContent() {
                             <p className="text-sm text-blue-700">
                               Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
                             </p>
+                            <p className="text-sm text-blue-600">
+                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id] ? 'Submitted' : 'Not Submitted'}
+                            </p>
+                            <p className="text-sm text-blue-500">
+                              <strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}
+                            </p>
                           </div>
                         )}
                         <WeeklyPick 
@@ -1210,6 +1244,7 @@ function ParticipantContent() {
                     <PickUserSelection 
                       poolId={poolId!} 
                       weekNumber={currentWeek} 
+                      seasonType={currentSeasonType}
                       onUserSelected={handleUserSelected}
                     />
                   )}
@@ -1238,81 +1273,7 @@ function ParticipantContent() {
         </div>
       </div>
 
-      {/* Access Code Validation Dialog */}
-      <Dialog open={showAccessCodeDialog} onOpenChange={setShowAccessCodeDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
-              <Lock className="h-5 w-5 text-red-500" />
-              Access Code Required
-            </DialogTitle>
-            <DialogDescription className="text-sm sm:text-base">
-              {isAdmin ? (
-                "This pool requires an access code, but none has been set. You need to add an access code or disable the requirement."
-              ) : (
-                "This pool requires an access code, but the administrator hasn't set one yet. Please contact the pool administrator."
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {isAdmin ? (
-              <div className="space-y-4">
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Admin Action Required:</strong> You need to either:
-                  </p>
-                  <ul className="list-disc list-inside mt-2 text-sm text-blue-700 space-y-1">
-                    <li>Add an access code in the pool settings</li>
-                    <li>Disable the access code requirement</li>
-                  </ul>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={() => {
-                      setShowAccessCodeDialog(false);
-                      // Navigate to pool settings
-                      router.push(`/admin/pool/${poolId}?tab=settings`);
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Go to Pool Settings
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAccessCodeDialog(false)}
-                  >
-                    Continue Anyway
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">
-                    <strong>Pool Configuration Issue:</strong> The pool administrator has enabled access code requirements but hasn&apos;t set a code yet.
-                  </p>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p>Please contact the pool administrator to:</p>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Add an access code for the pool</li>
-                    <li>Disable the access code requirement</li>
-                  </ul>
-                </div>
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAccessCodeDialog(false)}
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>

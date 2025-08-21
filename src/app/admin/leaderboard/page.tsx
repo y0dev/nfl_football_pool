@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
@@ -1863,10 +1864,12 @@ function LeaderboardContent() {
   );
 }
 
-export default function LeaderboardPage() {
+export default function AdminLeaderboardPage() {
   return (
     <AuthProvider>
-      <LeaderboardContent />
+      <AdminGuard>
+        <LeaderboardContent />
+      </AdminGuard>
     </AuthProvider>
   );
 }

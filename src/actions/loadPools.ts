@@ -1,8 +1,8 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     let query = supabase
       .from('pools')
       .select('*')
@@ -25,7 +25,7 @@ export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
 
 export async function loadPool(poolId: string) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     const { data, error } = await supabase
       .from('pools')
       .select('*')

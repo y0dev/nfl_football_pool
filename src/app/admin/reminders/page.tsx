@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 import { ArrowLeft, Mail, Users, Clock, AlertTriangle, CheckCircle, RefreshCw, Send, Filter, Search, BarChart3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
@@ -637,7 +638,9 @@ function RemindersContent() {
 export default function RemindersPage() {
   return (
     <AuthProvider>
-      <RemindersContent />
+      <AdminGuard>
+        <RemindersContent />
+      </AdminGuard>
     </AuthProvider>
   );
 }

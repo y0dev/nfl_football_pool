@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { JoinPoolButton } from '@/components/pools/join-pool-button';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
-import { loadPools } from '@/actions/loadPools';
 import { useAuth } from '@/lib/auth';
-import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock } from 'lucide-react';
+import { adminService } from '@/lib/admin-service';
+import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,7 @@ interface Pool {
   season: number;
   is_active: boolean;
   created_at: string;
+  participant_count?: number;
 }
 
 interface PoolDashboardProps {
@@ -32,13 +33,12 @@ interface PoolDashboardProps {
 }
 
 export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) {
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
   const { user } = useAuth();
   const router = useRouter();
+  const [pools, setPools] = useState<Pool[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // Redirect to login if user is not authenticated
@@ -48,26 +48,42 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
     }
   }, [user, router]);
 
-  async function fetchPools() {
+  const loadPools = async () => {
+    if (!user) return;
+    
     try {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
-      const poolsData = await loadPools(
-        user?.email, 
-        user?.is_super_admin
+      
+      // Use the correct AdminService function
+      const poolsData = await adminService.getActivePools(
+        user.email,
+        user.is_super_admin || false
       );
       
-      setPools(poolsData);
-    } catch (err) {
+      // Transform the data to match the Pool interface
+      const transformedPools = poolsData.map(pool => ({
+        id: pool.id,
+        name: pool.name,
+        description: '',
+        created_by: '',
+        season: 2024,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        participant_count: 0
+      }));
+      
+      setPools(transformedPools);
+    } catch (error) {
       setError('Failed to load pools');
-      console.error('Error loading pools:', err);
+      console.error('Error loading pools:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchPools();
+    loadPools();
   }, [user]);
 
   // Listen for custom event to open create pool dialog
@@ -92,7 +108,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
     return null;
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -128,7 +144,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
         <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load pools</h3>
         <p className="text-gray-600 mb-4">There was an error loading the confidence pools.</p>
-        <Button onClick={fetchPools} variant="outline">
+        <Button onClick={loadPools} variant="outline">
           Try Again
         </Button>
       </div>
@@ -154,7 +170,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
       {!user?.is_super_admin ? (
         <PoolGrid 
           pools={pools} 
-          onPoolJoined={fetchPools} 
+          onPoolJoined={loadPools} 
           user={user}
 
         />
@@ -171,7 +187,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
           <TabsContent value="all" className="mt-6">
             <PoolGrid 
               pools={pools} 
-              onPoolJoined={fetchPools} 
+              onPoolJoined={loadPools} 
               user={user}
 
             />
@@ -181,7 +197,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
             <TabsContent value="my-pools" className="mt-6">
               <PoolGrid 
                 pools={pools.filter(pool => pool.created_by === user?.email)} 
-                onPoolJoined={fetchPools}
+                onPoolJoined={loadPools}
                 showJoinButton={true} // Allow joining own pools
                 user={user}
 
@@ -194,7 +210,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
       <CreatePoolDialog 
         open={createDialogOpen} 
         onOpenChange={setCreateDialogOpen}
-        onPoolCreated={fetchPools}
+        onPoolCreated={loadPools}
       />
 
 

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { PoolDashboard } from '@/components/pools/pool-dashboard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
+import { adminService, DashboardStats, Pool, Admin } from '@/lib/admin-service';
 import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key, Trash2 } from 'lucide-react';
 import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createPoolInviteEmail } from '@/lib/mailto-utils';
 import { useRouter } from 'next/navigation';
@@ -16,15 +18,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
-interface Admin {
-  id: string;
-  email: string;
-  full_name: string | null;
-  is_super_admin: boolean;
-  is_active: boolean;
-  created_at: string;
-}
-
 function AdminDashboardContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -33,7 +26,7 @@ function AdminDashboardContent() {
   const [currentSeasonType, setCurrentSeasonType] = useState(2); // Default to regular season
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [dashboardStats, setDashboardStats] = useState({
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalPools: 0,
     activePools: 0,
     totalParticipants: 0,
@@ -84,69 +77,29 @@ function AdminDashboardContent() {
 
   const loadDashboardStats = async () => {
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      const stats = await adminService.getDashboardStats(
+        currentWeek,
+        currentSeasonType,
+        user?.email,
+        user?.is_super_admin || false
+      );
       
-      // Get pool stats - filter by admin
-      let poolsQuery = supabase.from('pools').select('id, is_active');
+      setDashboardStats(stats);
       
-      // If not super admin, only show pools created by this admin
-      if (!user?.is_super_admin) {
-        poolsQuery = poolsQuery.eq('created_by', user?.email || '');
-      }
-      
-      const { data: pools } = await poolsQuery;
-      
-      // Get participant stats - filter by admin's pools
-      let participantsQuery = supabase
-        .from('participants')
-        .select('id, is_active, pool_id');
-      
-      if (!user?.is_super_admin && pools) {
-        const poolIds = pools.map(p => p.id);
-        participantsQuery = participantsQuery.in('pool_id', poolIds);
-      }
-      
-      const { data: participants } = await participantsQuery;
-      
-      // Get game stats for current week and season type
-      const { data: games } = await supabase
-        .from('games')
-        .select('id, week, season_type')
-        .eq('week', currentWeek)
-        .eq('season_type', currentSeasonType);
-      
-      // Get submission stats - filter by admin's pools
-      let picksQuery = supabase
-        .from('picks')
-        .select('participant_id, pool_id, games!inner(week, season_type)')
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType);
-      
-      if (!user?.is_super_admin && pools) {
-        const poolIds = pools.map(p => p.id);
-        picksQuery = picksQuery.in('pool_id', poolIds);
-      }
-      
-      const { data: picks } = await picksQuery;
-      
-      const totalPools = pools?.length || 0;
-      const activePools = pools?.filter(p => p.is_active).length || 0;
-      const totalParticipants = participants?.filter(p => p.is_active).length || 0;
-      const totalGames = games?.length || 0;
-      const completedSubmissions = new Set(picks?.map(p => p.participant_id)).size;
-      const pendingSubmissions = totalParticipants - completedSubmissions;
-      
-      setDashboardStats({
-        totalPools,
-        activePools,
-        totalParticipants,
-        totalGames,
-        pendingSubmissions,
-        completedSubmissions
-      });
+      // Also load available pools for the pool selection
+      const pools = await adminService.getActivePools(
+        user?.email,
+        user?.is_super_admin || false
+      );
+      console.log('stats pools', pools);
+      setAvailablePools(pools);
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard data',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -154,22 +107,15 @@ function AdminDashboardContent() {
     if (!user?.is_super_admin) return;
     
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      const { data: adminsData, error } = await supabase
-        .from('admins')
-        .select('id, email, full_name, is_super_admin, is_active, created_at')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error loading admins:', error);
-        return;
-      }
-      
-      setAdmins(adminsData || []);
+      const adminsData = await adminService.getAdmins();
+      setAdmins(adminsData);
     } catch (error) {
       console.error('Error loading admins:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load admin data',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -316,19 +262,13 @@ function AdminDashboardContent() {
 
   const handleSendInvite = async () => {
     try {
-      // Get pools for this admin
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      let poolsQuery = supabase.from('pools').select('id, name').eq('is_active', true);
-      
-      // If not super admin, only show pools created by this admin
-      if (!user?.is_super_admin) {
-        poolsQuery = poolsQuery.eq('created_by', user?.email || '');
-      }
-      
-      const { data: pools } = await poolsQuery;
-      
+      // Get active pools for this admin using the service
+      const pools = await adminService.getActivePools(
+        user?.email,
+        user?.is_super_admin || false
+      );
+      console.log('pools', pools);
+
       if (!pools || pools.length === 0) {
         toast({
           title: 'No Pools Available',
@@ -1031,10 +971,12 @@ function AdminDashboardContent() {
   );
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboardPage() {
   return (
     <AuthProvider>
-      <AdminDashboardContent />
+      <AdminGuard>
+        <AdminDashboardContent />
+      </AdminGuard>
     </AuthProvider>
   );
 } 

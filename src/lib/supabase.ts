@@ -36,15 +36,15 @@ export function getSupabaseServiceClient() {
     return supabaseServiceClient;
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl) {
-    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL in your environment variables.');
+    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_SERVICE_KEY or SUPABASE_URL in your environment variables.');
   }
 
   if (!supabaseServiceKey) {
-    throw new Error('Supabase service role key is required for server operations. Please set SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
+    throw new Error('Supabase service role key is required for server operations. Please set NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
   }
 
   supabaseServiceClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -508,10 +508,26 @@ CREATE TABLE IF NOT EXISTS games (
 
 export const rlsPolicies = `
 -- Enable Row Level Security on all tables
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE picks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tie_breakers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reminder_logs ENABLE ROW LEVEL SECURITY;
+
+-- Admins table policies
+CREATE POLICY "Admins can view their own profile" ON admins
+  FOR SELECT USING (
+    id = auth.uid() 
+    OR auth.role() = 'service_role'
+  );
+
+CREATE POLICY "Service role can manage admins" ON admins
+  FOR ALL USING (auth.role() = 'service_role');
 
 -- Participants table policies
 CREATE POLICY "Participants are viewable by all authenticated users" ON participants

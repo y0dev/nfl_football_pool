@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -336,7 +337,9 @@ function NFLSyncContent() {
 export default function NFLSyncPage() {
   return (
     <AuthProvider>
-      <NFLSyncContent />
+      <AdminGuard requireSuperAdmin={true}>
+        <NFLSyncContent />
+      </AdminGuard>
     </AuthProvider>
   );
 } 

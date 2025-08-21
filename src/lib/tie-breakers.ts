@@ -15,12 +15,13 @@ export interface TieBreakerSettings {
 
 /**
  * Apply tie-breakers to a list of participants with the same score
+ * This function handles multiple levels of ties by applying tie breakers in sequence
  */
 export async function applyTieBreakers(
   poolId: string,
   week: number,
   season: number,
-  tiedParticipants: Array<{ participant_id: string; participant_name: string; points: number }>,
+  tiedParticipants: Array<{ participant_id: string; participant_name: string; points: number; correct_picks?: number }>,
   settings: TieBreakerSettings
 ): Promise<TieBreakerResult[]> {
   if (tiedParticipants.length <= 1) {
@@ -32,26 +33,225 @@ export async function applyTieBreakers(
     }));
   }
 
+  // Apply primary tie breaker method
+  let results = await applyPrimaryTieBreaker(poolId, week, season, tiedParticipants, settings);
+  
+  // If there are still ties after primary method, apply secondary tie breakers
+  results = await applySecondaryTieBreakers(poolId, week, season, results, settings);
+  
+  return results;
+}
+
+/**
+ * Apply the primary tie breaker method based on pool settings
+ */
+async function applyPrimaryTieBreaker(
+  poolId: string,
+  week: number,
+  season: number,
+  tiedParticipants: Array<{ participant_id: string; participant_name: string; points: number; correct_picks?: number }>,
+  settings: TieBreakerSettings
+): Promise<TieBreakerResult[]> {
+  let results: TieBreakerResult[];
+  
   switch (settings.method) {
     case 'total_points':
-      return await breakTieByTotalPoints(poolId, season, tiedParticipants);
+      results = await breakTieByTotalPoints(poolId, season, tiedParticipants);
+      break;
     
     case 'correct_picks':
-      return await breakTieByCorrectPicks(poolId, season, tiedParticipants);
+      results = await breakTieByCorrectPicks(poolId, season, tiedParticipants);
+      break;
     
     case 'accuracy':
-      return await breakTieByAccuracy(poolId, season, tiedParticipants);
+      results = await breakTieByAccuracy(poolId, season, tiedParticipants);
+      break;
     
     case 'last_week':
-      return await breakTieByLastWeek(poolId, week, season, tiedParticipants);
+      results = await breakTieByLastWeek(poolId, week, season, tiedParticipants);
+      break;
     
     case 'custom':
-      return await breakTieByCustomQuestion(poolId, week, season, tiedParticipants, settings);
+      results = await breakTieByCustomQuestion(poolId, week, season, tiedParticipants, settings);
+      break;
     
     default:
       // Default fallback: use total points
-      return await breakTieByTotalPoints(poolId, season, tiedParticipants);
+      results = await breakTieByTotalPoints(poolId, season, tiedParticipants);
   }
+  
+  // Special case: if the primary method is 'correct_picks' and there are still ties,
+  // and we have correct_picks data available, check if they're actually the same
+  if (settings.method === 'correct_picks' && tiedParticipants.length > 1) {
+    const hasCorrectPicksData = tiedParticipants.every(p => p.correct_picks !== undefined);
+    if (hasCorrectPicksData) {
+      // Check if all participants have the same number of correct picks
+      const uniqueCorrectPicks = new Set(tiedParticipants.map(p => p.correct_picks));
+      if (uniqueCorrectPicks.size === 1) {
+        // All participants have the same correct picks, apply confidence points tie breaker
+        results = await breakTieByConfidencePoints(poolId, week, season, tiedParticipants);
+      }
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Apply secondary tie breakers to resolve remaining ties
+ * This creates a cascade of tie breakers to ensure all ties are resolved
+ */
+async function applySecondaryTieBreakers(
+  poolId: string,
+  week: number,
+  season: number,
+  primaryResults: TieBreakerResult[],
+  settings: TieBreakerSettings
+): Promise<TieBreakerResult[]> {
+  // Group participants by their primary tie breaker value
+  const valueGroups = new Map<number, TieBreakerResult[]>();
+  primaryResults.forEach(result => {
+    if (!valueGroups.has(result.tie_breaker_value)) {
+      valueGroups.set(result.tie_breaker_value, []);
+    }
+    valueGroups.get(result.tie_breaker_value)!.push(result);
+  });
+
+  const finalResults: TieBreakerResult[] = [];
+  let currentRank = 1;
+
+  // Process each group
+  for (const [value, participants] of valueGroups) {
+    if (participants.length === 1) {
+      // No tie, just assign rank
+      participants[0].tie_breaker_rank = currentRank;
+      finalResults.push(participants[0]);
+      currentRank++;
+    } else {
+      // Still tied, apply secondary tie breakers
+      const secondaryResults = await applySecondaryTieBreakerCascade(
+        poolId, week, season, participants, settings
+      );
+      
+      // Assign ranks to secondary results
+      secondaryResults.forEach((result, index) => {
+        result.tie_breaker_rank = currentRank + index;
+      });
+      
+      finalResults.push(...secondaryResults);
+      currentRank += secondaryResults.length;
+    }
+  }
+
+  return finalResults;
+}
+
+/**
+ * Apply a cascade of secondary tie breakers until all ties are resolved
+ */
+async function applySecondaryTieBreakerCascade(
+  poolId: string,
+  week: number,
+  season: number,
+  tiedParticipants: TieBreakerResult[],
+  settings: TieBreakerSettings
+): Promise<TieBreakerResult[]> {
+  // Define the cascade of tie breaker methods to try
+  const tieBreakerCascade = [
+    'total_points',
+    'correct_picks', 
+    'accuracy',
+    'last_week',
+    'custom',
+    'confidence_points'
+  ];
+
+  // Remove the primary method from the cascade to avoid redundancy
+  const secondaryMethods = tieBreakerCascade.filter(method => method !== settings.method);
+
+  // Try each secondary method until ties are resolved
+  for (const method of secondaryMethods) {
+    try {
+      let results: TieBreakerResult[];
+      
+      switch (method) {
+        case 'total_points':
+          results = await breakTieByTotalPoints(poolId, season, tiedParticipants);
+          break;
+        case 'correct_picks':
+          results = await breakTieByCorrectPicks(poolId, season, tiedParticipants);
+          break;
+        case 'accuracy':
+          results = await breakTieByAccuracy(poolId, season, tiedParticipants);
+          break;
+        case 'last_week':
+          results = await breakTieByLastWeek(poolId, week, season, tiedParticipants);
+          break;
+        case 'custom':
+          results = await breakTieByCustomQuestion(poolId, week, season, tiedParticipants, settings);
+          break;
+        case 'confidence_points':
+          results = await breakTieByConfidencePoints(poolId, week, season, tiedParticipants);
+          break;
+        default:
+          continue;
+      }
+
+      // Check if this method resolved the ties
+      const valueGroups = new Map<number, TieBreakerResult[]>();
+      results.forEach(result => {
+        if (!valueGroups.has(result.tie_breaker_value)) {
+          valueGroups.set(result.tie_breaker_value, []);
+        }
+        valueGroups.get(result.tie_breaker_value)!.push(result);
+      });
+
+      // If all groups have only one participant, ties are resolved
+      const allTiesResolved = Array.from(valueGroups.values()).every(group => group.length === 1);
+      
+      if (allTiesResolved) {
+        return results;
+      }
+
+      // If ties still exist, continue to the next method
+      // But first, try to resolve remaining ties within each group
+      const resolvedResults: TieBreakerResult[] = [];
+      let rankOffset = 0;
+      
+      for (const [value, group] of valueGroups) {
+        if (group.length === 1) {
+          group[0].tie_breaker_rank = rankOffset + 1;
+          resolvedResults.push(group[0]);
+          rankOffset++;
+        } else {
+          // Recursively apply tie breakers to this group
+          const subResults = await applySecondaryTieBreakerCascade(
+            poolId, week, season, group, settings
+          );
+          
+          // Assign ranks to sub-results
+          subResults.forEach((result, index) => {
+            result.tie_breaker_rank = rankOffset + index + 1;
+          });
+          
+          resolvedResults.push(...subResults);
+          rankOffset += subResults.length;
+        }
+      }
+      
+      return resolvedResults;
+      
+    } catch (error) {
+      console.error(`Error applying secondary tie breaker method ${method}:`, error);
+      continue;
+    }
+  }
+
+  // If all methods fail, assign random ranks (shouldn't happen in practice)
+  return tiedParticipants.map((p, index) => ({
+    ...p,
+    tie_breaker_rank: index + 1
+  }));
 }
 
 /**
@@ -321,11 +521,73 @@ async function breakTieByCustomQuestion(
 }
 
 /**
+ * Break ties by confidence points when participants have the same score and same correct picks
+ * This is the final tie breaker that should resolve all remaining ties
+ */
+async function breakTieByConfidencePoints(
+  poolId: string,
+  week: number,
+  season: number,
+  participants: Array<{ participant_id: string; participant_name: string; points: number; correct_picks?: number }>
+): Promise<TieBreakerResult[]> {
+  try {
+    // Get picks for this specific week to calculate confidence points
+    const { data: picks, error } = await getSupabaseClient()
+      .from('picks')
+      .select('participant_id, confidence_points, predicted_winner, games!inner(winner, week, season_type)')
+      .eq('pool_id', poolId)
+      .eq('games.week', week)
+      .eq('games.season_type', season)
+      .in('participant_id', participants.map(p => p.participant_id));
+
+    if (error) throw error;
+
+    // Calculate total confidence points for correct picks for each participant
+    const confidencePoints = new Map<string, number>();
+    picks?.forEach(pick => {
+      if (pick.predicted_winner === pick.games?.winner) {
+        const current = confidencePoints.get(pick.participant_id) || 0;
+        confidencePoints.set(pick.participant_id, current + pick.confidence_points);
+      }
+    });
+
+    // Sort by confidence points (descending) and assign ranks
+    const results: TieBreakerResult[] = participants
+      .map(p => ({
+        participant_id: p.participant_id,
+        participant_name: p.participant_name,
+        tie_breaker_value: confidencePoints.get(p.participant_id) || 0,
+        tie_breaker_rank: 0
+      }))
+      .sort((a, b) => b.tie_breaker_value - a.tie_breaker_value);
+
+    // Assign ranks
+    results.forEach((result, index) => {
+      result.tie_breaker_rank = index + 1;
+    });
+
+    return results;
+  } catch (error) {
+    console.error('Error breaking tie by confidence points:', error);
+    return participants.map((p, index) => ({
+      participant_id: p.participant_id,
+      participant_name: p.participant_name,
+      tie_breaker_value: 0,
+      tie_breaker_rank: index + 1
+    }));
+  }
+}
+
+/**
  * Get tie-breaker settings for a pool
  */
 export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerSettings | null> {
   try {
-    const { data: pool, error } = await getSupabaseClient()
+    // Use service role client to bypass RLS policies
+    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseServiceClient();
+    
+    const { data: pool, error } = await supabase
       .from('pools')
       .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer')
       .eq('id', poolId)
@@ -352,7 +614,11 @@ export async function saveTieBreakerSettings(
   settings: TieBreakerSettings
 ): Promise<boolean> {
   try {
-    const { error } = await getSupabaseClient()
+    // Use service role client to bypass RLS policies
+    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseServiceClient();
+    
+    const { error } = await supabase
       .from('pools')
       .update({
         tie_breaker_method: settings.method,

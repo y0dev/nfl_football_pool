@@ -46,10 +46,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Load current week and games (only if not prevented)
   useEffect(() => {
     const loadData = async () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('WeeklyPick: loadData called with props:', { weekNumber, seasonType, preventGameLoading, propGames: propGames?.length || 0 });
+        console.log('WeeklyPick: current state:', { currentWeek, games: games.length });
+      }
+      
       if (preventGameLoading && propGames) {
         // Use provided games and set current week
         setGames(propGames);
         setCurrentWeek(weekNumber || 1);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('WeeklyPick: Using propGames, setting currentWeek to:', weekNumber || 1);
+        }
         
         // Check if this week is unlocked for picks
         const weekUnlocked = await isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
@@ -62,7 +71,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           setUnlockTime(threeDaysBefore.toLocaleString());
         }
         
-        // Initialize picks array
+        // Initialize picks array with the provided games
         const initialPicks: Pick[] = propGames.map((game: Game) => ({
           participant_id: selectedUser?.id || '',
           pool_id: poolId,
@@ -71,10 +80,16 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           confidence_points: 0
         }));
         setPicks(initialPicks);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('WeeklyPick: Using propGames with preventGameLoading=true');
+          console.log('Games:', propGames);
+          console.log('Initial picks:', initialPicks);
+        }
         return;
       }
 
-            try {
+      try {
         // Use provided week number or load upcoming week
         let weekToUse = weekNumber;
         let seasonTypeToUse = seasonType;
@@ -101,9 +116,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
           setUnlockTime(threeDaysBefore.toLocaleString());
         }
-        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Selected user:', selectedUser);
+        }
         // Initialize picks array
-        const initialPicks: Pick[] = gamesData.map(game => ({
+        const initialPicks: Pick[] = gamesData.map((game: Game) => ({
           participant_id: selectedUser?.id || '',
           pool_id: poolId,
           game_id: game.id,
@@ -111,6 +128,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           confidence_points: 0
         }));
         setPicks(initialPicks);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('WeeklyPick: Loaded games from loadWeekGames');
+          console.log('Week:', weekToUse, 'Season Type:', seasonTypeToUse);
+          console.log('Games:', gamesData);
+          console.log('Initial picks:', initialPicks);
+        }
       } catch (error) {
         console.error('Error loading data:', error);
         toast({
@@ -124,10 +148,35 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     loadData();
   }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast, selectedUser]);
 
+  // Monitor currentWeek changes
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('WeeklyPick: currentWeek changed to:', currentWeek);
+    }
+  }, [currentWeek]);
+
+  // Monitor games changes
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('WeeklyPick: games changed to:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+    }
+  }, [games]);
+
   // Update selectedUser when prop changes
   useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
+      console.log('WeeklyPick: selectedUser changed to:', selectedUser);
+    }
     if (propSelectedUser && propSelectedUser !== selectedUser) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
+      }
       setSelectedUser(propSelectedUser);
+    } else {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('WeeklyPick: propSelectedUser is the same as selectedUser');
+      }
     }
   }, [propSelectedUser, selectedUser]);
 
@@ -135,11 +184,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   useEffect(() => {
     if (selectedUser && games.length > 0) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('Loading picks for user:', selectedUser.id, 'pool:', poolId, 'week:', currentWeek);
+        console.log('WeeklyPick: Loading picks for user:', selectedUser.id, 'pool:', poolId, 'week:', currentWeek);
       }
       const savedPicks = pickStorage.loadPicks(selectedUser.id, poolId, currentWeek);
       if (process.env.NODE_ENV === 'development') {
-        console.log('Saved picks from localStorage:', savedPicks);
+        console.log('WeeklyPick: Saved picks from localStorage:', savedPicks);
       }
       
       if (savedPicks.length > 0) {
@@ -165,7 +214,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         });
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('Updated picks with localStorage data:', updatedPicks);
+          console.log('WeeklyPick: Updated picks with localStorage data:', updatedPicks);
         }
         setPicks(updatedPicks);
         setHasUnsavedChanges(false);
@@ -188,7 +237,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           confidence_points: 0
         }));
         if (process.env.NODE_ENV === 'development') {
-          console.log('Initializing new picks for user:', initialPicks);
+          console.log('WeeklyPick: Initializing new picks for user:', initialPicks);
         }
         setPicks(initialPicks);
       }
@@ -201,11 +250,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       if (games.length > 0 && currentWeek > 0) {
         try {
           if (process.env.NODE_ENV === 'development') {
-            console.log('Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
+            console.log('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
           }
           const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
           if (process.env.NODE_ENV === 'development') {
-            console.log('Week unlock result:', weekUnlocked);
+            console.log('WeeklyPick: Week unlock result:', weekUnlocked);
           }
           setIsWeekUnlocked(weekUnlocked);
           
@@ -215,11 +264,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
             setUnlockTime(threeDaysBefore.toLocaleString());
             if (process.env.NODE_ENV === 'development') {
-              console.log('Week is locked, unlock time:', threeDaysBefore.toLocaleString());
+              console.log('WeeklyPick: Week is locked, unlock time:', threeDaysBefore.toLocaleString());
             }
           } else {
             if (process.env.NODE_ENV === 'development') {
-              console.log('Week is unlocked for picks');
+              console.log('WeeklyPick: Week is unlocked for picks');
             }
           }
         } catch (error) {
@@ -227,7 +276,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           // Default to unlocked if there's an error
           setIsWeekUnlocked(true);
           if (process.env.NODE_ENV === 'development') {
-            console.log('Defaulting to unlocked due to error');
+            console.log('WeeklyPick: Defaulting to unlocked due to error');
           }
         }
       }
@@ -399,6 +448,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       }));
       
       const validPicks = picksWithParticipantId.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('WeeklyPick: Submitting picks with game IDs:', validPicks.map(p => ({ game_id: p.game_id, predicted_winner: p.predicted_winner, confidence_points: p.confidence_points })));
+        console.log('WeeklyPick: Current games in state:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team })));
+        console.log('WeeklyPick: Week number:', currentWeek, 'Season type:', seasonType);
+      }
+      
       const result = await submitPicks(validPicks);
 
       if (result.success) {
