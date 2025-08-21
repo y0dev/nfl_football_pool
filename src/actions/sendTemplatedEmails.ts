@@ -95,14 +95,14 @@ export async function sendTemplatedEmails({
     // Get current week data to get the actual season
     const { loadCurrentWeek } = await import('./loadCurrentWeek');
     const weekData = await loadCurrentWeek();
-    const actualSeason = weekData?.season_year || 2024;
+    const actualSeason = weekData?.season_year || 2025;
     
     // Prepare variables for this participant
     const baseVariables = {
       poolName,
       poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
       currentWeek: weekNumber,
-      season: actualSeason, // Use actual season instead of hardcoded 2024
+      season: actualSeason, // Use actual season instead of hardcoded 2025
       adminName: adminName, // Use the fetched admin name
       participantName: firstParticipant.name,
       deadline: 'Sunday 1:00 PM ET', // This could be made dynamic

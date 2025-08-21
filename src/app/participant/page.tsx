@@ -46,7 +46,7 @@ function ParticipantContent() {
   const [submittedCount, setSubmittedCount] = useState(0);
 
   const [showRecentPicks, setShowRecentPicks] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState<Record<string, boolean>>({});
+  const [hasSubmitted, setHasSubmitted] = useState<Record<string, { submitted: boolean; name: string }>>({});
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [gamesStarted, setGamesStarted] = useState(false);
@@ -60,7 +60,16 @@ function ParticipantContent() {
   // Helper function to get current user's submission status
   const getCurrentUserSubmissionStatus = () => {
     if (!selectedUser) return false;
-    return hasSubmitted[selectedUser.id] || false;
+    return hasSubmitted[selectedUser.id]?.submitted || false;
+  };
+
+  // Helper function to get the most recently submitted user
+  const getMostRecentSubmittedUser = () => {
+    const submittedUsers = Object.entries(hasSubmitted)
+      .filter(([_, data]) => data.submitted)
+      .map(([userId, data]) => ({ id: userId, name: data.name }));
+    
+    return submittedUsers.length > 0 ? submittedUsers[0] : null;
   };
 
   const handleLogout = async () => {
@@ -348,7 +357,7 @@ function ParticipantContent() {
     
     // Update the submission status for the current user
     if (selectedUser) {
-      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: true }));
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: true, name: selectedUser.name } }));
     }
     
     // Refresh the page data when picks are submitted
@@ -356,10 +365,11 @@ function ParticipantContent() {
     await loadParticipantStats();
     await checkUserSubmissionStatus();
     
-    // Don't clear the selected user immediately - let them see their submitted picks
-    // The user can manually change users if they want to
+    // Clear the selected user so they can select a different user or see the user selection interface
+    setSelectedUser(null);
+    
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks submitted successfully, keeping user selected to show submitted picks');
+      console.log('Picks submitted successfully, clearing user selection to allow new user selection');
     }
   };
 
@@ -546,7 +556,7 @@ function ParticipantContent() {
 
       // User has submitted if they have picks for all games in this week
       const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
-      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: hasSubmitted }));
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmitted, name: selectedUser.name } }));
 
       if (process.env.NODE_ENV === 'development') {
         console.log('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
@@ -622,7 +632,7 @@ function ParticipantContent() {
       });
 
       // Reset the submission status for this specific user
-      setHasSubmitted(prev => ({ ...prev, [participantId]: false }));
+      setHasSubmitted(prev => ({ ...prev, [participantId]: { submitted: false, name: '' } }));
 
       // Refresh the submission status
       await checkUserSubmissionStatus();
@@ -1180,7 +1190,7 @@ function ParticipantContent() {
                     Week {currentWeek} Picks
                   </CardTitle>
                   <CardDescription>
-                    {selectedUser && hasSubmitted[selectedUser.id]
+                    {selectedUser && hasSubmitted[selectedUser.id]?.submitted
                       ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
                       : "Select the winner for each game and assign confidence points"
                     }
@@ -1188,7 +1198,7 @@ function ParticipantContent() {
                 </CardHeader>
                 <CardContent>
                   {selectedUser ? (
-                    hasSubmitted[selectedUser.id] ? (
+                    hasSubmitted[selectedUser.id]?.submitted ? (
                       <div className="text-center py-8">
                         <div className="text-gray-500 mb-4">
                           <Lock className="h-12 w-12 mx-auto mb-2" />
@@ -1217,7 +1227,7 @@ function ParticipantContent() {
                               Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
                             </p>
                             <p className="text-sm text-blue-600">
-                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id] ? 'Submitted' : 'Not Submitted'}
+                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
                             </p>
                             <p className="text-sm text-blue-500">
                               <strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}
@@ -1241,12 +1251,50 @@ function ParticipantContent() {
                       </div>
                     )
                   ) : (
-                    <PickUserSelection 
-                      poolId={poolId!} 
-                      weekNumber={currentWeek} 
-                      seasonType={currentSeasonType}
-                      onUserSelected={handleUserSelected}
-                    />
+                    <div>
+                      {Object.keys(hasSubmitted).length > 0 && (
+                        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-800 text-center mb-3">
+                            <strong>Picks submitted successfully!</strong> Best of luck this week!
+                          </p>
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const recentUser = getMostRecentSubmittedUser();
+                                if (recentUser) {
+                                  // Show picks for the most recent user
+                                  setSelectedUser({ id: recentUser.id, name: recentUser.name });
+                                  setShowRecentPicks(true);
+                                } else {
+                                  setShowRecentPicks(true);
+                                }
+                              }}
+                              className="text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View Submitted Picks
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowLeaderboard(true)}
+                              className="text-xs"
+                            >
+                              <BarChart3 className="h-3 w-3 mr-1" />
+                              View Leaderboard
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <PickUserSelection 
+                        poolId={poolId!} 
+                        weekNumber={currentWeek} 
+                        seasonType={currentSeasonType}
+                        onUserSelected={handleUserSelected}
+                      />
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1273,7 +1321,72 @@ function ParticipantContent() {
         </div>
       </div>
 
-
+      {/* Recent Picks Section - Show when requested */}
+      {showRecentPicks && (
+        <Dialog open={showRecentPicks} onOpenChange={setShowRecentPicks}>
+          <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+                <Eye className="h-5 w-5 text-blue-600" />
+                {selectedUser && hasSubmitted[selectedUser.id]?.submitted 
+                  ? `${selectedUser.name}'s Submitted Picks for Week ${currentWeek}`
+                  : `Submitted Picks for Week ${currentWeek}`
+                }
+              </DialogTitle>
+              <DialogDescription>
+                {selectedUser && hasSubmitted[selectedUser.id]?.submitted
+                  ? `Review ${selectedUser.name}'s picks for this week`
+                  : "Review all submitted picks for this week"
+                }
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedUser && hasSubmitted[selectedUser.id]?.submitted ? (
+                // Show picks for the currently selected user
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-semibold mb-2">User: {selectedUser.name}</h3>
+                  <RecentPicksViewer
+                    poolId={poolId!}
+                    participantId={selectedUser.id}
+                    participantName={selectedUser.name}
+                    weekNumber={currentWeek}
+                    seasonType={currentSeasonType}
+                    games={games}
+                    canUnlock={isPoolAdmin || isSuperAdmin}
+                    onUnlock={unlockParticipantPicks}
+                  />
+                </div>
+              ) : (
+                // Show all submitted picks
+                Object.entries(hasSubmitted).map(([userId, data]) => {
+                  if (!data.submitted) return null;
+                  
+                  return (
+                    <div key={userId} className="p-4 border rounded-lg">
+                      <h3 className="font-semibold mb-2">User: {data.name}</h3>
+                      <RecentPicksViewer
+                        poolId={poolId!}
+                        participantId={userId}
+                        participantName={data.name}
+                        weekNumber={currentWeek}
+                        seasonType={currentSeasonType}
+                        games={games}
+                        canUnlock={isPoolAdmin || isSuperAdmin}
+                        onUnlock={unlockParticipantPicks}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button onClick={() => setShowRecentPicks(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
@@ -1284,7 +1397,7 @@ function ParticipantContent() {
               Picks Submitted Successfully!
             </DialogTitle>
             <DialogDescription className="text-sm sm:text-base">
-              Your picks for Week {currentWeek} have been submitted. You can now review your picks or make changes if needed.
+              Your picks for Week {currentWeek} have been submitted. You can now select another user to make picks, or review the leaderboard.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">

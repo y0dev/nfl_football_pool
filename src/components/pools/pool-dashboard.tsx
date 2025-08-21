@@ -60,6 +60,9 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
         user.email,
         user.is_super_admin || false
       );
+      if (process.env.NODE_ENV === 'development') {
+        console.log('PoolDashboard: Pools data:', poolsData);
+      }
       
       // Transform the data to match the Pool interface
       const transformedPools = poolsData.map(pool => ({
@@ -67,12 +70,14 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
         name: pool.name,
         description: '',
         created_by: '',
-        season: 2024,
+        season: pool.season || 2025,
         is_active: true,
         created_at: new Date().toISOString(),
         participant_count: 0
       }));
-      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('PoolDashboard: Transformed pools:', transformedPools);
+      }
       setPools(transformedPools);
     } catch (error) {
       setError('Failed to load pools');
@@ -226,7 +231,11 @@ interface PoolGridProps {
 }
 
 function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGridProps) {
-  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('PoolGrid: User:', user);
+    console.log('PoolGrid: Show Join Button:', showJoinButton);
+    console.log('PoolGrid: Pools:', pools);
+  }
   if (pools.length === 0) {
     console.log('PoolGrid: No pools to display');
     return (

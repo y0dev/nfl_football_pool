@@ -33,7 +33,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     resolver: zodResolver(poolSchema),
     defaultValues: {
       name: '',
-      season: 2024, // Default to current season
+      season: 2025, // Default to current season
     },
   });
 
@@ -97,7 +97,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                       type="number" 
                       placeholder="Enter season" 
                       {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 2024)}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 2025)}
                       value={field.value}
                     />
                   </FormControl>

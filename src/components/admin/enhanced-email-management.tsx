@@ -301,7 +301,7 @@ export function EnhancedEmailManagement({
       
       // Get current week data to get the actual season
       const weekData = await loadCurrentWeek();
-      const actualSeason = weekData?.season_year || 2024;
+      const actualSeason = weekData?.season_year || 2025;
       
       const variables = getDefaultVariables(poolName, poolId, weekNumber, adminName, actualSeason);
       variables.participantName = sampleParticipant.name;
