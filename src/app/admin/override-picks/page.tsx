@@ -17,6 +17,8 @@ import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
+import { getPoolParticipants } from '@/actions/adminActions';
+import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -31,7 +33,7 @@ interface Pool {
 interface Participant {
   id: string;
   name: string;
-  email: string;
+  email?: string;
 }
 
 interface Pick {
@@ -49,8 +51,8 @@ function OverridePicksContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   
-  const [currentWeek, setCurrentWeek] = useState(1);
-  const [currentSeasonType, setCurrentSeasonType] = useState(2);
+  const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
+  const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE);
   const [isLoading, setIsLoading] = useState(true);
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState('');
@@ -77,13 +79,9 @@ function OverridePicksContent() {
         setCurrentSeasonType(weekData?.season_type || 2);
         
         // Load pools
-        const poolsData = await loadPools();
-        if (user?.is_super_admin) {
-          setPools(poolsData);
-        } else {
-          const userPools = poolsData.filter(pool => pool.created_by === user?.email);
-          setPools(userPools);
-        }
+        const poolsData = await loadPools(user?.email, user?.is_super_admin || false);
+        console.log('Pools loaded:', poolsData);
+        setPools(poolsData);
 
         // Set initial pool from URL parameter
         const poolId = searchParams.get('pool');
@@ -109,26 +107,8 @@ function OverridePicksContent() {
   const loadPoolParticipants = async (poolId: string) => {
     setIsLoadingParticipants(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      const { data: participantsData, error } = await supabase
-        .from('participants')
-        .select('id, name, email')
-        .eq('pool_id', poolId)
-        .eq('is_active', true)
-        .order('name');
-      
-      if (error) {
-        console.error('Error loading participants:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load participants',
-          variant: 'destructive',
-        });
-        return;
-      }
-      
+      const participantsData = await getPoolParticipants(poolId);
+      console.log('Participants loaded:', participantsData);
       setParticipants(participantsData || []);
     } catch (error) {
       console.error('Error loading participants:', error);
@@ -147,8 +127,8 @@ function OverridePicksContent() {
     
     setIsLoadingPicks(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
       
       // Get participant's picks for current week
       const { data: picksData, error } = await supabase
@@ -366,8 +346,8 @@ function OverridePicksContent() {
 
     setIsOverriding(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
 
       // Update specific picks
       const updates = Object.entries(pickUpdates).map(([pickId, update]) => ({
@@ -502,6 +482,7 @@ function OverridePicksContent() {
             <div>
               <Label htmlFor="pool-select">Pool *</Label>
               <Select value={selectedPool} onValueChange={(value) => {
+                console.log('Pool selected:', value);
                 setSelectedPool(value);
                 setSelectedParticipant('');
                 setParticipantPicks([]);
@@ -544,7 +525,7 @@ function OverridePicksContent() {
                     <SelectContent>
                       {participants.map((participant) => (
                         <SelectItem key={participant.id} value={participant.id}>
-                          {participant.name} ({participant.email})
+                          {participant.name} {participant.email ? `(${participant.email})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -605,7 +586,7 @@ function OverridePicksContent() {
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Confidence Numbers Status</h4>
                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
-                    {Array.from({length: 16}, (_, i) => i + 1).map(num => {
+                    {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
                       const isUsed = usedConfidenceNumbers.has(num);
                       return (
                         <div
@@ -702,7 +683,7 @@ function OverridePicksContent() {
                                   <SelectItem value="0" className="text-gray-500 border-t">
                                     -- Clear Confidence --
                                   </SelectItem>
-                                  {Array.from({length: 16}, (_, i) => i + 1).map(num => {
+                                  {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
                                     const isUsed = usedConfidenceNumbers.has(num) && num !== pick.confidence && num !== (pickUpdates[pick.id]?.confidence || 0);
                                     return (
                                       <SelectItem 

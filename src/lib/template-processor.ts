@@ -1,3 +1,5 @@
+import { DEFAULT_SEASON } from './utils';
+
 export interface TemplateVariables {
   participantName?: string;
   poolName: string;
@@ -42,7 +44,7 @@ export function getDefaultVariables(
     poolName,
     poolUrl: generatePoolUrl(poolId, currentWeek),
     currentWeek,
-    season: season || 2024, // Use provided season or fallback to 2024
+            season: season || DEFAULT_SEASON, // Use provided season or fallback to default
     adminName,
     customSubject: 'Message from Pool Administrator',
     customMessage: 'This is a custom message from the pool administrator.'

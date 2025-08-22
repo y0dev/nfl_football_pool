@@ -18,7 +18,6 @@ interface Pool {
   id: string;
   name: string;
   created_by: string;
-  require_access_code: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -36,7 +35,7 @@ function InviteContent() {
   const [isJoining, setIsJoining] = useState(false);
   const [participantName, setParticipantName] = useState('');
   const [participantEmail, setParticipantEmail] = useState('');
-  const [accessCode, setAccessCode] = useState('');
+
   const [joinSuccess, setJoinSuccess] = useState(false);
   
   const { toast } = useToast();
@@ -103,59 +102,42 @@ function InviteContent() {
       return;
     }
 
-    if (pool.require_access_code && !accessCode.trim()) {
-      toast({
-        title: "Access Code Required",
-        description: "This pool requires an access code to join.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Access code validation removed - pools no longer require access codes
 
     setIsJoining(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      const response = await fetch('/api/pools/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId: pool.id,
+          name: participantName.trim(),
+          email: participantEmail.trim().toLowerCase(),
+        }),
+      });
 
-      // Check if participant already exists
-      const { data: existingParticipant } = await supabase
-        .from('participants')
-        .select('id')
-        .eq('pool_id', pool.id)
-        .eq('email', participantEmail.trim().toLowerCase())
-        .single();
+      const result = await response.json();
 
-      if (existingParticipant) {
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to join pool');
+      }
+
+      if (result.message === 'Already joined') {
         toast({
           title: "Already Joined",
-          description: "You have already joined this pool. You can now make your picks!",
+          description: `You have already joined ${result.poolName}. You can now make your picks!`,
         });
         // Redirect to participant page
         router.push(`/participant?pool=${pool.id}&week=${currentWeek}`);
         return;
       }
 
-      // Create new participant
-      const { data: newParticipant, error: joinError } = await supabase
-        .from('participants')
-        .insert({
-          pool_id: pool.id,
-          name: participantName.trim(),
-          email: participantEmail.trim().toLowerCase(),
-          is_active: true,
-          joined_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (joinError) {
-        throw joinError;
-      }
-
       setJoinSuccess(true);
       toast({
         title: "Successfully Joined!",
-        description: `Welcome to ${pool.name}! You can now make your picks for Week ${currentWeek}.`,
+        description: `Welcome to ${result.poolName}! You can now make your picks for Week ${currentWeek}.`,
       });
 
       // Redirect to participant page after a short delay
@@ -165,9 +147,10 @@ function InviteContent() {
 
     } catch (error) {
       console.error('Error joining pool:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to join the pool. Please try again or contact the pool administrator.';
       toast({
         title: "Join Failed",
-        description: "Failed to join the pool. Please try again or contact the pool administrator.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -277,12 +260,7 @@ function InviteContent() {
                   <Calendar className="h-4 w-4 text-gray-500" />
                   <span className="text-sm text-gray-600">Current Week: {currentWeek}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-500" />
-                  <Badge variant={pool?.require_access_code ? "default" : "secondary"} className="text-xs">
-                    {pool?.require_access_code ? "Access Code Required" : "No Access Code Required"}
-                  </Badge>
-                </div>
+
               </div>
             </CardContent>
           </Card>
@@ -323,22 +301,7 @@ function InviteContent() {
                 />
               </div>
               
-              {pool?.require_access_code && (
-                <div>
-                  <Label htmlFor="accessCode" className="text-sm font-medium">Access Code *</Label>
-                  <Input
-                    id="accessCode"
-                    type="text"
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value)}
-                    placeholder="Enter the access code"
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This pool requires an access code. Please contact the pool administrator if you don't have one.
-                  </p>
-                </div>
-              )}
+
               
               <Button
                 onClick={handleJoinPool}

@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase';
 import { applyTieBreakers, getTieBreakerSettings } from '@/lib/tie-breakers';
+import { DEFAULT_SEASON } from '@/lib/utils';
 
 export interface PickData {
   id: string;
@@ -169,7 +170,7 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
       const tieBreakerSettings = await getTieBreakerSettings(poolId);
       if (tieBreakerSettings) {
         // Get season from pool if not provided
-        let seasonToUse = season || 2024;
+        let seasonToUse = season || DEFAULT_SEASON;
         if (!season) {
           try {
             const { getSupabaseClient } = await import('@/lib/supabase');
@@ -179,9 +180,9 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
               .select('season')
               .eq('id', poolId)
               .single();
-            seasonToUse = pool?.season || 2024;
+            seasonToUse = pool?.season || DEFAULT_SEASON;
           } catch (error) {
-            seasonToUse = 2024; // Fallback
+            seasonToUse = DEFAULT_SEASON; // Fallback
           }
         }
         
