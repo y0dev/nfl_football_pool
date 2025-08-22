@@ -3,6 +3,7 @@ import { processTemplate, TemplateVariables } from '@/lib/template-processor';
 import { EmailTemplate } from '@/lib/email-templates';
 import { loadUsers } from './loadUsers';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
+import { DEFAULT_SEASON } from '@/lib/utils';
 
 interface SendTemplatedEmailsParams {
   poolId: string;
@@ -95,7 +96,7 @@ export async function sendTemplatedEmails({
     // Get current week data to get the actual season
     const { loadCurrentWeek } = await import('./loadCurrentWeek');
     const weekData = await loadCurrentWeek();
-    const actualSeason = weekData?.season_year || 2025;
+          const actualSeason = weekData?.season_year || DEFAULT_SEASON;
     
     // Prepare variables for this participant
     const baseVariables = {

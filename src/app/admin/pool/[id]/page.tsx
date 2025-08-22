@@ -25,6 +25,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -47,8 +48,8 @@ function PoolDetailsContent() {
   const [pool, setPool] = useState<Pool | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState(1);
-  const [currentSeasonType, setCurrentSeasonType] = useState(2); // Default to regular season
+  const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
+  const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE); // Default to regular season
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
@@ -56,7 +57,7 @@ function PoolDetailsContent() {
   // Form state for editing
   const [editForm, setEditForm] = useState({
     name: '',
-    season: 2024,
+    season: DEFAULT_POOL_SEASON,
     is_active: true,
     tie_breaker_method: '',
     tie_breaker_question: '',
@@ -108,7 +109,7 @@ function PoolDetailsContent() {
     try {
       const weekData = await loadCurrentWeek();
       setCurrentWeek(weekData?.week_number || 1);
-      setCurrentSeasonType(weekData?.season_type || 2); // Default to regular season
+      setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE); // Default to regular season
     } catch (error) {
       console.error('Error loading current week:', error);
     }

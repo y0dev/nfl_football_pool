@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 export async function createPool(poolData: {
   name: string;
@@ -12,7 +13,7 @@ export async function createPool(poolData: {
       .insert({
         name: poolData.name,
         created_by: poolData.created_by,
-        season: poolData.season || 2025,
+        season: poolData.season || DEFAULT_POOL_SEASON,
         is_active: true
       })
       .select()

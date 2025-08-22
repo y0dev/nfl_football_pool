@@ -18,6 +18,7 @@ import { loadUsers } from '@/actions/loadUsers';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { sendTemplatedEmails } from '@/actions/sendTemplatedEmails';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { DEFAULT_SEASON } from '@/lib/utils';
 
 interface EnhancedEmailManagementProps {
   poolId: string;
@@ -301,7 +302,7 @@ export function EnhancedEmailManagement({
       
       // Get current week data to get the actual season
       const weekData = await loadCurrentWeek();
-      const actualSeason = weekData?.season_year || 2025;
+              const actualSeason = weekData?.season_year || DEFAULT_SEASON;
       
       const variables = getDefaultVariables(poolName, poolId, weekNumber, adminName, actualSeason);
       variables.participantName = sampleParticipant.name;
