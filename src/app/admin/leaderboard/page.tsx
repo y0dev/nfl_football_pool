@@ -12,8 +12,8 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
-import { loadWeekGames } from '@/actions/loadWeekGames';
-import { loadLeaderboardWithPicks, LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
+
+import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
 import { ArrowLeft, Trophy, Users, Calendar, TrendingUp, BarChart3, Eye, EyeOff, Clock, Download, FileSpreadsheet, Target, Filter, Search, AlertTriangle, Crown, Star, TrendingDown, Award, Zap, Shield, Settings, RefreshCw, Copy, Share2, Bookmark, Flag, CheckCircle, XCircle, Minus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -140,21 +140,33 @@ function LeaderboardContent() {
         });
       }
       
-      const [leaderboardData, leaderboardWithPicksData] = await Promise.all([
-        loadLeaderboard(selectedPool, selectedWeek),
-        loadLeaderboardWithPicks(selectedPool, selectedWeek, selectedSeasonType, selectedPoolSeason)
-      ]);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Leaderboard data loaded:', {
-          oldLeaderboard: leaderboardData?.length || 0,
-          newLeaderboard: leaderboardWithPicksData?.length || 0,
-          data: leaderboardWithPicksData
-        });
+      // Load leaderboard data from the API
+      const response = await fetch(`/api/leaderboard?poolId=${selectedPool}&week=${selectedWeek}&seasonType=${selectedSeasonType}${selectedPoolSeason ? `&season=${selectedPoolSeason}` : ''}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setLeaderboardWithPicks(result.leaderboard);
+          setGames(result.games);
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Leaderboard data loaded:', {
+              leaderboard: result.leaderboard?.length || 0,
+              games: result.games?.length || 0,
+              data: result.leaderboard
+            });
+          }
+        } else {
+          console.error('API returned error:', result.error);
+          setLeaderboardWithPicks([]);
+        }
+      } else {
+        console.error('Failed to load leaderboard data');
+        setLeaderboardWithPicks([]);
       }
 
-      setLeaderboard(leaderboardData);
-      setLeaderboardWithPicks(leaderboardWithPicksData);
+      // Keep the old leaderboard for compatibility
+      setLeaderboard([]);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
       setLeaderboard([]);
@@ -164,20 +176,33 @@ function LeaderboardContent() {
 
   const loadGamesData = async () => {
     try {
-      const gamesData = await loadWeekGames(selectedWeek, selectedSeasonType);
-      setGames(gamesData);
+      const response = await fetch(`/api/games/week?week=${selectedWeek}&seasonType=${selectedSeasonType}`);
       
-      const now = new Date();
-      const hasStarted = gamesData.some(game => {
-        const gameTime = new Date(game.kickoff_time);
-        return gameTime < now;
-      });
-      setIsGamesStarted(hasStarted);
-      
-      const allFinished = gamesData.every(game => 
-        game.status === 'final' || game.status === 'post'
-      );
-      setAllGamesFinished(allFinished);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          const gamesData = result.games;
+          setGames(gamesData);
+          
+          const now = new Date();
+          const hasStarted = gamesData.some((game: Game) => {
+            const gameTime = new Date(game.kickoff_time);
+            return gameTime < now;
+          });
+          setIsGamesStarted(hasStarted);
+          
+          const allFinished = gamesData.every((game: Game) => 
+            game.status === 'final' || game.status === 'post'
+          );
+          setAllGamesFinished(allFinished);
+        } else {
+          console.error('API returned error:', result.error);
+          setGames([]);
+        }
+      } else {
+        console.error('Failed to load games');
+        setGames([]);
+      }
     } catch (error) {
       console.error('Error loading games:', error);
       setGames([]);

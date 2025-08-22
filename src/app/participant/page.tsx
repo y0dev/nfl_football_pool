@@ -15,7 +15,7 @@ import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2,
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { loadWeekGames } from '@/actions/loadWeekGames';
+
 import { Game, SelectedUser } from '@/types/game';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -225,30 +225,46 @@ function ParticipantContent() {
         // Continue without admin status - user can still use the page
       }
 
-      // Load games for the week using the determined week and season type
+      // Load games for the week using the new API route
       try {
         if (process.env.NODE_ENV === 'development') {
           console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         }
         
-        const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
-        setGames(gamesData);
+        const response = await fetch(`/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Participant page: Loaded games:', gamesData.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-        }
-        
-        // Check if any games have started
-        const now = new Date();
-        const hasStarted = gamesData.some(game => {
-          const gameTime = new Date(game.kickoff_time);
-          return gameTime <= now;
-        });
-        setGamesStarted(hasStarted);
-        
-        // Automatically show leaderboard when games start
-        if (hasStarted) {
-          setShowLeaderboard(true);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            const gamesData = result.games;
+            setGames(gamesData);
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+            }
+            
+            // Check if any games have started
+            const now = new Date();
+            const hasStarted = gamesData.some((game: Game) => {
+              const gameTime = new Date(game.kickoff_time);
+              return gameTime <= now;
+            });
+            setGamesStarted(hasStarted);
+            
+            // Automatically show leaderboard when games start
+            if (hasStarted) {
+              setShowLeaderboard(true);
+            }
+          } else {
+            console.error('API returned error:', result.error);
+            toast({
+              title: "Warning",
+              description: "Could not load games data",
+              variant: "destructive",
+            });
+          }
+        } else {
+          throw new Error('Failed to load games');
         }
       } catch (error) {
         console.error('Error loading games:', error);
@@ -1154,8 +1170,8 @@ function ParticipantContent() {
                 </CardContent>
               </Card>
 
-              {/* Recent Picks Section - Show when games have started */}
-              {selectedUser && (
+              {/* Recent Picks Section - Show when games have started and user has picks */}
+              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">

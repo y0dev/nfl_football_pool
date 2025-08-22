@@ -5,8 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { loadPools } from '@/actions/loadPools';
-import { loadLeaderboardWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Trophy, Medal, Award, Clock, EyeOff } from 'lucide-react';
 import { LeaderboardEntry, Pool, Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
@@ -71,13 +69,21 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
       try {
         setIsLoading(true);
         
-        // Load leaderboard data with picks
-        const leaderboard = await loadLeaderboardWithPicks(poolId, weekNumber, seasonType, season);
-        setLeaderboardData(leaderboard);
+        // Load leaderboard data from the API
+        const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${weekNumber}&seasonType=${seasonType}${season ? `&season=${season}` : ''}`);
         
-        // Load games for the week
-        const gamesData = await loadWeekGames(weekNumber, seasonType);
-        setGames(gamesData);
+        if (!response.ok) {
+          throw new Error('Failed to load leaderboard data');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          setLeaderboardData(result.leaderboard);
+          setGames(result.games);
+        } else {
+          throw new Error(result.error || 'Failed to load leaderboard data');
+        }
         
       } catch (error) {
         console.error('Error loading leaderboard data:', error);
