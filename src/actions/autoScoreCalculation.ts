@@ -9,7 +9,8 @@ export async function calculateScores(weekNumber: number = 1) {
       .from('games')
       .select('*')
       .eq('week', weekNumber)
-      .not('winner', 'is', null);
+      .not('winner', 'is', null)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);
@@ -90,7 +91,8 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
       .from('games')
       .select('*')
       .eq('week', week)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);

@@ -1170,32 +1170,7 @@ function ParticipantContent() {
                 </CardContent>
               </Card>
 
-              {/* Recent Picks Section - Show when games have started and user has picks */}
-              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Eye className="h-5 w-5 text-blue-600" />
-                      Your Picks for Week {currentWeek}
-                    </CardTitle>
-                    <CardDescription>
-                      Review your submitted picks for this week
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <RecentPicksViewer
-                      poolId={poolId!}
-                      participantId={selectedUser.id}
-                      participantName={selectedUser.name}
-                      weekNumber={currentWeek}
-                      seasonType={currentSeasonType}
-                      games={games}
-                      canUnlock={isPoolAdmin || isSuperAdmin}
-                      onUnlock={unlockParticipantPicks}
-                    />
-                  </CardContent>
-                </Card>
-              )}
+
             </>
           ) : (
             <>
@@ -1316,23 +1291,33 @@ function ParticipantContent() {
                 </CardContent>
               </Card>
 
-              {/* Optional Leaderboard Button - Only show when games haven't started */}
-              {showLeaderboard && (
+              {/* Your Picks Section - Show when games haven't started and user has picks */}
+              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-green-600" />
-                      Week {currentWeek} Leaderboard
+                      <Eye className="h-5 w-5 text-blue-600" />
+                      Your Picks for Week {currentWeek}
                     </CardTitle>
                     <CardDescription>
-                      Current standings for {poolName}
+                      Review your submitted picks for this week (picks are locked until games start)
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                    <RecentPicksViewer
+                      poolId={poolId!}
+                      participantId={selectedUser.id}
+                      participantName={selectedUser.name}
+                      weekNumber={currentWeek}
+                      seasonType={currentSeasonType}
+                      games={games}
+                      canUnlock={isPoolAdmin || isSuperAdmin}
+                      onUnlock={unlockParticipantPicks}
+                    />
                   </CardContent>
                 </Card>
               )}
+
             </>
           )}
         </div>

@@ -58,7 +58,8 @@ export async function loadPicksForLeaderboard(poolId: string, weekNumber: number
       .select('*')
       .eq('week', weekNumber)
       .eq('season_type', seasonType)
-      .in('id', gameIds);
+      .in('id', gameIds)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error loading games:', gamesError);

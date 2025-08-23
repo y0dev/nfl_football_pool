@@ -8,6 +8,7 @@ import { loadPools } from '@/actions/loadPools';
 import { Trophy, Medal, Award, Clock, EyeOff } from 'lucide-react';
 import { LeaderboardEntry, Pool, Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
+import { debugError, debugLog } from '@/lib/utils';
 
 interface LeaderboardProps {
   poolId?: string;
@@ -68,7 +69,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
       
       try {
         setIsLoading(true);
-        
+        debugLog('Loading leaderboard data for poolId:', poolId, 'week:', weekNumber, 'seasonType:', seasonType, 'season:', season);
         // Load leaderboard data from the API
         const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${weekNumber}&seasonType=${seasonType}${season ? `&season=${season}` : ''}`);
         
@@ -77,16 +78,16 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
         }
         
         const result = await response.json();
-        
+        debugLog('Leaderboard data loaded:', result);
         if (result.success) {
           setLeaderboardData(result.leaderboard);
           setGames(result.games);
         } else {
           throw new Error(result.error || 'Failed to load leaderboard data');
         }
-        
+          
       } catch (error) {
-        console.error('Error loading leaderboard data:', error);
+        debugError('Error loading leaderboard data:', error);
         setError('Failed to load leaderboard data');
       } finally {
         setIsLoading(false);
