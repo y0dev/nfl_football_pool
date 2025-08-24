@@ -9,7 +9,8 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { adminService, DashboardStats, Pool, Admin } from '@/lib/admin-service';
-import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key, Trash2 } from 'lucide-react';
+import { ImportedPick } from '@/types/import';
+import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Settings, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Key, Trash2, Upload, FileSpreadsheet } from 'lucide-react';
 import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createPoolInviteEmail } from '@/lib/mailto-utils';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +47,12 @@ function AdminDashboardContent() {
   const [selectedAdminForDelete, setSelectedAdminForDelete] = useState<Admin | null>(null);
   const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
   const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string}>>([]);
+  const [importPicksOpen, setImportPicksOpen] = useState(false);
+  const [selectedPoolForImport, setSelectedPoolForImport] = useState<{id: string, name: string} | null>(null);
+  const [importedData, setImportedData] = useState<ImportedPick[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -77,19 +84,21 @@ function AdminDashboardContent() {
 
   const loadDashboardStats = async () => {
     try {
+      if (!user?.email) return;
+      
       const stats = await adminService.getDashboardStats(
         currentWeek,
         currentSeasonType,
-        user?.email,
-        user?.is_super_admin || false
+        user.email,
+        user.is_super_admin || false
       );
       
       setDashboardStats(stats);
       
       // Also load available pools for the pool selection
       const pools = await adminService.getActivePools(
-        user?.email,
-        user?.is_super_admin || false
+        user.email,
+        user.is_super_admin || false
       );
       console.log('stats pools', pools);
       setAvailablePools(pools);
@@ -257,15 +266,125 @@ function AdminDashboardContent() {
       case 'send-invite':
         handleSendInvite();
         break;
+      case 'import-picks':
+        toast({
+          title: 'Feature Disabled',
+          description: 'Import CSV functionality is temporarily disabled',
+          variant: 'destructive',
+        });
+        break;
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    processFile(file);
+    
+    // Reset file input
+    event.target.value = '';
+  };
+
+  const handleSubmitImport = async () => {
+    if (!selectedPoolForImport || importedData.length === 0) return;
+
+    try {
+      setIsImporting(true);
+      const response = await fetch('/api/admin/import-picks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId: selectedPoolForImport.id,
+          participants: importedData,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Import Successful',
+          description: `Successfully imported ${result.importedCount} participants with picks`,
+        });
+        setImportPicksOpen(false);
+        setImportedData([]);
+        setSelectedPoolForImport(null);
+        // Refresh dashboard stats
+        await loadDashboardStats();
+      } else {
+        toast({
+          title: 'Import Failed',
+          description: result.error || 'Failed to import picks',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error importing picks:', error);
+      toast({
+        title: 'Import Error',
+        description: 'Failed to import picks',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleImportPicks = async () => {
+    try {
+      // Get active pools for this admin using the service
+      if (!user?.email) return;
+      
+      const pools = await adminService.getActivePools(
+        user.email,
+        user.is_super_admin || false
+      );
+
+      if (!pools || pools.length === 0) {
+        toast({
+          title: 'No Pools Available',
+          description: 'You need to create a pool first before importing picks. Click "Create Pool" to get started.',
+          variant: 'destructive',
+        });
+        // Trigger the create pool dialog
+        const event = new CustomEvent('openCreatePoolDialog');
+        document.dispatchEvent(event);
+        return;
+      }
+      
+      // If only one pool, use it directly
+      if (pools.length === 1) {
+        setSelectedPoolForImport(pools[0]);
+        setImportPicksOpen(true);
+        return;
+      }
+      
+      // If multiple pools, show selection dialog for import
+      setAvailablePools(pools);
+      setPoolSelectionMode('import');
+      setPoolSelectionOpen(true);
+      
+    } catch (error) {
+      console.error('Error preparing import picks:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to prepare import picks',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleSendInvite = async () => {
     try {
       // Get active pools for this admin using the service
+      if (!user?.email) return;
+      
       const pools = await adminService.getActivePools(
-        user?.email,
-        user?.is_super_admin || false
+        user.email,
+        user.is_super_admin || false
       );
       console.log('pools', pools);
 
@@ -287,8 +406,9 @@ function AdminDashboardContent() {
         return;
       }
       
-      // If multiple pools, show selection dialog
+      // If multiple pools, show selection dialog for invite
       setAvailablePools(pools);
+      setPoolSelectionMode('invite');
       setPoolSelectionOpen(true);
       
     } catch (error) {
@@ -346,6 +466,121 @@ function AdminDashboardContent() {
       toast({
         title: 'Error',
         description: 'Failed to prepare invite email',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handlePoolSelectionForImport = async (selectedPool: {id: string, name: string}) => {
+    try {
+      setSelectedPoolForImport(selectedPool);
+      setPoolSelectionOpen(false);
+      setImportPicksOpen(true);
+    } catch (error) {
+      console.error('Error selecting pool for import:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to select pool for import',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const file = files[0];
+      // Process the dropped file directly
+      processFile(file);
+    }
+  };
+
+  const processFile = (file: File) => {
+    // Validate file type
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv', // .csv
+      'application/csv' // alternative CSV MIME type
+    ];
+    
+    const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please select an Excel (.xlsx, .xls) or CSV file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast({
+        title: 'File Too Large',
+        description: 'Please select a file smaller than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Process the file
+    uploadFile(file);
+  };
+
+  const uploadFile = async (file: File) => {
+    try {
+      // Show loading state
+      toast({
+        title: 'Processing File',
+        description: `Processing ${file.name}...`,
+      });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('poolId', selectedPoolForImport?.id || '');
+
+      const response = await fetch('/api/admin/import-picks', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setImportedData(result.data);
+        toast({
+          title: 'File Processed Successfully',
+          description: `Successfully parsed ${result.data.length} participants from ${file.name}`,
+        });
+      } else {
+        toast({
+          title: 'File Processing Failed',
+          description: result.error || 'Failed to parse file. Please check the file format.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: 'Upload Error',
+        description: 'Failed to upload file. Please try again.',
         variant: 'destructive',
       });
     }
@@ -628,6 +863,17 @@ function AdminDashboardContent() {
               >
                 <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
                 <span className="text-xs sm:text-sm">Send Invite</span>
+              </Button>
+              <Button
+                onClick={() => handleQuickAction('import-picks')}
+                variant="outline"
+                className="flex flex-col items-center gap-2 h-16 sm:h-20"
+                disabled={true}
+                title="Import CSV functionality is temporarily disabled"
+              >
+                <Upload className="h-5 w-5 sm:h-6 sm:w-6 opacity-50" />
+                <span className="text-xs sm:text-sm opacity-50">Import Picks</span>
+                <span className="text-xs text-gray-500">(Disabled)</span>
               </Button>
                   </div>
                 </CardContent>
@@ -917,9 +1163,14 @@ function AdminDashboardContent() {
       <Dialog open={poolSelectionOpen} onOpenChange={setPoolSelectionOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Select Pool for Invitation</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
+              {poolSelectionMode === 'import' ? 'Select Pool for Import' : 'Select Pool for Invitation'}
+            </DialogTitle>
             <DialogDescription className="text-sm sm:text-base">
-              Choose which pool you&apos;d like to send an invitation for.
+              {poolSelectionMode === 'import' 
+                ? 'Choose which pool you\'d like to import picks for.'
+                : 'Choose which pool you\'d like to send an invitation for.'
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -928,7 +1179,7 @@ function AdminDashboardContent() {
                 <div
                   key={pool.id}
                   className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => sendInviteForPool(pool)}
+                  onClick={() => poolSelectionMode === 'import' ? handlePoolSelectionForImport(pool) : sendInviteForPool(pool)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -942,9 +1193,19 @@ function AdminDashboardContent() {
                       size="sm"
                       className="flex items-center gap-1 h-7 sm:h-8 text-xs"
                     >
-                      <Mail className="h-3 w-3" />
-                      <span className="hidden sm:inline">Send Invite</span>
-                      <span className="sm:hidden">Invite</span>
+                      {poolSelectionMode === 'import' ? (
+                        <>
+                          <Upload className="h-3 w-3" />
+                          <span className="hidden sm:inline">Import Picks</span>
+                          <span className="sm:hidden">Import</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="h-3 w-3" />
+                          <span className="hidden sm:inline">Send Invite</span>
+                          <span className="sm:hidden">Invite</span>
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -952,7 +1213,7 @@ function AdminDashboardContent() {
             </div>
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs sm:text-sm text-blue-800">
-                <strong>Note:</strong> Click on any pool above to send an invitation email for that specific pool.
+                <strong>Note:</strong> Click on any pool above to {poolSelectionMode === 'import' ? 'import picks for' : 'send an invitation email for'} that specific pool.
               </p>
             </div>
           </div>
@@ -963,6 +1224,150 @@ function AdminDashboardContent() {
               className="w-full sm:w-auto"
             >
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Picks Dialog */}
+      <Dialog open={importPicksOpen} onOpenChange={setImportPicksOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Import Picks for {selectedPoolForImport?.name}
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Upload an Excel or CSV file with participant picks. The file should have columns for participant name, game picks, and confidence points.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* File Upload Section */}
+            <div 
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDragOver 
+                  ? 'border-blue-400 bg-blue-50' 
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <FileSpreadsheet className={`h-12 w-12 mx-auto mb-4 ${
+                isDragOver ? 'text-blue-400' : 'text-gray-400'
+              }`} />
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    Expected File Format
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Excel (.xlsx, .xls) or CSV file (max 5MB)
+                  </p>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-3 text-left">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Required Columns:</p>
+                  <ul className="text-xs text-gray-600 space-y-1">
+                    <li>• <strong>Name:</strong> Participant&apos;s full name</li>
+                    <li>• <strong>Game Picks:</strong> Team names for each game</li>
+                    <li>• <strong>Confidence Points:</strong> 1-16 for each pick</li>
+                    <li>• <strong>Tie Breaker:</strong> Total points prediction (optional)</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <Button
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    variant="outline"
+                    className="flex items-center gap-2 w-full sm:w-auto"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Choose Excel/CSV File
+                  </Button>
+                  <p className="text-xs text-gray-500">
+                    Click to browse and select your file, or drag and drop here
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Preview Section */}
+            {importedData.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Preview ({importedData.length} participants)</h3>
+                <div className="max-h-60 overflow-y-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2 border-b">Name</th>
+                        <th className="text-left p-2 border-b">Games</th>
+                        <th className="text-left p-2 border-b">Confidence</th>
+                        <th className="text-left p-2 border-b">Tie Breaker</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importedData.map((participant, index) => (
+                        <tr key={index} className="border-b">
+                          <td className="p-2">{participant.participantName}</td>
+                          <td className="p-2">
+                            <div className="text-xs space-y-1">
+                              {participant.gamePicks.map((pick, pickIndex) => (
+                                <div key={pickIndex} className="flex items-center gap-2">
+                                  <span className="text-gray-600">{pick.awayTeam} @ {pick.homeTeam}</span>
+                                  <span className="font-medium">{pick.predictedWinner}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <div className="text-xs space-y-1">
+                              {participant.gamePicks.map((pick, pickIndex) => (
+                                <div key={pickIndex} className="text-center">
+                                  {pick.confidencePoints}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-2 text-center">
+                            {participant.tieBreaker || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportPicksOpen(false);
+                setImportedData([]);
+                setSelectedPoolForImport(null);
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitImport}
+              disabled={isImporting || importedData.length === 0}
+              className="flex items-center gap-2 w-full sm:w-auto"
+            >
+              <Upload className="h-4 w-4" />
+              {isImporting ? 'Importing...' : `Import ${importedData.length} Participants`}
             </Button>
           </DialogFooter>
         </DialogContent>

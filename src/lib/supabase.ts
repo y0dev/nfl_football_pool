@@ -272,7 +272,12 @@ export type Database = {
           points: number
           correct_picks: number
           total_picks: number
+          rank: number | null
+          is_winner: boolean
+          tie_breaker_used: boolean
+          tie_breaker_rank: number | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -283,7 +288,12 @@ export type Database = {
           points: number
           correct_picks: number
           total_picks: number
+          rank?: number | null
+          is_winner?: boolean
+          tie_breaker_used?: boolean
+          tie_breaker_rank?: number | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -294,7 +304,230 @@ export type Database = {
           points?: number
           correct_picks?: number
           total_picks?: number
+          rank?: number | null
+          is_winner?: boolean
+          tie_breaker_used?: boolean
+          tie_breaker_rank?: number | null
           created_at?: string
+          updated_at?: string
+        }
+      }
+      tie_breakers: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          week: number
+          season: number
+          answer: number
+          submitted_at: string
+          is_winner: boolean
+          tie_breaker_rank: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          week: number
+          season: number
+          answer: number
+          submitted_at?: string
+          is_winner?: boolean
+          tie_breaker_rank?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          week?: number
+          season?: number
+          answer?: number
+          submitted_at?: string
+          is_winner?: boolean
+          tie_breaker_rank?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      weekly_winners: {
+        Row: {
+          id: string
+          pool_id: string
+          week: number
+          season: number
+          winner_participant_id: string | null
+          winner_name: string
+          winner_points: number
+          winner_correct_picks: number
+          tie_breaker_used: boolean
+          tie_breaker_question: string | null
+          tie_breaker_answer: number | null
+          winner_tie_breaker_answer: number | null
+          tie_breaker_difference: number | null
+          total_participants: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          week: number
+          season: number
+          winner_participant_id?: string | null
+          winner_name: string
+          winner_points: number
+          winner_correct_picks: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          week?: number
+          season?: number
+          winner_participant_id?: string | null
+          winner_name?: string
+          winner_points?: number
+          winner_correct_picks?: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      season_winners: {
+        Row: {
+          id: string
+          pool_id: string
+          season: number
+          winner_participant_id: string | null
+          winner_name: string
+          total_points: number
+          total_correct_picks: number
+          weeks_won: number
+          tie_breaker_used: boolean
+          tie_breaker_question: string | null
+          tie_breaker_answer: number | null
+          winner_tie_breaker_answer: number | null
+          tie_breaker_difference: number | null
+          total_participants: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          season: number
+          winner_participant_id?: string | null
+          winner_name: string
+          total_points: number
+          total_correct_picks: number
+          weeks_won?: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          season?: number
+          winner_participant_id?: string | null
+          winner_name?: string
+          total_points?: number
+          total_correct_picks?: number
+          weeks_won?: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      period_winners: {
+        Row: {
+          id: string
+          pool_id: string
+          season: number
+          period_name: string
+          start_week: number
+          end_week: number
+          winner_participant_id: string | null
+          winner_name: string
+          period_points: number
+          period_correct_picks: number
+          weeks_won: number
+          tie_breaker_used: boolean
+          tie_breaker_question: string | null
+          tie_breaker_answer: number | null
+          winner_tie_breaker_answer: number | null
+          tie_breaker_difference: number | null
+          total_participants: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          season: number
+          period_name: string
+          start_week: number
+          end_week: number
+          winner_participant_id?: string | null
+          winner_name: string
+          period_points: number
+          period_correct_picks: number
+          weeks_won?: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          season?: number
+          period_name?: string
+          start_week?: number
+          end_week?: number
+          winner_participant_id?: string | null
+          winner_name?: string
+          period_points?: number
+          period_correct_picks?: number
+          weeks_won?: number
+          tie_breaker_used?: boolean
+          tie_breaker_question?: string | null
+          tie_breaker_answer?: number | null
+          winner_tie_breaker_answer?: number | null
+          tie_breaker_difference?: number | null
+          total_participants?: number
+          created_at?: string
+          updated_at?: string
         }
       }
       audit_logs: {
@@ -304,7 +537,7 @@ export type Database = {
           admin_id: string
           entity: string
           entity_id: string
-          details: any
+          details: Record<string, unknown>
           created_at: string
         }
         Insert: {
@@ -313,7 +546,7 @@ export type Database = {
           admin_id: string
           entity: string
           entity_id: string
-          details?: any
+          details?: Record<string, unknown>
           created_at?: string
         }
         Update: {
@@ -322,7 +555,7 @@ export type Database = {
           admin_id?: string
           entity?: string
           entity_id?: string
-          details?: any
+          details?: Record<string, unknown>
           created_at?: string
         }
       }
@@ -422,7 +655,12 @@ CREATE TABLE IF NOT EXISTS scores (
   points INTEGER DEFAULT 0,
   correct_picks INTEGER DEFAULT 0,
   total_picks INTEGER DEFAULT 0,
+  rank INTEGER NULL,
+  is_winner BOOLEAN DEFAULT false,
+  tie_breaker_used BOOLEAN DEFAULT false,
+  tie_breaker_rank INTEGER NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(participant_id, pool_id, week, season)
 );
 `;
@@ -436,7 +674,80 @@ CREATE TABLE IF NOT EXISTS tie_breakers (
   season INTEGER NOT NULL,
   answer DECIMAL(10,2) NOT NULL,
   submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_winner BOOLEAN DEFAULT false,
+  tie_breaker_rank INTEGER NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(participant_id, pool_id, week, season)
+);
+`;
+
+export const weeklyWinnersTable = `
+CREATE TABLE IF NOT EXISTS weekly_winners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  winner_participant_id UUID REFERENCES participants(id) ON DELETE SET NULL,
+  winner_name VARCHAR(255) NOT NULL,
+  winner_points INTEGER NOT NULL,
+  winner_correct_picks INTEGER NOT NULL,
+  tie_breaker_used BOOLEAN DEFAULT false,
+  tie_breaker_question VARCHAR(255) NULL,
+  tie_breaker_answer DECIMAL(10,2) NULL,
+  winner_tie_breaker_answer DECIMAL(10,2) NULL,
+  tie_breaker_difference DECIMAL(10,2) NULL,
+  total_participants INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(pool_id, week, season)
+);
+`;
+
+export const seasonWinnersTable = `
+CREATE TABLE IF NOT EXISTS season_winners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,
+  winner_participant_id UUID REFERENCES participants(id) ON DELETE SET NULL,
+  winner_name VARCHAR(255) NOT NULL,
+  total_points INTEGER NOT NULL,
+  total_correct_picks INTEGER NOT NULL,
+  weeks_won INTEGER NOT NULL DEFAULT 0,
+  tie_breaker_used BOOLEAN DEFAULT false,
+  tie_breaker_question VARCHAR(255) NULL,
+  tie_breaker_answer DECIMAL(10,2) NULL,
+  winner_tie_breaker_answer DECIMAL(10,2) NULL,
+  tie_breaker_difference DECIMAL(10,2) NULL,
+  total_participants INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(pool_id, season)
+);
+`;
+
+export const periodWinnersTable = `
+CREATE TABLE IF NOT EXISTS period_winners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,
+  period_name VARCHAR(50) NOT NULL,
+  start_week INTEGER NOT NULL,
+  end_week INTEGER NOT NULL,
+  winner_participant_id UUID REFERENCES participants(id) ON DELETE SET NULL,
+  winner_name VARCHAR(255) NOT NULL,
+  period_points INTEGER NOT NULL,
+  period_correct_picks INTEGER NOT NULL,
+  weeks_won INTEGER NOT NULL DEFAULT 0,
+  tie_breaker_used BOOLEAN DEFAULT false,
+  tie_breaker_question VARCHAR(255) NULL,
+  tie_breaker_answer DECIMAL(10,2) NULL,
+  winner_tie_breaker_answer DECIMAL(10,2) NULL,
+  tie_breaker_difference DECIMAL(10,2) NULL,
+  total_participants INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(pool_id, season, period_name)
 );
 `;
 
@@ -635,6 +946,51 @@ CREATE POLICY "Users can only insert tie-breakers for themselves" ON tie_breaker
 CREATE POLICY "Admins can view all tie-breakers" ON tie_breakers
   FOR SELECT USING (
     EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+    OR auth.role() = 'service_role'
+  );
+
+-- Weekly winners table policies
+CREATE POLICY "Users can view weekly winners for pools they participate in" ON weekly_winners
+  FOR SELECT USING (
+    pool_id IN (
+      SELECT pool_id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+    OR EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+    OR auth.role() = 'service_role'
+  );
+
+-- Season winners table policies
+CREATE POLICY "Users can view season winners for pools they participate in" ON season_winners
+  FOR SELECT USING (
+    pool_id IN (
+      SELECT pool_id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+    OR EXISTS (
+      SELECT 1 FROM admins 
+      WHERE admins.id = auth.uid() 
+      AND admins.is_active = true
+    )
+    OR auth.role() = 'service_role'
+  );
+
+-- Period winners table policies
+CREATE POLICY "Users can view period winners for pools they participate in" ON period_winners
+  FOR SELECT USING (
+    pool_id IN (
+      SELECT pool_id FROM participants 
+      WHERE email = auth.jwt() ->> 'email'
+    )
+    OR EXISTS (
       SELECT 1 FROM admins 
       WHERE admins.id = auth.uid() 
       AND admins.is_active = true
