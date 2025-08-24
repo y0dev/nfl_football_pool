@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getOrCalculateSeasonWinners } from '@/lib/winner-calculator';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,33 +15,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServiceClient();
+    // Get or calculate season winner
+    const seasonWinner = await getOrCalculateSeasonWinners(poolId, parseInt(season));
     
-    const { data: seasonWinner, error } = await supabase
-      .from('season_winners')
-      .select(`
-        *,
-        pools!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .eq('season', parseInt(season))
-      .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-      console.error('Error fetching season winner:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch season winner' },
-        { status: 500 }
-      );
+    if (seasonWinner) {
+      return NextResponse.json({
+        success: true,
+        seasonWinner
+      });
+    } else {
+      return NextResponse.json({
+        success: true,
+        seasonWinner: null
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      seasonWinner: seasonWinner || null
-    });
-
   } catch (error) {
-    console.error('Error in season winner API:', error);
+    console.error('Error in season winners API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

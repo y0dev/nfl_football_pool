@@ -65,6 +65,196 @@ export interface PeriodWinner {
 }
 
 /**
+ * Get or calculate weekly winners for a specific pool and week
+ * If winners don't exist in database and all games are finished, calculate them automatically
+ */
+export async function getOrCalculateWeeklyWinners(
+  poolId: string,
+  week: number,
+  season: number
+): Promise<WeeklyWinner | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // First, try to get existing winners from database
+    const { data: existingWinners, error: fetchError } = await supabase
+      .from('weekly_winners')
+      .select('*')
+      .eq('pool_id', poolId)
+      .eq('week', week)
+      .eq('season', season)
+      .single();
+
+    if (existingWinners && !fetchError) {
+      return existingWinners;
+    }
+
+    // Check if all games for this week are finished
+    const { data: games, error: gamesError } = await supabase
+      .from('games')
+      .select('status')
+      .eq('week', week)
+      .eq('season', season);
+
+    if (gamesError) {
+      console.error('Error checking games status:', gamesError);
+      return null;
+    }
+
+    if (!games || games.length === 0) {
+      console.log(`No games found for week ${week}, season ${season}`);
+      return null;
+    }
+
+    // Check if all games are finished
+    const allGamesFinished = games.every(game => 
+      game.status === 'final' || game.status === 'post' || game.status === 'cancelled'
+    );
+
+    if (!allGamesFinished) {
+      console.log(`Not all games finished for week ${week}, season ${season}. Cannot calculate winners yet.`);
+      return null;
+    }
+
+    // All games finished, calculate winners
+    console.log(`All games finished for week ${week}, season ${season}. Calculating winners...`);
+    const calculatedWinner = await calculateWeeklyWinners(poolId, week, season);
+    
+    if (calculatedWinner) {
+      // Save the calculated winner to database
+      await saveWeeklyWinner(calculatedWinner);
+      return calculatedWinner;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getOrCalculateWeeklyWinners:', error);
+    return null;
+  }
+}
+
+/**
+ * Get or calculate season winners for a specific pool and season
+ */
+export async function getOrCalculateSeasonWinners(
+  poolId: string,
+  season: number
+): Promise<SeasonWinner | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // First, try to get existing season winner from database
+    const { data: existingWinner, error: fetchError } = await supabase
+      .from('season_winners')
+      .select('*')
+      .eq('pool_id', poolId)
+      .eq('season', season)
+      .single();
+
+    if (existingWinner && !fetchError) {
+      return existingWinner;
+    }
+
+    // Check if all weeks in the season are completed
+    const { data: weeklyWinners, error: weeklyError } = await supabase
+      .from('weekly_winners')
+      .select('week')
+      .eq('pool_id', poolId)
+      .eq('season', season);
+
+    if (weeklyError) {
+      console.error('Error checking weekly winners:', weeklyError);
+      return null;
+    }
+
+    // For now, let's assume we need at least 4 weeks to calculate season winner
+    // You can adjust this logic based on your season structure
+    if (!weeklyWinners || weeklyWinners.length < 4) {
+      console.log(`Not enough weeks completed for season ${season}. Need at least 4 weeks.`);
+      return null;
+    }
+
+    // Calculate season winner
+    console.log(`Calculating season winner for season ${season}...`);
+    const calculatedWinner = await calculateSeasonWinners(poolId, season);
+    
+    if (calculatedWinner) {
+      // Save the calculated winner to database
+      await saveSeasonWinner(calculatedWinner);
+      return calculatedWinner;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getOrCalculateSeasonWinners:', error);
+    return null;
+  }
+}
+
+/**
+ * Get or calculate period winners for a specific pool, season, and period
+ */
+export async function getOrCalculatePeriodWinners(
+  poolId: string,
+  season: number,
+  periodName: string,
+  startWeek: number,
+  endWeek: number
+): Promise<PeriodWinner | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // First, try to get existing period winner from database
+    const { data: existingWinner, error: fetchError } = await supabase
+      .from('period_winners')
+      .select('*')
+      .eq('pool_id', poolId)
+      .eq('season', season)
+      .eq('period_name', periodName)
+      .single();
+
+    if (existingWinner && !fetchError) {
+      return existingWinner;
+    }
+
+    // Check if all weeks in the period are completed
+    const { data: weeklyWinners, error: weeklyError } = await supabase
+      .from('weekly_winners')
+      .select('week')
+      .eq('pool_id', poolId)
+      .eq('season', season)
+      .gte('week', startWeek)
+      .lte('week', endWeek);
+
+    if (weeklyError) {
+      console.error('Error checking weekly winners for period:', weeklyError);
+      return null;
+    }
+
+    const expectedWeeks = endWeek - startWeek + 1;
+    if (!weeklyWinners || weeklyWinners.length < expectedWeeks) {
+      console.log(`Not all weeks completed for period ${periodName} (weeks ${startWeek}-${endWeek}). Need ${expectedWeeks} weeks.`);
+      return null;
+    }
+
+    // Calculate period winner
+    console.log(`Calculating period winner for ${periodName} (weeks ${startWeek}-${endWeek})...`);
+    const calculatedWinner = await calculatePeriodWinners(poolId, season, periodName, startWeek, endWeek);
+    
+    if (calculatedWinner) {
+      // Save the calculated winner to database
+      await savePeriodWinner(calculatedWinner);
+      return calculatedWinner;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getOrCalculatePeriodWinners:', error);
+    return null;
+  }
+}
+
+/**
  * Calculate weekly winners for a specific pool and week
  */
 export async function calculateWeeklyWinners(
@@ -114,7 +304,7 @@ export async function calculateWeeklyWinners(
         week,
         season,
         winner_participant_id: winner.participant_id,
-        winner_name: winner.participants.name,
+        winner_name: winner.participants?.name || 'Unknown',
         winner_points: winner.points,
         winner_correct_picks: winner.correct_picks,
         tie_breaker_used: false,
@@ -129,7 +319,7 @@ export async function calculateWeeklyWinners(
         season,
         topScorers.map(s => ({
           participant_id: s.participant_id,
-          participant_name: s.participants.name,
+          participant_name: s.participants?.name || 'Unknown',
           points: s.points,
           correct_picks: s.correct_picks,
           total_picks: s.total_picks
@@ -203,19 +393,33 @@ export async function calculateSeasonWinners(
       if (existing) {
         existing.total_points += score.points;
         existing.total_correct_picks += score.correct_picks;
-        if (score.is_winner) {
-          existing.weeks_won += 1;
-        }
+        // Note: We'll need to check weekly_winners table for weeks_won
       } else {
         participantTotals.set(score.participant_id, {
           participant_id: score.participant_id,
-          participant_name: score.participants.name,
+          participant_name: score.participants?.name || 'Unknown',
           total_points: score.points,
           total_correct_picks: score.correct_picks,
-          weeks_won: score.is_winner ? 1 : 0
+          weeks_won: 0
         });
       }
     });
+
+    // Get weeks won for each participant
+    const { data: weeklyWinners, error: weeklyError } = await supabase
+      .from('weekly_winners')
+      .select('winner_participant_id')
+      .eq('pool_id', poolId)
+      .eq('season', season);
+
+    if (!weeklyError && weeklyWinners) {
+      weeklyWinners.forEach(winner => {
+        const participant = participantTotals.get(winner.winner_participant_id);
+        if (participant) {
+          participant.weeks_won += 1;
+        }
+      });
+    }
 
     const totals = Array.from(participantTotals.values())
       .sort((a, b) => b.total_points - a.total_points);
@@ -318,19 +522,35 @@ export async function calculatePeriodWinners(
       if (existing) {
         existing.period_points += score.points;
         existing.period_correct_picks += score.correct_picks;
-        if (score.is_winner) {
-          existing.weeks_won += 1;
-        }
+        // Note: We'll need to check weekly_winners table for weeks_won
       } else {
         participantTotals.set(score.participant_id, {
           participant_id: score.participant_id,
-          participant_name: score.participants.name,
+          participant_name: score.participants?.name || 'Unknown',
           period_points: score.points,
           period_correct_picks: score.correct_picks,
-          weeks_won: score.is_winner ? 1 : 0
+          weeks_won: 0
         });
       }
     });
+
+    // Get weeks won for each participant in this period
+    const { data: weeklyWinners, error: weeklyError } = await supabase
+      .from('weekly_winners')
+      .select('winner_participant_id')
+      .eq('pool_id', poolId)
+      .eq('season', season)
+      .gte('week', startWeek)
+      .lte('week', endWeek);
+
+    if (!weeklyError && weeklyWinners) {
+      weeklyWinners.forEach(winner => {
+        const participant = participantTotals.get(winner.winner_participant_id);
+        if (participant) {
+          participant.weeks_won += 1;
+        }
+      });
+    }
 
     const totals = Array.from(participantTotals.values())
       .sort((a, b) => b.period_points - a.period_points);
@@ -393,6 +613,69 @@ export async function calculatePeriodWinners(
   } catch (error) {
     console.error('Error calculating period winners:', error);
     return null;
+  }
+}
+
+/**
+ * Save weekly winner to database
+ */
+async function saveWeeklyWinner(winner: WeeklyWinner): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from('weekly_winners')
+      .upsert(winner, { onConflict: 'pool_id,week,season' });
+
+    if (error) {
+      console.error('Error saving weekly winner:', error);
+    } else {
+      console.log(`Weekly winner saved for week ${winner.week}, season ${winner.season}`);
+    }
+  } catch (error) {
+    console.error('Error saving weekly winner:', error);
+  }
+}
+
+/**
+ * Save season winner to database
+ */
+async function saveSeasonWinner(winner: SeasonWinner): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from('season_winners')
+      .upsert(winner, { onConflict: 'pool_id,season' });
+
+    if (error) {
+      console.error('Error saving season winner:', error);
+    } else {
+      console.log(`Season winner saved for season ${winner.season}`);
+    }
+  } catch (error) {
+    console.error('Error saving season winner:', error);
+  }
+}
+
+/**
+ * Save period winner to database
+ */
+async function savePeriodWinner(winner: PeriodWinner): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from('period_winners')
+      .upsert(winner, { onConflict: 'pool_id,season,period_name' });
+
+    if (error) {
+      console.error('Error saving period winner:', error);
+    } else {
+      console.log(`Period winner saved for ${winner.period_name}, season ${winner.season}`);
+    }
+  } catch (error) {
+    console.error('Error saving period winner:', error);
   }
 }
 
