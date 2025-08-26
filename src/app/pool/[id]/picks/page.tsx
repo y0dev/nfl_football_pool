@@ -245,9 +245,7 @@ function PoolPicksContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
@@ -256,9 +254,7 @@ function PoolPicksContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         
         // Show a helpful message for empty week parameter
         toast({
@@ -271,9 +267,7 @@ function PoolPicksContent() {
       // Load pool information using the public API endpoint
       try {
         const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Fetching from API:', apiUrl);
-        }
+        debugLog('Pool picks page: Fetching from API:', apiUrl);
         
         // Add timeout to fetch request
         const controller = new AbortController();
@@ -366,9 +360,7 @@ function PoolPicksContent() {
 
       // Load games for the week using the new API route
       try {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         
         const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
         
@@ -436,31 +428,25 @@ function PoolPicksContent() {
                 const bufferTime = 60 * 60 * 1000; // 1 hour in milliseconds
                 const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
                 
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('Game status check:', {
-                    game: `${game.away_team} @ ${game.home_team}`,
-                    kickoff: gameTime.toISOString(),
-                    now: now.toISOString(),
-                    bufferTime: bufferTime / (1000 * 60 * 60), // hours
-                    gameStarted
-                  });
-                }
+                debugLog('Game status check:', {
+                  game: `${game.away_team} @ ${game.home_team}`,
+                  kickoff: gameTime.toISOString(),
+                  now: now.toISOString(),
+                  bufferTime: bufferTime / (1000 * 60 * 60), // hours
+                  gameStarted
+                });
                 
                 return gameStarted;
               });
             } else {
               // If all games are test data, don't start games
               hasStarted = false;
-              if (process.env.NODE_ENV === 'development') {
-                console.log('All games are test data, setting gamesStarted to false');
-              }
+              debugLog('All games are test data, setting gamesStarted to false');
             }
             
             setGamesStarted(hasStarted);
             
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Overall games started status:', hasStarted);
-            }
+            debugLog('Overall games started status:', hasStarted);
             
             // Automatically show leaderboard when games start
             if (hasStarted) {
@@ -555,9 +541,7 @@ function PoolPicksContent() {
   };
 
   const handleRetry = async () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Retrying data load...');
-    }
+    debugLog('Retrying data load...');
     await handleRefresh();
   };
 
@@ -585,14 +569,10 @@ function PoolPicksContent() {
             duration: 5000,
           });
           
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Loaded picks from localStorage:', storedPicks);
-          }
+          debugLog('Loaded picks from localStorage:', storedPicks);
         }
       } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('No valid picks found in localStorage for:', { participantId, poolId, week });
-        }
+        debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
     } catch (error) {
       console.error('Error loading picks from localStorage:', error);
@@ -681,23 +661,19 @@ function PoolPicksContent() {
   const loadParticipantStats = async () => {
     // Stats are now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Participant stats loaded from API endpoint');
-    }
+    debugLog('Participant stats loaded from API endpoint');
   };
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
     
     try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Checking submission status for:', {
-          participantId: selectedUser.id,
-          poolId,
-          currentWeek,
-          currentSeasonType
-        });
-      }
+      debugLog('Checking submission status for:', {
+        participantId: selectedUser.id,
+        poolId,
+        currentWeek,
+        currentSeasonType
+      });
 
       // Use service role client to bypass RLS policies
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
@@ -715,14 +691,10 @@ function PoolPicksContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
-      }
+      debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
 
       if (!gamesForWeek || gamesForWeek.length === 0) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('No games found for week, cannot check picks');
-        }
+        debugLog('No games found for week, cannot check picks');
         return;
       }
 
@@ -741,17 +713,13 @@ function PoolPicksContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
-      }
+      debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
       // User has submitted if they have picks for all games in this week
       const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmitted, name: selectedUser.name } }));
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
-      }
+      debugLog('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
     } catch (error) {
       console.error('Error checking submission status:', error);
     }
@@ -760,17 +728,13 @@ function PoolPicksContent() {
   const checkWeekPicksStatus = async () => {
     // Picks status is now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Week picks status loaded from API endpoint');
-    }
+    debugLog('Week picks status loaded from API endpoint');
   };
 
   const checkAdminPermissions = async () => {
     // Admin permissions are now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Admin permissions loaded from API endpoint');
-    }
+    debugLog('Admin permissions loaded from API endpoint');
   };
 
   const unlockParticipantPicks = async (participantId: string) => {

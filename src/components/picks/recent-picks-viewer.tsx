@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Lock, Unlock, Trophy, Target } from 'lucide-react';
 import { Game } from '@/types/game';
+import { getShortTeamName } from '@/lib/utils';
 
 interface RecentPicksViewerProps {
   poolId: string;
@@ -198,7 +199,7 @@ export function RecentPicksViewer({
                         {pick.confidence_points} pts
                       </Badge>
                       <span className="text-sm font-medium">
-                        {game.away_team} @ {game.home_team}
+                        {window.innerWidth < 640 ? getShortTeamName(game.away_team) : game.away_team} @ {window.innerWidth < 640 ? getShortTeamName(game.home_team) : game.home_team}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
