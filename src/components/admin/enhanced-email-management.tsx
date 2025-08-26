@@ -17,7 +17,7 @@ import { processTemplate, getDefaultVariables, TemplateVariables } from '@/lib/t
 import { loadUsers } from '@/actions/loadUsers';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { sendTemplatedEmails } from '@/actions/sendTemplatedEmails';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek, loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { DEFAULT_SEASON } from '@/lib/utils';
 
 interface EnhancedEmailManagementProps {
@@ -63,14 +63,13 @@ function ParticipantCountWarning({
         setTargetCount(participants.length);
       } else {
         // Get current week data to get season type
-        const weekData = await loadCurrentWeek();
-        const seasonType = weekData?.season_type || 2;
+        const { week, seasonType } = await getUpcomingWeek();
         
         if (template.targetAudience === 'submitted') {
-          const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+          const submittedIds = await getUsersWhoSubmitted(poolId, week, seasonType);
           setTargetCount(submittedIds.length);
         } else if (template.targetAudience === 'not_submitted') {
-          const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+          const submittedIds = await getUsersWhoSubmitted(poolId, week, seasonType);
           // Ensure we don't get negative values
           const notSubmittedCount = Math.max(0, participants.length - submittedIds.length);
           setTargetCount(notSubmittedCount);

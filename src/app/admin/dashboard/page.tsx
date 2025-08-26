@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PoolDashboard } from '@/components/pools/pool-dashboard';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { adminService, DashboardStats, Pool, Admin } from '@/lib/admin-service';
@@ -57,9 +57,9 @@ function AdminDashboardContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
-        setCurrentSeasonType(weekData?.season_type || 2);
+        const { week, seasonType } = await getUpcomingWeek();
+        setCurrentWeek(week);
+        setCurrentSeasonType(seasonType);
         await loadDashboardStats();
         generateNotifications();
         if (user?.is_super_admin) {
