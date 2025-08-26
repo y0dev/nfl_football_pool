@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Share2, Link as LinkIcon, QrCode } from 'lucide-react';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 interface ParticipantLinksProps {
   poolId: string;
@@ -75,9 +75,9 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
   useEffect(() => {
     const loadWeek = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData.week_number);
-        setCurrentSeasonType(weekData.season_type || 2);
+        const weekData = await getUpcomingWeek();
+        setCurrentWeek(weekData.week);
+        setCurrentSeasonType(weekData.seasonType);
       } catch (error) {
         console.error('Error loading current week:', error);
       }
