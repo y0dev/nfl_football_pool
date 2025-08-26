@@ -93,7 +93,7 @@ function LandingPage() {
 
       if (pools && pools.length > 0) {
         // Redirect to participant page with the pool ID
-        router.push(`/participant?pool=${pools[0].id}`);
+        router.push(`/pool/${pools[0].id}/picks`);
       } else {
         // Show error message - you could add a toast notification here
         console.log('No pools found');

@@ -101,7 +101,7 @@ export async function sendTemplatedEmails({
     // Prepare variables for this participant
     const baseVariables = {
       poolName,
-      poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
+              poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/pool/${poolId}/picks?week=${weekNumber}`,
       currentWeek: weekNumber,
       season: actualSeason, // Use actual season instead of hardcoded 2025
       adminName: adminName, // Use the fetched admin name

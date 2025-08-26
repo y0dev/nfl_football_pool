@@ -58,6 +58,9 @@ export const DATE_FORMATS = {
   DATETIME: 'MMM dd, yyyy h:mm a'
 } as const;
 
+// Session Management Configuration
+export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 // API Configuration
 export const API_ENDPOINTS = {
   POOLS: '/api/pools',

@@ -1,3 +1,5 @@
+import { debugLog } from '@/lib/utils';
+
 // Secure user session management without passwords
 export interface UserSession {
   userId: string;
@@ -37,8 +39,10 @@ class UserSessionManager {
     try {
       const sessionsData = localStorage.getItem(SESSION_KEY);
       if (sessionsData) {
-        const sessionsArray = JSON.parse(sessionsData);
-        this.sessions = new Map(sessionsArray);
+        debugLog('Loading sessions from storage:', sessionsData);
+        const sessionsObj = JSON.parse(sessionsData);
+        debugLog('Parsed sessions object:', sessionsObj);
+        this.sessions = new Map(Object.entries(sessionsObj));
       }
     } catch (error) {
       console.error('Failed to load sessions from storage:', error);
@@ -50,8 +54,10 @@ class UserSessionManager {
     if (typeof window === 'undefined') return;
     
     try {
-      const sessionsArray = Array.from(this.sessions.entries());
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionsArray));
+      debugLog('Saving sessions to storage:', this.sessions);
+      const sessionsObj = Object.fromEntries(this.sessions);
+      debugLog('Sessions object:', sessionsObj);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionsObj));
     } catch (error) {
       console.error('Failed to save sessions to storage:', error);
     }

@@ -25,7 +25,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
   // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${baseUrl}/participant?pool=${poolId}&week=${currentWeek}&seasonType=${seasonType}`;
+    return `${baseUrl}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${seasonType}`;
   };
 
   // Copy link to clipboard

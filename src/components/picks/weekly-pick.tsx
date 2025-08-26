@@ -14,6 +14,7 @@ import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
+import { debugLog } from '@/lib/utils';
 
 interface WeeklyPickProps {
   poolId: string;
@@ -116,9 +117,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
           setUnlockTime(threeDaysBefore.toLocaleString());
         }
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Selected user:', selectedUser);
-        }
+        debugLog('Selected user:', selectedUser);
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map((game: Game) => ({
           participant_id: selectedUser?.id || '',
@@ -129,12 +128,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         }));
         setPicks(initialPicks);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Loaded games from loadWeekGames');
-          console.log('Week:', weekToUse, 'Season Type:', seasonTypeToUse);
-          console.log('Games:', gamesData);
-          console.log('Initial picks:', initialPicks);
-        }
+        debugLog('WeeklyPick: Loaded games from loadWeekGames');
+        debugLog('Week:', weekToUse, 'Season Type:', seasonTypeToUse);
+        debugLog('Games:', gamesData);
+        debugLog('Initial picks:', initialPicks);
       } catch (error) {
         console.error('Error loading data:', error);
         toast({
@@ -150,33 +147,23 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Monitor currentWeek changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: currentWeek changed to:', currentWeek);
-    }
+    debugLog('WeeklyPick: currentWeek changed to:', currentWeek);
   }, [currentWeek]);
 
   // Monitor games changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: games changed to:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-    }
+    debugLog('WeeklyPick: games changed to:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
   }, [games]);
 
   // Update selectedUser when prop changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
-      console.log('WeeklyPick: selectedUser changed to:', selectedUser);
-    }
+    debugLog('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
+    debugLog('WeeklyPick: selectedUser changed to:', selectedUser);
     if (propSelectedUser && propSelectedUser !== selectedUser) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
-      }
+      debugLog('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
       setSelectedUser(propSelectedUser);
     } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: propSelectedUser is the same as selectedUser');
-      }
+      debugLog('WeeklyPick: propSelectedUser is the same as selectedUser');
     }
   }, [propSelectedUser, selectedUser]);
 
@@ -275,9 +262,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           console.error('Error checking week unlock status:', error);
           // Default to unlocked if there's an error
           setIsWeekUnlocked(true);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('WeeklyPick: Defaulting to unlocked due to error');
-          }
+          debugLog('WeeklyPick: Defaulting to unlocked due to error');
         }
       }
     };

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
 
-    console.log('Games API called with:', { week, seasonType });
+    debugLog('Games API called with:', { week, seasonType });
 
     if (!week) {
       return NextResponse.json(
@@ -26,15 +27,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Parsed parameters:', { weekNumber, seasonTypeNumber });
+    debugLog('Parsed parameters:', { weekNumber, seasonTypeNumber });
 
     const supabase = getSupabaseServiceClient();
-    console.log('Supabase client created successfully');
+    debugLog('Supabase client created successfully');
 
-    let query = supabase
+    const query = supabase
       .from('games')
       .select('*')
-      .eq('week', weekNumber);
+      .eq('week', weekNumber)
+      .eq('season_type', seasonTypeNumber);
 
     // Only filter by season_type if the column exists and value is provided
     // For now, we'll skip this filter to avoid the 500 error
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
     */
 
-    console.log('Executing query for week:', weekNumber);
+    debugLog('Executing query for week:', weekNumber);
     const { data: games, error } = await query.order('kickoff_time');
 
     if (error) {
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Games loaded successfully:', games?.length || 0);
+    debugLog('Games loaded successfully:', games?.length || 0);
     return NextResponse.json({
       success: true,
       games: games || []
