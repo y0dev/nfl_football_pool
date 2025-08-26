@@ -12,9 +12,9 @@ import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/acti
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
-import { Clock, Save, AlertTriangle } from 'lucide-react';
+import { Clock, Save, AlertTriangle, X } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
-import { debugLog, DAYS_BEFORE_GAME } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, getShortTeamName } from '@/lib/utils';
 
 interface WeeklyPickProps {
   poolId: string;
@@ -613,48 +613,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
               !usedConfidencePoints.includes(points) // Exclude used by other picks
             ) : [];
           
-          // Shorten team names for mobile
-          const getShortTeamName = (teamName: string) => {
-            if (window.innerWidth < 640) { // sm breakpoint
-              // Remove city names and keep just the team name
-              const teamNameMap: { [key: string]: string } = {
-                'New England Patriots': 'NE Patriots',
-                'New York Jets': 'NY Jets',
-                'New York Giants': 'NY Giants',
-                'Buffalo Bills': 'Buf Bills',
-                'Miami Dolphins': 'Mia Dolphins',
-                'Baltimore Ravens': 'Bal Ravens',
-                'Cincinnati Bengals': 'Cin Bengals',
-                'Cleveland Browns': 'Cle Browns',
-                'Pittsburgh Steelers': 'Pit Steelers',
-                'Houston Texans': 'Hou Texans',
-                'Indianapolis Colts': 'Ind Colts',
-                'Jacksonville Jaguars': 'Jax Jaguars',
-                'Tennessee Titans': 'Ten Titans',
-                'Denver Broncos': 'Den Broncos',
-                'Kansas City Chiefs': 'Kan Chiefs',
-                'Las Vegas Raiders': 'LV Raiders',
-                'Los Angeles Chargers': 'LA Chargers',
-                'Dallas Cowboys': 'Dal Cowboys',
-                'Philadelphia Eagles': 'Phi Eagles',
-                'Washington Commanders': 'Was Commanders',
-                'Chicago Bears': 'Chi Bears',
-                'Detroit Lions': 'Det Lions',
-                'Green Bay Packers': 'GB Packers',
-                'Minnesota Vikings': 'Min Vikings',
-                'Atlanta Falcons': 'Atl Falcons',
-                'Carolina Panthers': 'Car Panthers',
-                'New Orleans Saints': 'NO Saints',
-                'Tampa Bay Buccaneers': 'TB Buccaneers',
-                'Arizona Cardinals': 'Ari Cardinals',
-                'Los Angeles Rams': 'LA Rams',
-                'San Francisco 49ers': 'SF 49ers',
-                'Seattle Seahawks': 'Sea Seahawks'
-              };
-              return teamNameMap[teamName] || teamName;
-            }
-            return teamName;
-          };
+          // Use utility function for short team names
           
           return (
             <Card key={game.id} className={isLocked ? 'opacity-75' : ''}>
@@ -664,7 +623,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                   {isLocked && <Badge variant="secondary">Locked</Badge>}
                 </CardTitle>
                 <CardDescription>
-                  {getShortTeamName(game.away_team)} @ {getShortTeamName(game.home_team)}
+                  {window.innerWidth < 640 ? getShortTeamName(game.away_team) : game.away_team} @ {window.innerWidth < 640 ? getShortTeamName(game.home_team) : game.home_team}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -702,28 +661,44 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                       </span>
                     )}
                   </div>
-                  <Select
-                    value={pick?.confidence_points?.toString() || ''}
-                    onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
-                    disabled={isLocked}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select confidence points" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
-                        availableConfidencePoints.map(points => (
-                          <SelectItem key={points} value={points.toString()}>
-                            {points} point{points !== 1 ? 's' : ''}
+                  <div className="flex gap-2">
+                    <Select
+                      value={pick?.confidence_points?.toString() || ''}
+                      onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
+                      disabled={isLocked}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select confidence points" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
+                          availableConfidencePoints.map(points => (
+                            <SelectItem key={points} value={points.toString()}>
+                              {points} point{points !== 1 ? 's' : ''}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>
+                            No confidence points available
                           </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="" disabled>
-                          No confidence points available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Clear Confidence Button */}
+                    {pick?.confidence_points && pick.confidence_points > 0 && !isLocked && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
+                        className="shrink-0 px-3 hover:bg-red-50 hover:border-red-200 hover:text-red-700"
+                        title="Clear confidence points - makes this value available for other games"
+                      >
+                        <X className="h-4 w-4" /> 
+                      </Button>
+                    )}
+                  </div>
                   {usedConfidencePoints.length > 0 && (
                     <div className="mt-2">
                       <div className="text-xs text-gray-500 mb-1">Used by other games:</div>
@@ -733,6 +708,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                             {points}
                           </Badge>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show message when no confidence points are assigned */}
+                  {!pick?.confidence_points && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-500 italic">
+                        No confidence points assigned - select a value above
                       </div>
                     </div>
                   )}

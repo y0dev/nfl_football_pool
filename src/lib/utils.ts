@@ -62,13 +62,14 @@ export const DATE_FORMATS = {
 export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Game Timing Configuration
-export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
+export const DAYS_BEFORE_GAME = 10; // Number of days before game kickoff for various operations
 
 // API Configuration
 export const API_ENDPOINTS = {
   POOLS: '/api/pools',
   PICKS: '/api/picks',
   ADMIN: '/api/admin',
+  LEADERBOARD: '/api/leaderboard',
   SUPER_ADMIN: '/api/super-admin'
 } as const;
 
@@ -190,6 +191,48 @@ export function getTeamAbbreviation(fullName: string): string {
     'Washington Commanders': 'WAS'
   }
   return teamAbbreviations[fullName] || fullName
+}
+
+/**
+ * Get short team name for mobile display
+ * Returns a shortened version of the team name suitable for smaller screens
+ */
+export function getShortTeamName(teamName: string): string {
+  const teamNameMap: Record<string, string> = {
+    'New England Patriots': 'NE Patriots',
+    'New York Jets': 'NY Jets',
+    'New York Giants': 'NY Giants',
+    'Buffalo Bills': 'Buf Bills',
+    'Miami Dolphins': 'Mia Dolphins',
+    'Baltimore Ravens': 'Bal Ravens',
+    'Cincinnati Bengals': 'Cin Bengals',
+    'Cleveland Browns': 'Cle Browns',
+    'Pittsburgh Steelers': 'Pit Steelers',
+    'Houston Texans': 'Hou Texans',
+    'Indianapolis Colts': 'Ind Colts',
+    'Jacksonville Jaguars': 'Jax Jaguars',
+    'Tennessee Titans': 'Ten Titans',
+    'Denver Broncos': 'Den Broncos',
+    'Kansas City Chiefs': 'Kan Chiefs',
+    'Las Vegas Raiders': 'LV Raiders',
+    'Los Angeles Chargers': 'LA Chargers',
+    'Dallas Cowboys': 'Dal Cowboys',
+    'Philadelphia Eagles': 'Phi Eagles',
+    'Washington Commanders': 'Was Commanders',
+    'Chicago Bears': 'Chi Bears',
+    'Detroit Lions': 'Det Lions',
+    'Green Bay Packers': 'GB Packers',
+    'Minnesota Vikings': 'Min Vikings',
+    'Atlanta Falcons': 'Atl Falcons',
+    'Carolina Panthers': 'Car Panthers',
+    'New Orleans Saints': 'NO Saints',
+    'Tampa Bay Buccaneers': 'TB Buccaneers',
+    'Arizona Cardinals': 'Ari Cardinals',
+    'Los Angeles Rams': 'LA Rams',
+    'San Francisco 49ers': 'SF 49ers',
+    'Seattle Seahawks': 'Sea Seahawks'
+  };
+  return teamNameMap[teamName] || teamName;
 }
 
 /**

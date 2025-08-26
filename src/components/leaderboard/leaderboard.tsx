@@ -162,6 +162,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                 {games.map(game => {
                   const pick = entry.picks.find(p => p.game_id === game.id);
                   const isGameFinal = game.status === 'final' || game.status === 'post';
+                  const isGameInProgress = game.status === 'live' || game.status === 'in_progress';
                   const isCorrect = pick && isGameFinal && game.winner && pick.predicted_winner === game.winner;
                   const confidence = pick?.confidence_points || 0;
                   
@@ -169,6 +170,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                     <TableCell key={game.id} className="text-center">
                       <div className="text-xs">
                         <div className={`font-medium ${
+                          isGameInProgress ? 'text-blue-800' :
                           !isGameFinal ? 'text-yellow-800' :
                           isCorrect ? 'text-green-800' : 'text-red-800'
                         }`}>
@@ -176,6 +178,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   </div>
                         <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono ${
                           confidence === 0 ? 'bg-gray-100 text-gray-500' :
+                          isGameInProgress ? 'bg-blue-100 text-blue-800' :
                           !isGameFinal ? 'bg-yellow-100 text-yellow-800' :
                           isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>

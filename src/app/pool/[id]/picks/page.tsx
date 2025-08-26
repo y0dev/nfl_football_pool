@@ -114,18 +114,30 @@ function PoolPicksContent() {
     setWeekEnded(allGamesEnded);
     
     if (allGamesEnded) {
+      debugLog('Week status result setWeekEnded if allGamesEnded:', {
+        poolId,
+        weekNumber: currentWeek,
+        seasonType: currentSeasonType,
+        season: poolSeason
+      });
       try {
         // Load week winner from leaderboard
-        const response = await fetch(`/api/leaderboard?poolId=${poolId}&weekNumber=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
+        const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
+        debugLog('Week status result setWeekEnded if allGamesEnded:', response);
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.leaderboard && result.leaderboard.length > 0) {
-            const winner = result.leaderboard[0]; // First place
-            setWeekWinner(winner);
-            setWeekHasPicks(true);
-          } else {
-            setWeekHasPicks(false);
+            debugLog('Week status result setWeekEnded if allGamesEnded:', result);
           }
+          const winner = result.leaderboard[0]; // First place
+          setWeekWinner(winner);
+          setWeekHasPicks(true);
+          // Automatically show leaderboard when week ends
+          setShowLeaderboard(true);
+        } else {
+          setWeekHasPicks(false);
+          // Still show leaderboard even if no picks, but indicate no results
+          setShowLeaderboard(true);
         }
       } catch (error) {
         console.error('Error loading week winner:', error);
@@ -182,6 +194,13 @@ function PoolPicksContent() {
     checkWeekStatus();
   }, [games, poolId, currentWeek, currentSeasonType, poolSeason]);
 
+  // Automatically show leaderboard when week ends
+  useEffect(() => {
+    if (weekEnded) {
+      setShowLeaderboard(true);
+    }
+  }, [weekEnded]);
+
   // Clean up expired sessions periodically
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -226,9 +245,7 @@ function PoolPicksContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
@@ -237,9 +254,7 @@ function PoolPicksContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         
         // Show a helpful message for empty week parameter
         toast({
@@ -252,9 +267,7 @@ function PoolPicksContent() {
       // Load pool information using the public API endpoint
       try {
         const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Fetching from API:', apiUrl);
-        }
+        debugLog('Pool picks page: Fetching from API:', apiUrl);
         
         // Add timeout to fetch request
         const controller = new AbortController();
@@ -347,9 +360,7 @@ function PoolPicksContent() {
 
       // Load games for the week using the new API route
       try {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         
         const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
         
@@ -417,31 +428,25 @@ function PoolPicksContent() {
                 const bufferTime = 60 * 60 * 1000; // 1 hour in milliseconds
                 const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
                 
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('Game status check:', {
-                    game: `${game.away_team} @ ${game.home_team}`,
-                    kickoff: gameTime.toISOString(),
-                    now: now.toISOString(),
-                    bufferTime: bufferTime / (1000 * 60 * 60), // hours
-                    gameStarted
-                  });
-                }
+                debugLog('Game status check:', {
+                  game: `${game.away_team} @ ${game.home_team}`,
+                  kickoff: gameTime.toISOString(),
+                  now: now.toISOString(),
+                  bufferTime: bufferTime / (1000 * 60 * 60), // hours
+                  gameStarted
+                });
                 
                 return gameStarted;
               });
             } else {
               // If all games are test data, don't start games
               hasStarted = false;
-              if (process.env.NODE_ENV === 'development') {
-                console.log('All games are test data, setting gamesStarted to false');
-              }
+              debugLog('All games are test data, setting gamesStarted to false');
             }
             
             setGamesStarted(hasStarted);
             
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Overall games started status:', hasStarted);
-            }
+            debugLog('Overall games started status:', hasStarted);
             
             // Automatically show leaderboard when games start
             if (hasStarted) {
@@ -536,9 +541,7 @@ function PoolPicksContent() {
   };
 
   const handleRetry = async () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Retrying data load...');
-    }
+    debugLog('Retrying data load...');
     await handleRefresh();
   };
 
@@ -566,14 +569,10 @@ function PoolPicksContent() {
             duration: 5000,
           });
           
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Loaded picks from localStorage:', storedPicks);
-          }
+          debugLog('Loaded picks from localStorage:', storedPicks);
         }
       } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('No valid picks found in localStorage for:', { participantId, poolId, week });
-        }
+        debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
     } catch (error) {
       console.error('Error loading picks from localStorage:', error);
@@ -662,23 +661,19 @@ function PoolPicksContent() {
   const loadParticipantStats = async () => {
     // Stats are now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Participant stats loaded from API endpoint');
-    }
+    debugLog('Participant stats loaded from API endpoint');
   };
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
     
     try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Checking submission status for:', {
-          participantId: selectedUser.id,
-          poolId,
-          currentWeek,
-          currentSeasonType
-        });
-      }
+      debugLog('Checking submission status for:', {
+        participantId: selectedUser.id,
+        poolId,
+        currentWeek,
+        currentSeasonType
+      });
 
       // Use service role client to bypass RLS policies
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
@@ -696,14 +691,10 @@ function PoolPicksContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
-      }
+      debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
 
       if (!gamesForWeek || gamesForWeek.length === 0) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('No games found for week, cannot check picks');
-        }
+        debugLog('No games found for week, cannot check picks');
         return;
       }
 
@@ -722,17 +713,13 @@ function PoolPicksContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
-      }
+      debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
       // User has submitted if they have picks for all games in this week
       const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmitted, name: selectedUser.name } }));
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
-      }
+      debugLog('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
     } catch (error) {
       console.error('Error checking submission status:', error);
     }
@@ -741,17 +728,13 @@ function PoolPicksContent() {
   const checkWeekPicksStatus = async () => {
     // Picks status is now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Week picks status loaded from API endpoint');
-    }
+    debugLog('Week picks status loaded from API endpoint');
   };
 
   const checkAdminPermissions = async () => {
     // Admin permissions are now loaded from the pool API endpoint
     // This function is kept for compatibility but no longer makes database calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Admin permissions loaded from API endpoint');
-    }
+    debugLog('Admin permissions loaded from API endpoint');
   };
 
   const unlockParticipantPicks = async (participantId: string) => {
@@ -1162,6 +1145,20 @@ function PoolPicksContent() {
         </Link>
       </div>
       )}
+
+      {/* Floating Leaderboard Button for Mobile - Show when week has ended */}
+      {weekEnded && (
+        <div className="fixed top-4 right-4 z-50 sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLeaderboard(!showLeaderboard)}
+            className="shadow-lg"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       
       <div className="container mx-auto p-4 md:p-6">
         {/* Header */}
@@ -1258,6 +1255,18 @@ function PoolPicksContent() {
                     <Users className="h-4 w-4" />
                     <span className="hidden md:inline">Stats</span>
                   </Button>
+
+                  {weekEnded && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowLeaderboard(!showLeaderboard)}
+                      className="flex items-center gap-2 min-w-fit px-3 py-2"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span className="hidden md:inline">{showLeaderboard ? 'Hide' : 'Show'} Leaderboard</span>
+                    </Button>
+                  )}
 
                   {isAdmin && (
                     <Button
@@ -1503,6 +1512,9 @@ function PoolPicksContent() {
                 <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'}</p>
                 <p><strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
                 <p><strong>Show Leaderboard:</strong> {showLeaderboard ? 'Yes' : 'No'}</p>
+                <p><strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'}</p>
+                <p><strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
+                <p><strong>Week Winner:</strong> {weekWinner ? `${weekWinner.participant_name} (${weekWinner.points} pts)` : 'None'}</p>
                 <p><strong>Is Loading:</strong> {isLoading ? 'Yes' : 'No'}</p>
                 <p><strong>Error:</strong> {error || 'None'}</p>
                 <p><strong>Pool ID:</strong> {poolId || 'None'}</p>
@@ -1517,12 +1529,59 @@ function PoolPicksContent() {
           {process.env.NODE_ENV === 'development' && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-800">
-                <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}
+                <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}, Week ended: {weekEnded ? 'Yes' : 'No'}
               </p>
             </div>
           )}
           
-          {gamesStarted ? (
+          {/* Show Leaderboard when week has ended */}
+          {weekEnded && (
+            <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+              <CardHeader className="text-center">
+                <CardTitle className="flex items-center gap-2 text-yellow-900 text-2xl">
+                  <Crown className="h-6 w-6" />
+                  Week {currentWeek} Final Results
+                </CardTitle>
+                <CardDescription className="text-yellow-700 text-lg">
+                  {weekHasPicks 
+                    ? `The week has ended! Here are the final standings for ${poolName}`
+                    : `Week ${currentWeek} has ended. No picks were submitted for this week.`
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {weekHasPicks ? (
+                  <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calendar className="h-12 w-12 mx-auto mb-2" />
+                    <p className="text-lg font-medium">No Results Available</p>
+                    <p className="text-sm">This week ended without any submitted picks</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Manual Leaderboard Toggle - Show when week has ended and user wants to see it */}
+          {weekEnded && showLeaderboard && weekHasPicks && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-600" />
+                  Week {currentWeek} Leaderboard
+                </CardTitle>
+                <CardDescription>
+                  Final standings for {poolName} - Week {currentWeek}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+              </CardContent>
+            </Card>
+          )}
+          
+          {gamesStarted && !weekEnded ? (
             <>
               {/* Leaderboard Section - Only show when everyone has submitted */}
               {submittedCount >= participantCount ? (
@@ -1570,7 +1629,7 @@ function PoolPicksContent() {
                 </Card>
               )}
             </>
-          ) : (
+          ) : !weekEnded && !gamesStarted ? (
             <>
               {/* Picks Section - Only show when games haven't started */}
               <Card>
@@ -1704,9 +1763,28 @@ function PoolPicksContent() {
                 </Card>
               )}
             </>
+          ) : null}
+
+          {/* Week Ended Message - Show when week has ended */}
+          {weekEnded && (
+            <Card className="bg-gray-50 border-gray-200">
+              <CardContent className="p-6 text-center">
+                <div className="text-gray-500 mb-4">
+                  <Calendar className="h-12 w-12 mx-auto mb-2" />
+                  <p className="text-lg font-medium">Week {currentWeek} Has Ended</p>
+                  <p className="text-sm">Picks are no longer available for this week</p>
+                </div>
+                <div className="text-sm text-gray-600">
+                  <p>The leaderboard above shows the final results for this week.</p>
+                  <p>Check back next week for new picks!</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
+
+
 
       {/* Recent Picks Section - Show when requested */}
       {showRecentPicks && (
