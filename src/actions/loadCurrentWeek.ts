@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
+import { DAYS_BEFORE_GAME } from '@/lib/utils';
 
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
@@ -33,9 +34,9 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
     // Check if we're within 3 days of the first game
     const firstGameTime = new Date(games[0].kickoff_time);
     const timeUntilFirstGame = firstGameTime.getTime() - now.getTime();
-    const threeDaysInMs = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+    const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000; // 3 days in milliseconds
     
-    if (timeUntilFirstGame > threeDaysInMs) {
+    if (timeUntilFirstGame > daysToKickoffInMs) {
       // More than 3 days before the first game, don't allow picks
       return false;
     }
@@ -50,7 +51,7 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
     }
 
     // Allow picks for any week within 3 days of kickoff
-    return timeUntilFirstGame <= threeDaysInMs && timeUntilFirstGame > 0;
+    return timeUntilFirstGame <= daysToKickoffInMs && timeUntilFirstGame > 0;
     
   } catch (error) {
     console.error('Error checking if week is unlocked for picks:', error);

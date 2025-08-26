@@ -5,7 +5,6 @@ export interface UserSession {
   userId: string;
   userName: string;
   poolId: string;
-  poolName: string;
   createdAt: string;
   expiresAt: string;
   accessCode: string;
@@ -67,7 +66,6 @@ class UserSessionManager {
     userId: string,
     userName: string,
     poolId: string,
-    poolName: string,
     accessCode: string
   ): UserSession {
     if (typeof window === 'undefined') {
@@ -86,7 +84,6 @@ class UserSessionManager {
       userId,
       userName,
       poolId,
-      poolName,
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       accessCode

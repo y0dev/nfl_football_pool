@@ -1524,21 +1524,51 @@ function PoolPicksContent() {
           
           {gamesStarted ? (
             <>
-              {/* Leaderboard Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-yellow-600" />
-                    Week {currentWeek} Leaderboard
-                  </CardTitle>
-                  <CardDescription>
-                    Current standings for {poolName} - Games are in progress
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-                </CardContent>
-              </Card>
+              {/* Leaderboard Section - Only show when everyone has submitted */}
+              {submittedCount >= participantCount ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="h-5 w-5 text-yellow-600" />
+                      Week {currentWeek} Leaderboard
+                    </CardTitle>
+                    <CardDescription>
+                      Current standings for {poolName} - Games are in progress
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="bg-orange-50 border-orange-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-800">
+                      <Clock className="h-5 w-5" />
+                      Waiting for All Submissions
+                    </CardTitle>
+                    <CardDescription className="text-orange-700">
+                      {submittedCount} of {participantCount} participants have submitted picks
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-4">
+                      <p className="text-orange-600 mb-3">
+                        The leaderboard will be available once all participants submit their picks
+                      </p>
+                      <div className="w-full bg-orange-200 rounded-full h-2">
+                        <div 
+                          className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-orange-600 mt-2">
+                        {participantCount - submittedCount} participants still need to submit
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           ) : (
             <>
@@ -1617,33 +1647,21 @@ function PoolPicksContent() {
                           <p className="text-sm text-green-800 text-center mb-3">
                             <strong>Picks submitted successfully!</strong> Best of luck this week!
                           </p>
-                          <div className="flex justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const recentUser = getMostRecentSubmittedUser();
-                                if (recentUser) {
-                                  // Show picks for the most recent user
-                                  setSelectedUser({ id: recentUser.id, name: recentUser.name });
-                                  setShowRecentPicks(true);
-                                } else {
-                                  setShowRecentPicks(true);
-                                }
-                              }}
-                              className="text-xs"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Submitted Picks
-                            </Button>
+                          <div className="flex justify-center">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setShowLeaderboard(true)}
                               className="text-xs"
+                              disabled={submittedCount < participantCount}
                             >
                               <BarChart3 className="h-3 w-3 mr-1" />
                               View Leaderboard
+                              {submittedCount < participantCount && (
+                                <span className="ml-1 text-xs">
+                                  ({submittedCount}/{participantCount})
+                                </span>
+                              )}
                             </Button>
                           </div>
                         </div>

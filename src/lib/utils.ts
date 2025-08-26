@@ -61,6 +61,9 @@ export const DATE_FORMATS = {
 // Session Management Configuration
 export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+// Game Timing Configuration
+export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
+
 // API Configuration
 export const API_ENDPOINTS = {
   POOLS: '/api/pools',

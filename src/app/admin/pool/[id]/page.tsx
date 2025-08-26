@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, Trash2, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +21,7 @@ import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { SubmissionStatus } from '@/components/admin/submission-status';
 import { PoolSettings } from '@/components/admin/pool-settings';
-import { TieBreakerSettings } from '@/components/admin/tie-breaker-settings';
+
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
@@ -34,6 +35,7 @@ interface Pool {
   season: number;
   is_active: boolean;
   created_at: string;
+  description?: string;
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
@@ -59,6 +61,7 @@ function PoolDetailsContent() {
     name: '',
     season: DEFAULT_POOL_SEASON,
     is_active: true,
+    description: '',
     tie_breaker_method: '',
     tie_breaker_question: '',
     tie_breaker_answer: 0
@@ -68,6 +71,25 @@ function PoolDetailsContent() {
     loadPoolData();
     loadCurrentWeekData();
   }, [poolId]);
+
+  // Debug: Log form state changes
+  useEffect(() => {
+    console.log('Edit form state changed:', editForm);
+  }, [editForm]);
+
+  // Helper function to get human-readable tie breaker method name
+  const getTieBreakerMethodDisplayName = (method: string) => {
+    const methodNames: { [key: string]: string } = {
+      'total_points': 'Total Points',
+      'correct_picks': 'Correct Picks',
+      'confidence_points': 'Confidence Points',
+      'monday_night_total': 'Monday Night Total',
+      'highest_scoring_game': 'Highest Scoring Game',
+      'lowest_scoring_game': 'Lowest Scoring Game',
+      'custom': 'Custom'
+    };
+    return methodNames[method] || method;
+  };
 
   const loadPoolData = async () => {
     try {
@@ -82,6 +104,7 @@ function PoolDetailsContent() {
           name: result.pool.name,
           season: result.pool.season,
           is_active: result.pool.is_active,
+          description: result.pool.description || '',
           tie_breaker_method: result.pool.tie_breaker_method || '',
           tie_breaker_question: result.pool.tie_breaker_question || '',
           tie_breaker_answer: result.pool.tie_breaker_answer || 0
@@ -118,6 +141,29 @@ function PoolDetailsContent() {
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      
+      // Validate form data
+      if (!editForm.name.trim()) {
+        toast({
+          title: "Error",
+          description: "Pool name is required",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (editForm.season < 2020 || editForm.season > 2030) {
+        toast({
+          title: "Error",
+          description: "Season must be between 2020 and 2030",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Debug: Log what we're trying to save
+      console.log('Saving pool data:', editForm);
+      
       const response = await fetch(`/api/admin/pools/${poolId}`, {
         method: 'PUT',
         headers: {
@@ -127,6 +173,7 @@ function PoolDetailsContent() {
       });
 
       const result = await response.json();
+      console.log('Save response:', result);
 
       if (result.success) {
         toast({
@@ -135,6 +182,9 @@ function PoolDetailsContent() {
         });
         setPool(result.pool);
         setIsEditing(false);
+        
+        // Refresh the pool data to show updated values
+        await loadPoolData();
       } else {
         toast({
           title: "Error",
@@ -260,8 +310,17 @@ function PoolDetailsContent() {
                 disabled={isSaving}
                 className="flex items-center gap-2 min-w-0"
               >
-                <Save className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span className="hidden sm:inline">Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Save</span>
+                  </>
+                )}
               </Button>
             )}
           </div>
@@ -329,20 +388,31 @@ function PoolDetailsContent() {
               disabled={!isEditing}
               rows={3}
               className="w-full resize-none"
+              placeholder="Enter pool description..."
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="tie_breaker_method">Tie Breaker Method</Label>
-              <Input
-                id="tie_breaker_method"
+              <Select
                 value={editForm.tie_breaker_method}
-                onChange={(e) => setEditForm({ ...editForm, tie_breaker_method: e.target.value })}
+                onValueChange={(value) => setEditForm({ ...editForm, tie_breaker_method: value })}
                 disabled={!isEditing}
-                placeholder="e.g., Total Points"
-                className="w-full"
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tie breaker method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="total_points">Total Points</SelectItem>
+                  <SelectItem value="correct_picks">Correct Picks</SelectItem>
+                  <SelectItem value="confidence_points">Confidence Points</SelectItem>
+                  <SelectItem value="monday_night_total">Monday Night Total</SelectItem>
+                  <SelectItem value="highest_scoring_game">Highest Scoring Game</SelectItem>
+                  <SelectItem value="lowest_scoring_game">Lowest Scoring Game</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="tie_breaker_question">Tie Breaker Question</Label>
@@ -351,7 +421,17 @@ function PoolDetailsContent() {
                 value={editForm.tie_breaker_question}
                 onChange={(e) => setEditForm({ ...editForm, tie_breaker_question: e.target.value })}
                 disabled={!isEditing}
-                placeholder="e.g., Total points in Monday night game"
+                placeholder={
+                  editForm.tie_breaker_method === 'monday_night_total' 
+                    ? "e.g., What will be the total points scored in Monday night's game?"
+                    : editForm.tie_breaker_method === 'highest_scoring_game'
+                    ? "e.g., What will be the total points in the highest scoring game?"
+                    : editForm.tie_breaker_method === 'lowest_scoring_game'
+                    ? "e.g., What will be the total points in the lowest scoring game?"
+                    : editForm.tie_breaker_method === 'custom'
+                    ? "Enter your custom tie breaker question"
+                    : "e.g., Enter tie breaker question"
+                }
                 className="w-full"
               />
             </div>
@@ -388,13 +468,13 @@ function PoolDetailsContent() {
         <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
           <TabsList className="flex w-full min-w-max gap-1 p-1">
             <TabsTrigger value="overview" className="text-xs whitespace-nowrap px-2 py-1">Overview</TabsTrigger>
-            <TabsTrigger value="test-picks" className="text-xs whitespace-nowrap px-2 py-1">Test Picks</TabsTrigger>
+            {process.env.NODE_ENV === 'development' && (
+              <TabsTrigger value="test-picks" className="text-xs whitespace-nowrap px-2 py-1">Test Picks</TabsTrigger>
+            )}
             <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
             <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
-
             <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
-            <TabsTrigger value="tiebreakers" className="text-xs whitespace-nowrap px-2 py-1">Tie-Breakers</TabsTrigger>
           </TabsList>
         </div>
 
@@ -409,17 +489,23 @@ function PoolDetailsContent() {
           />
         </TabsContent>
 
-        <TabsContent value="test-picks" className="space-y-6 mt-6">
-          <TestPicks 
-            poolId={pool.id} 
-            poolName={pool.name}
-          />
-        </TabsContent>
+        {process.env.NODE_ENV === 'development' && (
+          <TabsContent value="test-picks" className="space-y-6 mt-6">
+            <TestPicks 
+              poolId={pool.id} 
+              poolName={pool.name}
+              weekNumber={currentWeek}
+              seasonType={currentSeasonType}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="links" className="space-y-6 mt-6">
           <ParticipantLinks 
             poolId={pool.id} 
             poolName={pool.name}
+            weekNumber={currentWeek}
+            seasonType={currentSeasonType}
           />
         </TabsContent>
 
@@ -442,12 +528,7 @@ function PoolDetailsContent() {
           />
         </TabsContent>
 
-        <TabsContent value="tiebreakers" className="space-y-6 mt-6">
-          <TieBreakerSettings 
-            poolId={pool.id} 
-            poolName={pool.name}
-          />
-        </TabsContent>
+
       </Tabs>
     </div>
   );

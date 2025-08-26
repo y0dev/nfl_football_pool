@@ -13,12 +13,14 @@ import { useToast } from '@/hooks/use-toast';
 interface TestPicksProps {
   poolId: string;
   poolName: string;
+  weekNumber?: number;
+  seasonType?: number;
 }
 
-export function TestPicks({ poolId, poolName }: TestPicksProps) {
-  const [currentWeek, setCurrentWeek] = useState(1);
-  const [selectedWeek, setSelectedWeek] = useState(1);
-  const [selectedSeasonType, setSelectedSeasonType] = useState(2); // Default to regular season
+export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPicksProps) {
+  const [currentWeek, setCurrentWeek] = useState(weekNumber || 1);
+  const [selectedWeek, setSelectedWeek] = useState(weekNumber || 1);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(seasonType || 2); // Default to regular season
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [testUrl, setTestUrl] = useState('');
   const { toast } = useToast();
