@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Share2, Copy, Check, Smartphone, Mail, Calendar } from 'lucide-react';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek, loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useToast } from '@/hooks/use-toast';
 
 interface SharePoolButtonProps {
@@ -29,9 +29,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   useEffect(() => {
     const loadWeek = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        const week = weekData?.week_number || 1;
-        const seasonType = weekData?.season_type || 2;
+        const { week, seasonType } = await getUpcomingWeek();
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
         setSelectedWeek(week);
