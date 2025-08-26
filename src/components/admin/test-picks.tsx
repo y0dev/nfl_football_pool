@@ -7,18 +7,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink, Share2, Users } from 'lucide-react';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { debugLog } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { getCurrentWeekFromGames } from '@/actions/getCurrentWeekFromGames';
 
 interface TestPicksProps {
   poolId: string;
   poolName: string;
+  weekNumber?: number;
+  seasonType?: number;
 }
 
-export function TestPicks({ poolId, poolName }: TestPicksProps) {
-  const [currentWeek, setCurrentWeek] = useState(1);
-  const [selectedWeek, setSelectedWeek] = useState(1);
-  const [selectedSeasonType, setSelectedSeasonType] = useState(2); // Default to regular season
+export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPicksProps) {
+  const [currentWeek, setCurrentWeek] = useState(weekNumber || 1);
+  const [selectedWeek, setSelectedWeek] = useState(weekNumber || 1);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(seasonType || 2); // Default to regular season
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [testUrl, setTestUrl] = useState('');
   const { toast } = useToast();
@@ -32,14 +36,19 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
   useEffect(() => {
     const loadWeek = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        const week = weekData?.week_number || 1;
+        const { week, seasonType } = await getUpcomingWeek();
+        debugLog('TestPicks: Current week:', week);
+        debugLog('TestPicks: Current season type:', seasonType);
         setCurrentWeek(week);
         setSelectedWeek(week);
         
         // Set available weeks based on selected season type
-        const currentSeasonType = seasonTypeOptions.find(option => option.value === selectedSeasonType);
+        const currentSeasonType = seasonTypeOptions.find(option => option.value === seasonType);
+        debugLog('TestPicks: Available weeks:', currentSeasonType?.weeks);
         setAvailableWeeks(currentSeasonType?.weeks || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+        
+        // Set the season type from the function result
+        setSelectedSeasonType(seasonType);
       } catch (error) {
         console.error('Error loading current week:', error);
         // Fallback to week 1
@@ -49,11 +58,11 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
       }
     };
     loadWeek();
-  }, [selectedSeasonType]);
+  }, []); // Remove selectedSeasonType dependency since we're setting it in the function
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=${selectedSeasonType}`;
+    const url = `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
     setTestUrl(url);
   }, [poolId, selectedWeek, selectedSeasonType]);
 
@@ -103,7 +112,7 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
             Select Week to Test
           </CardTitle>
           <CardDescription>
-            Choose which week's picks you want to test
+            Choose which week&apos;s picks you want to test
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -218,7 +227,7 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
               2
             </div>
             <div>
-              <p className="font-medium">Click "Test Picks"</p>
+              <p className="font-medium">Click &quot;Test Picks&quot;</p>
               <p className="text-sm text-gray-600">This will open the participant page in a new tab</p>
             </div>
           </div>
@@ -254,7 +263,7 @@ export function TestPicks({ poolId, poolName }: TestPicksProps) {
               <span className="font-medium">Testing Current Week</span>
             </div>
             <p className="text-sm text-blue-700 mt-1">
-              You're testing Week {currentWeek}, which is the current active week. This is what participants will see when they use the regular pool link.
+              You&apos;re testing Week {currentWeek}, which is the current active week. This is what participants will see when they use the regular pool link.
             </p>
           </CardContent>
         </Card>

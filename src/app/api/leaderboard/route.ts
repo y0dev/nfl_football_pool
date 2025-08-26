@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
       .from('games')
       .select('*')
       .eq('week', weekNumber)
-      .eq('season_type', seasonTypeNumber);
+      .eq('season_type', seasonTypeNumber)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error loading games:', gamesError);

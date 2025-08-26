@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
+import { debugLog } from '@/lib/utils';
 
 interface PickUserSelectionProps {
   poolId: string;
@@ -90,12 +91,13 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
         throw new Error('User not found');
       }
 
+      debugLog('PickUserSelection: Creating session for user:', selectedUser);
+      
       // Create session
       userSessionManager.createSession(
         selectedUser.id,
         selectedUser.name,
         poolId,
-        selectedUser.pool_name || 'Unknown Pool',
         '' // Empty access code since we no longer use them
       );
 

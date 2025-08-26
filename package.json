@@ -61,6 +61,7 @@
     "react-dom": "18.3.1",
     "react-hook-form": "^7.62.0",
     "tailwind-merge": "^3.3.1",
+    "xlsx": "^0.18.5",
     "zod": "^4.0.17"
   },
   "devDependencies": {
@@ -71,6 +72,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/xlsx": "^0.0.35",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "tailwindcss": "^4",

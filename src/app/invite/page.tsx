@@ -130,7 +130,7 @@ function InviteContent() {
           description: `You have already joined ${result.poolName}. You can now make your picks!`,
         });
         // Redirect to participant page
-        router.push(`/participant?pool=${pool.id}&week=${currentWeek}`);
+        router.push(`/pool/${pool.id}/picks?week=${currentWeek}`);
         return;
       }
 
@@ -142,7 +142,7 @@ function InviteContent() {
 
       // Redirect to participant page after a short delay
       setTimeout(() => {
-        router.push(`/participant?pool=${pool.id}&week=${currentWeek}`);
+        router.push(`/pool/${pool.id}/picks?week=${currentWeek}`);
       }, 2000);
 
     } catch (error) {

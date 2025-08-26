@@ -9,7 +9,8 @@ export async function calculateScores(weekNumber: number = 1) {
       .from('games')
       .select('*')
       .eq('week', weekNumber)
-      .not('winner', 'is', null);
+      .not('winner', 'is', null)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);
@@ -90,7 +91,8 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
       .from('games')
       .select('*')
       .eq('week', week)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);
@@ -241,7 +243,7 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
 export async function checkQuarterlyWinners() {
   try {
     const supabase = getSupabaseClient();
-    const currentWeek = getCurrentWeek();
+    const currentWeek = await getCurrentWeek();
     
     if (currentWeek !== 4) {
       return; // Only check after week 4
@@ -356,20 +358,26 @@ async function logQuarterlyWinner(poolId: string, winner: any) {
   }
 }
 
-// Get current week (simplified calculation)
-function getCurrentWeek(): number {
-  const supabase = getSupabaseClient();
-  const now = new Date();
-  const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
-  const weekDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, Math.min(18, weekDiff + 1));
+// Get current week using utility function
+async function getCurrentWeek(): Promise<number> {
+  try {
+    const { calculateWeekFromDate } = await import('@/lib/utils');
+    return calculateWeekFromDate();
+  } catch (error) {
+    console.error('Error importing utility function, using fallback calculation:', error);
+    // Fallback calculation
+    const now = new Date();
+    const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
+    const weekDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    return Math.max(1, Math.min(18, weekDiff + 1));
+  }
 }
 
 // Scheduled function to run after each game day
 export async function runPostGameCalculations() {
   try {
     const supabase = getSupabaseClient();
-    const currentWeek = getCurrentWeek();
+    const currentWeek = await getCurrentWeek();
     
     // Get all pools
     const { data: pools, error: poolsError } = await supabase

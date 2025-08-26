@@ -58,6 +58,12 @@ export const DATE_FORMATS = {
   DATETIME: 'MMM dd, yyyy h:mm a'
 } as const;
 
+// Session Management Configuration
+export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Game Timing Configuration
+export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
+
 // API Configuration
 export const API_ENDPOINTS = {
   POOLS: '/api/pools',
@@ -207,6 +213,47 @@ export function getSeasonTypeName(seasonType: number): string {
     case 2: return 'Regular Season';
     case 3: return 'Postseason';
     default: return 'Unknown';
+  }
+}
+
+/**
+ * Calculate week number from date (simple date-based calculation)
+ * This is a fallback when database functions are not available
+ */
+export function calculateWeekFromDate(date: Date = new Date()): number {
+  const seasonStart = new Date(date.getFullYear(), 8, 1); // September 1st
+  const weekDiff = Math.floor((date.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(1, Math.min(18, weekDiff + 1));
+}
+
+/**
+ * Get season type from date (simple date-based calculation)
+ * This is a fallback when database functions are not available
+ */
+export function getSeasonTypeFromDate(date: Date = new Date()): number {
+  const month = date.getMonth() + 1; // 0-indexed
+  if (month >= 8 && month <= 9) return 1; // Preseason
+  if (month >= 9 && month <= 12) return 2; // Regular Season
+  if (month >= 1 && month <= 2) return 3; // Postseason
+  return 2; // Default to regular season
+}
+
+/**
+ * Single entry point for getting current week data
+ * Attempts database functions first, falls back to date calculations
+ * 
+ * Note: For Supabase Edge Functions, use the local calculation functions
+ * since they can't import from @/lib/utils
+ */
+export async function getCurrentWeekData() {
+  try {
+    const { getCurrentWeekFromGames } = await import('@/actions/getCurrentWeekFromGames');
+    return await getCurrentWeekFromGames();
+  } catch (error) {
+    console.error('Error getting current week data from database, using fallback:', error);
+    const fallbackWeek = calculateWeekFromDate();
+    const fallbackSeasonType = getSeasonTypeFromDate();
+    return { week: fallbackWeek, seasonType: fallbackSeasonType };
   }
 }
 

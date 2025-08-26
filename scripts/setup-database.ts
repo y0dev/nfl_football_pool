@@ -9,6 +9,9 @@ import {
   picksTable, 
   scoresTable, 
   tieBreakersTable,
+  weeklyWinnersTable,
+  seasonWinnersTable,
+  periodWinnersTable,
   auditLogsTable,
   reminderLogsTable,
   teamsTable,
@@ -55,6 +58,9 @@ async function setupDatabase() {
       { name: 'picks', sql: picksTable },
       { name: 'scores', sql: scoresTable },
       { name: 'tie_breakers', sql: tieBreakersTable },
+      { name: 'weekly_winners', sql: weeklyWinnersTable },
+      { name: 'season_winners', sql: seasonWinnersTable },
+      { name: 'period_winners', sql: periodWinnersTable },
       { name: 'audit_logs', sql: auditLogsTable },
       { name: 'reminder_logs', sql: reminderLogsTable },
     ];
@@ -85,6 +91,66 @@ async function setupDatabase() {
       console.log('⚠️  RLS policies application attempted (manual setup may be required)');
     } else {
       console.log('✅ RLS policies applied successfully');
+    }
+
+    // Apply RLS policies for winner tables
+    console.log('Applying RLS policies for winner tables...');
+    const winnerRlsPolicies = `
+      -- Weekly winners table policies
+      ALTER TABLE weekly_winners ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY "Users can view weekly winners for pools they participate in" ON weekly_winners
+        FOR SELECT USING (
+          pool_id IN (
+            SELECT pool_id FROM participants 
+            WHERE email = auth.jwt() ->> 'email'
+          )
+          OR EXISTS (
+            SELECT 1 FROM admins 
+            WHERE admins.id = auth.uid() 
+            AND admins.is_active = true
+          )
+          OR auth.role() = 'service_role'
+        );
+
+      -- Season winners table policies
+      ALTER TABLE season_winners ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY "Users can view season winners for pools they participate in" ON season_winners
+        FOR SELECT USING (
+          pool_id IN (
+            SELECT pool_id FROM participants 
+            WHERE email = auth.jwt() ->> 'email'
+          )
+          OR EXISTS (
+            SELECT 1 FROM admins 
+            WHERE admins.id = auth.uid() 
+            AND admins.is_active = true
+          )
+          OR auth.role() = 'service_role'
+        );
+
+      -- Period winners table policies
+      ALTER TABLE period_winners ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY "Users can view period winners for pools they participate in" ON period_winners
+        FOR SELECT USING (
+          pool_id IN (
+            SELECT pool_id FROM participants 
+            WHERE email = auth.jwt() ->> 'email'
+          )
+          OR EXISTS (
+            SELECT 1 FROM admins 
+            WHERE admins.id = auth.uid() 
+            AND admins.is_active = true
+          )
+          OR auth.role() = 'service_role'
+        );
+    `;
+    
+    const { error: winnerRlsError } = await supabase.rpc('sql', { query: winnerRlsPolicies });
+    
+    if (winnerRlsError) {
+      console.log('⚠️  Winner table RLS policies application attempted (manual setup may be required)');
+    } else {
+      console.log('✅ Winner table RLS policies applied successfully');
     }
 
     console.log('');

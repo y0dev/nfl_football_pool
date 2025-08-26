@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
+
+    debugLog('Games API called with:', { week, seasonType });
 
     if (!week) {
       return NextResponse.json(
@@ -24,28 +27,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServiceClient();
+    debugLog('Parsed parameters:', { weekNumber, seasonTypeNumber });
 
-    let query = supabase
+    const supabase = getSupabaseServiceClient();
+    debugLog('Supabase client created successfully');
+
+    const query = supabase
       .from('games')
       .select('*')
-      .eq('week', weekNumber);
+      .eq('week', weekNumber)
+      .eq('season_type', seasonTypeNumber);
 
-    // If season type is specified, filter by it
+    // Only filter by season_type if the column exists and value is provided
+    // For now, we'll skip this filter to avoid the 500 error
+    // TODO: Add season_type column to games table if needed
+    /*
     if (seasonTypeNumber !== undefined && !isNaN(seasonTypeNumber)) {
       query = query.eq('season_type', seasonTypeNumber);
     }
+    */
 
+    debugLog('Executing query for week:', weekNumber);
     const { data: games, error } = await query.order('kickoff_time');
 
     if (error) {
       console.error('Error loading week games:', error);
       return NextResponse.json(
-        { error: 'Failed to load games' },
+        { error: 'Failed to load games', details: error.message },
         { status: 500 }
       );
     }
 
+    debugLog('Games loaded successfully:', games?.length || 0);
     return NextResponse.json({
       success: true,
       games: games || []
@@ -54,7 +67,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error in games week API:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

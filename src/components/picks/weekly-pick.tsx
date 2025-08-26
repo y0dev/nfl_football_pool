@@ -14,6 +14,7 @@ import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
+import { debugLog, DAYS_BEFORE_GAME } from '@/lib/utils';
 
 interface WeeklyPickProps {
   poolId: string;
@@ -46,19 +47,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Load current week and games (only if not prevented)
   useEffect(() => {
     const loadData = async () => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: loadData called with props:', { weekNumber, seasonType, preventGameLoading, propGames: propGames?.length || 0 });
-        console.log('WeeklyPick: current state:', { currentWeek, games: games.length });
-      }
+      debugLog('WeeklyPick: loadData called with props:', { weekNumber, seasonType, preventGameLoading, propGames: propGames?.length || 0 });
+      debugLog('WeeklyPick: current state:', { currentWeek, games: games.length });
       
       if (preventGameLoading && propGames) {
         // Use provided games and set current week
         setGames(propGames);
         setCurrentWeek(weekNumber || 1);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Using propGames, setting currentWeek to:', weekNumber || 1);
-        }
+        debugLog('WeeklyPick: Using propGames, setting currentWeek to:', weekNumber || 1);
         
         // Check if this week is unlocked for picks
         const weekUnlocked = await isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
@@ -67,8 +64,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         // Get unlock time if week is locked
         if (!weekUnlocked && propGames && propGames.length > 0) {
           const firstGameTime = new Date(propGames[0].kickoff_time);
-          const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
-          setUnlockTime(threeDaysBefore.toLocaleString());
+          const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
+          setUnlockTime(daysBeforeFirstGame.toLocaleString());
         }
         
         // Initialize picks array with the provided games
@@ -81,11 +78,9 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         }));
         setPicks(initialPicks);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Using propGames with preventGameLoading=true');
-          console.log('Games:', propGames);
-          console.log('Initial picks:', initialPicks);
-        }
+        debugLog('WeeklyPick: Using propGames with preventGameLoading=true');
+        debugLog('Games:', propGames);
+        debugLog('Initial picks:', initialPicks);
         return;
       }
 
@@ -100,11 +95,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           seasonTypeToUse = seasonTypeToUse || upcomingWeek.seasonType;
         }
         
+        
         setCurrentWeek(weekToUse);
         seasonTypeToUse = seasonTypeToUse || 2; // Default to regular season
         
         const gamesData = await loadWeekGames(weekToUse, seasonTypeToUse);
         setGames(gamesData);
+        debugLog('WeeklyPick: Games loaded:', gamesData);
         
         // Check if this week is unlocked for picks
         const weekUnlocked = await isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
@@ -113,12 +110,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         // Get unlock time if week is locked
         if (!weekUnlocked && gamesData.length > 0) {
           const firstGameTime = new Date(gamesData[0].kickoff_time);
-          const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
-          setUnlockTime(threeDaysBefore.toLocaleString());
+          const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
+          setUnlockTime(daysBeforeFirstGame.toLocaleString());
         }
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Selected user:', selectedUser);
-        }
+        debugLog('Selected user:', selectedUser);
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map((game: Game) => ({
           participant_id: selectedUser?.id || '',
@@ -129,12 +124,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         }));
         setPicks(initialPicks);
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Loaded games from loadWeekGames');
-          console.log('Week:', weekToUse, 'Season Type:', seasonTypeToUse);
-          console.log('Games:', gamesData);
-          console.log('Initial picks:', initialPicks);
-        }
+        debugLog('WeeklyPick: Loaded games from loadWeekGames');
+        debugLog('Week:', weekToUse, 'Season Type:', seasonTypeToUse);
+        debugLog('Games:', gamesData);
+        debugLog('Initial picks:', initialPicks);
       } catch (error) {
         console.error('Error loading data:', error);
         toast({
@@ -150,46 +143,32 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Monitor currentWeek changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: currentWeek changed to:', currentWeek);
-    }
+    debugLog('WeeklyPick: currentWeek changed to:', currentWeek);
   }, [currentWeek]);
 
   // Monitor games changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: games changed to:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-    }
+    debugLog('WeeklyPick: games changed to:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
   }, [games]);
 
   // Update selectedUser when prop changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
-      console.log('WeeklyPick: selectedUser changed to:', selectedUser);
-    }
+    debugLog('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
+    debugLog('WeeklyPick: selectedUser changed to:', selectedUser);
     if (propSelectedUser && propSelectedUser !== selectedUser) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
-      }
+      debugLog('WeeklyPick: propSelectedUser changed to:', propSelectedUser);
       setSelectedUser(propSelectedUser);
     } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: propSelectedUser is the same as selectedUser');
-      }
+      debugLog('WeeklyPick: propSelectedUser is the same as selectedUser');
     }
   }, [propSelectedUser, selectedUser]);
 
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
     if (selectedUser && games.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: Loading picks for user:', selectedUser.id, 'pool:', poolId, 'week:', currentWeek);
-      }
+      debugLog('WeeklyPick: Loading picks for user:', selectedUser.id, 'pool:', poolId, 'week:', currentWeek);
       const savedPicks = pickStorage.loadPicks(selectedUser.id, poolId, currentWeek);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: Saved picks from localStorage:', savedPicks);
-      }
+      debugLog('WeeklyPick: Saved picks from localStorage:', savedPicks);
       
       if (savedPicks.length > 0) {
         // Map saved picks to the current games array
@@ -213,9 +192,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           };
         });
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Updated picks with localStorage data:', updatedPicks);
-        }
+        debugLog('WeeklyPick: Updated picks with localStorage data:', updatedPicks);
         setPicks(updatedPicks);
         setHasUnsavedChanges(false);
         setLastSaved(new Date(savedPicks[0]?.timestamp || Date.now()));
@@ -236,9 +213,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           predicted_winner: '',
           confidence_points: 0
         }));
-        if (process.env.NODE_ENV === 'development') {
-          console.log('WeeklyPick: Initializing new picks for user:', initialPicks);
-        }
+        debugLog('WeeklyPick: Initializing new picks for user:', initialPicks);
         setPicks(initialPicks);
       }
     }
@@ -249,35 +224,25 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     const checkWeekUnlocked = async () => {
       if (games.length > 0 && currentWeek > 0) {
         try {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
-          }
+          debugLog('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
           const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('WeeklyPick: Week unlock result:', weekUnlocked);
-          }
+          debugLog('WeeklyPick: Week unlock result:', weekUnlocked);
           setIsWeekUnlocked(weekUnlocked);
           
           // If week is locked, get unlock time
           if (!weekUnlocked && games.length > 0) {
             const firstGameTime = new Date(games[0].kickoff_time);
-            const threeDaysBefore = new Date(firstGameTime.getTime() - (3 * 24 * 60 * 60 * 1000));
-            setUnlockTime(threeDaysBefore.toLocaleString());
-            if (process.env.NODE_ENV === 'development') {
-              console.log('WeeklyPick: Week is locked, unlock time:', threeDaysBefore.toLocaleString());
-            }
+            const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
+            setUnlockTime(daysBeforeFirstGame.toLocaleString());
+            debugLog('WeeklyPick: Week is locked, unlock time:', daysBeforeFirstGame.toLocaleString());
           } else {
-            if (process.env.NODE_ENV === 'development') {
-              console.log('WeeklyPick: Week is unlocked for picks');
-            }
+            debugLog('WeeklyPick: Week is unlocked for picks');
           }
         } catch (error) {
           console.error('Error checking week unlock status:', error);
           // Default to unlocked if there's an error
           setIsWeekUnlocked(true);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('WeeklyPick: Defaulting to unlocked due to error');
-          }
+          debugLog('WeeklyPick: Defaulting to unlocked due to error');
         }
       }
     };
@@ -431,7 +396,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       }
       return;
     }
-
+    
     setShowConfirmation(true);
   };
 
@@ -449,11 +414,9 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       
       const validPicks = picksWithParticipantId.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log('WeeklyPick: Submitting picks with game IDs:', validPicks.map(p => ({ game_id: p.game_id, predicted_winner: p.predicted_winner, confidence_points: p.confidence_points })));
-        console.log('WeeklyPick: Current games in state:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team })));
-        console.log('WeeklyPick: Week number:', currentWeek, 'Season type:', seasonType);
-      }
+      debugLog('WeeklyPick: Submitting picks with game IDs:', validPicks.map(p => ({ game_id: p.game_id, predicted_winner: p.predicted_winner, confidence_points: p.confidence_points })));
+      debugLog('WeeklyPick: Current games in state:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team })));
+      debugLog('WeeklyPick: Week number:', currentWeek, 'Season type:', seasonType);
       
       const result = await submitPicks(validPicks);
 
@@ -463,8 +426,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           description: 'Picks submitted successfully!',
         });
         
-        // Clear localStorage after successful submission
+        debugLog('WeeklyPick: Picks submitted successfully, clearing picks and removing user session');
+        debugLog('WeeklyPick: Picks:', validPicks);
+        debugLog('WeeklyPick: Selected user:', selectedUser);
+        debugLog('WeeklyPick: Pool ID:', poolId);
+        // Clear localStorage after successful submission and remove user session
         pickStorage.clearPicks();
+        userSessionManager.removeSession(selectedUser?.id || '', poolId);
         setPicks([]);
         setSelectedUser(null);
         setHasUnsavedChanges(false);
@@ -564,7 +532,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                 Picks for Week {currentWeek} are not yet available.
               </div>
               <div className="text-sm mt-1">
-                Picks unlock within 3 days of the first game&apos;s kickoff time.
+                Picks unlock within {DAYS_BEFORE_GAME} days of the first game&apos;s kickoff time.
                 {unlockTime && (
                   <span className="block mt-1">
                     <strong>Unlocks:</strong> {unlockTime}
@@ -630,8 +598,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       <div className="grid gap-4">
         {games.map((game, index) => {
           const pick = picks.find(p => p.game_id === game.id);
-          const gameStatus = game.status || game.game_status || 'scheduled';
-          const isLocked = !isWeekUnlocked || gameStatus !== 'scheduled';
+          // const gameStatus = game.status || game.game_status || 'scheduled';
+          const isLocked = !isWeekUnlocked;
           
           // Get used confidence points from other picks
           const usedConfidencePoints = picks

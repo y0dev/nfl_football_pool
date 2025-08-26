@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,33 +11,24 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
+import { pickStorage } from '@/lib/pick-storage';
 import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 import { Game, SelectedUser } from '@/types/game';
 import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL } from '@/lib/utils';
 
-function ParticipantContent() {
+function PoolPicksContent() {
+  const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const poolId = searchParams.get('pool');
+  const poolId = params.id as string;
   const weekParam = searchParams.get('week');
   const seasonTypeParam = searchParams.get('seasonType');
-  
-  // Redirect to new route structure
-  useEffect(() => {
-    if (poolId) {
-      const newUrl = `/pool/${poolId}/picks?${weekParam ? `week=${weekParam}` : ''}${seasonTypeParam ? `${weekParam ? '&' : ''}seasonType=${seasonTypeParam}` : ''}`;
-      router.replace(newUrl);
-    } else {
-      // If no poolId, redirect to home
-      router.replace('/');
-    }
-  }, [poolId, weekParam, seasonTypeParam, router]);
   
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
@@ -48,7 +39,7 @@ function ParticipantContent() {
   const [games, setGames] = useState<Game[]>([]);
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showGameDetails, setShowGameDetails] = useState(false);
@@ -56,17 +47,23 @@ function ParticipantContent() {
   const [showQuickStats, setShowQuickStats] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
-
   const [showRecentPicks, setShowRecentPicks] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState<Record<string, { submitted: boolean; name: string }>>({});
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [gamesStarted, setGamesStarted] = useState(false);
   const [hasPicks, setHasPicks] = useState(false);
-
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [weekWinner, setWeekWinner] = useState<{
+    participant_name: string;
+    points: number;
+    correct_picks: number;
+  } | null>(null);
+  const [weekHasPicks, setWeekHasPicks] = useState(false);
+  const [weekEnded, setWeekEnded] = useState(false);
   
   const { toast } = useToast();
+  const router = useRouter();
 
   // Helper function to get current user's submission status
   const getCurrentUserSubmissionStatus = () => {
@@ -81,6 +78,60 @@ function ParticipantContent() {
       .map(([userId, data]) => ({ id: userId, name: data.name }));
     
     return submittedUsers.length > 0 ? submittedUsers[0] : null;
+  };
+
+  // Check if week has ended and load winner
+  const checkWeekStatus = async () => {
+    if (games.length === 0) return;
+    
+    const now = new Date();
+    const allGamesEnded = games.every(game => {
+      const gameTime = new Date(game.kickoff_time);
+      // Consider game ended if it's been more than 3 hours since kickoff
+      const gameEnded = gameTime.getTime() + (3 * 60 * 60 * 1000) < now.getTime();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Week status check for game:', {
+          game: `${game.away_team} @ ${game.home_team}`,
+          kickoff: gameTime.toISOString(),
+          now: now.toISOString(),
+          gameEnded,
+          timeDiff: (gameTime.getTime() + (3 * 60 * 60 * 1000) - now.getTime()) / (1000 * 60 * 60) // hours until end
+        });
+      }
+      
+      return gameEnded;
+    });
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Week status result:', {
+        allGamesEnded,
+        gamesCount: games.length,
+        currentTime: now.toISOString()
+      });
+    }
+    
+    setWeekEnded(allGamesEnded);
+    
+    if (allGamesEnded) {
+      try {
+        // Load week winner from leaderboard
+        const response = await fetch(`/api/leaderboard?poolId=${poolId}&weekNumber=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.leaderboard && result.leaderboard.length > 0) {
+            const winner = result.leaderboard[0]; // First place
+            setWeekWinner(winner);
+            setWeekHasPicks(true);
+          } else {
+            setWeekHasPicks(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading week winner:', error);
+        setWeekHasPicks(false);
+      }
+    }
   };
 
   const handleLogout = async () => {
@@ -126,9 +177,44 @@ function ParticipantContent() {
     return () => clearInterval(timer);
   }, [games]);
 
+  // Check week status when games change
+  useEffect(() => {
+    checkWeekStatus();
+  }, [games, poolId, currentWeek, currentSeasonType, poolSeason]);
+
+  // Clean up expired sessions periodically
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Clean up expired sessions immediately
+    userSessionManager.cleanupExpiredSessions();
+
+    // Set up periodic cleanup every 5 minutes
+    const cleanupInterval = setInterval(() => {
+      userSessionManager.cleanupExpiredSessions();
+    }, SESSION_CLEANUP_INTERVAL);
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
   const loadData = async () => {
     try {
       setIsLoading(true);
+
+      // Validate poolId first
+      if (!poolId) {
+        setError('Pool ID is required. Please use a valid pool link.');
+        setIsLoading(false);
+        return;
+      }
+
+      debugLog('Pool picks page: Starting data load with:', {
+        poolId,
+        weekParam,
+        seasonTypeParam,
+        currentWeek,
+        currentSeasonType
+      });
 
       // Use the week and season type from URL parameters
       let weekToUse: number;
@@ -141,7 +227,7 @@ function ParticipantContent() {
         setCurrentSeasonType(seasonTypeToUse);
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
+          console.log('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
       } else {
         // Fallback to upcoming week only if no valid week in URL
@@ -152,7 +238,7 @@ function ParticipantContent() {
         setCurrentSeasonType(seasonTypeToUse);
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
+          console.log('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
         
         // Show a helpful message for empty week parameter
@@ -164,38 +250,62 @@ function ParticipantContent() {
       }
 
       // Load pool information using the public API endpoint
-      if (poolId) {
-        try {
-          const response = await fetch(`/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.pool) {
-              const pool = result.pool;
-              setPoolName(pool.name);
-              setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
-              
-              // Set participant stats from the API response
-              setParticipantCount(pool.participant_count || 0);
-              setIsTestMode(pool.is_test_mode || false);
-              
-              // Set picks status if available
-              if (pool.picks_status) {
-                setHasPicks(pool.picks_status.hasPicks || false);
-                setSubmittedCount(pool.picks_status.submittedCount || 0);
-              }
-            } else {
-              setError('Pool not found. Please check the pool link.');
+      try {
+        const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Pool picks page: Fetching from API:', apiUrl);
+        }
+        
+        // Add timeout to fetch request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(apiUrl, {
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.pool) {
+            const pool = result.pool;
+            setPoolName(pool.name);
+            setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
+            
+            // Set participant stats from the API response
+            setParticipantCount(pool.participant_count || 0);
+            setIsTestMode(pool.is_test_mode || false);
+            
+            // Set picks status if available
+            if (pool.picks_status) {
+              setHasPicks(pool.picks_status.hasPicks || false);
+              setSubmittedCount(pool.picks_status.submittedCount || 0);
             }
           } else {
-            setError('Failed to load pool information. Please try again.');
+            setError('Pool not found. Please check the pool link.');
           }
-        } catch (error) {
-          console.error('Error loading pool:', error);
+        } else {
+          const errorText = await response.text();
+          console.error('API response error:', response.status, errorText);
+          setError(`Failed to load pool information (${response.status}). Please try again.`);
+        }
+      } catch (error) {
+        console.error('Error loading pool:', error);
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            setError('Request timed out. Please try again.');
+          } else if (error.message.includes('fetch failed')) {
+            setError('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+          } else {
+            setError(`Failed to load pool information: ${error.message}`);
+          }
+        } else {
           setError('Failed to load pool information. Please try again.');
         }
-      } else {
-        setError('Pool ID is required. Please use a valid pool link.');
       }
 
       // Check admin status directly using the user session
@@ -238,10 +348,23 @@ function ParticipantContent() {
       // Load games for the week using the new API route
       try {
         if (process.env.NODE_ENV === 'development') {
-          console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
+          console.log('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         }
         
-        const response = await fetch(`/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
+        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+        
+        // Add timeout to fetch request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(gamesApiUrl, {
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        clearTimeout(timeoutId);
         
         if (response.ok) {
           const result = await response.json();
@@ -249,17 +372,76 @@ function ParticipantContent() {
             const gamesData = result.games;
             setGames(gamesData);
             
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+            debugLog('Loaded games:',
+                gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+            
+            
+            // Check if any games have started (with buffer time)
+            const now = new Date();
+            const validGames = gamesData.filter((game: Game) => {
+              const gameTime = new Date(game.kickoff_time);
+              
+              // Skip games with obviously invalid dates (like test data)
+              const currentYear = now.getFullYear();
+              const gameYear = gameTime.getFullYear();
+              
+              // Check for common test data patterns
+              const isTestData = 
+                Math.abs(currentYear - gameYear) > 1 || // Different year
+                (gameYear === 2025 && gameTime.getMonth() === 7 && gameTime.getDate() === 1) || // August 1, 2025
+                gameTime.getTime() < new Date('2024-01-01').getTime(); // Before 2024
+              
+              if (isTestData) {
+                debugLog('Skipping game with test/invalid date:', {
+                  game: `${game.away_team} @ ${game.home_team}`,
+                  gameYear,
+                  currentYear,
+                  kickoff: gameTime.toISOString(),
+                  isTestData: true
+                }); 
+                
+                return false;
+              }
+              return true;
+            });
+            
+            debugLog('Valid games count:', validGames.length, 'out of', gamesData.length);
+            
+            // Only check game start status if we have valid games
+            let hasStarted = false;
+            if (validGames.length > 0) {
+              hasStarted = validGames.some((game: Game) => {
+                const gameTime = new Date(game.kickoff_time);
+                
+                // Consider game started only after kickoff + buffer time (e.g., 1 hour)
+                const bufferTime = 60 * 60 * 1000; // 1 hour in milliseconds
+                const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
+                
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('Game status check:', {
+                    game: `${game.away_team} @ ${game.home_team}`,
+                    kickoff: gameTime.toISOString(),
+                    now: now.toISOString(),
+                    bufferTime: bufferTime / (1000 * 60 * 60), // hours
+                    gameStarted
+                  });
+                }
+                
+                return gameStarted;
+              });
+            } else {
+              // If all games are test data, don't start games
+              hasStarted = false;
+              if (process.env.NODE_ENV === 'development') {
+                console.log('All games are test data, setting gamesStarted to false');
+              }
             }
             
-            // Check if any games have started
-            const now = new Date();
-            const hasStarted = gamesData.some((game: Game) => {
-              const gameTime = new Date(game.kickoff_time);
-              return gameTime <= now;
-            });
             setGamesStarted(hasStarted);
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Overall games started status:', hasStarted);
+            }
             
             // Automatically show leaderboard when games start
             if (hasStarted) {
@@ -274,42 +456,59 @@ function ParticipantContent() {
             });
           }
         } else {
-          throw new Error('Failed to load games');
+          const errorText = await response.text();
+          console.error('Games API response error:', response.status, errorText);
+          throw new Error(`Failed to load games (${response.status})`);
         }
       } catch (error) {
         console.error('Error loading games:', error);
-        toast({
-          title: "Warning",
-          description: "Could not load games data",
-          variant: "destructive",
-        });
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            toast({
+              title: "Warning",
+              description: "Games request timed out",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Warning",
+              description: `Could not load games data: ${error.message}`,
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({
+            title: "Warning",
+            description: "Could not load games data",
+            variant: "destructive",
+          });
+        }
       }
 
       // Check if there's a saved user session for this pool
       if (poolId) {
         try {
+          // Clean up expired sessions before checking for valid ones
+          userSessionManager.cleanupExpiredSessions();
+          
           const allSessions = userSessionManager.getAllSessions();
           const poolSession = allSessions.find(session => session.poolId === poolId);
           
           if (poolSession && poolSession.userId) {
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Restoring user session:', poolSession);
-            }
+            debugLog('Restoring user session:', poolSession);
             setSelectedUser({
               id: poolSession.userId,
-              name: poolSession.userName
+              name: poolSession.userName,
             });
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('No saved user session found for pool:', poolId);
-          }
+          debugLog('No saved user session found for pool:', poolId);
         }
       }
 
       setLastUpdated(new Date());
     } catch (error) {
-      console.error('Error loading participant data:', error);
+      console.error('Error loading pool picks data:', error);
       setError('Failed to load pool information. Please try again or contact the pool administrator.');
     } finally {
       setIsLoading(false);
@@ -332,7 +531,15 @@ function ParticipantContent() {
 
   const handleRefresh = async () => {
     setIsLoading(true);
+    setError(''); // Clear any previous errors
     await loadData();
+  };
+
+  const handleRetry = async () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Retrying data load...');
+    }
+    await handleRefresh();
   };
 
   const handleUserSelected = (userId: string, userName: string) => {
@@ -395,15 +602,11 @@ function ParticipantContent() {
     // Clear the selected user so they can select a different user or see the user selection interface
     setSelectedUser(null);
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Picks submitted successfully, clearing user selection to allow new user selection');
-    }
+    debugLog('Picks submitted successfully, clearing user selection to allow new user selection');
   };
 
   const handleUserChangeRequested = () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('User change requested. Current user:', selectedUser);
-    }
+    debugLog('User change requested. Current user:', selectedUser);
     
     // Clear the selected user to show the user selection interface
     setSelectedUser(null);
@@ -412,11 +615,8 @@ function ParticipantContent() {
     if (selectedUser) {
       const clearStoredPicks = async () => {
         try {
-          const { pickStorage } = await import('@/lib/pick-storage');
           pickStorage.clearPicks();
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Cleared stored picks for user:', selectedUser.id);
-          }
+          debugLog('Cleared stored picks for user:', selectedUser.id);
         } catch (error) {
           console.error('Error clearing stored picks:', error);
         }
@@ -427,9 +627,10 @@ function ParticipantContent() {
     // Reset submission status
     setHasSubmitted({});
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('User selection interface should now be visible');
-    }
+    // Clean up expired sessions when user changes
+    userSessionManager.cleanupExpiredSessions();
+
+    debugLog('User selection interface should now be visible');
     
     toast({
       title: "User Changed",
@@ -455,62 +656,6 @@ function ParticipantContent() {
       }
     } catch (error) {
       console.error('Error sharing:', error);
-    }
-  };
-
-  const getGameStatusStats = () => {
-    if (games.length === 0) return null;
-    
-    const now = new Date();
-    const stats = {
-      total: games.length,
-      upcoming: 0,
-      inProgress: 0,
-      finished: 0,
-      locked: 0
-    };
-
-    games.forEach(game => {
-      const gameTime = new Date(game.kickoff_time);
-      const timeDiff = gameTime.getTime() - now.getTime();
-      
-      if (timeDiff > 0) {
-        stats.upcoming++;
-        if (timeDiff <= 24 * 60 * 60 * 1000) { // Within 24 hours
-          stats.locked++;
-        }
-      } else if (game.status === 'finished' || game.winner) {
-        stats.finished++;
-      } else {
-        stats.inProgress++;
-      }
-    });
-
-    return stats;
-  };
-
-  const getDeadlineInfo = () => {
-    if (games.length === 0) return null;
-
-    const firstGame = games[0];
-    const gameTime = new Date(firstGame.kickoff_time);
-    const now = new Date();
-    const timeDiff = gameTime.getTime() - now.getTime();
-    
-    if (timeDiff <= 0) {
-      return { status: 'locked', message: 'Picks are locked - games have started' };
-    }
-    
-    const hours = Math.floor(timeDiff / (1000 * 60 * 60));
-    const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours < 1) {
-      return { status: 'urgent', message: `Picks close in ${minutes} minutes` };
-    } else if (hours < 24) {
-      return { status: 'warning', message: `Picks close in ${hours} hours` };
-    } else {
-      const days = Math.floor(hours / 24);
-      return { status: 'info', message: `Picks close in ${days} days` };
     }
   };
 
@@ -674,70 +819,68 @@ function ParticipantContent() {
     }
   };
 
+  const getGameStatusStats = () => {
+    if (games.length === 0) return null;
+    
+    const now = new Date();
+    const stats = {
+      total: games.length,
+      upcoming: 0,
+      inProgress: 0,
+      finished: 0,
+      locked: 0
+    };
 
+    games.forEach(game => {
+      const gameTime = new Date(game.kickoff_time);
+      const timeDiff = gameTime.getTime() - now.getTime();
+      
+      if (timeDiff > 0) {
+        stats.upcoming++;
+        if (timeDiff <= 24 * 60 * 60 * 1000) { // Within 24 hours
+          stats.locked++;
+        }
+      } else if (game.status === 'finished' || game.winner) {
+        stats.finished++;
+      } else {
+        stats.inProgress++;
+      }
+    });
 
+    return stats;
+  };
 
+  const getDeadlineInfo = () => {
+    if (games.length === 0) return null;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600">Redirecting to new page...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    const firstGame = games[0];
+    const gameTime = new Date(firstGame.kickoff_time);
+    const now = new Date();
+    const timeDiff = gameTime.getTime() - now.getTime();
+    
+    if (timeDiff <= 0) {
+      return { status: 'locked', message: 'Picks are locked - games have started' };
+    }
+    
+    const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+    const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours < 1) {
+      return { status: 'urgent', message: `Picks close in ${minutes} minutes` };
+    } else if (hours < 24) {
+      return { status: 'warning', message: `Picks close in ${hours} hours` };
+    } else {
+      const days = Math.floor(hours / 24);
+      return { status: 'info', message: `Picks close in ${days} days` };
+    }
+  };
+
+  // Check if week has ended and no picks were submitted
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-red-600">Error</CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <Link href="/">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Home
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if this is a past week with no picks
-  const isPastWeek = games.length > 0 && games.every(game => {
-    const gameTime = new Date(game.kickoff_time);
-    return gameTime < new Date();
-  });
-
-  // Show loading state while checking picks status for past weeks
-  if (isPastWeek && isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isPastWeek && !hasPicks && !isLoading) {
+  
+  if (weekEnded && !weekHasPicks) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="container mx-auto p-4 md:p-6">
@@ -803,7 +946,7 @@ function ParticipantContent() {
             </CardHeader>
             <CardContent className="text-center space-y-4">
               <div className="text-sm text-gray-500 space-y-2">
-                <p>This week has already passed, but no participants submitted picks.</p>
+                <p>This week has already ended, but no participants submitted picks.</p>
                 <p>This could happen if:</p>
                 <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
                   <li>The pool was created after this week</li>
@@ -831,6 +974,178 @@ function ParticipantContent() {
             </CardContent>
           </Card>
         </div>
+      </div>
+    );
+  }
+
+  // Show week winner when week has ended and there are picks
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Early return check 2:', { weekEnded, weekHasPicks, weekWinner: !!weekWinner, condition: weekEnded && weekHasPicks && weekWinner });
+  }
+  
+  if (weekEnded && weekHasPicks && weekWinner) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="container mx-auto p-4 md:p-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                {isAdmin && (
+                  <Link href="/admin/dashboard">
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Back to Dashboard</span>
+                      <span className="sm:hidden">Back</span>
+                    </Button>
+                  </Link>
+                )}
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+                </div>
+              </div>
+            </div>
+            
+            {/* Pool Info */}
+            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold text-lg">{poolName}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <Badge variant="outline">Week {currentWeek}</Badge>
+                    <span className="text-sm text-gray-500">
+                      {games.length} games
+                    </span>
+                    {(() => {
+                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                        return (
+                        <Badge variant="secondary" className="text-xs">
+                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                        </Badge>
+                      );
+                      })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Week Winner Announcement */}
+          <Card className="max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Crown className="h-10 w-10 text-yellow-600" />
+              </div>
+              <CardTitle className="text-yellow-900 text-2xl">Week {currentWeek} Winner!</CardTitle>
+              <CardDescription className="text-yellow-700 text-lg">
+                Congratulations to the champion!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <div className="bg-white rounded-lg p-6 border border-yellow-200">
+                <div className="text-3xl font-bold text-yellow-800 mb-2">
+                  {weekWinner.participant_name}
+                </div>
+                <div className="text-lg text-yellow-700 mb-4">
+                  {weekWinner.points} points
+                </div>
+                <div className="text-sm text-gray-600">
+                  {weekWinner.correct_picks} correct picks out of {games.length} games
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                <Button 
+                  onClick={() => setShowLeaderboard(true)}
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Full Leaderboard
+                </Button>
+                <Link href="/">
+                  <Button variant="outline">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Home
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Full Leaderboard */}
+          {showLeaderboard && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-600" />
+                  Week {currentWeek} Final Results
+                </CardTitle>
+                <CardDescription>
+                  Complete standings for {poolName} - Week {currentWeek}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600">Loading pool picks...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-red-600">Error</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={handleRetry} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+              <Link href="/">
+                <Button>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Home
+                </Button>
+              </Link>
+            </div>
+            {process.env.NODE_ENV === 'development' && (
+              <div className="text-xs text-gray-500 mt-4 p-2 bg-gray-100 rounded">
+                <p><strong>Debug Info:</strong></p>
+                <p>Pool ID: {poolId || 'undefined'}</p>
+                <p>Week: {weekParam || 'undefined'}</p>
+                <p>Season Type: {seasonTypeParam || 'undefined'}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -943,8 +1258,6 @@ function ParticipantContent() {
                     <Users className="h-4 w-4" />
                     <span className="hidden md:inline">Stats</span>
                   </Button>
-
-
 
                   {isAdmin && (
                     <Button
@@ -1085,20 +1398,36 @@ function ParticipantContent() {
           })()}
 
           {/* Countdown Timer */}
-          {countdown === null && (
+          {countdown && countdown !== 'Games Started' && (
             <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
               <CardContent className="p-4">
                 <div className="flex items-center justify-center gap-3">
                   <Clock className="h-5 w-5 text-blue-600" />
                   <div className="text-center">
                     <div className="text-lg font-bold text-blue-900">
-                      {countdown === 'Games Started' ? 'Games Have Started!' : `Picks Close In: ${countdown}`}
+                      Picks Close In: {countdown}
                     </div>
                     <div className="text-sm text-blue-700">
-                      {countdown === 'Games Started' 
-                        ? 'All picks are now locked' 
-                        : 'Make sure to submit your picks before kickoff'
-                      }
+                      Make sure to submit your picks before kickoff
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Games Started Warning */}
+          {countdown === 'Games Started' && (
+            <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-red-900">
+                      Games Have Started!
+                    </div>
+                    <div className="text-sm text-red-700">
+                      All picks are now locked
                     </div>
                   </div>
                 </div>
@@ -1134,8 +1463,8 @@ function ParticipantContent() {
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold text-sm">Game {index + 1}</span>
                               {isLocked && <Badge variant="secondary" className="text-xs">Locked</Badge>}
-                              {isUpcoming && <Badge variant="outline" className="text-xs text-orange-600">Upcoming</Badge>}
-                              {!isLocked && !isUpcoming && <Badge variant="outline" className="text-xs text-green-600">Available</Badge>}
+                              {isUpcoming && <Badge variant="secondary" className="text-xs text-orange-600">Upcoming</Badge>}
+                              {!isLocked && !isUpcoming && <Badge variant="secondary" className="text-xs text-green-600">Available</Badge>}
                             </div>
                             <div className="text-sm font-medium">
                               {game.away_team} @ {game.home_team}
@@ -1160,26 +1489,86 @@ function ParticipantContent() {
             </Card>
           )}
 
+          {/* Debug Info - Only show in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-blue-900 text-sm">Debug Info</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-blue-800 space-y-1">
+                <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'}</p>
+                <p><strong>Games Count:</strong> {games.length}</p>
+                <p><strong>Current Time:</strong> {new Date().toISOString()}</p>
+                <p><strong>First Game Time:</strong> {games.length > 0 ? new Date(games[0].kickoff_time).toISOString() : 'N/A'}</p>
+                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'}</p>
+                <p><strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
+                <p><strong>Show Leaderboard:</strong> {showLeaderboard ? 'Yes' : 'No'}</p>
+                <p><strong>Is Loading:</strong> {isLoading ? 'Yes' : 'No'}</p>
+                <p><strong>Error:</strong> {error || 'None'}</p>
+                <p><strong>Pool ID:</strong> {poolId || 'None'}</p>
+                <p><strong>Week:</strong> {currentWeek}</p>
+                <p><strong>Season Type:</strong> {currentSeasonType}</p>
+                <p><strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Show Leaderboard when games have started, otherwise show picks */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}
+              </p>
+            </div>
+          )}
+          
           {gamesStarted ? (
             <>
-              {/* Leaderboard Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-yellow-600" />
-                    Week {currentWeek} Leaderboard
-                  </CardTitle>
-                  <CardDescription>
-                    Current standings for {poolName} - Games are in progress
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Leaderboard poolId={poolId!} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-                </CardContent>
-              </Card>
-
-
+              {/* Leaderboard Section - Only show when everyone has submitted */}
+              {submittedCount >= participantCount ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="h-5 w-5 text-yellow-600" />
+                      Week {currentWeek} Leaderboard
+                    </CardTitle>
+                    <CardDescription>
+                      Current standings for {poolName} - Games are in progress
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="bg-orange-50 border-orange-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-800">
+                      <Clock className="h-5 w-5" />
+                      Waiting for All Submissions
+                    </CardTitle>
+                    <CardDescription className="text-orange-700">
+                      {submittedCount} of {participantCount} participants have submitted picks
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-4">
+                      <p className="text-orange-600 mb-3">
+                        The leaderboard will be available once all participants submit their picks
+                      </p>
+                      <div className="w-full bg-orange-200 rounded-full h-2">
+                        <div 
+                          className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-orange-600 mt-2">
+                        {participantCount - submittedCount} participants still need to submit
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           ) : (
             <>
@@ -1221,22 +1610,22 @@ function ParticipantContent() {
                       <div>
                         {process.env.NODE_ENV === 'development' && (
                           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-sm text-blue-800">
-                              <strong>User Selected:</strong> {selectedUser.name} (ID: {selectedUser.id})
-                            </p>
-                            <p className="text-sm text-blue-700">
+                            <div className="text-sm text-blue-800">
+                              <span className="font-bold">User Selected:</span> {selectedUser.name} (ID: {selectedUser.id})
+                            </div>
+                            <div className="text-sm text-blue-700">
                               Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
-                            </p>
-                            <p className="text-sm text-blue-600">
-                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
-                            </p>
-                            <p className="text-sm text-blue-500">
-                              <strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}
-                            </p>
+                            </div>
+                            <div className="text-sm text-blue-600">
+                              <span className="font-bold">Submission Status:</span> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
+                            </div>
+                            <div className="text-sm text-blue-800">
+                              <span className="font-bold">All Users Status:</span> {JSON.stringify(hasSubmitted)}
+                            </div>
                           </div>
                         )}
                         <WeeklyPick 
-                          poolId={poolId!} 
+                          poolId={poolId} 
                           weekNumber={currentWeek} 
                           seasonType={currentSeasonType}
                           selectedUser={selectedUser}
@@ -1255,42 +1644,30 @@ function ParticipantContent() {
                     <div>
                       {Object.keys(hasSubmitted).length > 0 && (
                         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-sm text-green-800 text-center mb-3">
-                            <strong>Picks submitted successfully!</strong> Best of luck this week!
-                          </p>
-                          <div className="flex justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const recentUser = getMostRecentSubmittedUser();
-                                if (recentUser) {
-                                  // Show picks for the most recent user
-                                  setSelectedUser({ id: recentUser.id, name: recentUser.name });
-                                  setShowRecentPicks(true);
-                                } else {
-                                  setShowRecentPicks(true);
-                                }
-                              }}
-                              className="text-xs"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Submitted Picks
-                            </Button>
+                          <div className="text-sm text-green-800 text-center mb-3">
+                            <span className="font-bold">Picks submitted successfully!</span> Best of luck this week!
+                          </div>
+                          <div className="flex justify-center">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setShowLeaderboard(true)}
                               className="text-xs"
+                              disabled={submittedCount < participantCount}
                             >
                               <BarChart3 className="h-3 w-3 mr-1" />
                               View Leaderboard
+                              {submittedCount < participantCount && (
+                                <span className="ml-1 text-xs">
+                                  ({submittedCount}/{participantCount})
+                                </span>
+                              )}
                             </Button>
                           </div>
                         </div>
                       )}
                       <PickUserSelection 
-                        poolId={poolId!} 
+                        poolId={poolId} 
                         weekNumber={currentWeek} 
                         seasonType={currentSeasonType}
                         onUserSelected={handleUserSelected}
@@ -1314,7 +1691,7 @@ function ParticipantContent() {
                   </CardHeader>
                   <CardContent>
                     <RecentPicksViewer
-                      poolId={poolId!}
+                      poolId={poolId}
                       participantId={selectedUser.id}
                       participantName={selectedUser.name}
                       weekNumber={currentWeek}
@@ -1326,7 +1703,6 @@ function ParticipantContent() {
                   </CardContent>
                 </Card>
               )}
-
             </>
           )}
         </div>
@@ -1357,7 +1733,7 @@ function ParticipantContent() {
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-semibold mb-2">User: {selectedUser.name}</h3>
                   <RecentPicksViewer
-                    poolId={poolId!}
+                    poolId={poolId}
                     participantId={selectedUser.id}
                     participantName={selectedUser.name}
                     weekNumber={currentWeek}
@@ -1376,7 +1752,7 @@ function ParticipantContent() {
                     <div key={userId} className="p-4 border rounded-lg">
                       <h3 className="font-semibold mb-2">User: {data.name}</h3>
                       <RecentPicksViewer
-                        poolId={poolId!}
+                        poolId={poolId}
                         participantId={userId}
                         participantName={data.name}
                         weekNumber={currentWeek}
@@ -1422,22 +1798,21 @@ function ParticipantContent() {
   );
 }
 
-export default function ParticipantPage() {
+export default function PoolPicksPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600">Loading...</p>
             </div>
           </CardContent>
         </Card>
       </div>
     }>
-      <ParticipantContent />
+      <PoolPicksContent />
     </Suspense>
   );
 }

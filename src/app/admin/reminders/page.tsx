@@ -110,48 +110,107 @@ function RemindersContent() {
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
       
-      // Build query for participants
+      // Log user info
+      console.log('User info:', {
+        email: user?.email,
+        isSuperAdmin: user?.is_super_admin,
+        userId: user?.id
+      });
+      
+      // SIMPLE TEST: Just get all participants first
+      console.log('=== SIMPLE TEST START ===');
+      const { data: simpleTest, error: simpleError } = await supabase
+        .from('participants')
+        .select('*');
+      
+      console.log('Simple test result:', { simpleTest, simpleError });
+      console.log('=== SIMPLE TEST END ===');
+      
+      if (simpleError) {
+        console.error('Simple test failed:', simpleError);
+        toast({
+          title: 'Database Error',
+          description: `Cannot access participants table: ${simpleError.message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!simpleTest || simpleTest.length === 0) {
+        console.log('No participants found in database at all');
+        setParticipants([]);
+        return;
+      }
+      
+      console.log(`Found ${simpleTest.length} total participants in database`);
+      
+      // Now try with basic filters
       let participantsQuery = supabase
         .from('participants')
-        .select(`
-          id,
-          name,
-          email,
-          pool_id,
-          is_active,
-          created_at,
-          pools!inner(name, created_by)
-        `)
+        .select('*')
         .eq('is_active', true);
 
       // Filter by pool if selected
       if (selectedPool !== 'all') {
         participantsQuery = participantsQuery.eq('pool_id', selectedPool);
+        console.log('Filtering by pool:', selectedPool);
       } else if (!user?.is_super_admin) {
         // For non-super admins, only show participants from their pools
-        // Get pools data directly since the state might not be updated yet
-        const poolsData = await loadPools();
-        const userPools = poolsData.filter(pool => pool.created_by === user?.email);
-        const userPoolIds = userPools.map(p => p.id);
-        participantsQuery = participantsQuery.in('pool_id', userPoolIds);
+        const userPoolIds = pools.map(p => p.id);
+        console.log('User pool IDs:', userPoolIds);
+        
+        if (userPoolIds.length > 0) {
+          participantsQuery = participantsQuery.in('pool_id', userPoolIds);
+        } else {
+          console.log('No pools found for user');
+          setParticipants([]);
+          return;
+        }
       }
 
       const { data: participantsData, error } = await participantsQuery;
 
       if (error) {
-        console.error('Error loading participants:', error);
+        console.error('Error loading participants with filters:', error);
+        toast({
+          title: 'Error',
+          description: `Failed to load participants: ${error.message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      console.log('Filtered participants data:', participantsData);
+      console.log('Query filters:', { selectedPool, currentWeek, currentSeasonType, userIsSuperAdmin: user?.is_super_admin });
+
+      if (!participantsData || participantsData.length === 0) {
+        console.log('No participants found with current filters');
+        setParticipants([]);
         return;
       }
 
       // Check submission status for each participant
       const participantsWithSubmissionStatus = await Promise.all(
         participantsData.map(async (participant) => {
-          const { data: picks } = await supabase
-            .from('picks')
-            .select('id, games!inner(week, season_type)')
-            .eq('participant_id', participant.id)
-            .eq('games.week', currentWeek)
-            .eq('games.season_type', currentSeasonType);
+          // Get games for this week and season type
+          const { data: games } = await supabase
+            .from('games')
+            .select('id')
+            .eq('week', currentWeek)
+            .eq('season_type', currentSeasonType);
+
+          let has_submitted = false;
+          if (games && games.length > 0) {
+            const gameIds = games.map(g => g.id);
+            const { data: picks } = await supabase
+              .from('picks')
+              .select('id')
+              .eq('participant_id', participant.id)
+              .eq('pool_id', participant.pool_id)
+              .in('game_id', gameIds);
+            
+            has_submitted = Boolean(picks && picks.length === gameIds.length);
+          }
 
           const { data: reminders } = await supabase
             .from('reminder_logs')
@@ -162,16 +221,34 @@ function RemindersContent() {
             .order('created_at', { ascending: false })
             .limit(1);
 
+          // Get pool name separately
+          const { data: poolData } = await supabase
+            .from('pools')
+            .select('name')
+            .eq('id', participant.pool_id)
+            .single();
+
           return {
             ...participant,
-            pool_name: (participant.pools as { name: string }[])[0]?.name || 'Unknown Pool',
-            has_submitted: Boolean(picks && picks.length > 0),
+            pool_name: poolData?.name || 'Unknown Pool',
+            has_submitted,
             last_reminder_sent: reminders?.[0]?.created_at
           };
         })
       );
 
       setParticipants(participantsWithSubmissionStatus);
+      
+      // Debug logging
+      console.log('Participants loaded:', {
+        total: participantsWithSubmissionStatus.length,
+        selectedPool,
+        userIsSuperAdmin: user?.is_super_admin,
+        poolsCount: pools.length,
+        filterSubmitted,
+        searchTerm,
+        participantsWithSubmissionStatus
+      });
     } catch (error) {
       console.error('Error loading participants:', error);
     }
@@ -179,7 +256,8 @@ function RemindersContent() {
 
   const filteredParticipants = participants.filter(participant => {
     // Filter by search term
-    const matchesSearch = participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = searchTerm === '' || 
+                         participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          participant.pool_name.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -398,6 +476,15 @@ function RemindersContent() {
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
+            <Button
+              onClick={loadParticipants}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Test Load Participants
+            </Button>
           </div>
         </div>
 
@@ -408,6 +495,13 @@ function RemindersContent() {
               <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
               <div className="text-lg sm:text-2xl font-bold text-blue-600">{stats.total}</div>
               <div className="text-xs sm:text-sm text-gray-600">Total Participants</div>
+            </CardContent>
+          </Card>
+          <Card className="text-center">
+            <CardContent className="p-3 sm:p-4">
+              <div className="h-6 w-6 sm:h-8 sm:w-8 text-gray-600 mx-auto mb-2">📊</div>
+              <div className="text-lg sm:text-2xl font-bold text-gray-600">{pools.length}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Available Pools</div>
             </CardContent>
           </Card>
           <Card className="text-center">
@@ -578,10 +672,20 @@ function RemindersContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredParticipants.length === 0 ? (
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-500">Loading participants...</p>
+                </div>
+              ) : filteredParticipants.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                   <p>No participants found matching your filters</p>
+                  {participants.length > 0 && (
+                    <p className="text-sm text-gray-400 mt-2">
+                      Try adjusting your search or filter criteria
+                    </p>
+                  )}
                 </div>
               ) : (
                 filteredParticipants.map((participant) => (

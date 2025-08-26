@@ -70,11 +70,9 @@ export async function sendTemplatedEmails({
     
     if (template.targetAudience !== 'all') {
       // Get current week data to get season type
-      const { loadCurrentWeek } = await import('./loadCurrentWeek');
-      const weekData = await loadCurrentWeek();
-      const seasonType = weekData?.season_type || 2;
-      
-      const submittedIds = await getUsersWhoSubmitted(poolId, weekNumber, seasonType);
+      const { getUpcomingWeek } = await import('./loadCurrentWeek');
+      const { week, seasonType } = await getUpcomingWeek();
+      const submittedIds = await getUsersWhoSubmitted(poolId, week, seasonType);
       
       if (template.targetAudience === 'submitted') {
         targetParticipants = allParticipants.filter(p => submittedIds.includes(p.id));
@@ -94,14 +92,14 @@ export async function sendTemplatedEmails({
     const firstParticipant = targetParticipants[0];
     
     // Get current week data to get the actual season
-    const { loadCurrentWeek } = await import('./loadCurrentWeek');
-    const weekData = await loadCurrentWeek();
-          const actualSeason = weekData?.season_year || DEFAULT_SEASON;
+    const { getUpcomingWeek } = await import('./loadCurrentWeek');
+    const { seasonType } = await getUpcomingWeek();
+    const actualSeason = seasonType;
     
     // Prepare variables for this participant
     const baseVariables = {
       poolName,
-      poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/participant?pool=${poolId}&week=${weekNumber}`,
+      poolUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/pool/${poolId}/picks?week=${weekNumber}&seasonType=${seasonType}`,
       currentWeek: weekNumber,
       season: actualSeason, // Use actual season instead of hardcoded 2025
       adminName: adminName, // Use the fetched admin name

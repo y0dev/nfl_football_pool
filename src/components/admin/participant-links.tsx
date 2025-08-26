@@ -8,16 +8,18 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Share2, Link as LinkIcon, QrCode } from 'lucide-react';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 interface ParticipantLinksProps {
   poolId: string;
   poolName: string;
+  weekNumber?: number;
+  seasonType?: number;
 }
 
-export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
-  const [currentWeek, setCurrentWeek] = useState<number>(1);
-  const [seasonType, setSeasonType] = useState<number>(2);
+export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: ParticipantLinksProps) {
+  const [currentWeek, setCurrentWeek] = useState<number>(weekNumber || 1);
+  const [currentSeasonType, setCurrentSeasonType] = useState<number>(seasonType || 2);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -25,7 +27,7 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
   // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${baseUrl}/participant?pool=${poolId}&week=${currentWeek}&seasonType=${seasonType}`;
+    return `${baseUrl}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
   };
 
   // Copy link to clipboard
@@ -73,9 +75,9 @@ export function ParticipantLinks({ poolId, poolName }: ParticipantLinksProps) {
   useEffect(() => {
     const loadWeek = async () => {
       try {
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData.week_number);
-        setSeasonType(weekData.season_type || 2);
+        const weekData = await getUpcomingWeek();
+        setCurrentWeek(weekData.week);
+        setCurrentSeasonType(weekData.seasonType);
       } catch (error) {
         console.error('Error loading current week:', error);
       }

@@ -384,8 +384,10 @@ async function checkIfAllGamesFinished(supabase: any, week: number): Promise<boo
   }
 }
 
-// Get current week
+// Get current week using utility function
 function getCurrentWeek(): number {
+  // Note: This is a Supabase Edge Function, so we can't import from @/lib/utils
+  // Keeping the calculation here for now, but it's duplicated from utils.ts
   const now = new Date()
   const seasonStart = new Date(now.getFullYear(), 8, 1) // September 1st
   const weekDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000))

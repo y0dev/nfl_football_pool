@@ -56,7 +56,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/participant?pool=${poolId}&week=${selectedWeek}&seasonType=${selectedSeasonType}`;
+    const url = `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
     setShareUrl(url);
   }, [poolId, selectedWeek, selectedSeasonType]);
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { loadUsers } from '@/actions/loadUsers';
 import { CheckCircle, Clock, Users } from 'lucide-react';
@@ -32,13 +32,13 @@ export function SubmissionStatus({ poolId, seasonType = 2 }: SubmissionStatusPro
         setLoading(true);
         
         // Get current week
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || null);
-        setCurrentSeasonType(weekData?.season_type || seasonType);
+        const { week, seasonType } = await getUpcomingWeek();
+        setCurrentWeek(week);
+        setCurrentSeasonType(seasonType);
         
-        if (weekData) {
+        if (week) {
           // Get users who have submitted
-          const submittedIds = await getUsersWhoSubmitted(poolId, weekData.week_number, weekData.season_type || seasonType);
+          const submittedIds = await getUsersWhoSubmitted(poolId, week, seasonType);
           setSubmittedUsers(submittedIds);
           
           // Get all users for this specific pool

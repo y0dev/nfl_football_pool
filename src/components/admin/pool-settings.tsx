@@ -39,6 +39,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
 
   const { toast } = useToast();
@@ -155,6 +156,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
+      setDeleteConfirmation(''); // Reset confirmation field
     }
   };
 
@@ -180,125 +182,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
 
   return (
     <div className="space-y-4">
-    <Card>
-      <CardHeader>
-        <CardTitle>Pool Settings</CardTitle>
-        <CardDescription>
-          Configure pool settings and preferences
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Pool Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter pool name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="season"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Season</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder={`Enter season (e.g., ${DEFAULT_POOL_SEASON})`} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>
-                      Active Pool
-                    </FormLabel>
-                    <FormDescription>
-                      When enabled, participants can make picks. When disabled, they cannot.
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="tie_breaker_method"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tie Breaker Method</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Select tie breaker method" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            {form.watch('tie_breaker_method') === 'question' && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="tie_breaker_question"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tie Breaker Question</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter tie breaker question" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tie_breaker_answer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tie Breaker Answer (Number)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="Enter tie breaker answer" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button 
-                type="submit" 
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving...' : 'Save Settings'}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
-
+    
     {/* Danger Zone */}
     <Card className="border-red-200">
       <CardHeader>
@@ -321,7 +205,15 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             <p className="text-sm text-gray-600 mb-4">
               Once you delete a pool, there is no going back. Please be certain.
             </p>
-            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <Dialog 
+              open={showDeleteDialog} 
+              onOpenChange={(open) => {
+                setShowDeleteDialog(open);
+                if (!open) {
+                  setDeleteConfirmation(''); // Reset confirmation when dialog closes
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button variant="destructive" size="sm">
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -334,7 +226,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                   <DialogDescription>
                     Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.
                     <br /><br />
-                    <strong>This will also permanently delete:</strong>
+                    <span className="font-bold">This will also permanently delete:</span>
                     <ul className="list-disc list-inside mt-2 space-y-1">
                       <li>All participants in this pool</li>
                       <li>All picks submitted by participants</li>
@@ -343,11 +235,45 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                     </ul>
                   </DialogDescription>
                 </DialogHeader>
+                <div className="py-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    To confirm deletion, please type <span className="font-mono font-bold text-red-600">{poolName}</span> in the field below:
+                  </p>
+                  <Input
+                    type="text"
+                    placeholder="Enter pool name to confirm"
+                    value={deleteConfirmation}
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    className={`w-full ${
+                      deleteConfirmation === poolName 
+                        ? 'border-green-500 bg-green-50' 
+                        : deleteConfirmation 
+                        ? 'border-red-500 bg-red-50' 
+                        : ''
+                    }`}
+                  />
+                  {deleteConfirmation && (
+                    <p className={`text-sm mt-1 ${
+                      deleteConfirmation === poolName 
+                        ? 'text-green-600' 
+                        : 'text-red-600'
+                    }`}>
+                      {deleteConfirmation === poolName 
+                        ? '✓ Pool name matches - deletion enabled' 
+                        : '✗ Pool name does not match'
+                      }
+                    </p>
+                  )}
+                </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
                     Cancel
                   </Button>
-                  <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleDelete} 
+                    disabled={isDeleting || deleteConfirmation !== poolName}
+                  >
                     {isDeleting ? 'Deleting...' : 'Delete Pool'}
                   </Button>
                 </DialogFooter>
