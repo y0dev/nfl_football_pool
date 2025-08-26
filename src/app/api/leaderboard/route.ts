@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,12 @@ export async function GET(request: NextRequest) {
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
     const season = searchParams.get('season');
+    debugLog('Leaderboard API request:', {
+      poolId,
+      week,
+      seasonType,
+      season
+    });
 
     if (!poolId || !week || !seasonType) {
       return NextResponse.json(
