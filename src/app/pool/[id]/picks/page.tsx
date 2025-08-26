@@ -11,7 +11,7 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
 import { pickStorage } from '@/lib/pick-storage';
@@ -78,6 +78,71 @@ function PoolPicksContent() {
       .map(([userId, data]) => ({ id: userId, name: data.name }));
     
     return submittedUsers.length > 0 ? submittedUsers[0] : null;
+  };
+
+  // Navigate to a specific week with season transition handling
+  const navigateToWeek = (week: number, seasonType: number, season: number) => {
+    // Handle season transitions
+    let targetWeek = week;
+    let targetSeasonType = seasonType;
+    const targetSeason = season;
+
+    // Previous week navigation
+    if (week < 1) {
+      if (seasonType === 1) { // Preseason
+        // Can't go before preseason
+        return;
+      } else if (seasonType === 2) { // Regular Season
+        targetSeasonType = 1; // Go to Preseason
+        targetWeek = 4; // Last week of preseason
+      } else if (seasonType === 3) { // Postseason
+        targetSeasonType = 2; // Go to Regular Season
+        targetWeek = 18; // Last week of regular season
+      }
+    }
+
+    // Next week navigation
+    if (week > 18) {
+      if (seasonType === 1) { // Preseason
+        targetSeasonType = 2; // Go to Regular Season
+        targetWeek = 1; // First week of regular season
+      } else if (seasonType === 2) { // Regular Season
+        targetSeasonType = 3; // Go to Postseason
+        targetWeek = 1; // First week of postseason
+      } else if (seasonType === 3) { // Postseason
+        // Can't go beyond postseason
+        return;
+      }
+    }
+
+    // Handle week boundaries within season types
+    if (seasonType === 1 && week > 4) { // Preseason max 4 weeks
+      targetSeasonType = 2;
+      targetWeek = 1;
+    } else if (seasonType === 2 && week > 18) { // Regular season max 18 weeks
+      targetSeasonType = 3;
+      targetWeek = 1;
+    } else if (seasonType === 3 && week > 5) { // Postseason max 5 weeks
+      return; // Can't go beyond postseason
+    }
+
+    // Navigate to the new week
+    const newUrl = `/pool/${poolId}/picks?week=${targetWeek}&seasonType=${targetSeasonType}`;
+    window.location.href = newUrl;
+  };
+
+  // Navigate to current week
+  const navigateToCurrentWeek = async () => {
+    try {
+      const upcomingWeek = await getUpcomingWeek();
+      const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`;
+      window.location.href = newUrl;
+    } catch (error) {
+      console.error('Error getting current week:', error);
+      // Fallback to week 1 regular season
+      const newUrl = `/pool/${poolId}/picks?week=1&seasonType=2&season=${poolSeason}`;
+      window.location.href = newUrl;
+    }
   };
 
   // Check if week has ended and load winner
@@ -833,31 +898,6 @@ function PoolPicksContent() {
     return stats;
   };
 
-  const getDeadlineInfo = () => {
-    if (games.length === 0) return null;
-
-    const firstGame = games[0];
-    const gameTime = new Date(firstGame.kickoff_time);
-    const now = new Date();
-    const timeDiff = gameTime.getTime() - now.getTime();
-    
-    if (timeDiff <= 0) {
-      return { status: 'locked', message: 'Picks are locked - games have started' };
-    }
-    
-    const hours = Math.floor(timeDiff / (1000 * 60 * 60));
-    const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours < 1) {
-      return { status: 'urgent', message: `Picks close in ${minutes} minutes` };
-    } else if (hours < 24) {
-      return { status: 'warning', message: `Picks close in ${hours} hours` };
-    } else {
-      const days = Math.floor(hours / 24);
-      return { status: 'info', message: `Picks close in ${days} days` };
-    }
-  };
-
   // Check if week has ended and no picks were submitted
   if (process.env.NODE_ENV === 'development') {
     console.log('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
@@ -910,6 +950,44 @@ function PoolPicksContent() {
                         </Badge>
                       );
                       })()}
+                  </div>
+                  
+                  {/* Week Navigation - Always visible for all weeks */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                      disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                      className="flex items-center gap-1"
+                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                      Previous Week
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={navigateToCurrentWeek}
+                      className="flex items-center gap-1"
+                      title="Go to current/upcoming week"
+                    >
+                      <Calendar className="h-3 w-3" />
+                      Current Week
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                      disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                      className="flex items-center gap-1"
+                      title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                    >
+                      Next Week
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -998,24 +1076,62 @@ function PoolPicksContent() {
                     <Users className="h-4 w-4 text-gray-500" />
                     <span className="font-semibold text-lg">{poolName}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline">Week {currentWeek}</Badge>
-                    <span className="text-sm text-gray-500">
-                      {games.length} games
-                    </span>
-                    {(() => {
-                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                        return (
-                        <Badge variant="secondary" className="text-xs">
-                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                        </Badge>
-                      );
-                      })()}
+                                      <div className="flex flex-wrap items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <Badge variant="outline">Week {currentWeek}</Badge>
+                      <span className="text-sm text-gray-500">
+                        {games.length} games
+                      </span>
+                      {(() => {
+                          const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+                          const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                          return (
+                          <Badge variant="secondary" className="text-xs">
+                            {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                          </Badge>
+                        );
+                                              })()}
+                    </div>
+                    
+                    {/* Week Navigation - Always visible for all weeks */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                        disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                        className="flex items-center gap-1"
+                        title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                        Previous Week
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={navigateToCurrentWeek}
+                        className="flex items-center gap-1"
+                        title="Go to current/upcoming week"
+                      >
+                        <Calendar className="h-3 w-3" />
+                        Current Week
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                        disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                        className="flex items-center gap-1"
+                        title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                      >
+                        Next Week
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
             </div>
           </div>
 
@@ -1044,13 +1160,7 @@ function PoolPicksContent() {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-                <Button 
-                  onClick={() => setShowLeaderboard(true)}
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  View Full Leaderboard
-                </Button>
+
                 <Link href="/">
                   <Button variant="outline">
                     <ArrowLeft className="h-4 w-4 mr-2" />
@@ -1208,6 +1318,44 @@ function PoolPicksContent() {
                     );
                   })()}
                 </div>
+                
+                {/* Week Navigation - Always visible for all weeks */}
+                <div className="flex items-center gap-2 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                    disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                    className="flex items-center gap-1"
+                    title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                    Previous Week
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={navigateToCurrentWeek}
+                    className="flex items-center gap-1"
+                    title="Go to current/upcoming week"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    Current Week
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                    disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                    className="flex items-center gap-1"
+                    title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                  >
+                    Next Week
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
 
                 {lastUpdated && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -1284,38 +1432,6 @@ function PoolPicksContent() {
             </div>
           </div>
 
-          {/* Deadline Warning */}
-          {(() => {
-            const deadlineInfo = getDeadlineInfo();
-            if (!deadlineInfo) return null;
-            
-            const getStatusColor = (status: string) => {
-              switch (status) {
-                case 'urgent': return 'bg-red-50 border-red-200 text-red-800';
-                case 'warning': return 'bg-orange-50 border-orange-200 text-orange-800';
-                case 'locked': return 'bg-gray-50 border-gray-200 text-gray-800';
-                default: return 'bg-blue-50 border-blue-200 text-blue-800';
-              }
-            };
-            
-            const getStatusIcon = (status: string) => {
-              switch (status) {
-                case 'urgent': return <AlertTriangle className="h-4 w-4" />;
-                case 'warning': return <Clock className="h-4 w-4" />;
-                case 'locked': return <AlertTriangle className="h-4 w-4" />;
-                default: return <Info className="h-4 w-4" />;
-              }
-            };
-            
-            return (
-              <div className={`mt-2 p-3 rounded-lg border ${getStatusColor(deadlineInfo.status)}`}>
-                <div className="flex items-center gap-2">
-                  {getStatusIcon(deadlineInfo.status)}
-                  <span className="text-sm font-medium">{deadlineInfo.message}</span>
-                </div>
-              </div>
-            );
-          })()}
         </div>
 
         {/* Main Content */}
@@ -1706,23 +1822,25 @@ function PoolPicksContent() {
                           <div className="text-sm text-green-800 text-center mb-3">
                             <span className="font-bold">Picks submitted successfully!</span> Best of luck this week!
                           </div>
-                          <div className="flex justify-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowLeaderboard(true)}
-                              className="text-xs"
-                              disabled={submittedCount < participantCount}
-                            >
-                              <BarChart3 className="h-3 w-3 mr-1" />
-                              View Leaderboard
-                              {submittedCount < participantCount && (
-                                <span className="ml-1 text-xs">
-                                  ({submittedCount}/{participantCount})
-                                </span>
-                              )}
-                            </Button>
-                          </div>
+                                                      <div className="flex flex-col items-center gap-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowLeaderboard(true)}
+                                className="text-xs"
+                                disabled={submittedCount < participantCount}
+                              >
+                                <BarChart3 className="h-3 w-3 mr-1" />
+                                View Leaderboard
+                                {submittedCount < participantCount && (
+                                  <span className="ml-1 text-xs">
+                                    ({submittedCount}/{participantCount})
+                                  </span>
+                                )}
+                              </Button>
+                              
+
+                            </div>
                         </div>
                       )}
                       <PickUserSelection 

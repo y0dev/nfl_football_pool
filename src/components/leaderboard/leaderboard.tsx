@@ -8,7 +8,7 @@ import { loadPools } from '@/actions/loadPools';
 import { Trophy, Medal, Award, Clock, EyeOff } from 'lucide-react';
 import { LeaderboardEntry, Pool, Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugError, debugLog } from '@/lib/utils';
+import { debugError, debugLog, getTeamAbbreviation } from '@/lib/utils';
 
 interface LeaderboardProps {
   poolId?: string;
@@ -17,45 +17,7 @@ interface LeaderboardProps {
   season?: number;
 }
 
-// Helper function to get team abbreviation
-const getTeamAbbreviation = (teamName: string): string => {
-  const abbreviations: { [key: string]: string } = {
-    'New England Patriots': 'NE',
-    'Buffalo Bills': 'BUF',
-    'New York Jets': 'NYJ',
-    'Miami Dolphins': 'MIA',
-    'Baltimore Ravens': 'BAL',
-    'Cincinnati Bengals': 'CIN',
-    'Cleveland Browns': 'CLE',
-    'Pittsburgh Steelers': 'PIT',
-    'Houston Texans': 'HOU',
-    'Indianapolis Colts': 'IND',
-    'Jacksonville Jaguars': 'JAX',
-    'Tennessee Titans': 'TEN',
-    'Kansas City Chiefs': 'KC',
-    'Las Vegas Raiders': 'LV',
-    'Los Angeles Chargers': 'LAC',
-    'Denver Broncos': 'DEN',
-    'Dallas Cowboys': 'DAL',
-    'Philadelphia Eagles': 'PHI',
-    'New York Giants': 'NYG',
-    'Washington Commanders': 'WAS',
-    'Green Bay Packers': 'GB',
-    'Minnesota Vikings': 'MIN',
-    'Chicago Bears': 'CHI',
-    'Detroit Lions': 'DET',
-    'New Orleans Saints': 'NO',
-    'Tampa Bay Buccaneers': 'TB',
-    'Atlanta Falcons': 'ATL',
-    'Carolina Panthers': 'CAR',
-    'San Francisco 49ers': 'SF',
-    'Seattle Seahawks': 'SEA',
-    'Los Angeles Rams': 'LAR',
-    'Arizona Cardinals': 'ARI'
-  };
-  
-  return abbreviations[teamName] || teamName.split(' ').map(word => word[0]).join('').toUpperCase();
-};
+
 
 export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: LeaderboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntryWithPicks[]>([]);
@@ -151,8 +113,8 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                 <TableCell className="font-medium">
                   {index + 1}
                   {index === 0 && <Trophy className="h-4 w-4 text-yellow-500 inline ml-1" />}
-                  {index === 1 && <Medal className="h-4 w-4 text-gray-400 inline ml-1" />}
-                  {index === 2 && <Award className="h-4 w-4 text-orange-500 inline ml-1" />}
+                  {index === 1 && <Trophy className="h-4 w-4 text-gray-400 inline ml-1" />}
+                  {index === 2 && <Trophy className="h-4 w-4 text-orange-500 inline ml-1" />}
                         </TableCell>
                 <TableCell className="font-medium">{entry.participant_name}</TableCell>
                 <TableCell className="text-center font-bold">{entry.total_points}</TableCell>

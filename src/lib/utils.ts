@@ -62,7 +62,7 @@ export const DATE_FORMATS = {
 export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Game Timing Configuration
-export const DAYS_BEFORE_GAME = 10; // Number of days before game kickoff for various operations
+export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
 
 // API Configuration
 export const API_ENDPOINTS = {
@@ -157,40 +157,40 @@ export function getNFLTeamName(abbreviation: string): string {
 
 export function getTeamAbbreviation(fullName: string): string {
   const teamAbbreviations: Record<string, string> = {
-    'Arizona Cardinals': 'ARI',
-    'Atlanta Falcons': 'ATL',
-    'Baltimore Ravens': 'BAL',
+    'New England Patriots': 'NE',
     'Buffalo Bills': 'BUF',
-    'Carolina Panthers': 'CAR',
-    'Chicago Bears': 'CHI',
+    'New York Jets': 'NYJ',
+    'Miami Dolphins': 'MIA',
+    'Baltimore Ravens': 'BAL',
     'Cincinnati Bengals': 'CIN',
     'Cleveland Browns': 'CLE',
-    'Dallas Cowboys': 'DAL',
-    'Denver Broncos': 'DEN',
-    'Detroit Lions': 'DET',
-    'Green Bay Packers': 'GB',
+    'Pittsburgh Steelers': 'PIT',
     'Houston Texans': 'HOU',
     'Indianapolis Colts': 'IND',
     'Jacksonville Jaguars': 'JAX',
-    'Kansas City Chiefs': 'KC',
-    'Los Angeles Chargers': 'LAC',
-    'Los Angeles Rams': 'LAR',
-    'Las Vegas Raiders': 'LV',
-    'Miami Dolphins': 'MIA',
-    'Minnesota Vikings': 'MIN',
-    'New England Patriots': 'NE',
-    'New Orleans Saints': 'NO',
-    'New York Giants': 'NYG',
-    'New York Jets': 'NYJ',
-    'Philadelphia Eagles': 'PHI',
-    'Pittsburgh Steelers': 'PIT',
-    'Seattle Seahawks': 'SEA',
-    'San Francisco 49ers': 'SF',
-    'Tampa Bay Buccaneers': 'TB',
     'Tennessee Titans': 'TEN',
-    'Washington Commanders': 'WAS'
+    'Kansas City Chiefs': 'KC',
+    'Las Vegas Raiders': 'LV',
+    'Los Angeles Chargers': 'LAC',
+    'Denver Broncos': 'DEN',
+    'Dallas Cowboys': 'DAL',
+    'Philadelphia Eagles': 'PHI',
+    'New York Giants': 'NYG',
+    'Washington Commanders': 'WAS',
+    'Green Bay Packers': 'GB',
+    'Minnesota Vikings': 'MIN',
+    'Chicago Bears': 'CHI',
+    'Detroit Lions': 'DET',
+    'New Orleans Saints': 'NO',
+    'Tampa Bay Buccaneers': 'TB',
+    'Atlanta Falcons': 'ATL',
+    'Carolina Panthers': 'CAR',
+    'San Francisco 49ers': 'SF',
+    'Seattle Seahawks': 'SEA',
+    'Los Angeles Rams': 'LAR',
+    'Arizona Cardinals': 'ARI'
   }
-  return teamAbbreviations[fullName] || fullName
+  return teamAbbreviations[fullName] || fullName.split(' ').map(word => word[0]).join('').toUpperCase();
 }
 
 /**
