@@ -12,7 +12,7 @@ import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/acti
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
-import { Clock, Save, AlertTriangle, X } from 'lucide-react';
+import { Save, AlertTriangle, X } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
 import { debugLog, DAYS_BEFORE_GAME, getShortTeamName } from '@/lib/utils';
 
@@ -35,7 +35,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const [timeRemaining, setTimeRemaining] = useState<string>('');
+
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
@@ -270,24 +270,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges, lastSaved]);
 
-  // Countdown timer for auto-save (no auto-submit)
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (selectedUser && hasUnsavedChanges) {
-        const remaining = pickStorage.getFormattedTimeRemaining();
-        setTimeRemaining(remaining);
-        
-        if (remaining === 'Expired') {
-          // Just clear the timer, don't auto-submit
-          setTimeRemaining('');
-        }
-      } else {
-        setTimeRemaining('');
-      }
-    }, 1000);
 
-    return () => clearInterval(timer);
-  }, [selectedUser, poolId, currentWeek, hasUnsavedChanges]);
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
@@ -492,12 +475,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {timeRemaining && (
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-orange-500" />
-              <span className="font-mono">Auto-submit: {timeRemaining}</span>
-            </div>
-          )}
+
           {lastSaved && (
             <div className="flex items-center gap-2 text-sm text-green-600">
               <Save className="h-4 w-4" />
