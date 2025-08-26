@@ -35,11 +35,12 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const [timeRemaining, setTimeRemaining] = useState<string>('');
+
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
   const [unlockTime, setUnlockTime] = useState<string>('');
+  const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
   
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
@@ -270,24 +271,43 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges, lastSaved]);
 
-  // Countdown timer for auto-save (no auto-submit)
+  // Countdown timer for week unlock
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (selectedUser && hasUnsavedChanges) {
-        const remaining = pickStorage.getFormattedTimeRemaining();
-        setTimeRemaining(remaining);
+    if (!isWeekUnlocked && unlockTime) {
+      const timer = setInterval(() => {
+        const now = new Date();
+        const unlockDate = new Date(unlockTime);
+        const timeDiff = unlockDate.getTime() - now.getTime();
         
-        if (remaining === 'Expired') {
-          // Just clear the timer, don't auto-submit
-          setTimeRemaining('');
+        if (timeDiff <= 0) {
+          // Week is now unlocked
+          setCountdownToUnlock('');
+          setIsWeekUnlocked(true);
+        } else {
+          // Calculate remaining time
+          const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+          
+          let countdownText = '';
+          if (days > 0) {
+            countdownText = `${days}d ${hours}h ${minutes}m`;
+          } else if (hours > 0) {
+            countdownText = `${hours}h ${minutes}m ${seconds}s`;
+          } else if (minutes > 0) {
+            countdownText = `${minutes}m ${seconds}s`;
+          } else {
+            countdownText = `${seconds}s`;
+          }
+          
+          setCountdownToUnlock(countdownText);
         }
-      } else {
-        setTimeRemaining('');
-      }
-    }, 1000);
+      }, 1000);
 
-    return () => clearInterval(timer);
-  }, [selectedUser, poolId, currentWeek, hasUnsavedChanges]);
+      return () => clearInterval(timer);
+    }
+  }, [isWeekUnlocked, unlockTime]);
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
@@ -492,12 +512,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {timeRemaining && (
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-orange-500" />
-              <span className="font-mono">Auto-submit: {timeRemaining}</span>
-            </div>
-          )}
+
           {lastSaved && (
             <div className="flex items-center gap-2 text-sm text-green-600">
               <Save className="h-4 w-4" />
@@ -536,6 +551,12 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                 {unlockTime && (
                   <span className="block mt-1">
                     <strong>Unlocks:</strong> {unlockTime}
+                  </span>
+                )}
+                {countdownToUnlock && (
+                  <span className="block mt-2 flex items-center gap-2 text-orange-600">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-mono font-medium">Unlocks in: {countdownToUnlock}</span>
                   </span>
                 )}
               </div>
@@ -752,6 +773,12 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           <div className="text-sm text-gray-600 text-center">
             <p>Picks will unlock on {unlockTime}</p>
             <p className="text-xs">You can make your selections now and submit when the week unlocks</p>
+            {countdownToUnlock && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-orange-600">
+                <Clock className="h-4 w-4" />
+                <span className="font-mono font-medium">Unlocks in: {countdownToUnlock}</span>
+              </div>
+            )}
           </div>
         )}
         
