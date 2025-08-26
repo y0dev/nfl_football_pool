@@ -1610,18 +1610,18 @@ function PoolPicksContent() {
                       <div>
                         {process.env.NODE_ENV === 'development' && (
                           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-sm text-blue-800">
-                              <strong>User Selected:</strong> {selectedUser.name} (ID: {selectedUser.id})
-                            </p>
-                            <p className="text-sm text-blue-700">
+                            <div className="text-sm text-blue-800">
+                              <span className="font-bold">User Selected:</span> {selectedUser.name} (ID: {selectedUser.id})
+                            </div>
+                            <div className="text-sm text-blue-700">
                               Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
-                            </p>
-                            <p className="text-sm text-blue-600">
-                              <strong>Submission Status:</strong> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
-                            </p>
-                            <p className="text-sm text-blue-800">
-                              <strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}
-                            </p>
+                            </div>
+                            <div className="text-sm text-blue-600">
+                              <span className="font-bold">Submission Status:</span> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
+                            </div>
+                            <div className="text-sm text-blue-800">
+                              <span className="font-bold">All Users Status:</span> {JSON.stringify(hasSubmitted)}
+                            </div>
                           </div>
                         )}
                         <WeeklyPick 
@@ -1644,9 +1644,9 @@ function PoolPicksContent() {
                     <div>
                       {Object.keys(hasSubmitted).length > 0 && (
                         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-sm text-green-800 text-center mb-3">
-                            <strong>Picks submitted successfully!</strong> Best of luck this week!
-                          </p>
+                          <div className="text-sm text-green-800 text-center mb-3">
+                            <span className="font-bold">Picks submitted successfully!</span> Best of luck this week!
+                          </div>
                           <div className="flex justify-center">
                             <Button
                               variant="outline"
