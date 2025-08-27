@@ -116,32 +116,32 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
   return (
     <div className="space-y-4">
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <Card className="text-center">
-          <CardContent className="p-3">
-            <div className="text-lg font-bold text-blue-600">{leaderboard.length}</div>
+          <CardContent className="p-2 md:p-3">
+            <div className="text-base md:text-lg font-bold text-blue-600">{leaderboard.length}</div>
             <div className="text-xs text-gray-600">Participants</div>
           </CardContent>
         </Card>
         <Card className="text-center">
-          <CardContent className="p-3">
-            <div className="text-lg font-bold text-green-600">
+          <CardContent className="p-2 md:p-3">
+            <div className="text-base md:text-lg font-bold text-green-600">
               {leaderboard[0]?.total_points || 0}
             </div>
             <div className="text-xs text-gray-600">Leader Score</div>
           </CardContent>
         </Card>
         <Card className="text-center">
-          <CardContent className="p-3">
-            <div className="text-lg font-bold text-purple-600">
+          <CardContent className="p-2 md:p-3">
+            <div className="text-base md:text-lg font-bold text-purple-600">
               {Math.round(leaderboard.reduce((sum, entry) => sum + entry.average_points, 0) / leaderboard.length) || 0}
             </div>
             <div className="text-xs text-gray-600">Avg Score</div>
           </CardContent>
         </Card>
         <Card className="text-center">
-          <CardContent className="p-3">
-            <div className="text-lg font-bold text-orange-600">
+          <CardContent className="p-2 md:p-3">
+            <div className="text-base md:text-lg font-bold text-orange-600">
               {Math.max(...leaderboard.map(entry => entry.weeks_played)) || 0}
             </div>
             <div className="text-xs text-gray-600">Weeks Played</div>
@@ -149,8 +149,16 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
         </Card>
       </div>
 
-      {/* Leaderboard Table */}
-      <div className="overflow-x-auto">
+      {/* View Toggle Indicator */}
+      <div className="flex items-center justify-center mb-4 lg:hidden">
+        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+          Mobile View
+        </div>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200">
@@ -199,6 +207,59 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-3">
+        {leaderboard.map((entry, index) => (
+          <Card key={entry.participant_name} className="p-4 hover:shadow-md transition-shadow">
+            {/* Header with Rank and Name */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0">
+                {getPositionIcon(index)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-gray-900 text-lg truncate">
+                  {entry.participant_name}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  {getPositionBadge(index)}
+                  <span className="text-xs text-gray-500">
+                    {entry.weeks_played} week{entry.weeks_played !== 1 ? 's' : ''} played
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Main Stats */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  {entry.total_points}
+                </div>
+                <div className="text-xs text-gray-600 font-medium">Total Points</div>
+              </div>
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-xl font-bold text-green-600">
+                  {entry.average_points.toFixed(1)}
+                </div>
+                <div className="text-xs text-gray-600 font-medium">Avg/Week</div>
+              </div>
+            </div>
+            
+            {/* Best Week Performance */}
+            {entry.best_week > 0 && (
+              <div className="text-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div className="text-sm font-semibold text-yellow-800 mb-1">
+                  🏆 Best Week Performance
+                </div>
+                <div className="text-lg font-bold text-yellow-700">
+                  Week {entry.best_week}: {entry.best_week_score} pts
+                </div>
+              </div>
+            )}
+          </Card>
+        ))}
       </div>
 
       {/* Legend */}
