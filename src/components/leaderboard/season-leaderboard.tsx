@@ -17,10 +17,9 @@ interface SeasonLeaderboardEntry {
 interface SeasonLeaderboardProps {
   poolId: string;
   season: number;
-  week?: number; // Optional: limit to weeks up to this point
 }
 
-export function SeasonLeaderboard({ poolId, season, week }: SeasonLeaderboardProps) {
+export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<SeasonLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +30,7 @@ export function SeasonLeaderboard({ poolId, season, week }: SeasonLeaderboardPro
         setIsLoading(true);
         setError(null);
 
-        const apiUrl = week 
-          ? `/api/leaderboard/season?poolId=${poolId}&season=${season}&week=${week}`
-          : `/api/leaderboard/season?poolId=${poolId}&season=${season}`;
-        const response = await fetch(apiUrl);
+        const response = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}`);
         
         if (!response.ok) {
           throw new Error(`Failed to load season leaderboard: ${response.status}`);
@@ -58,7 +54,7 @@ export function SeasonLeaderboard({ poolId, season, week }: SeasonLeaderboardPro
     if (poolId && season) {
       loadSeasonLeaderboard();
     }
-  }, [poolId, season, week]);
+  }, [poolId, season]);
 
   if (isLoading) {
     return (
@@ -260,12 +256,7 @@ export function SeasonLeaderboard({ poolId, season, week }: SeasonLeaderboardPro
 
       {/* Legend */}
       <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-200">
-        <p>
-          {week 
-            ? `Season leaderboard shows accumulated scores through Week ${week}`
-            : 'Season leaderboard shows accumulated scores from all completed weeks'
-          }
-        </p>
+        <p>Season leaderboard shows accumulated scores from all completed weeks</p>
         <p>Best week indicates the participant&apos;s highest-scoring individual week</p>
       </div>
     </div>
