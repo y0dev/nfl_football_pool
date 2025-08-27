@@ -12,6 +12,7 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
+import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
@@ -156,15 +157,13 @@ function PoolPicksContent() {
       // Consider game ended if it's been more than 3 hours since kickoff
       const gameEnded = gameTime.getTime() + (3 * 60 * 60 * 1000) < now.getTime();
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Week status check for game:', {
+      debugLog('Week status check for game:', {
         game: `${game.away_team} @ ${game.home_team}`,
         kickoff: gameTime.toISOString(),
         now: now.toISOString(),
         gameEnded,
         timeDiff: (gameTime.getTime() + (3 * 60 * 60 * 1000) - now.getTime()) / (1000 * 60 * 60) // hours until end
       });
-      }
       
       return gameEnded;
     });
@@ -1066,10 +1065,7 @@ function PoolPicksContent() {
   }
 
   // Show week winner when week has ended and there are picks
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Early return check 2:', { weekEnded, weekHasPicks, weekWinner: !!weekWinner, condition: weekEnded && weekHasPicks && weekWinner });
-  }
-  
+  debugLog('Early return check 2:', { weekEnded, weekHasPicks, weekWinner: !!weekWinner, condition: weekEnded && weekHasPicks && weekWinner });
   if (weekEnded && weekHasPicks && weekWinner) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -1226,6 +1222,22 @@ function PoolPicksContent() {
               </CardContent>
             </Card>
           )}
+
+          {/* Season Leaderboard - Show accumulated scores across all weeks */}
+          <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <Trophy className="h-6 w-6 text-blue-600" />
+                Season {poolSeason} Overall Standings
+              </CardTitle>
+              <CardDescription className="text-blue-700">
+                Total accumulated scores across all completed weeks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SeasonLeaderboard poolId={poolId} season={poolSeason} />
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -1716,6 +1728,24 @@ function PoolPicksContent() {
                     <p className="text-sm">This week ended without any submitted picks</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Season Leaderboard - Show accumulated scores across all weeks */}
+          {weekEnded && (
+            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-900">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  Season {poolSeason} Overall Standings
+                </CardTitle>
+                <CardDescription className="text-blue-700">
+                  Total accumulated scores across all completed weeks
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SeasonLeaderboard poolId={poolId} season={poolSeason} />
               </CardContent>
             </Card>
           )}
