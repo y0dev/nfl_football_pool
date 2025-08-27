@@ -1192,16 +1192,6 @@ function PoolPicksContent() {
                   {weekWinner.correct_picks} correct picks out of {games.length} games
                 </div>
               </div>
-              
-              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-
-                <Link href="/">
-                  <Button variant="outline">
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Home
-                  </Button>
-                </Link>
-              </div>
             </CardContent>
           </Card>
 

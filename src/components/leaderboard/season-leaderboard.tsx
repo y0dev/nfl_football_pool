@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Medal, TrendingUp, Users } from 'lucide-react';
+import { Trophy, TrendingUp, Users } from 'lucide-react';
 
 interface SeasonLeaderboardEntry {
   participant_name: string;
@@ -147,14 +147,6 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
             <div className="text-xs text-gray-600">Weeks Played</div>
           </CardContent>
         </Card>
-      </div>
-
-      {/* View Toggle Indicator */}
-      <div className="flex items-center justify-center mb-4 lg:hidden">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
-          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-          Mobile View
-        </div>
       </div>
 
       {/* Desktop Table View */}
