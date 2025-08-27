@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -157,12 +158,12 @@ function PoolPicksContent() {
       
       if (process.env.NODE_ENV === 'development') {
         console.log('Week status check for game:', {
-          game: `${game.away_team} @ ${game.home_team}`,
-          kickoff: gameTime.toISOString(),
-          now: now.toISOString(),
-          gameEnded,
-          timeDiff: (gameTime.getTime() + (3 * 60 * 60 * 1000) - now.getTime()) / (1000 * 60 * 60) // hours until end
-        });
+        game: `${game.away_team} @ ${game.home_team}`,
+        kickoff: gameTime.toISOString(),
+        now: now.toISOString(),
+        gameEnded,
+        timeDiff: (gameTime.getTime() + (3 * 60 * 60 * 1000) - now.getTime()) / (1000 * 60 * 60) // hours until end
+      });
       }
       
       return gameEnded;
@@ -170,10 +171,10 @@ function PoolPicksContent() {
     
     if (process.env.NODE_ENV === 'development') {
       console.log('Week status result:', {
-        allGamesEnded,
-        gamesCount: games.length,
-        currentTime: now.toISOString()
-      });
+      allGamesEnded,
+      gamesCount: games.length,
+      currentTime: now.toISOString()
+    });
     }
     
     setWeekEnded(allGamesEnded);
@@ -194,13 +195,13 @@ function PoolPicksContent() {
           if (result.success && result.leaderboard && result.leaderboard.length > 0) {
             debugLog('Week status result setWeekEnded if allGamesEnded:', result);
           }
-          const winner = result.leaderboard[0]; // First place
-          setWeekWinner(winner);
-          setWeekHasPicks(true);
+            const winner = result.leaderboard[0]; // First place
+            setWeekWinner(winner);
+            setWeekHasPicks(true);
           // Automatically show leaderboard when week ends
           setShowLeaderboard(true);
-        } else {
-          setWeekHasPicks(false);
+          } else {
+            setWeekHasPicks(false);
           // Still show leaderboard even if no picks, but indicate no results
           setShowLeaderboard(true);
         }
@@ -212,10 +213,10 @@ function PoolPicksContent() {
   };
 
   const handleLogout = async () => {
-    try {
+          try {
       const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
+        const supabase = getSupabaseClient();
+        await supabase.auth.signOut();
       router.push('/admin/login');
     } catch (error) {
       console.error('Error logging out:', error);
@@ -287,8 +288,14 @@ function PoolPicksContent() {
 
       // Validate poolId first
       if (!poolId) {
-        setError('Pool ID is required. Please use a valid pool link.');
-        setIsLoading(false);
+        notFound();
+        return;
+      }
+      
+      // Validate pool ID format (should be a valid UUID)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(poolId)) {
+        notFound();
         return;
       }
 
@@ -351,6 +358,13 @@ function PoolPicksContent() {
           const result = await response.json();
           if (result.success && result.pool) {
             const pool = result.pool;
+              
+              // Validate that we have a valid pool with a name
+              if (!pool.name || pool.name.trim() === '') {
+                notFound();
+                return;
+              }
+              
             setPoolName(pool.name);
             setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
             
@@ -364,12 +378,19 @@ function PoolPicksContent() {
               setSubmittedCount(pool.picks_status.submittedCount || 0);
             }
           } else {
-            setError('Pool not found. Please check the pool link.');
+              // Pool not found - redirect to 404 page
+              notFound();
           }
         } else {
           const errorText = await response.text();
           console.error('API response error:', response.status, errorText);
+          
+          // If it's a 404 error, redirect to 404 page
+          if (response.status === 404) {
+            notFound();
+          } else {
           setError(`Failed to load pool information (${response.status}). Please try again.`);
+          }
         }
       } catch (error) {
         console.error('Error loading pool:', error);
@@ -494,12 +515,12 @@ function PoolPicksContent() {
                 const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
                 
                 debugLog('Game status check:', {
-                  game: `${game.away_team} @ ${game.home_team}`,
-                  kickoff: gameTime.toISOString(),
-                  now: now.toISOString(),
-                  bufferTime: bufferTime / (1000 * 60 * 60), // hours
-                  gameStarted
-                });
+                    game: `${game.away_team} @ ${game.home_team}`,
+                    kickoff: gameTime.toISOString(),
+                    now: now.toISOString(),
+                    bufferTime: bufferTime / (1000 * 60 * 60), // hours
+                    gameStarted
+                  });
                 
                 return gameStarted;
               });
@@ -929,52 +950,37 @@ function PoolPicksContent() {
             
             {/* Pool Info */}
             <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span className="font-semibold text-lg">{poolName}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline">Week {currentWeek}</Badge>
-                    <span className="text-sm text-gray-500">
-                      {games.length} games
-                    </span>
-                    {(() => {
-                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                        return (
-                        <Badge variant="secondary" className="text-xs">
-                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                        </Badge>
-                      );
-                      })()}
+              <div className="space-y-4">
+                {/* Pool Header Row */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <Users className="h-5 w-5 text-gray-500" />
+                    <span className="font-semibold text-xl">{poolName}</span>
                   </div>
                   
-                  {/* Week Navigation - Always visible for all weeks */}
-                  <div className="flex items-center gap-2 mt-2">
+                  {/* Week Navigation - Centered horizontal layout */}
+                  <div className="flex items-center justify-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
                       disabled={currentWeek <= 1 && currentSeasonType <= 1}
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
                     >
-                      <ChevronLeft className="h-3 w-3" />
-                      Previous Week
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Previous</span>
                     </Button>
                     
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={navigateToCurrentWeek}
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 px-3 py-2 h-9"
                       title="Go to current/upcoming week"
                     >
-                      <Calendar className="h-3 w-3" />
-                      Current Week
+                      <Calendar className="h-4 w-4" />
+                      <span className="hidden sm:inline">Current</span>
                     </Button>
                     
                     <Button
@@ -982,13 +988,33 @@ function PoolPicksContent() {
                       size="sm"
                       onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
                       disabled={currentWeek >= 18 && currentSeasonType >= 3}
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
                     >
-                      Next Week
-                      <ChevronRight className="h-3 w-3" />
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+                
+                {/* Week Info Row */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <Badge variant="outline" className="px-3 py-1">Week {currentWeek}</Badge>
+                  </div>
+                  <span className="text-sm text-gray-600">
+                      {games.length} games
+                    </span>
+                    {(() => {
+                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                        return (
+                      <Badge variant="secondary" className="text-xs px-2 py-1">
+                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                        </Badge>
+                      );
+                      })()}
                 </div>
               </div>
             </div>
@@ -1070,68 +1096,80 @@ function PoolPicksContent() {
             
             {/* Pool Info */}
             <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span className="font-semibold text-lg">{poolName}</span>
+              <div className="space-y-4">
+                {/* Pool Header Row */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <Users className="h-5 w-5 text-gray-500" />
+                    <span className="font-semibold text-xl">{poolName}</span>
                   </div>
-                                      <div className="flex flex-wrap items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <Badge variant="outline">Week {currentWeek}</Badge>
-                      <span className="text-sm text-gray-500">
-                        {games.length} games
-                      </span>
-                      {(() => {
-                          const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-                          const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                          return (
-                          <Badge variant="secondary" className="text-xs">
-                            {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                          </Badge>
-                        );
-                                              })()}
-                    </div>
+                  
+                  {/* Week Navigation - Centered horizontal layout */}
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                      disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                      className="flex items-center gap-1 px-3 py-2 h-9"
+                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to next week"}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Previous</span>
+                    </Button>
                     
-                    {/* Week Navigation - Always visible for all weeks */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
-                        disabled={currentWeek <= 1 && currentSeasonType <= 1}
-                        className="flex items-center gap-1"
-                        title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
-                      >
-                        <ChevronLeft className="h-3 w-3" />
-                        Previous Week
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={navigateToCurrentWeek}
-                        className="flex items-center gap-1"
-                        title="Go to current/upcoming week"
-                      >
-                        <Calendar className="h-3 w-3" />
-                        Current Week
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
-                        disabled={currentWeek >= 18 && currentSeasonType >= 3}
-                        className="flex items-center gap-1"
-                        title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
-                      >
-                        Next Week
-                        <ChevronRight className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={navigateToCurrentWeek}
+                      className="flex items-center gap-1 px-3 py-2 h-9"
+                      title="Go to current/upcoming week"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      <span className="hidden sm:inline">Current</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                      disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                      className="flex items-center gap-1 px-3 py-2 h-9"
+                      title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
+                
+                                  {/* Week Info Row */}
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                      <Badge variant="outline" className="px-3 py-1">Week {currentWeek}</Badge>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {games.length} games
+                    </span>
+                    {(() => {
+                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
+                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                        return (
+                        <Badge variant="secondary" className="text-xs px-2 py-1">
+                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                        </Badge>
+                      );
+                      })()}
+                  </div>
+                  
+                  {/* Last Updated Timestamp */}
+                  <div className="text-center">
+                    <span className="text-xs text-gray-500">
+                      Last updated: {new Date().toLocaleTimeString()}
+                    </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1242,18 +1280,18 @@ function PoolPicksContent() {
       </div>
     );
   }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Floating Back Button for Mobile - Only show if admin */}
-      {isAdmin && (
+                {isAdmin && (
       <div className="fixed top-4 left-4 z-50 sm:hidden">
-          <Link href="/admin/dashboard">
+                  <Link href="/admin/dashboard">
           <Button variant="outline" size="sm" className="shadow-lg">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-      </div>
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
       )}
 
       {/* Floating Leaderboard Button for Mobile - Show when week has ended */}
@@ -1266,82 +1304,84 @@ function PoolPicksContent() {
             className="shadow-lg"
           >
             <BarChart3 className="h-4 w-4" />
-          </Button>
-        </div>
+                  </Button>
+            </div>
       )}
       
-      <div className="container mx-auto p-4 md:p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-            <div className="flex items-center gap-4">
-              {isAdmin && (
-                <Link href="/admin/dashboard">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                    <span className="hidden sm:inline">Back to Dashboard</span>
-                  <span className="sm:hidden">Back</span>
-                </Button>
-              </Link>
-              )}
-              <div className="flex items-center gap-2">
-                <Trophy className="h-6 w-6 text-blue-600" />
-                <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+        <div className="container mx-auto p-4 md:p-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                {isAdmin && (
+                  <Link href="/admin/dashboard">
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Back to Dashboard</span>
+                      <span className="sm:hidden">Back</span>
+                    </Button>
+                  </Link>
+                )}
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Pool Info */}
-          <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-500" />
-                  <span className="font-semibold text-lg">{poolName}</span>
+            
+            {/* Pool Info */}
+            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold text-lg">{poolName}</span>
                   {isTestMode && (
                     <Badge variant="secondary" className="text-xs">Test Mode</Badge>
                   )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <Badge variant="outline">Week {currentWeek}</Badge>
-                  <span className="text-sm text-gray-500">
-                    {games.length} games
-                  </span>
-                  {(() => {
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <Badge variant="outline">Week {currentWeek}</Badge>
+                    <span className="text-sm text-gray-500">
+                      {games.length} games
+                    </span>
+                    {(() => {
                       const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season for display
-                      const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                      return (
-                      <Badge variant="secondary" className="text-xs">
-                        {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                      </Badge>
-                    );
-                  })()}
-                </div>
-                
+                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+                        return (
+                        <Badge variant="secondary" className="text-xs">
+                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                        </Badge>
+                      );
+                      })()}
+          </div>
+
                 {/* Week Navigation - Always visible for all weeks */}
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex flex-col sm:flex-row items-center gap-2 mt-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
                     disabled={currentWeek <= 1 && currentSeasonType <= 1}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
                     title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
                   >
                     <ChevronLeft className="h-3 w-3" />
-                    Previous Week
+                    <span className="hidden xs:inline">Previous Week</span>
+                    <span className="xs:hidden">Prev</span>
                   </Button>
                   
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={navigateToCurrentWeek}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
                     title="Go to current/upcoming week"
                   >
                     <Calendar className="h-3 w-3" />
-                    Current Week
+                    <span className="hidden xs:inline">Current Week</span>
+                    <span className="xs:hidden">Current</span>
                   </Button>
                   
                   <Button
@@ -1349,12 +1389,13 @@ function PoolPicksContent() {
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
                     disabled={currentWeek >= 18 && currentSeasonType >= 3}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
                     title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
                   >
-                    Next Week
+                    <span className="hidden xs:inline">Next Week</span>
+                    <span className="xs:hidden">Next</span>
                     <ChevronRight className="h-3 w-3" />
-                  </Button>
+                </Button>
                 </div>
 
                 {lastUpdated && (
@@ -1823,24 +1864,24 @@ function PoolPicksContent() {
                             <span className="font-bold">Picks submitted successfully!</span> Best of luck this week!
                           </div>
                                                       <div className="flex flex-col items-center gap-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowLeaderboard(true)}
-                                className="text-xs"
-                                disabled={submittedCount < participantCount}
-                              >
-                                <BarChart3 className="h-3 w-3 mr-1" />
-                                View Leaderboard
-                                {submittedCount < participantCount && (
-                                  <span className="ml-1 text-xs">
-                                    ({submittedCount}/{participantCount})
-                                  </span>
-                                )}
-                              </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowLeaderboard(true)}
+                              className="text-xs"
+                              disabled={submittedCount < participantCount}
+                            >
+                              <BarChart3 className="h-3 w-3 mr-1" />
+                              View Leaderboard
+                              {submittedCount < participantCount && (
+                                <span className="ml-1 text-xs">
+                                  ({submittedCount}/{participantCount})
+                                </span>
+                              )}
+                            </Button>
                               
 
-                            </div>
+                          </div>
                         </div>
                       )}
                       <PickUserSelection 

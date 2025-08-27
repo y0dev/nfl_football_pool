@@ -504,22 +504,22 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   return (
     <div className="space-y-6">
       {/* Header with user info and timer */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold">Week {currentWeek} Picks</h2>
           <p className="text-gray-600">
             Making picks as: <span className="font-semibold">{selectedUser.name}</span>
           </p>
         </div>
-        <div className="flex items-center gap-4">
-
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-shrink-0">
           {lastSaved && (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <Save className="h-4 w-4" />
-              <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+            <div className="flex items-center gap-2 text-sm text-green-600 order-1 sm:order-none whitespace-nowrap">
+              <Save className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Last saved: {lastSaved.toLocaleTimeString()}</span>
+              <span className="sm:hidden">{lastSaved.toLocaleTimeString()}</span>
             </div>
           )}
-          <Button variant="outline" onClick={handleChangeUser}>
+          <Button variant="outline" onClick={handleChangeUser} className="order-2 sm:order-none w-full sm:w-auto flex-shrink-0">
             Change User
           </Button>
         </div>
@@ -540,24 +540,24 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       {/* Week locked warning */}
       {!isWeekUnlocked && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <div className="text-yellow-800">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="text-yellow-800 flex-1 min-w-0">
               <div className="font-medium">
                 Picks for Week {currentWeek} are not yet available.
               </div>
-              <div className="text-sm mt-1">
-                Picks unlock within {DAYS_BEFORE_GAME} days of the first game&apos;s kickoff time.
+              <div className="text-sm mt-1 space-y-2">
+                <p>Picks unlock within {DAYS_BEFORE_GAME} days of the first game&apos;s kickoff time.</p>
                 {unlockTime && (
-                  <span className="block mt-1">
+                  <div className="text-sm">
                     <strong>Unlocks:</strong> {unlockTime}
-                  </span>
+                  </div>
                 )}
                 {countdownToUnlock && (
-                  <span className="block mt-2 flex items-center gap-2 text-orange-600">
-                    <Clock className="h-4 w-4" />
+                  <div className="flex items-center gap-2 text-orange-600 text-sm">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
                     <span className="font-mono font-medium">Unlocks in: {countdownToUnlock}</span>
-                  </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -749,10 +749,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       </div>
 
       {/* Submit button */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-3">
         {/* Debug information - only show in development */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="text-xs text-gray-500 text-center p-2 bg-gray-50 rounded border">
+          <div className="text-xs text-gray-500 text-center p-2 bg-gray-50 rounded border w-full max-w-md">
             <p>Debug: isLoading={isLoading.toString()}, isWeekUnlocked={isWeekUnlocked.toString()}</p>
             <p>Selected User: {selectedUser?.id || 'None'}</p>
             <p>Picks Count: {picks.length}</p>
@@ -764,18 +764,18 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           onClick={handleSubmit} 
           disabled={isLoading || !isWeekUnlocked}
           size="lg"
-          className="px-8"
+          className="px-8 w-full sm:w-auto"
         >
           {isLoading ? 'Submitting...' : !isWeekUnlocked ? 'Week Locked' : 'Submit Picks'}
         </Button>
         
         {!isWeekUnlocked && unlockTime && (
-          <div className="text-sm text-gray-600 text-center">
+          <div className="text-sm text-gray-600 text-center space-y-2 max-w-md">
             <p>Picks will unlock on {unlockTime}</p>
             <p className="text-xs">You can make your selections now and submit when the week unlocks</p>
             {countdownToUnlock && (
-              <div className="mt-2 flex items-center justify-center gap-2 text-orange-600">
-                <Clock className="h-4 w-4" />
+              <div className="flex items-center justify-center gap-2 text-orange-600 text-sm">
+                <Clock className="h-4 w-4 flex-shrink-0" />
                 <span className="font-mono font-medium">Unlocks in: {countdownToUnlock}</span>
               </div>
             )}
