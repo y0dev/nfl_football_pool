@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
+    const week = searchParams.get('week'); // Optional: limit to weeks up to this point
 
     if (!poolId || !season) {
       return NextResponse.json(
@@ -39,12 +40,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all games for the season to determine available weeks
-    const { data: games, error: gamesError } = await supabase
+    // Get games for the season, optionally limited to weeks up to the specified week
+    let gamesQuery = supabase
       .from('games')
       .select('week, season_type')
       .eq('season', parseInt(season))
       .order('week', { ascending: true });
+    
+    if (week && !isNaN(parseInt(week))) {
+      gamesQuery = gamesQuery.lte('week', parseInt(week));
+    }
+    
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);
@@ -85,9 +92,9 @@ export async function GET(request: NextRequest) {
               let weekScore = 0;
               let correctPicks = 0;
 
-              picks.forEach((pick: any) => {
-                const game = pick.games;
-                if (game.winner && pick.predicted_winner === game.winner) {
+              picks.forEach((pick: { predicted_winner: string; confidence_points: number; games: { winner: string | null }[] }) => {
+                const game = pick.games[0]; // Get the first (and should be only) game
+                if (game && game.winner && pick.predicted_winner === game.winner) {
                   weekScore += pick.confidence_points;
                   correctPicks++;
                 }
@@ -137,6 +144,7 @@ export async function GET(request: NextRequest) {
       success: true,
       leaderboard: sortedLeaderboard,
       season: parseInt(season),
+      week_scope: week ? parseInt(week) : null,
       total_weeks: availableWeeks.length,
       participants_count: participants.length,
     });

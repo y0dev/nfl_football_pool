@@ -17,9 +17,10 @@ interface SeasonLeaderboardEntry {
 interface SeasonLeaderboardProps {
   poolId: string;
   season: number;
+  week?: number; // Optional: limit to weeks up to this point
 }
 
-export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
+export function SeasonLeaderboard({ poolId, season, week }: SeasonLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<SeasonLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,10 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}`);
+        const apiUrl = week 
+          ? `/api/leaderboard/season?poolId=${poolId}&season=${season}&week=${week}`
+          : `/api/leaderboard/season?poolId=${poolId}&season=${season}`;
+        const response = await fetch(apiUrl);
         
         if (!response.ok) {
           throw new Error(`Failed to load season leaderboard: ${response.status}`);
@@ -54,7 +58,7 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
     if (poolId && season) {
       loadSeasonLeaderboard();
     }
-  }, [poolId, season]);
+  }, [poolId, season, week]);
 
   if (isLoading) {
     return (
@@ -256,7 +260,12 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
 
       {/* Legend */}
       <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-200">
-        <p>Season leaderboard shows accumulated scores from all completed weeks</p>
+        <p>
+          {week 
+            ? `Season leaderboard shows accumulated scores through Week ${week}`
+            : 'Season leaderboard shows accumulated scores from all completed weeks'
+          }
+        </p>
         <p>Best week indicates the participant&apos;s highest-scoring individual week</p>
       </div>
     </div>

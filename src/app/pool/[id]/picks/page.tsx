@@ -1225,7 +1225,7 @@ function PoolPicksContent() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SeasonLeaderboard poolId={poolId} season={poolSeason} />
+                              <SeasonLeaderboard poolId={poolId} season={poolSeason} week={currentWeek} />
             </CardContent>
           </Card>
         </div>
@@ -1735,7 +1735,7 @@ function PoolPicksContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <SeasonLeaderboard poolId={poolId} season={poolSeason} />
+                <SeasonLeaderboard poolId={poolId} season={poolSeason} week={currentWeek} />
               </CardContent>
             </Card>
           )}
