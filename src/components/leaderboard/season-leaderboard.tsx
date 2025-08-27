@@ -149,14 +149,6 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
         </Card>
       </div>
 
-      {/* View Toggle Indicator */}
-      <div className="flex items-center justify-center mb-4 lg:hidden">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
-          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-          Mobile View
-        </div>
-      </div>
-
       {/* Desktop Table View */}
       <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
