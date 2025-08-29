@@ -720,6 +720,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                       </Button>
                     )}
                   </div>
+                  
+                  {/* Show used confidence points */}
                   {usedConfidencePoints.length > 0 && (
                     <div className="mt-2">
                       <div className="text-xs text-gray-500 mb-1">Used by other games:</div>
