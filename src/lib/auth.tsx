@@ -6,7 +6,7 @@ interface User {
   id: string;
   email: string;
   full_name?: string;
-  is_super_admin?: boolean;
+  // Remove is_super_admin from client-side storage
 }
 
 interface AuthContextType {
@@ -14,6 +14,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (userData: User) => Promise<void>;
   signOut: () => Promise<void>;
+  verifyAdminStatus: (requireSuperAdmin?: boolean) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,7 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const storedUser = localStorage.getItem('nfl-pool-user');
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
+            // Only store non-sensitive data
+            setUser({
+              id: parsedUser.id,
+              email: parsedUser.email,
+              full_name: parsedUser.full_name
+            });
           }
         }
       } catch (error) {
@@ -50,11 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      setUser(userData);
+      // Only store non-sensitive data
+      const safeUserData = {
+        id: userData.id,
+        email: userData.email,
+        full_name: userData.full_name
+      };
       
-      // Store in localStorage for persistence
+      setUser(safeUserData);
+      
+      // Store in localStorage for persistence (without sensitive data)
       if (typeof window !== 'undefined') {
-        localStorage.setItem('nfl-pool-user', JSON.stringify(userData));
+        localStorage.setItem('nfl-pool-user', JSON.stringify(safeUserData));
       }
     } catch (error) {
       console.error('Sign in error:', error);
@@ -81,13 +94,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Server-side admin verification
+  const verifyAdminStatus = async (requireSuperAdmin = false): Promise<boolean> => {
+    if (!user) return false;
+    
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      
+      const { data: admin, error } = await supabase
+        .from('admins')
+        .select('id, is_active, is_super_admin')
+        .eq('id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !admin) {
+        return false;
+      }
+      
+      if (requireSuperAdmin && !admin.is_super_admin) {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error verifying admin status:', error);
+      return false;
+    }
+  };
+
   // Don't render children until mounted to prevent hydration issues
   if (!isMounted) {
     return <div>Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, verifyAdminStatus }}>
       {children}
     </AuthContext.Provider>
   );

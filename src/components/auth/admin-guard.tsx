@@ -11,39 +11,22 @@ interface AdminGuardProps {
 }
 
 export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const verifyAdminStatus = async () => {
+    const checkAdminStatus = async () => {
       if (!user) {
         setIsVerifying(false);
         return;
       }
 
       try {
-        // Use the service role client to bypass RLS for admin verification
-        const { getSupabaseServiceClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseServiceClient();
-        
-        const { data: admin, error } = await supabase
-          .from('admins')
-          .select('id, is_active, is_super_admin')
-          .eq('id', user.id)
-          .eq('is_active', true)
-          .single();
-
-        if (error || !admin) {
-          console.error('User is not an admin:', error);
-          setIsAdmin(false);
-        } else if (requireSuperAdmin && !admin.is_super_admin) {
-          console.error('User is not a super admin');
-          setIsAdmin(false);
-        } else {
-          setIsAdmin(true);
-        }
+        // Use the new server-side verification function
+        const adminStatus = await verifyAdminStatus(requireSuperAdmin);
+        setIsAdmin(adminStatus);
       } catch (error) {
         console.error('Error verifying admin status:', error);
         setIsAdmin(false);
@@ -53,9 +36,9 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
     };
 
     if (!loading) {
-      verifyAdminStatus();
+      checkAdminStatus();
     }
-  }, [user, loading, requireSuperAdmin]);
+  }, [user, loading, requireSuperAdmin, verifyAdminStatus]);
 
   useEffect(() => {
     if (!isVerifying && !isAdmin) {

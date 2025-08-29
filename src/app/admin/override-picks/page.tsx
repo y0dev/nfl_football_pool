@@ -46,7 +46,7 @@ interface Pick {
 }
 
 function OverridePicksContent() {
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -80,8 +80,9 @@ function OverridePicksContent() {
         setCurrentWeek(weekData?.week_number || 1);
         setCurrentSeasonType(weekData?.season_type || 2);
         
-        // Load pools
-        const poolsData = await loadPools(user?.email, user?.is_super_admin || false);
+        // Load pools - check if user is super admin
+        const isSuperAdmin = await verifyAdminStatus(true);
+        const poolsData = await loadPools(user?.email, isSuperAdmin);
         console.log('Pools loaded:', poolsData);
         setPools(poolsData);
 
@@ -423,6 +424,9 @@ function OverridePicksContent() {
         const participant = participants.find(p => p.id === selectedParticipant);
         const pool = pools.find(p => p.id === selectedPool);
         
+        // Determine admin type
+        const isSuperAdmin = await verifyAdminStatus(true);
+        
         const auditDetails = {
           pool_name: pool?.name || 'Unknown Pool',
           participant_name: participant?.name || 'Unknown Participant',
@@ -431,7 +435,7 @@ function OverridePicksContent() {
           season_type: currentSeasonType,
           override_reason: overrideReason,
           override_type: 'specific_picks',
-          overridden_by: user.is_super_admin ? 'super_admin' : 'pool_admin',
+          overridden_by: isSuperAdmin ? 'super_admin' : 'pool_admin',
           overridden_at: new Date().toISOString(),
           updated_picks: Object.entries(pickUpdates).map(([pickId, update]) => {
             const pick = participantPicks.find(p => p.id === pickId);
@@ -479,6 +483,9 @@ function OverridePicksContent() {
         const participant = participants.find(p => p.id === selectedParticipant);
         const pool = pools.find(p => p.id === selectedPool);
         
+        // Determine admin type
+        const isSuperAdmin = await verifyAdminStatus(true);
+        
         const auditDetails = {
           pool_name: pool?.name || 'Unknown Pool',
           participant_name: participant?.name || 'Unknown Participant',
@@ -487,7 +494,7 @@ function OverridePicksContent() {
           season_type: currentSeasonType,
           override_reason: overrideReason,
           override_type: 'erase_all_picks',
-          overridden_by: user.is_super_admin ? 'super_admin' : 'pool_admin',
+          overridden_by: isSuperAdmin ? 'super_admin' : 'pool_admin',
           overridden_at: new Date().toISOString(),
           erased_picks_count: participantPicks.length
         };
