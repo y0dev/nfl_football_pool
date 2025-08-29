@@ -63,6 +63,7 @@ function PoolPicksContent() {
   } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState(false);
   const [weekEnded, setWeekEnded] = useState(false);
+  const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   
   const { toast } = useToast();
   const router = useRouter();
@@ -186,23 +187,81 @@ function PoolPicksContent() {
         season: poolSeason
       });
       try {
-        // Load week winner from leaderboard
+        // First check if winner already exists in database
+        const winnerCheckResponse = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
+        
+        if (winnerCheckResponse.ok) {
+          const winnerCheck = await winnerCheckResponse.json();
+          
+          if (winnerCheck.winnerExists && winnerCheck.winner) {
+            // Winner already exists in database, use it
+            debugLog('Using existing winner from database:', winnerCheck.winner);
+            setWeekWinner({
+              participant_name: winnerCheck.winner.winner_name,
+              points: winnerCheck.winner.winner_points,
+              correct_picks: winnerCheck.winner.winner_correct_picks
+            });
+            setWeekHasPicks(true);
+            setShowLeaderboard(true);
+            return; // Exit early since we have the winner
+          }
+        }
+        
+        // No winner in database, calculate from leaderboard
+        debugLog('No existing winner found, calculating from leaderboard');
         const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
         debugLog('Week status result setWeekEnded if allGamesEnded:', response);
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.leaderboard && result.leaderboard.length > 0) {
-            debugLog('Week status result setWeekEnded if allGamesEnded:', result);
-          }
+            debugLog('Leaderboard result:', result);
             const winner = result.leaderboard[0]; // First place
-            setWeekWinner(winner);
+            debugLog('Winner from leaderboard:', winner);
+            setWeekWinner({
+              participant_name: winner.participant_name,
+              points: winner.total_points,
+              correct_picks: winner.correct_picks
+            });
             setWeekHasPicks(true);
-          // Automatically show leaderboard when week ends
-          setShowLeaderboard(true);
+            // Automatically show leaderboard when week ends
+            setShowLeaderboard(true);
+            
+            // If winner has valid points and picks, add to weekly_winners table
+            if (winner.total_points > 0 && winner.correct_picks > 0) {
+              try {
+                const addWinnerResponse = await fetch('/api/admin/week-winner', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    poolId,
+                    week: currentWeek,
+                    season: poolSeason,
+                    seasonType: currentSeasonType,
+                    winnerParticipantId: winner.participant_id,
+                    winnerName: winner.participant_name,
+                    winnerPoints: winner.total_points,
+                    winnerCorrectPicks: winner.correct_picks,
+                    totalParticipants: result.totalParticipants || 0
+                  }),
+                });
+                
+                if (addWinnerResponse.ok) {
+                  const addResult = await addWinnerResponse.json();
+                  debugLog('Winner added to database:', addResult);
+                } else {
+                  console.error('Failed to add winner to database:', addWinnerResponse.statusText);
+                }
+              } catch (error) {
+                console.error('Error adding winner to database:', error);
+              }
+            }
           } else {
             setWeekHasPicks(false);
-          // Still show leaderboard even if no picks, but indicate no results
-          setShowLeaderboard(true);
+            // Still show leaderboard even if no picks, but indicate no results
+            setShowLeaderboard(true);
+          }
         }
       } catch (error) {
         console.error('Error loading week winner:', error);
@@ -316,6 +375,15 @@ function PoolPicksContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         
+        // Also get the upcoming week for comparison
+        try {
+          const upcomingWeek = await getUpcomingWeek();
+          setUpcomingWeek({week: upcomingWeek.week, seasonType: upcomingWeek.seasonType});
+        } catch (error) {
+          console.error('Error getting upcoming week:', error);
+          setUpcomingWeek({week: 1, seasonType: 2});
+        }
+        
         debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         // Fallback to upcoming week only if no valid week in URL
@@ -324,6 +392,7 @@ function PoolPicksContent() {
         seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
+        setUpcomingWeek({week: upcomingWeek.week, seasonType: upcomingWeek.seasonType});
         
         debugLog('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         
@@ -967,8 +1036,9 @@ function PoolPicksContent() {
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
                     >
-                      <ChevronLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Previous</span>
+                      <ChevronLeft className="h-3 w-3" />
+                      <span className="hidden xs:inline">Previous Week</span>
+                      <span className="xs:hidden">Prev</span>
                     </Button>
                     
                     <Button
@@ -978,8 +1048,9 @@ function PoolPicksContent() {
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title="Go to current/upcoming week"
                     >
-                      <Calendar className="h-4 w-4" />
-                      <span className="hidden sm:inline">Current</span>
+                      <Calendar className="h-3 w-3" />
+                      <span className="hidden xs:inline">Current Week</span>
+                      <span className="xs:hidden">Current</span>
                     </Button>
                     
                     <Button
@@ -990,8 +1061,9 @@ function PoolPicksContent() {
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
                     >
-                      <span className="hidden sm:inline">Next</span>
-                      <ChevronRight className="h-4 w-4" />
+                      <span className="hidden xs:inline">Next Week</span>
+                      <span className="xs:hidden">Next</span>
+                      <ChevronRight className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -1108,10 +1180,11 @@ function PoolPicksContent() {
                       onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
                       disabled={currentWeek <= 1 && currentSeasonType <= 1}
                       className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to next week"}
+                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
                     >
-                      <ChevronLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Previous</span>
+                      <ChevronLeft className="h-3 w-3" />
+                      <span className="hidden xs:inline">Previous Week</span>
+                      <span className="xs:hidden">Prev</span>
                     </Button>
                     
                     <Button
@@ -1121,8 +1194,9 @@ function PoolPicksContent() {
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title="Go to current/upcoming week"
                     >
-                      <Calendar className="h-4 w-4" />
-                      <span className="hidden sm:inline">Current</span>
+                      <Calendar className="h-3 w-3" />
+                      <span className="hidden xs:inline">Current Week</span>
+                      <span className="xs:hidden">Current</span>
                     </Button>
                     
                     <Button
@@ -1133,8 +1207,9 @@ function PoolPicksContent() {
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
                     >
-                      <span className="hidden sm:inline">Next</span>
-                      <ChevronRight className="h-4 w-4" />
+                      <span className="hidden xs:inline">Next Week</span>
+                      <span className="xs:hidden">Next</span>
+                      <ChevronRight className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -1360,13 +1435,13 @@ function PoolPicksContent() {
           </div>
 
                 {/* Week Navigation - Always visible for all weeks */}
-                <div className="flex flex-col sm:flex-row items-center gap-2 mt-2">
+                <div className="flex items-center justify-center gap-2 mt-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
                     disabled={currentWeek <= 1 && currentSeasonType <= 1}
-                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
+                    className="flex items-center gap-1 px-3 py-2 h-9"
                     title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
                   >
                     <ChevronLeft className="h-3 w-3" />
@@ -1375,10 +1450,14 @@ function PoolPicksContent() {
                   </Button>
                   
                   <Button
-                    variant="outline"
+                    variant={currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType ? "default" : "outline"}
                     size="sm"
                     onClick={navigateToCurrentWeek}
-                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
+                    className={`flex items-center gap-1 px-3 py-2 h-9 ${
+                      currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType 
+                        ? "bg-blue-600 text-white hover:bg-blue-700" 
+                        : ""
+                    }`}
                     title="Go to current/upcoming week"
                   >
                     <Calendar className="h-3 w-3" />
@@ -1391,13 +1470,13 @@ function PoolPicksContent() {
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
                     disabled={currentWeek >= 18 && currentSeasonType >= 3}
-                    className="flex items-center gap-1 w-full sm:w-auto justify-center"
+                    className="flex items-center gap-1 px-3 py-2 h-9"
                     title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
                   >
                     <span className="hidden xs:inline">Next Week</span>
                     <span className="xs:hidden">Next</span>
                     <ChevronRight className="h-3 w-3" />
-                </Button>
+                  </Button>
                 </div>
 
                 {lastUpdated && (

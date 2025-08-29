@@ -69,6 +69,8 @@ function OverridePicksContent() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [usedConfidenceNumbers, setUsedConfidenceNumbers] = useState<Set<number>>(new Set());
   const [isWeekCompleted, setIsWeekCompleted] = useState(false);
+  const [showEraseSuccessDialog, setShowEraseSuccessDialog] = useState(false);
+  const [erasedPicksCount, setErasedPicksCount] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -358,10 +360,9 @@ function OverridePicksContent() {
           description: result.message,
         });
       } else {
-        toast({
-          title: 'All Picks Erased',
-          description: result.message,
-        });
+        // For erase all picks, show success dialog instead of just toast
+        setErasedPicksCount(result.erasedCount || participantPicks.length);
+        setShowEraseSuccessDialog(true);
       }
 
       // Reset form
@@ -836,6 +837,53 @@ function OverridePicksContent() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* Erase Success Dialog */}
+      <AlertDialog open={showEraseSuccessDialog} onOpenChange={setShowEraseSuccessDialog}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              Picks Successfully Erased
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              All picks have been permanently removed for the selected participant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-4">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="font-medium">Participant:</span>
+                <span className="text-green-700">
+                  {participants.find(p => p.id === selectedParticipant)?.name || 'Unknown'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Pool:</span>
+                <span className="text-green-700">
+                  {pools.find(p => p.id === selectedPool)?.name || 'Unknown'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Week:</span>
+                <span className="text-green-700">{currentWeek}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Picks Erased:</span>
+                <span className="text-green-700 font-bold">{erasedPicksCount}</span>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => setShowEraseSuccessDialog(false)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
