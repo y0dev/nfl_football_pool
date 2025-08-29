@@ -68,6 +68,7 @@ function OverridePicksContent() {
   const [isOverriding, setIsOverriding] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [usedConfidenceNumbers, setUsedConfidenceNumbers] = useState<Set<number>>(new Set());
+  const [isWeekCompleted, setIsWeekCompleted] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -104,6 +105,47 @@ function OverridePicksContent() {
 
     loadData();
   }, [user]);
+
+  // Check if current week is completed
+  useEffect(() => {
+    if (currentWeek && currentSeasonType) {
+      checkWeekStatus();
+    }
+  }, [currentWeek, currentSeasonType]);
+
+  const checkWeekStatus = async () => {
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      
+      // Get all games for the current week
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('winner')
+        .eq('week', currentWeek)
+        .eq('season_type', currentSeasonType)
+        .eq('season', 2025); // You might want to make this dynamic
+      
+      if (error) {
+        console.error('Error checking week status:', error);
+        return;
+      }
+      
+      // Check if all games have winners (completed)
+      const allGamesCompleted = games && games.length > 0 && games.every(game => game.winner);
+      setIsWeekCompleted(allGamesCompleted);
+      
+      if (allGamesCompleted) {
+        toast({
+          title: 'Week Already Completed',
+          description: `Week ${currentWeek} has already finished. Picks cannot be overridden for completed weeks.`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error checking week status:', error);
+    }
+  };
 
   const loadPoolParticipants = async (poolId: string) => {
     setIsLoadingParticipants(true);
@@ -522,6 +564,26 @@ function OverridePicksContent() {
         </p>
       </div>
 
+      {/* Week Status Warning */}
+      {isWeekCompleted && (
+        <div className="col-span-full mb-4">
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div>
+                  <h3 className="font-medium text-red-800">Week Already Completed</h3>
+                  <p className="text-sm text-red-700">
+                    Week {currentWeek} has already finished and all games have results. 
+                    Picks cannot be overridden for completed weeks.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Selection Panel */}
         <Card>
@@ -538,15 +600,19 @@ function OverridePicksContent() {
             {/* Pool Selection */}
             <div>
               <Label htmlFor="pool-select">Pool *</Label>
-              <Select value={selectedPool} onValueChange={(value) => {
-                console.log('Pool selected:', value);
-                setSelectedPool(value);
-                setSelectedParticipant('');
-                setParticipantPicks([]);
-                if (value) {
-                  loadPoolParticipants(value);
-                }
-              }}>
+              <Select 
+                value={selectedPool} 
+                onValueChange={(value) => {
+                  console.log('Pool selected:', value);
+                  setSelectedPool(value);
+                  setSelectedParticipant('');
+                  setParticipantPicks([]);
+                  if (value) {
+                    loadPoolParticipants(value);
+                  }
+                }}
+                disabled={isWeekCompleted}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a pool" />
                 </SelectTrigger>
@@ -569,13 +635,17 @@ function OverridePicksContent() {
                     Loading participants...
                   </div>
                 ) : (
-                  <Select value={selectedParticipant} onValueChange={(value) => {
-                    setSelectedParticipant(value);
-                    setParticipantPicks([]);
-                    if (value) {
-                      loadParticipantPicks(value);
-                    }
-                  }}>
+                  <Select 
+                    value={selectedParticipant} 
+                    onValueChange={(value) => {
+                      setSelectedParticipant(value);
+                      setParticipantPicks([]);
+                      if (value) {
+                        loadParticipantPicks(value);
+                      }
+                    }}
+                    disabled={isWeekCompleted}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select a participant" />
                     </SelectTrigger>
@@ -594,11 +664,15 @@ function OverridePicksContent() {
             {/* Override Mode Selection */}
             <div>
               <Label htmlFor="override-mode">Override Mode *</Label>
-              <Select value={overrideMode} onValueChange={(value: 'picks' | 'erase_all') => {
-                setOverrideMode(value);
-                setSelectedPicks(new Set());
-                setPickUpdates({});
-              }}>
+              <Select 
+                value={overrideMode} 
+                onValueChange={(value: 'picks' | 'erase_all') => {
+                  setOverrideMode(value);
+                  setSelectedPicks(new Set());
+                  setPickUpdates({});
+                }}
+                disabled={isWeekCompleted}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -626,6 +700,7 @@ function OverridePicksContent() {
                 className="resize-none"
                 rows={3}
                 maxLength={500}
+                disabled={isWeekCompleted}
               />
               <div className="text-xs text-gray-500 mt-1">
                 {overrideReason.length}/500 characters
@@ -715,11 +790,12 @@ function OverridePicksContent() {
                             isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
                           } ${isModified ? 'ring-2 ring-orange-300' : ''}`}>
                             <div className="flex items-start gap-2 mb-2">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={(checked) => handlePickSelection(pick.id, checked as boolean)}
-                                className="mt-0.5 flex-shrink-0"
-                              />
+                                                        <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => handlePickSelection(pick.id, checked as boolean)}
+                            className="mt-0.5 flex-shrink-0"
+                            disabled={isWeekCompleted}
+                          />
                               <div className="flex-1 min-w-0">
                                 <span className="font-medium text-sm break-words">
                                   {pick.away_team} @ {pick.home_team}
@@ -742,10 +818,11 @@ function OverridePicksContent() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div>
                                     <Label className="text-xs text-gray-600">Winner</Label>
-                                    <Select 
-                                      value={currentWinner} 
-                                      onValueChange={(value) => handlePickUpdate(pick.id, 'winner', value)}
-                                    >
+                                                                    <Select 
+                                  value={currentWinner} 
+                                  onValueChange={(value) => handlePickUpdate(pick.id, 'winner', value)}
+                                  disabled={isWeekCompleted}
+                                >
                                       <SelectTrigger className={`w-full h-8 ${isWinnerChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
                                         <SelectValue />
                                       </SelectTrigger>
@@ -758,10 +835,11 @@ function OverridePicksContent() {
                                   
                                   <div>
                                     <Label className="text-xs text-gray-600">Confidence</Label>
-                                    <Select 
-                                      value={currentConfidence.toString()} 
-                                      onValueChange={(value) => handlePickUpdate(pick.id, 'confidence', parseInt(value))}
-                                    >
+                                                                    <Select 
+                                  value={currentConfidence.toString()} 
+                                  onValueChange={(value) => handlePickUpdate(pick.id, 'confidence', parseInt(value))}
+                                  disabled={isWeekCompleted}
+                                >
                                       <SelectTrigger className={`w-full h-8 ${isConfidenceChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
                                         <SelectValue placeholder={currentConfidence === 0 ? "No Confidence" : undefined} />
                                       </SelectTrigger>
@@ -831,6 +909,7 @@ function OverridePicksContent() {
                           }
                         }}
                         className="mr-2"
+                        disabled={isWeekCompleted}
                       />
                       <Label className="text-sm font-medium text-red-700">
                         I understand the consequences and want to erase all picks
@@ -861,7 +940,8 @@ function OverridePicksContent() {
                 !selectedParticipant || 
                 !overrideReason.trim() || 
                 selectedPicks.size === 0 ||
-                isOverriding
+                isOverriding ||
+                isWeekCompleted
               }
               className="flex items-center gap-2"
             >
