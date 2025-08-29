@@ -15,6 +15,15 @@ import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle, X } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
 import { debugLog, DAYS_BEFORE_GAME, getShortTeamName } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface WeeklyPickProps {
   poolId: string;
@@ -35,6 +44,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string>('');
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -463,22 +474,69 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           onPicksSubmitted();
         }
       } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to submit picks',
-          variant: 'destructive',
-        });
+        // Show error dialog instead of toast for better visibility
+        setSubmissionError(result.error || 'Failed to submit picks');
+        setShowErrorDialog(true);
       }
     } catch (error: unknown) {
       console.error('Error submitting picks:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to submit picks',
-        variant: 'destructive',
-      });
+      setSubmissionError(error instanceof Error ? error.message : 'Failed to submit picks');
+      setShowErrorDialog(true);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Generate random picks for testing (development only)
+  const generateRandomPicks = () => {
+    if (!games.length) return;
+    
+    // Create a copy of current picks
+    const newPicks = [...picks];
+    
+    // Get available confidence points (1 to number of games)
+    const availablePoints = Array.from({ length: games.length }, (_, i) => i + 1);
+    
+    // Shuffle available points for random assignment
+    const shuffledPoints = availablePoints.sort(() => Math.random() - 0.5);
+    
+    games.forEach((game, index) => {
+      // Randomly pick home or away team
+      const teams = [game.home_team, game.away_team];
+      const randomTeam = teams[Math.random() < 0.5 ? 0 : 1];
+      
+      // Assign random confidence points
+      const randomPoints = shuffledPoints[index];
+      
+      // Find the pick for this game
+      const pickIndex = newPicks.findIndex(p => p.game_id === game.id);
+      if (pickIndex !== -1) {
+        newPicks[pickIndex] = {
+          ...newPicks[pickIndex],
+          predicted_winner: randomTeam,
+          confidence_points: randomPoints
+        };
+      }
+    });
+    
+    // Update picks state
+    setPicks(newPicks);
+    setHasUnsavedChanges(true);
+    
+    // Convert picks to StoredPick format with timestamps
+    const storedPicks = newPicks.map(pick => ({
+      ...pick,
+      timestamp: Date.now()
+    }));
+    
+    // Save to localStorage
+    pickStorage.savePicks(storedPicks, selectedUser!.id, poolId, currentWeek);
+    setLastSaved(new Date());
+    
+    toast({
+      title: 'Random Picks Generated',
+      description: `Generated random picks for ${games.length} games with shuffled confidence points`,
+    });
   };
 
   // Handle user change
@@ -762,6 +820,20 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           </div>
         )}
         
+        {/* Random Picks Button - Only show in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={generateRandomPicks}
+            disabled={isLoading || !isWeekUnlocked}
+            className="px-8 w-full sm:w-auto bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300"
+          >
+            🎲 Generate Random Picks
+          </Button>
+        )}
+        
         <Button 
           onClick={handleSubmit} 
           disabled={isLoading || !isWeekUnlocked}
@@ -807,6 +879,26 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         userName={selectedUser?.name || 'Unknown User'}
         userEmail={selectedUser?.email}
       />
+
+      {/* Error Dialog */}
+      <AlertDialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Submission Failed
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              {submissionError}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowErrorDialog(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
