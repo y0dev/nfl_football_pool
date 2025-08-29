@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
+import { debugLog, DAYS_BEFORE_GAME } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,13 +30,16 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
+    // Get game IDs for validation
+    const gameIds = picks.map(pick => pick.game_id);
+    
     // Check if participant has already submitted picks for this week
     const { data: existingPicks, error: checkError } = await supabase
       .from('picks')
       .select('id')
       .eq('participant_id', firstPick.participant_id)
       .eq('pool_id', firstPick.pool_id)
-      .eq('game_id', firstPick.game_id);
+      .in('game_id', gameIds); // Check all games in the week
     if (process.env.NODE_ENV === 'development') {
       console.log('Check error:', checkError);
     }
@@ -59,7 +63,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if games are locked
-    const gameIds = picks.map(pick => pick.game_id);
     
     const { data: games, error: gamesError } = await supabase
       .from('games')
@@ -77,14 +80,54 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const lockedGames = games?.filter(game => {
-      const kickoffTime = new Date(game.kickoff_time);
-      return kickoffTime <= now || game.status !== 'scheduled';
-    });
+    
+    // Week is locked if:
+    // 1. First game is more than DAYS_BEFORE_GAME days away (too early to submit)
+    // 2. First game has already started
+    // 3. First game status is not 'scheduled' (finished, in progress, etc.)
+    const firstGame = games?.[0];
+    let weekIsLocked = false;
+    let daysToKickoff = 0;
+    let firstGameKickoff: Date | null = null;
+    
+    if (firstGame) {
+      firstGameKickoff = new Date(firstGame.kickoff_time);
+      daysToKickoff = (firstGameKickoff.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // Week is locked if:
+      // - More than DAYS_BEFORE_GAME days before kickoff (too early to submit)
+      // - Game has already started (past kickoff time)
+      // - Game status is not 'scheduled' (finished, in progress, etc.)
+      weekIsLocked = daysToKickoff > DAYS_BEFORE_GAME || 
+                     firstGameKickoff <= now || 
+                     firstGame.status.toLowerCase() !== 'scheduled';
+      
+      debugLog('Week lock check:', {
+        firstGameId: firstGame.id,
+        kickoffTime: firstGameKickoff.toISOString(),
+        currentTime: now.toISOString(),
+        daysToKickoff: daysToKickoff.toFixed(2),
+        daysBeforeGame: DAYS_BEFORE_GAME,
+        weekIsLocked,
+        gameStatus: firstGame.status,
+        lockReason: daysToKickoff > DAYS_BEFORE_GAME ? 'Too early to submit' : 
+                   firstGameKickoff <= now ? 'Game started' : 
+                   firstGame.status.toLowerCase() !== 'scheduled' ? 'Game not scheduled' : 'Unknown'
+      });
+    }
 
-    if (lockedGames && lockedGames.length > 0) {
+    if (weekIsLocked) {
+      let errorMessage = 'Week is locked - ';
+      if (daysToKickoff > DAYS_BEFORE_GAME) {
+        errorMessage += `picks can only be submitted within ${DAYS_BEFORE_GAME} days of the first game (currently ${daysToKickoff.toFixed(1)} days away)`;
+      } else if (firstGameKickoff && firstGameKickoff <= now) {
+        errorMessage += 'games have already started';
+      } else if (firstGame && firstGame.status !== 'scheduled') {
+        errorMessage += `game status is '${firstGame.status.toLowerCase()}' (not scheduled)`;
+      }
+      
       return NextResponse.json(
-        { success: false, error: 'Some games are locked and cannot be picked' },
+        { success: false, error: errorMessage },
         { status: 400 }
       );
     }
