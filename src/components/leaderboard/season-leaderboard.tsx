@@ -17,9 +17,11 @@ interface SeasonLeaderboardEntry {
 interface SeasonLeaderboardProps {
   poolId: string;
   season: number;
+  currentWeek?: number;
+  currentSeasonType?: number;
 }
 
-export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
+export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonType }: SeasonLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<SeasonLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}`);
+        const response = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${currentWeek || ''}&currentSeasonType=${currentSeasonType || ''}`);
         
         if (!response.ok) {
           throw new Error(`Failed to load season leaderboard: ${response.status}`);
@@ -54,7 +56,7 @@ export function SeasonLeaderboard({ poolId, season }: SeasonLeaderboardProps) {
     if (poolId && season) {
       loadSeasonLeaderboard();
     }
-  }, [poolId, season]);
+  }, [poolId, season, currentWeek, currentSeasonType]);
 
   if (isLoading) {
     return (

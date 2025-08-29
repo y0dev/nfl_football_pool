@@ -15,10 +15,10 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { getPoolParticipants } from '@/actions/adminActions';
-import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK } from '@/lib/utils';
+import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK, debugLog } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -46,7 +46,7 @@ interface Pick {
 }
 
 function OverridePicksContent() {
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -63,10 +63,14 @@ function OverridePicksContent() {
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
   const [selectedPicks, setSelectedPicks] = useState<Set<string>>(new Set());
   const [pickUpdates, setPickUpdates] = useState<{[key: string]: {winner: string, confidence: number}}>({});
+  const [overrideMode, setOverrideMode] = useState<'picks' | 'erase_all'>('picks');
   const [overrideReason, setOverrideReason] = useState('');
   const [isOverriding, setIsOverriding] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [usedConfidenceNumbers, setUsedConfidenceNumbers] = useState<Set<number>>(new Set());
+  const [isWeekCompleted, setIsWeekCompleted] = useState(false);
+  const [showEraseSuccessDialog, setShowEraseSuccessDialog] = useState(false);
+  const [erasedPicksCount, setErasedPicksCount] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -74,12 +78,14 @@ function OverridePicksContent() {
         setIsLoading(true);
         
         // Load current week
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
-        setCurrentSeasonType(weekData?.season_type || 2);
+        const weekData = await getUpcomingWeek();
+        debugLog('Week data:', weekData);
+        setCurrentWeek(weekData?.week || 1);
+        setCurrentSeasonType(weekData?.seasonType || 2);
         
-        // Load pools
-        const poolsData = await loadPools(user?.email, user?.is_super_admin || false);
+        // Load pools - check if user is super admin
+        const isSuperAdmin = await verifyAdminStatus(true);
+        const poolsData = await loadPools(user?.email, isSuperAdmin);
         console.log('Pools loaded:', poolsData);
         setPools(poolsData);
 
@@ -104,6 +110,37 @@ function OverridePicksContent() {
     loadData();
   }, [user]);
 
+  // Check if current week is completed
+  useEffect(() => {
+    if (currentWeek && currentSeasonType) {
+      checkWeekStatus();
+    }
+  }, [currentWeek, currentSeasonType]);
+
+  const checkWeekStatus = async () => {
+    try {
+      const response = await fetch(`/api/admin/week-status?week=${currentWeek}&season_type=${currentSeasonType}&season=2025`);
+      
+      if (!response.ok) {
+        console.error('Error checking week status:', response.statusText);
+        return;
+      }
+      
+      const data = await response.json();
+      setIsWeekCompleted(data.isCompleted);
+      
+      if (data.isCompleted) {
+        toast({
+          title: 'Week Already Completed',
+          description: `Week ${currentWeek} has already finished. Picks cannot be overridden for completed weeks.`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error checking week status:', error);
+    }
+  };
+
   const loadPoolParticipants = async (poolId: string) => {
     setIsLoadingParticipants(true);
     try {
@@ -127,32 +164,10 @@ function OverridePicksContent() {
     
     setIsLoadingPicks(true);
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const response = await fetch(`/api/admin/participant-picks?participant_id=${participantId}&pool_id=${selectedPool}&week=${currentWeek}&season_type=${currentSeasonType}`);
       
-      // Get participant's picks for current week
-      const { data: picksData, error } = await supabase
-        .from('picks')
-        .select(`
-          id,
-          game_id,
-          predicted_winner,
-          confidence_points,
-          games!inner(
-            home_team,
-            away_team,
-            week,
-            season_type
-          )
-        `)
-        .eq('participant_id', participantId)
-        .eq('pool_id', selectedPool)
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType)
-        .order('confidence_points', { ascending: false });
-      
-      if (error) {
-        console.error('Error loading participant picks:', error);
+      if (!response.ok) {
+        console.error('Error loading participant picks:', response.statusText);
         toast({
           title: 'Error',
           description: 'Failed to load participant picks',
@@ -161,55 +176,20 @@ function OverridePicksContent() {
         return;
       }
 
-      if (!picksData || picksData.length === 0) {
+      const data = await response.json();
+      
+      if (!data.picks || data.picks.length === 0) {
         setParticipantPicks([]);
         setUsedConfidenceNumbers(new Set());
         return;
       }
 
-      // Get game details for the picks
-      const gameIds = picksData.map(pick => pick.game_id);
-      const { data: gamesData, error: gamesError } = await supabase
-        .from('games')
-        .select('id, home_team, away_team')
-        .in('id', gameIds);
-
-      if (gamesError) {
-        console.error('Error loading games:', gamesError);
-        toast({
-          title: 'Error',
-          description: 'Failed to load game details',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Create a map of game details
-      const gamesMap = new Map(gamesData?.map(game => [game.id, game]) || []);
-      
-      // Combine picks with game details
-      const picks = picksData
-        .map(pick => {
-          const game = gamesMap.get(pick.game_id);
-          if (!game) return null;
-          
-          return {
-            id: pick.id,
-            game_id: pick.game_id,
-            home_team: game.home_team,
-            away_team: game.away_team,
-            confidence: pick.confidence_points,
-            winner: pick.predicted_winner
-          };
-        })
-        .filter(pick => pick !== null) as Pick[];
-      
-      setParticipantPicks(picks);
+      setParticipantPicks(data.picks);
       setSelectedPicks(new Set());
       setPickUpdates({});
       
       // Track used confidence numbers (exclude 0 values)
-      const usedNumbers = new Set(picks.map(pick => pick.confidence).filter(conf => conf !== 0));
+      const usedNumbers = new Set(data.usedConfidenceNumbers as number[]);
       setUsedConfidenceNumbers(usedNumbers);
     } catch (error) {
       console.error('Error loading participant picks:', error);
@@ -297,122 +277,93 @@ function OverridePicksContent() {
     if (selectedPicks.size === 0) {
       toast({
         title: 'No Picks Selected',
-        description: 'Please select at least one pick to override',
+        description: overrideMode === 'picks' 
+          ? 'Please select at least one pick to override'
+          : 'Please confirm that you want to erase all picks',
         variant: 'destructive',
       });
       return;
     }
 
-    // Check for missing or duplicate confidence numbers
-    const confidenceNumbers = new Set<number>();
-    const duplicates: string[] = [];
-    const missingConfidence: string[] = [];
-    
-    Object.entries(pickUpdates).forEach(([pickId, update]) => {
-      const pick = participantPicks.find(p => p.id === pickId);
-      if (pick) {
-        // Check for missing confidence
-        if (update.confidence === 0) {
-          missingConfidence.push(`${pick.away_team} @ ${pick.home_team}`);
-        }
-        // Check for duplicates (only if confidence is not 0)
-        else if (update.confidence) {
-          if (confidenceNumbers.has(update.confidence)) {
-            duplicates.push(`${pick.away_team} @ ${pick.home_team} (${update.confidence})`);
-          } else {
-            confidenceNumbers.add(update.confidence);
+    // For picks mode, check for missing or duplicate confidence numbers
+    if (overrideMode === 'picks') {
+      const confidenceNumbers = new Set<number>();
+      const duplicates: string[] = [];
+      const missingConfidence: string[] = [];
+      
+      Object.entries(pickUpdates).forEach(([pickId, update]) => {
+        const pick = participantPicks.find(p => p.id === pickId);
+        if (pick) {
+          // Check for missing confidence
+          if (update.confidence === 0) {
+            missingConfidence.push(`${pick.away_team} @ ${pick.home_team}`);
+          }
+          // Check for duplicates (only if confidence is not 0)
+          else if (update.confidence) {
+            if (confidenceNumbers.has(update.confidence)) {
+              duplicates.push(`${pick.away_team} @ ${pick.home_team} (${update.confidence})`);
+            } else {
+              confidenceNumbers.add(update.confidence);
+            }
           }
         }
+      });
+
+      if (missingConfidence.length > 0) {
+        toast({
+          title: 'Missing Confidence Numbers',
+          description: `The following picks need confidence numbers assigned: ${missingConfidence.join(', ')}`,
+          variant: 'destructive',
+        });
+        return;
       }
-    });
 
-    if (missingConfidence.length > 0) {
-      toast({
-        title: 'Missing Confidence Numbers',
-        description: `The following picks need confidence numbers assigned: ${missingConfidence.join(', ')}`,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (duplicates.length > 0) {
-      toast({
-        title: 'Duplicate Confidence Numbers',
-        description: `The following picks have duplicate confidence numbers: ${duplicates.join(', ')}`,
-        variant: 'destructive',
-      });
-      return;
+      if (duplicates.length > 0) {
+        toast({
+          title: 'Duplicate Confidence Numbers',
+          description: `The following picks have duplicate confidence numbers: ${duplicates.join(', ')}`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsOverriding(true);
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      // Call the API route instead of direct database calls
+      const response = await fetch('/api/admin/override-picks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId: selectedPool,
+          participantId: selectedParticipant,
+          week: currentWeek,
+          seasonType: currentSeasonType,
+          overrideMode,
+          overrideReason,
+          pickUpdates: overrideMode === 'picks' ? pickUpdates : undefined,
+          adminId: user.id
+        }),
+      });
 
-      // Update specific picks
-      const updates = Object.entries(pickUpdates).map(([pickId, update]) => ({
-        id: pickId,
-        winner: update.winner,
-        confidence: update.confidence
-      }));
-      
-      for (const update of updates) {
-        const { error: updateError } = await supabase
-          .from('picks')
-          .update({
-            predicted_winner: update.winner,
-            confidence_points: update.confidence,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', update.id);
-        
-        if (updateError) {
-          throw updateError;
-        }
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to override picks');
       }
 
-      // Log the override action
-      const participant = participants.find(p => p.id === selectedParticipant);
-      const pool = pools.find(p => p.id === selectedPool);
-      
-      const auditDetails = {
-        pool_name: pool?.name || 'Unknown Pool',
-        participant_name: participant?.name || 'Unknown Participant',
-        participant_email: participant?.email || 'Unknown Email',
-        week: currentWeek,
-        season_type: currentSeasonType,
-        override_reason: overrideReason,
-        override_type: 'specific_picks',
-        overridden_by: user.is_super_admin ? 'super_admin' : 'pool_admin',
-        overridden_at: new Date().toISOString(),
-        updated_picks: Object.entries(pickUpdates).map(([pickId, update]) => {
-          const pick = participantPicks.find(p => p.id === pickId);
-          return {
-            pick_id: pickId,
-            game: pick ? `${pick.away_team} @ ${pick.home_team}` : 'Unknown Game',
-            old_winner: pick?.winner || 'Unknown',
-            new_winner: update.winner,
-            old_confidence: pick?.confidence || 0,
-            new_confidence: update.confidence
-          };
-        })
-      };
-
-      await supabase
-        .from('audit_logs')
-        .insert({
-          action: 'override_pool_picks',
-          admin_id: user.id,
-          pool_id: selectedPool,
-          details: JSON.stringify(auditDetails),
-          created_at: new Date().toISOString()
+      if (overrideMode === 'picks') {
+        toast({
+          title: 'Picks Updated',
+          description: result.message,
         });
-
-      const pickCount = Object.keys(pickUpdates).length;
-      toast({
-        title: 'Picks Updated',
-        description: `${pickCount} pick${pickCount !== 1 ? 's' : ''} have been successfully updated.`,
-      });
+      } else {
+        // For erase all picks, show success dialog instead of just toast
+        setErasedPicksCount(result.erasedCount || participantPicks.length);
+        setShowEraseSuccessDialog(true);
+      }
 
       // Reset form
       setOverrideReason('');
@@ -459,11 +410,36 @@ function OverridePicksContent() {
             <span className="sm:hidden">Back</span>
           </Button>
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold">Override Participant Picks</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">
+          {overrideMode === 'picks' ? 'Override Participant Picks' : 'Erase All Participant Picks'}
+        </h1>
         <p className="text-sm sm:text-base text-gray-600">
-          Select a pool, participant, and specific picks to override for Week {currentWeek}
+          {overrideMode === 'picks' 
+            ? `Select a pool, participant, and specific picks to override for Week ${currentWeek}`
+            : `Select a pool and participant to erase all their picks for Week ${currentWeek}`
+          }
         </p>
       </div>
+
+      {/* Week Status Warning */}
+      {isWeekCompleted && (
+        <div className="col-span-full mb-4">
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div>
+                  <h3 className="font-medium text-red-800">Week Already Completed</h3>
+                  <p className="text-sm text-red-700">
+                    Week {currentWeek} has already finished and all games have results. 
+                    Picks cannot be overridden for completed weeks.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Selection Panel */}
@@ -481,15 +457,19 @@ function OverridePicksContent() {
             {/* Pool Selection */}
             <div>
               <Label htmlFor="pool-select">Pool *</Label>
-              <Select value={selectedPool} onValueChange={(value) => {
-                console.log('Pool selected:', value);
-                setSelectedPool(value);
-                setSelectedParticipant('');
-                setParticipantPicks([]);
-                if (value) {
-                  loadPoolParticipants(value);
-                }
-              }}>
+              <Select 
+                value={selectedPool} 
+                onValueChange={(value) => {
+                  console.log('Pool selected:', value);
+                  setSelectedPool(value);
+                  setSelectedParticipant('');
+                  setParticipantPicks([]);
+                  if (value) {
+                    loadPoolParticipants(value);
+                  }
+                }}
+                disabled={isWeekCompleted}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a pool" />
                 </SelectTrigger>
@@ -512,13 +492,17 @@ function OverridePicksContent() {
                     Loading participants...
                   </div>
                 ) : (
-                  <Select value={selectedParticipant} onValueChange={(value) => {
-                    setSelectedParticipant(value);
-                    setParticipantPicks([]);
-                    if (value) {
-                      loadParticipantPicks(value);
-                    }
-                  }}>
+                  <Select 
+                    value={selectedParticipant} 
+                    onValueChange={(value) => {
+                      setSelectedParticipant(value);
+                      setParticipantPicks([]);
+                      if (value) {
+                        loadParticipantPicks(value);
+                      }
+                    }}
+                    disabled={isWeekCompleted}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select a participant" />
                     </SelectTrigger>
@@ -534,6 +518,34 @@ function OverridePicksContent() {
               </div>
             )}
 
+            {/* Override Mode Selection */}
+            <div>
+              <Label htmlFor="override-mode">Override Mode *</Label>
+              <Select 
+                value={overrideMode} 
+                onValueChange={(value: 'picks' | 'erase_all') => {
+                  setOverrideMode(value);
+                  setSelectedPicks(new Set());
+                  setPickUpdates({});
+                }}
+                disabled={isWeekCompleted}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="picks">Override Specific Picks</SelectItem>
+                  <SelectItem value="erase_all">Erase All Picks</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-gray-500 mt-1">
+                {overrideMode === 'picks' 
+                  ? 'Select and modify specific picks to override'
+                  : 'Remove all picks for the selected participant'
+                }
+              </div>
+            </div>
+
             {/* Reason Input */}
             <div>
               <Label htmlFor="override-reason">Reason for Override *</Label>
@@ -545,6 +557,7 @@ function OverridePicksContent() {
                 className="resize-none"
                 rows={3}
                 maxLength={500}
+                disabled={isWeekCompleted}
               />
               <div className="text-xs text-gray-500 mt-1">
                 {overrideReason.length}/500 characters
@@ -558,10 +571,13 @@ function OverridePicksContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Picks Selection
+              {overrideMode === 'picks' ? 'Picks Selection' : 'Erase All Picks'}
             </CardTitle>
             <CardDescription>
-              Select and modify specific picks to override
+              {overrideMode === 'picks' 
+                ? 'Select and modify specific picks to override'
+                : 'Remove all picks for the selected participant'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -582,138 +598,182 @@ function OverridePicksContent() {
               </div>
             ) : (
               <div>
-                {/* Confidence Numbers Summary */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Confidence Numbers Status</h4>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
-                    {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
-                      const isUsed = usedConfidenceNumbers.has(num);
-                      return (
-                        <div
-                          key={num}
-                          className={`text-xs p-1 text-center rounded ${
-                            isUsed 
-                              ? 'bg-red-100 text-red-700 border border-red-200' 
-                              : 'bg-green-100 text-green-700 border border-green-200'
-                          }`}
-                        >
-                          {num}
+                {overrideMode === 'picks' ? (
+                  <>
+                    {/* Confidence Numbers Summary */}
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Confidence Numbers Status</h4>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
+                        {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
+                          const isUsed = usedConfidenceNumbers.has(num);
+                          return (
+                            <div
+                              key={num}
+                              className={`text-xs p-1 text-center rounded ${
+                                isUsed 
+                                  ? 'bg-red-100 text-red-700 border border-red-200' 
+                                  : 'bg-green-100 text-green-700 border border-green-200'
+                              }`}
+                            >
+                              {num}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
+                          <span>Available</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
-                      <span>Available</span>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
+                          <span>Used</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-                      <span>Used</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {participantPicks.map((pick) => {
-                    const isSelected = selectedPicks.has(pick.id);
-                    const update = pickUpdates[pick.id];
-                    const currentWinner = update?.winner || pick.winner;
-                    const currentConfidence = update?.confidence !== undefined ? update.confidence : pick.confidence;
-                    const isConfidenceChanged = update?.confidence !== undefined && update.confidence !== pick.confidence;
-                    const isWinnerChanged = update?.winner !== undefined && update.winner !== pick.winner;
-                    const isModified = isConfidenceChanged || isWinnerChanged;
                     
-                    return (
-                      <div key={pick.id} className={`border rounded-lg p-3 transition-all duration-200 ${
-                        isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
-                      } ${isModified ? 'ring-2 ring-orange-300' : ''}`}>
-                        <div className="flex items-start gap-2 mb-2">
-                          <Checkbox
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {participantPicks.map((pick) => {
+                        const isSelected = selectedPicks.has(pick.id);
+                        const update = pickUpdates[pick.id];
+                        const currentWinner = update?.winner || pick.winner;
+                        const currentConfidence = update?.confidence !== undefined ? update.confidence : pick.confidence;
+                        const isConfidenceChanged = update?.confidence !== undefined && update.confidence !== pick.confidence;
+                        const isWinnerChanged = update?.winner !== undefined && update.winner !== pick.winner;
+                        const isModified = isConfidenceChanged || isWinnerChanged;
+                        
+                        return (
+                          <div key={pick.id} className={`border rounded-lg p-3 transition-all duration-200 ${
+                            isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+                          } ${isModified ? 'ring-2 ring-orange-300' : ''}`}>
+                            <div className="flex items-start gap-2 mb-2">
+                                                        <Checkbox
                             checked={isSelected}
                             onCheckedChange={(checked) => handlePickSelection(pick.id, checked as boolean)}
                             className="mt-0.5 flex-shrink-0"
+                            disabled={isWeekCompleted}
                           />
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-sm break-words">
-                              {pick.away_team} @ {pick.home_team}
-                            </span>
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
-                              <span className="text-xs text-gray-500">
-                                Current: {pick.winner} ({pick.confidence || 'No Confidence'})
-                              </span>
-                              {isModified && (
-                                <Badge variant="destructive" className="text-xs w-fit">
-                                  Modified
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {isSelected && (
-                          <div className="space-y-3 ml-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div>
-                                <Label className="text-xs text-gray-600">Winner</Label>
-                                <Select 
-                                  value={currentWinner} 
-                                  onValueChange={(value) => handlePickUpdate(pick.id, 'winner', value)}
-                                >
-                                  <SelectTrigger className={`w-full h-8 ${isWinnerChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                                                  <SelectContent position="popper" side="bottom" align="start">
-                                  <SelectItem value={pick.home_team}>{pick.home_team}</SelectItem>
-                                  <SelectItem value={pick.away_team}>{pick.away_team}</SelectItem>
-                                </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div>
-                                <Label className="text-xs text-gray-600">Confidence</Label>
-                                <Select 
-                                  value={currentConfidence.toString()} 
-                                  onValueChange={(value) => handlePickUpdate(pick.id, 'confidence', parseInt(value))}
-                                >
-                                  <SelectTrigger className={`w-full h-8 ${isConfidenceChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
-                                    <SelectValue placeholder={currentConfidence === 0 ? "No Confidence" : undefined} />
-                                  </SelectTrigger>
-                                                                  <SelectContent position="popper" side="bottom" align="start" className="max-h-60">
-                                  <SelectItem value="0" className="text-gray-500 border-t">
-                                    -- Clear Confidence --
-                                  </SelectItem>
-                                  {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
-                                    const isUsed = usedConfidenceNumbers.has(num) && num !== pick.confidence && num !== (pickUpdates[pick.id]?.confidence || 0);
-                                    return (
-                                      <SelectItem 
-                                        key={num} 
-                                        value={num.toString()}
-                                        className={isUsed ? 'text-gray-400 line-through' : ''}
-                                        disabled={isUsed}
-                                      >
-                                        {num} {isUsed ? '(Used)' : ''}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                                </Select>
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-sm break-words">
+                                  {pick.away_team} @ {pick.home_team}
+                                </span>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    Current: {pick.winner} ({pick.confidence || 'No Confidence'})
+                                  </span>
+                                  {isModified && (
+                                    <Badge variant="destructive" className="text-xs w-fit">
+                                      Modified
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             
-                            {isModified && (
-                              <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                                <strong>Changes:</strong>
-                                {isWinnerChanged && <div>• Winner: {pick.winner} → {currentWinner}</div>}
-                                {isConfidenceChanged && <div>• Confidence: {pick.confidence} → {currentConfidence === 0 ? 'No Confidence' : currentConfidence}</div>}
+                            {isSelected && (
+                              <div className="space-y-3 ml-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs text-gray-600">Winner</Label>
+                                                                    <Select 
+                                  value={currentWinner} 
+                                  onValueChange={(value) => handlePickUpdate(pick.id, 'winner', value)}
+                                  disabled={isWeekCompleted}
+                                >
+                                      <SelectTrigger className={`w-full h-8 ${isWinnerChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent position="popper" side="bottom" align="start">
+                                        <SelectItem value={pick.home_team}>{pick.home_team}</SelectItem>
+                                        <SelectItem value={pick.away_team}>{pick.away_team}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  
+                                  <div>
+                                    <Label className="text-xs text-gray-600">Confidence</Label>
+                                                                    <Select 
+                                  value={currentConfidence.toString()} 
+                                  onValueChange={(value) => handlePickUpdate(pick.id, 'confidence', parseInt(value))}
+                                  disabled={isWeekCompleted}
+                                >
+                                      <SelectTrigger className={`w-full h-8 ${isConfidenceChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
+                                        <SelectValue placeholder={currentConfidence === 0 ? "No Confidence" : undefined} />
+                                      </SelectTrigger>
+                                      <SelectContent position="popper" side="bottom" align="start" className="max-h-60">
+                                        <SelectItem value="0" className="text-gray-500 border-t">
+                                          -- Clear Confidence --
+                                        </SelectItem>
+                                        {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
+                                          const isUsed = usedConfidenceNumbers.has(num) && num !== pick.confidence && num !== (pickUpdates[pick.id]?.confidence || 0);
+                                          return (
+                                            <SelectItem 
+                                              key={num} 
+                                              value={num.toString()}
+                                              className={isUsed ? 'text-gray-400 line-through' : ''}
+                                              disabled={isUsed}
+                                            >
+                                              {num} {isUsed ? '(Used)' : ''}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                
+                                {isModified && (
+                                  <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                                    <strong>Changes:</strong>
+                                    {isWinnerChanged && <div>• Winner: {pick.winner} → {currentWinner}</div>}
+                                    {isConfidenceChanged && <div>• Confidence: {pick.confidence} → {currentConfidence === 0 ? 'No Confidence' : currentConfidence}</div>}</div>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  /* Erase All Picks Mode */
+                  <div className="text-center py-8">
+                    <div className="mb-4">
+                      <AlertCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
+                      <h3 className="text-lg font-semibold text-red-700 mb-2">⚠️ Warning: Erase All Picks</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This will permanently remove <strong>all {participantPicks.length} picks</strong> for this participant <strong>{participants.find(p => p.id === selectedParticipant)?.name}</strong> in Week {currentWeek}.
+                      </p>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+                        <h4 className="font-medium text-red-800 mb-2">What will happen:</h4>
+                        <ul className="text-sm text-red-700 space-y-1">
+                          <li>• All picks for {participantPicks.length} games will be deleted</li>
+                          <li>• Confidence points will be reset and available for reuse</li>
+                          <li>• Participant will need to resubmit all picks</li>
+                          <li>• This action cannot be undone</li>
+                        </ul>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={selectedPicks.size > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedPicks(new Set(participantPicks.map(pick => pick.id)));
+                          } else {
+                            setSelectedPicks(new Set());
+                          }
+                        }}
+                        className="mr-2"
+                        disabled={isWeekCompleted}
+                      />
+                      <Label className="text-sm font-medium text-red-700">
+                        I understand the consequences and want to erase all picks
+                      </Label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -737,20 +797,28 @@ function OverridePicksContent() {
                 !selectedParticipant || 
                 !overrideReason.trim() || 
                 selectedPicks.size === 0 ||
-                isOverriding
+                isOverriding ||
+                isWeekCompleted
               }
               className="flex items-center gap-2"
             >
               <Save className="h-4 w-4" />
-              {isOverriding ? 'Updating...' : 'Update Selected Picks'}
+              {isOverriding 
+                ? (overrideMode === 'picks' ? 'Updating...' : 'Deleting...') 
+                : (overrideMode === 'picks' ? 'Update Selected Picks' : 'Erase All Picks')
+              }
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Pick Override</AlertDialogTitle>
+              <AlertDialogTitle>
+                {overrideMode === 'picks' ? 'Confirm Pick Override' : 'Confirm Erase All Picks'}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to override {selectedPicks.size} pick{selectedPicks.size !== 1 ? 's' : ''}? 
-                This action will update the selected picks with the new values.
+                {overrideMode === 'picks' 
+                  ? `Are you sure you want to override ${selectedPicks.size} pick${selectedPicks.size !== 1 ? 's' : ''}? This action will update the selected picks with the new values.`
+                  : `Are you sure you want to permanently erase ALL ${participantPicks.length} picks for this participant? This action cannot be undone and will require the participant to resubmit all picks.`
+                }
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -760,12 +828,62 @@ function OverridePicksContent() {
                 className="bg-red-600 hover:bg-red-700"
                 disabled={isOverriding}
               >
-                {isOverriding ? 'Updating...' : 'Confirm Override'}
+                {isOverriding 
+                  ? (overrideMode === 'picks' ? 'Updating...' : 'Deleting...') 
+                  : (overrideMode === 'picks' ? 'Confirm Override' : 'Confirm Erase All')
+                }
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* Erase Success Dialog */}
+      <AlertDialog open={showEraseSuccessDialog} onOpenChange={setShowEraseSuccessDialog}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              Picks Successfully Erased
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              All picks have been permanently removed for the selected participant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-4">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="font-medium">Participant:</span>
+                <span className="text-green-700">
+                  {participants.find(p => p.id === selectedParticipant)?.name || 'Unknown'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Pool:</span>
+                <span className="text-green-700">
+                  {pools.find(p => p.id === selectedPool)?.name || 'Unknown'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Week:</span>
+                <span className="text-green-700">{currentWeek}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Picks Erased:</span>
+                <span className="text-green-700 font-bold">{erasedPicksCount}</span>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => setShowEraseSuccessDialog(false)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -778,4 +896,5 @@ export default function OverridePicksPage() {
       </AdminGuard>
     </AuthProvider>
   );
+
 }

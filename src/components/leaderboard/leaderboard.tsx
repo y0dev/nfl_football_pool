@@ -138,7 +138,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                         }`}>
                           {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
                   </div>
-                        <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono ${
+                        <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono min-w-[1.5rem] text-center ${
                           confidence === 0 ? 'bg-gray-100 text-gray-500' :
                           isGameInProgress ? 'bg-blue-100 text-blue-800' :
                           !isGameFinal ? 'bg-yellow-100 text-yellow-800' :
