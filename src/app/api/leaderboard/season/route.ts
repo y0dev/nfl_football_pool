@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
+    const currentWeek = searchParams.get('currentWeek');
+    const currentSeasonType = searchParams.get('currentSeasonType');
 
     if (!poolId || !season) {
       return NextResponse.json(
@@ -39,12 +41,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all games for the season to determine available weeks
-    const { data: games, error: gamesError } = await supabase
+    // Get games for the season up to the current week and season type
+    let gamesQuery = supabase
       .from('games')
       .select('week, season_type')
       .eq('season', parseInt(season))
       .order('week', { ascending: true });
+
+    // If current week and season type are provided, filter games up to that point
+    if (currentWeek && currentSeasonType) {
+      const currentWeekNum = parseInt(currentWeek);
+      const currentSeasonTypeNum = parseInt(currentSeasonType);
+      
+      // Filter games up to the current week within the current season type
+      gamesQuery = gamesQuery
+        .lte('week', currentWeekNum)
+        .eq('season_type', currentSeasonTypeNum);
+    }
+
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       console.error('Error fetching games:', gamesError);
@@ -54,7 +69,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get unique weeks from games
+    // Get unique weeks from games, grouped by season type
     const availableWeeks = [...new Set(games.map(g => g.week))];
 
     // Build season leaderboard by calculating scores from picks for each week
@@ -139,6 +154,9 @@ export async function GET(request: NextRequest) {
       season: parseInt(season),
       total_weeks: availableWeeks.length,
       participants_count: participants.length,
+      current_week: currentWeek ? parseInt(currentWeek) : null,
+      current_season_type: currentSeasonType ? parseInt(currentSeasonType) : null,
+      weeks_included: availableWeeks.sort((a, b) => a - b),
     });
 
   } catch (error) {

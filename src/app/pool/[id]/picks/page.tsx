@@ -1296,11 +1296,16 @@ function PoolPicksContent() {
                 Season {poolSeason} Overall Standings
               </CardTitle>
               <CardDescription className="text-blue-700">
-                Total accumulated scores across all completed weeks
+                Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SeasonLeaderboard poolId={poolId} season={poolSeason} />
+              <SeasonLeaderboard 
+                poolId={poolId} 
+                season={poolSeason} 
+                currentWeek={currentWeek}
+                currentSeasonType={currentSeasonType}
+              />
             </CardContent>
           </Card>
         </div>
@@ -1810,11 +1815,16 @@ function PoolPicksContent() {
                   Season {poolSeason} Overall Standings
                 </CardTitle>
                 <CardDescription className="text-blue-700">
-                  Total accumulated scores across all completed weeks
+                  Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <SeasonLeaderboard poolId={poolId} season={poolSeason} />
+                <SeasonLeaderboard 
+                  poolId={poolId} 
+                  season={poolSeason} 
+                  currentWeek={currentWeek}
+                  currentSeasonType={currentSeasonType}
+                />
               </CardContent>
             </Card>
           )}
