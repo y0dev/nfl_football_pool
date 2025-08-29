@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 function AdminDashboardContent() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -53,6 +53,7 @@ function AdminDashboardContent() {
   const [isImporting, setIsImporting] = useState(false);
   const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -60,11 +61,19 @@ function AdminDashboardContent() {
         const { week, seasonType } = await getUpcomingWeek();
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
-        await loadDashboardStats();
-        generateNotifications();
-        if (user?.is_super_admin) {
-          await loadAdmins();
+        
+        // Check admin status
+        if (user) {
+          const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
+          
+          if (superAdminStatus) {
+            await loadAdmins();
+          }
         }
+        
+        // Don't call loadDashboardStats here - wait for isSuperAdmin to be set
+        // generateNotifications will be called after loadDashboardStats
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -73,14 +82,14 @@ function AdminDashboardContent() {
     };
 
     loadData();
-  }, [user]);
+  }, [user, verifyAdminStatus]);
 
   useEffect(() => {
-    if (currentWeek && currentSeasonType) {
+    if (currentWeek && currentSeasonType && isSuperAdmin !== undefined) {
       loadDashboardStats();
       generateNotifications();
     }
-  }, [currentWeek, currentSeasonType]);
+  }, [currentWeek, currentSeasonType, isSuperAdmin]);
 
   const loadDashboardStats = async () => {
     try {
@@ -90,7 +99,7 @@ function AdminDashboardContent() {
         currentWeek,
         currentSeasonType,
         user.email,
-        user.is_super_admin || false
+        isSuperAdmin
       );
       
       setDashboardStats(stats);
@@ -98,7 +107,7 @@ function AdminDashboardContent() {
       // Also load available pools for the pool selection
       const pools = await adminService.getActivePools(
         user.email,
-        user.is_super_admin || false
+        isSuperAdmin
       );
       console.log('stats pools', pools);
       setAvailablePools(pools);
@@ -113,7 +122,7 @@ function AdminDashboardContent() {
   };
 
   const loadAdmins = async () => {
-    if (!user?.is_super_admin) return;
+    if (!isSuperAdmin) return;
     
     try {
       const adminsData = await adminService.getAdmins();
@@ -179,15 +188,20 @@ function AdminDashboardContent() {
   const generateNotifications = () => {
     const newNotifications: string[] = [];
     
-    // Only show notifications if admin has pools
+    // Only show notifications if admin has pools to manage
     if (dashboardStats.totalPools === 0) {
-      newNotifications.push('You haven\'t created any pools yet. Create your first pool to get started!');
+      if (isSuperAdmin) {
+        newNotifications.push('No active pools found in the system. Create a pool to get started!');
+      } else {
+        newNotifications.push('You haven\'t created any pools yet. Create your first pool to get started!');
+      }
       setNotifications(newNotifications);
       return;
     }
     
     if (dashboardStats.pendingSubmissions > 0) {
-      newNotifications.push(`${dashboardStats.pendingSubmissions} participants haven't submitted picks for Week ${currentWeek}`);
+      const poolText = isSuperAdmin ? 'participants across all pools' : 'participants';
+      newNotifications.push(`${dashboardStats.pendingSubmissions} ${poolText} haven't submitted picks for Week ${currentWeek}`);
     }
     
     if (dashboardStats.totalGames === 0) {
@@ -195,16 +209,19 @@ function AdminDashboardContent() {
     }
     
     if (dashboardStats.activePools === 0) {
-      newNotifications.push('All your pools are currently inactive');
+      const poolText = isSuperAdmin ? 'pools in the system are' : 'your pools are';
+      newNotifications.push(`All ${poolText} currently inactive`);
     }
     
     // Add admin-specific notifications
     if (dashboardStats.totalParticipants === 0) {
-      newNotifications.push('No participants have joined your pools yet');
+      const participantText = isSuperAdmin ? 'No participants have joined any pools yet' : 'No participants have joined your pools yet';
+      newNotifications.push(participantText);
     }
     
     if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0) {
-      newNotifications.push('All participants have submitted their picks for this week!');
+      const completionText = isSuperAdmin ? 'All participants across all pools have submitted their picks for this week!' : 'All participants have submitted their picks for this week!';
+      newNotifications.push(completionText);
     }
     
     setNotifications(newNotifications);
@@ -340,7 +357,7 @@ function AdminDashboardContent() {
       
       const pools = await adminService.getActivePools(
         user.email,
-        user.is_super_admin || false
+        isSuperAdmin
       );
 
       if (!pools || pools.length === 0) {
@@ -384,7 +401,7 @@ function AdminDashboardContent() {
       
       const pools = await adminService.getActivePools(
         user.email,
-        user.is_super_admin || false
+        isSuperAdmin
       );
       console.log('pools', pools);
 
@@ -698,10 +715,10 @@ function AdminDashboardContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
-              {user?.is_super_admin ? 'Admin Dashboard' : 'My Dashboard'}
+              {isSuperAdmin ? 'Admin Dashboard' : 'My Dashboard'}
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
-              {user?.is_super_admin 
+              {isSuperAdmin 
                 ? 'Manage all NFL Confidence Pools' 
                 : 'Manage your NFL Confidence Pools'
               }
@@ -712,12 +729,12 @@ function AdminDashboardContent() {
               </p>
             )}
             <div className="flex flex-wrap gap-2 mt-2">
-              {user?.is_super_admin && (
+              {isSuperAdmin && (
                 <Badge variant="outline" className="text-xs">
                   Super Admin
                 </Badge>
               )}
-              {!user?.is_super_admin && (
+              {!isSuperAdmin && (
                 <Badge variant="secondary" className="text-xs">
                   Pool Admin
                 </Badge>
@@ -792,12 +809,12 @@ function AdminDashboardContent() {
             <div className="flex-1">
               <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
               <p className="text-blue-700 text-xs sm:text-sm">
-            {user?.is_super_admin 
+            {isSuperAdmin 
                   ? 'Manage all pools, participants, and view current standings.'
                   : `Manage your ${dashboardStats.totalPools} pool${dashboardStats.totalPools !== 1 ? 's' : ''}, ${dashboardStats.totalParticipants} participant${dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.`
             }
           </p>
-              {!user?.is_super_admin && dashboardStats.totalPools > 0 && (
+              {!isSuperAdmin && dashboardStats.totalPools > 0 && (
                 <p className="text-blue-600 text-xs mt-1">
                   {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
                 </p>
@@ -931,7 +948,7 @@ function AdminDashboardContent() {
         </div>
 
         {/* Super Admin Management */}
-        {user?.is_super_admin && (
+        {isSuperAdmin && (
           <>
             {/* Admin Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
@@ -1184,7 +1201,7 @@ function AdminDashboardContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium text-sm sm:text-base">{pool.name}</h4>
-                      {user?.is_super_admin && (
+                      {isSuperAdmin && (
                         <p className="text-xs text-gray-500">Pool ID: {pool.id}</p>
                       )}
                     </div>

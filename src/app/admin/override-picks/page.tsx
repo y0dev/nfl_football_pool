@@ -15,10 +15,10 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { getPoolParticipants } from '@/actions/adminActions';
-import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK } from '@/lib/utils';
+import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK, debugLog } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -76,9 +76,10 @@ function OverridePicksContent() {
         setIsLoading(true);
         
         // Load current week
-        const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
-        setCurrentSeasonType(weekData?.season_type || 2);
+        const weekData = await getUpcomingWeek();
+        debugLog('Week data:', weekData);
+        setCurrentWeek(weekData?.week || 1);
+        setCurrentSeasonType(weekData?.seasonType || 2);
         
         // Load pools - check if user is super admin
         const isSuperAdmin = await verifyAdminStatus(true);
@@ -116,27 +117,17 @@ function OverridePicksContent() {
 
   const checkWeekStatus = async () => {
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const response = await fetch(`/api/admin/week-status?week=${currentWeek}&season_type=${currentSeasonType}&season=2025`);
       
-      // Get all games for the current week
-      const { data: games, error } = await supabase
-        .from('games')
-        .select('winner')
-        .eq('week', currentWeek)
-        .eq('season_type', currentSeasonType)
-        .eq('season', 2025); // You might want to make this dynamic
-      
-      if (error) {
-        console.error('Error checking week status:', error);
+      if (!response.ok) {
+        console.error('Error checking week status:', response.statusText);
         return;
       }
       
-      // Check if all games have winners (completed)
-      const allGamesCompleted = games && games.length > 0 && games.every(game => game.winner);
-      setIsWeekCompleted(allGamesCompleted);
+      const data = await response.json();
+      setIsWeekCompleted(data.isCompleted);
       
-      if (allGamesCompleted) {
+      if (data.isCompleted) {
         toast({
           title: 'Week Already Completed',
           description: `Week ${currentWeek} has already finished. Picks cannot be overridden for completed weeks.`,
@@ -171,32 +162,10 @@ function OverridePicksContent() {
     
     setIsLoadingPicks(true);
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const response = await fetch(`/api/admin/participant-picks?participant_id=${participantId}&pool_id=${selectedPool}&week=${currentWeek}&season_type=${currentSeasonType}`);
       
-      // Get participant's picks for current week
-      const { data: picksData, error } = await supabase
-        .from('picks')
-        .select(`
-          id,
-          game_id,
-          predicted_winner,
-          confidence_points,
-          games!inner(
-            home_team,
-            away_team,
-            week,
-            season_type
-          )
-        `)
-        .eq('participant_id', participantId)
-        .eq('pool_id', selectedPool)
-        .eq('games.week', currentWeek)
-        .eq('games.season_type', currentSeasonType)
-        .order('confidence_points', { ascending: false });
-      
-      if (error) {
-        console.error('Error loading participant picks:', error);
+      if (!response.ok) {
+        console.error('Error loading participant picks:', response.statusText);
         toast({
           title: 'Error',
           description: 'Failed to load participant picks',
@@ -205,55 +174,20 @@ function OverridePicksContent() {
         return;
       }
 
-      if (!picksData || picksData.length === 0) {
+      const data = await response.json();
+      
+      if (!data.picks || data.picks.length === 0) {
         setParticipantPicks([]);
         setUsedConfidenceNumbers(new Set());
         return;
       }
 
-      // Get game details for the picks
-      const gameIds = picksData.map(pick => pick.game_id);
-      const { data: gamesData, error: gamesError } = await supabase
-        .from('games')
-        .select('id, home_team, away_team')
-        .in('id', gameIds);
-
-      if (gamesError) {
-        console.error('Error loading games:', gamesError);
-        toast({
-          title: 'Error',
-          description: 'Failed to load game details',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Create a map of game details
-      const gamesMap = new Map(gamesData?.map(game => [game.id, game]) || []);
-      
-      // Combine picks with game details
-      const picks = picksData
-        .map(pick => {
-          const game = gamesMap.get(pick.game_id);
-          if (!game) return null;
-          
-          return {
-            id: pick.id,
-            game_id: pick.game_id,
-            home_team: game.home_team,
-            away_team: game.away_team,
-            confidence: pick.confidence_points,
-            winner: pick.predicted_winner
-          };
-        })
-        .filter(pick => pick !== null) as Pick[];
-      
-      setParticipantPicks(picks);
+      setParticipantPicks(data.picks);
       setSelectedPicks(new Set());
       setPickUpdates({});
       
       // Track used confidence numbers (exclude 0 values)
-      const usedNumbers = new Set(picks.map(pick => pick.confidence).filter(conf => conf !== 0));
+      const usedNumbers = new Set(data.usedConfidenceNumbers as number[]);
       setUsedConfidenceNumbers(usedNumbers);
     } catch (error) {
       console.error('Error loading participant picks:', error);
@@ -394,124 +328,39 @@ function OverridePicksContent() {
 
     setIsOverriding(true);
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      // Call the API route instead of direct database calls
+      const response = await fetch('/api/admin/override-picks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          poolId: selectedPool,
+          participantId: selectedParticipant,
+          week: currentWeek,
+          seasonType: currentSeasonType,
+          overrideMode,
+          overrideReason,
+          pickUpdates: overrideMode === 'picks' ? pickUpdates : undefined,
+          adminId: user.id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to override picks');
+      }
 
       if (overrideMode === 'picks') {
-        // Update specific picks
-        const updates = Object.entries(pickUpdates).map(([pickId, update]) => ({
-          id: pickId,
-          winner: update.winner,
-          confidence: update.confidence
-        }));
-        
-        for (const update of updates) {
-          const { error: updateError } = await supabase
-            .from('picks')
-            .update({
-              predicted_winner: update.winner,
-              confidence_points: update.confidence,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', update.id);
-          
-          if (updateError) {
-            throw updateError;
-          }
-        }
-
-        // Log the override action
-        const participant = participants.find(p => p.id === selectedParticipant);
-        const pool = pools.find(p => p.id === selectedPool);
-        
-        // Determine admin type
-        const isSuperAdmin = await verifyAdminStatus(true);
-        
-        const auditDetails = {
-          pool_name: pool?.name || 'Unknown Pool',
-          participant_name: participant?.name || 'Unknown Participant',
-          participant_email: participant?.email || 'Unknown Email',
-          week: currentWeek,
-          season_type: currentSeasonType,
-          override_reason: overrideReason,
-          override_type: 'specific_picks',
-          overridden_by: isSuperAdmin ? 'super_admin' : 'pool_admin',
-          overridden_at: new Date().toISOString(),
-          updated_picks: Object.entries(pickUpdates).map(([pickId, update]) => {
-            const pick = participantPicks.find(p => p.id === pickId);
-            return {
-              pick_id: pickId,
-              game: pick ? `${pick.away_team} @ ${pick.home_team}` : 'Unknown Game',
-              old_winner: pick?.winner || 'Unknown',
-              new_winner: update.winner,
-              old_confidence: pick?.confidence || 0,
-              new_confidence: update.confidence
-            };
-          })
-        };
-
-        await supabase
-          .from('audit_logs')
-          .insert({
-            action: 'override_pool_picks',
-            admin_id: user.id,
-            pool_id: selectedPool,
-            details: JSON.stringify(auditDetails),
-            created_at: new Date().toISOString()
-          });
-
-        const pickCount = Object.keys(pickUpdates).length;
         toast({
           title: 'Picks Updated',
-          description: `${pickCount} pick${pickCount !== 1 ? 's' : ''} have been successfully updated.`,
+          description: result.message,
         });
       } else {
-        // Erase all picks
-        const { error: deleteError } = await supabase
-          .from('picks')
-          .delete()
-          .eq('pool_id', selectedPool)
-          .eq('participant_id', selectedParticipant)
-          .eq('games.week', currentWeek)
-          .eq('games.season_type', currentSeasonType);
-
-        if (deleteError) {
-          throw deleteError;
-        }
-
-        // Log the erase all action
-        const participant = participants.find(p => p.id === selectedParticipant);
-        const pool = pools.find(p => p.id === selectedPool);
-        
-        // Determine admin type
-        const isSuperAdmin = await verifyAdminStatus(true);
-        
-        const auditDetails = {
-          pool_name: pool?.name || 'Unknown Pool',
-          participant_name: participant?.name || 'Unknown Participant',
-          participant_email: participant?.email || 'Unknown Email',
-          week: currentWeek,
-          season_type: currentSeasonType,
-          override_reason: overrideReason,
-          override_type: 'erase_all_picks',
-          overridden_by: isSuperAdmin ? 'super_admin' : 'pool_admin',
-          overridden_at: new Date().toISOString(),
-          erased_picks_count: participantPicks.length
-        };
-
-        await supabase
-          .from('audit_logs')
-          .insert({
-            action: 'erase_all_picks',
-            admin_id: user.id,
-            pool_id: selectedPool,
-            details: JSON.stringify(auditDetails),
-            created_at: new Date().toISOString()
-          });
-
         toast({
           title: 'All Picks Erased',
-          description: `All ${participantPicks.length} picks have been successfully erased.`,
+          description: result.message,
         });
       }
 
@@ -892,7 +741,7 @@ function OverridePicksContent() {
                       <AlertCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
                       <h3 className="text-lg font-semibold text-red-700 mb-2">⚠️ Warning: Erase All Picks</h3>
                       <p className="text-sm text-gray-600 mb-4">
-                        This will permanently remove <strong>all {participantPicks.length} picks</strong> for this participant in Week {currentWeek}.
+                        This will permanently remove <strong>all {participantPicks.length} picks</strong> for this participant <strong>{participants.find(p => p.id === selectedParticipant)?.name}</strong> in Week {currentWeek}.
                       </p>
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
                         <h4 className="font-medium text-red-800 mb-2">What will happen:</h4>
@@ -999,4 +848,5 @@ export default function OverridePicksPage() {
       </AdminGuard>
     </AuthProvider>
   );
+
 }

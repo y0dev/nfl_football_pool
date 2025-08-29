@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 interface User {
   id: string;
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Server-side admin verification
-  const verifyAdminStatus = async (requireSuperAdmin = false): Promise<boolean> => {
+  const verifyAdminStatus = useCallback(async (requireSuperAdmin = false): Promise<boolean> => {
     if (!user) return false;
     
     try {
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Error verifying admin status:', error);
       return false;
     }
-  };
+  }, [user]);
 
   // Don't render children until mounted to prevent hydration issues
   if (!isMounted) {

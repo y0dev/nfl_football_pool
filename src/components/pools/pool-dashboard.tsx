@@ -34,12 +34,13 @@ interface PoolDashboardProps {
 }
 
 export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) {
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const [pools, setPools] = useState<Pool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const { toast } = useToast();
 
   // Redirect to login if user is not authenticated
@@ -56,10 +57,14 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
       setIsLoading(true);
       setError(null);
       
+      // Check admin status
+      const superAdminStatus = await verifyAdminStatus(true);
+      setIsSuperAdmin(superAdminStatus);
+      
       // Use the correct AdminService function
       const poolsData = await adminService.getActivePools(
         user.email,
-        user.is_super_admin || false
+        superAdminStatus
       );
       if (process.env.NODE_ENV === 'development') {
         console.log('PoolDashboard: Pools data:', poolsData);
@@ -90,7 +95,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
 
   useEffect(() => {
     loadPools();
-  }, [user]);
+  }, [user, verifyAdminStatus]);
 
   // Listen for custom event to open create pool dialog
   useEffect(() => {
@@ -173,19 +178,18 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
       </div>
 
       {/* For normal admins, show simple list */}
-      {!user?.is_super_admin ? (
+      {!isSuperAdmin ? (
         <PoolGrid 
           pools={pools} 
           onPoolJoined={loadPools} 
-          user={user}
-
+          user={{ email: user.email, isSuperAdmin }}
         />
       ) : (
         /* For super admins, show tabs */
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
             <TabsTrigger value="all">All Pools</TabsTrigger>
-            {user?.is_super_admin && (
+            {isSuperAdmin && (
               <TabsTrigger value="my-pools">My Pools</TabsTrigger>
             )}
           </TabsList>
@@ -194,19 +198,17 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
             <PoolGrid 
               pools={pools} 
               onPoolJoined={loadPools} 
-              user={user}
-
+              user={{ email: user.email, isSuperAdmin }}
             />
           </TabsContent>
 
-          {user?.is_super_admin && (
+          {isSuperAdmin && (
             <TabsContent value="my-pools" className="mt-6">
               <PoolGrid 
                 pools={pools.filter(pool => pool.created_by === user?.email)} 
                 onPoolJoined={loadPools}
                 showJoinButton={true} // Allow joining own pools
-                user={user}
-
+                user={{ email: user.email, isSuperAdmin }}
               />
             </TabsContent>
           )}
@@ -228,7 +230,7 @@ interface PoolGridProps {
   pools: Pool[];
   onPoolJoined: () => void;
   showJoinButton?: boolean;
-  user?: { email: string; is_super_admin?: boolean } | null;
+  user?: { email: string; isSuperAdmin?: boolean } | null;
 }
 
 function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGridProps) {
@@ -300,7 +302,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                 />
               )}
               {/* Admin Override Button - only show for pool admins or super admins */}
-              {(user?.is_super_admin || pool.created_by === user?.email) && (
+              {(user?.isSuperAdmin || pool.created_by === user?.email) && (
                 <Link href={`/admin/override-picks?pool=${pool.id}`}>
                   <Button
                     variant="outline"
