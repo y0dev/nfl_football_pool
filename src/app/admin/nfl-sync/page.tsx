@@ -1,334 +1,639 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
-  syncTeams, 
-  syncRegularSeason, 
-  syncPlayoffs, 
-  syncCurrentWeek, 
-  getSyncStatus 
-} from '@/actions/syncNFLData';
-import { nflAPI } from '@/lib/nfl-api';
-import { 
-  RefreshCw, 
-  Database, 
-  Calendar, 
-  Trophy, 
-  TrendingUp,
+  ArrowLeft,
+  RefreshCw,
   CheckCircle,
   XCircle,
-  Loader2
+  AlertTriangle,
+  Info,
+  Calendar,
+  Clock,
+  Trophy,
+  Activity,
+  Database,
+  Globe,
+  Zap
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
+import { debugLog } from '@/lib/utils';
+
+interface SyncResult {
+  success: boolean;
+  message: string;
+  gamesProcessed: number;
+  gamesUpdated: number;
+  gamesFailed: number;
+  failedGameDetails?: any[];
+  seasonType: number;
+  week: number;
+  year: number;
+  endpoint: string;
+  timestamp?: string;
+}
+
+interface SyncHistory {
+  id: string;
+  timestamp: string;
+  result: SyncResult;
+}
 
 function NFLSyncContent() {
-  const { user } = useAuth();
-  const [currentSeason, setCurrentSeason] = useState<number>(new Date().getFullYear());
-  const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastSync, setLastSync] = useState<string>('');
+  const { user, signOut, verifyAdminStatus } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
+  const [syncHistory, setSyncHistory] = useState<SyncHistory[]>([]);
+  const [showSyncPopup, setShowSyncPopup] = useState(false);
+  const [currentStats, setCurrentStats] = useState({
+    totalGames: 0,
+    liveGames: 0,
+    completedGames: 0,
+    scheduledGames: 0
+  });
 
   useEffect(() => {
-    if (user?.is_super_admin) {
-      loadSyncStatus();
-    }
-  }, [user, currentSeason]);
-
-  const loadSyncStatus = async () => {
-    try {
-      const status = await getSyncStatus(currentSeason);
-      setSyncStatus(status);
-    } catch (error) {
-      console.error('Failed to load sync status:', error);
-    }
-  };
-
-  const handleSyncTeams = async () => {
-    setIsLoading(true);
-    try {
-      const result = await syncTeams(currentSeason);
-      if (result.success) {
-        setLastSync(new Date().toLocaleString());
-        await loadSyncStatus();
+    const loadData = async () => {
+      try {
+        // Check admin status
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
+          debugLog('Super admin status:', superAdminStatus);
+          
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+          
+          if (superAdminStatus) {
+            await loadCurrentStats();
+            loadSyncHistory();
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setIsLoading(false);
       }
-      console.log('Teams sync result:', result);
-    } catch (error) {
-      console.error('Failed to sync teams:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  const handleSyncRegularSeason = async () => {
-    setIsLoading(true);
+    loadData();
+  }, [user, verifyAdminStatus, router]);
+
+  const loadCurrentStats = async () => {
     try {
-      const result = await syncRegularSeason(currentSeason);
-      if (result.success) {
-        setLastSync(new Date().toLocaleString());
-        await loadSyncStatus();
-      }
-      console.log('Regular season sync result:', result);
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      
+      // Get current game statistics
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('status')
+        .eq('season', new Date().getFullYear());
+      
+      if (error) throw error;
+      
+      const stats = {
+        totalGames: games?.length || 0,
+        liveGames: games?.filter(g => g.status === 'live').length || 0,
+        completedGames: games?.filter(g => g.status === 'final').length || 0,
+        scheduledGames: games?.filter(g => g.status === 'scheduled').length || 0
+      };
+      
+      setCurrentStats(stats);
+      
     } catch (error) {
-      console.error('Failed to sync regular season:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading current stats:', error);
     }
   };
 
-  const handleSyncPlayoffs = async () => {
-    setIsLoading(true);
+  const loadSyncHistory = () => {
+    // Load sync history from localStorage
     try {
-      const result = await syncPlayoffs(currentSeason);
-      if (result.success) {
-        setLastSync(new Date().toLocaleString());
-        await loadSyncStatus();
+      const history = localStorage.getItem('nfl-sync-history');
+      if (history) {
+        setSyncHistory(JSON.parse(history));
       }
-      console.log('Playoffs sync result:', result);
     } catch (error) {
-      console.error('Failed to sync playoffs:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading sync history:', error);
     }
   };
 
-  const handleSyncCurrentWeek = async () => {
-    setIsLoading(true);
+  const saveSyncHistory = (result: SyncResult) => {
     try {
-      const result = await syncCurrentWeek(currentSeason);
-      if (result.success) {
-        setLastSync(new Date().toLocaleString());
-        await loadSyncStatus();
-      }
-      console.log('Current week sync result:', result);
+      const historyItem: SyncHistory = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        result
+      };
+      
+      const newHistory = [historyItem, ...syncHistory.slice(0, 9)]; // Keep last 10
+      setSyncHistory(newHistory);
+      localStorage.setItem('nfl-sync-history', JSON.stringify(newHistory));
     } catch (error) {
-      console.error('Failed to sync current week:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error saving sync history:', error);
     }
   };
 
-  if (!user?.is_super_admin) {
+  const handleSync = async () => {
+    setIsSyncing(true);
+    
+    try {
+      const response = await fetch('/api/admin/nfl-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result: SyncResult = await response.json();
+
+      if (result.success) {
+        setLastSyncResult(result);
+        saveSyncHistory(result);
+        
+        // Show success popup
+        setShowSyncPopup(true);
+        
+        toast({
+          title: 'Sync Successful',
+          description: `Updated ${result.gamesUpdated} games successfully`,
+        });
+        
+        // Refresh current stats
+        await loadCurrentStats();
+        
+      } else {
+        // Show error popup
+        setLastSyncResult(result);
+        setShowSyncPopup(true);
+        
+        toast({
+          title: 'Sync Failed',
+          description: result.message || 'Failed to sync NFL data',
+          variant: 'destructive',
+        });
+      }
+      
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        title: 'Sync Error',
+        description: 'Failed to connect to sync service',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      await signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  const getSeasonTypeLabel = (type: number) => {
+    switch (type) {
+      case 1: return 'Preseason';
+      case 2: return 'Regular Season';
+      case 3: return 'Postseason';
+      default: return 'Unknown';
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'live': return 'destructive';
+      case 'final': return 'default';
+      case 'scheduled': return 'secondary';
+      default: return 'outline';
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-            <p className="text-gray-600">You need admin privileges to access this page.</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="container mx-auto p-4 sm:p-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">NFL Data Sync</h1>
-            <p className="text-gray-600">Manage NFL schedule and game data synchronization</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Badge variant="outline">
-              Season: {currentSeason}
-            </Badge>
-            {lastSync && (
-              <Badge variant="secondary">
-                Last Sync: {lastSync}
-              </Badge>
-            )}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push('/admin/dashboard')}
+                  className="p-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Globe className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+                <h1 className="text-2xl sm:text-3xl font-bold">NFL Data Sync</h1>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">
+                Synchronize NFL game data from RapidAPI to keep your pools up to date
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Badge variant="outline" className="text-xs">
+                  System Admin
+                </Badge>
+                <Button
+                  onClick={handleLogout}
+                  variant="destructive"
+                  size="sm"
+                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
+                >
+                  <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                  <span className="sm:hidden">Logout</span>
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Sync Status */}
-        {syncStatus && (
+        {/* Current Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <TrendingUp className="h-5 w-5" />
-                Sync Status
-              </CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Games</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {syncStatus.totalGames || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Games</div>
+              <div className="text-2xl font-bold">{currentStats.totalGames}</div>
+              <p className="text-xs text-muted-foreground">
+                In current season
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Live Games</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{currentStats.liveGames}</div>
+              <p className="text-xs text-muted-foreground">
+                Currently playing
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{currentStats.completedGames}</div>
+              <p className="text-xs text-muted-foreground">
+                Final scores
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{currentStats.scheduledGames}</div>
+              <p className="text-xs text-muted-foreground">
+                Upcoming games
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Last Sync Result */}
+        {lastSyncResult && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Last Sync Result
+              </CardTitle>
+              <CardDescription>
+                Results from the most recent synchronization
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{lastSyncResult.gamesProcessed}</div>
+                  <div className="text-sm text-green-700">Games Processed</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {syncStatus.finishedGames || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Finished Games</div>
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{lastSyncResult.gamesUpdated}</div>
+                  <div className="text-sm text-blue-700">Successfully Updated</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-3 bg-red-50 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">{lastSyncResult.gamesFailed}</div>
+                  <div className="text-sm text-red-700">Failed Updates</div>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">
-                    {Math.round(syncStatus.completionPercentage || 0)}%
+                    {getSeasonTypeLabel(lastSyncResult.seasonType)}
                   </div>
-                  <div className="text-sm text-gray-600">Completion</div>
+                  <div className="text-sm text-purple-700">Week {lastSyncResult.week}</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {Object.keys(syncStatus.weekCounts || {}).length}
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <span>Season: {lastSyncResult.year}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-gray-500" />
+                  <span>Endpoint: {lastSyncResult.endpoint}</span>
+                </div>
+                {lastSyncResult.failedGameDetails && lastSyncResult.failedGameDetails.length > 0 && (
+                  <div className="mt-4 p-3 bg-red-50 rounded-lg">
+                    <h4 className="font-medium text-red-800 mb-2">Failed Game Details:</h4>
+                    <div className="space-y-1 text-xs text-red-700">
+                      {lastSyncResult.failedGameDetails.slice(0, 5).map((detail, index) => (
+                        <div key={index}>
+                          Game ID: {detail.gameId} - {detail.error}
+                        </div>
+                      ))}
+                      {lastSyncResult.failedGameDetails.length > 5 && (
+                        <div className="text-red-600">
+                          ...and {lastSyncResult.failedGameDetails.length - 5} more failures
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600">Weeks Loaded</div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Sync Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Sync Teams */}
+        {/* Sync History */}
+        {syncHistory.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Database className="h-5 w-5" />
-                Sync Teams
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Sync History
               </CardTitle>
               <CardDescription>
-                Import all NFL teams for the current season
+                Recent synchronization attempts and results
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                onClick={handleSyncTeams} 
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Teams
-              </Button>
+              <div className="space-y-3">
+                {syncHistory.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {item.result.success ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      )}
+                      <div>
+                        <div className="font-medium">
+                          {item.result.success ? 'Sync Successful' : 'Sync Failed'}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-medium">
+                        {item.result.gamesUpdated} updated
+                      </div>
+                      <div className="text-gray-600">
+                        {item.result.gamesFailed} failed
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Sync Regular Season */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5" />
-                Regular Season
-              </CardTitle>
-              <CardDescription>
-                Import all regular season games (Weeks 1-18)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={handleSyncRegularSeason} 
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Season
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Sync Playoffs */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Trophy className="h-5 w-5" />
-                Playoffs
-              </CardTitle>
-              <CardDescription>
-                Import playoff games when available
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={handleSyncPlayoffs} 
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Playoffs
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Sync Current Week */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5" />
-                Current Week
-              </CardTitle>
-              <CardDescription>
-                Update current week games and scores
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={handleSyncCurrentWeek} 
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Current Week
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Instructions */}
+        {/* Information Panel */}
         <Card>
           <CardHeader>
-            <CardTitle>Sync Instructions</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              About NFL Sync
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold mb-2">Initial Setup</h3>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                  <li>Sync Teams - Import all NFL teams</li>
-                  <li>Sync Regular Season - Import all regular season games</li>
-                  <li>Set up your confidence pools</li>
-                </ol>
+          <CardContent>
+            <div className="space-y-4 text-sm text-gray-700">
+              <div className="flex items-start gap-3">
+                <Database className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <div className="font-medium">Data Source</div>
+                  <div>NFL game data is fetched from RapidAPI's American Football API, providing real-time scores, schedules, and game status updates.</div>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold mb-2">Weekly Maintenance</h3>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                  <li>Sync Current Week - Update scores and status</li>
-                  <li>Run after each game day</li>
-                  <li>Sync Playoffs when regular season ends</li>
-                </ol>
+              
+              <div className="flex items-start gap-3">
+                <RefreshCw className="h-5 w-5 text-green-600 mt-0.5" />
+                <div>
+                  <div className="font-medium">Automatic Updates</div>
+                  <div>Games are updated in batches of 50 to prevent rate limiting. The system processes preseason, regular season, and postseason games.</div>
+                </div>
               </div>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Make sure your API key is configured in the environment variables. 
-                The sync process may take several minutes for large datasets.
-              </p>
+              
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <div>
+                  <div className="font-medium">Team Name Normalization</div>
+                  <div>Team names are automatically normalized to match your existing database format (e.g., "Kansas City Chiefs" → "Kansas City").</div>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <Trophy className="h-5 w-5 text-purple-600 mt-0.5" />
+                <div>
+                  <div className="font-medium">Pool Integration</div>
+                  <div>Updated game data automatically affects all active pools, ensuring accurate scoring and leaderboard calculations.</div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Sync Results Popup */}
+        <Dialog open={showSyncPopup} onOpenChange={setShowSyncPopup}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {lastSyncResult?.success ? (
+                  <>
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    Sync Completed Successfully
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-5 w-5 text-red-600" />
+                    Sync Failed
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                {lastSyncResult?.success 
+                  ? 'NFL data synchronization has been completed. Here are the results:'
+                  : 'NFL data synchronization encountered an error. Here are the details:'
+                }
+              </DialogDescription>
+            </DialogHeader>
+            
+            {lastSyncResult && (
+              <div className="space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{lastSyncResult.gamesProcessed}</div>
+                    <div className="text-sm text-blue-700">Games Processed</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{lastSyncResult.gamesUpdated}</div>
+                    <div className="text-sm text-green-700">Successfully Updated</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">{lastSyncResult.gamesFailed}</div>
+                    <div className="text-sm text-red-700">Failed Updates</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {getSeasonTypeLabel(lastSyncResult.seasonType)}
+                    </div>
+                    <div className="text-sm text-purple-700">Week {lastSyncResult.week}</div>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span><strong>Season:</strong> {lastSyncResult.year}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <span><strong>Week:</strong> {lastSyncResult.week}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Trophy className="h-4 w-4 text-gray-500" />
+                      <span><strong>Season Type:</strong> {getSeasonTypeLabel(lastSyncResult.seasonType)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-gray-500" />
+                      <span><strong>API Endpoint:</strong> {lastSyncResult.endpoint}</span>
+                    </div>
+                  </div>
+
+                  {/* Failed Game Details */}
+                  {lastSyncResult.failedGameDetails && lastSyncResult.failedGameDetails.length > 0 && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <h4 className="font-medium text-red-800 mb-3 flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Failed Game Details ({lastSyncResult.failedGameDetails.length} failures)
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {lastSyncResult.failedGameDetails.map((detail, index) => (
+                          <div key={index} className="text-xs text-red-700 p-2 bg-red-100 rounded border">
+                            <div><strong>Game ID:</strong> {detail.gameId}</div>
+                            <div><strong>Error:</strong> {detail.error}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Success Message */}
+                  {lastSyncResult.success && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-800">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">
+                          {lastSyncResult.gamesUpdated > 0 
+                            ? `Successfully synchronized ${lastSyncResult.gamesUpdated} NFL games!`
+                            : 'No new games to update at this time.'
+                          }
+                        </span>
+                      </div>
+                      <p className="text-sm text-green-700 mt-2">
+                        Your pools will now have the most up-to-date game information including scores, 
+                        game status, and winner determinations.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Error Message */}
+                  {!lastSyncResult.success && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-red-800">
+                        <XCircle className="h-5 w-5" />
+                        <span className="font-medium">Synchronization failed</span>
+                      </div>
+                      <p className="text-sm text-red-700 mt-2">
+                        {lastSyncResult.message || 'An unexpected error occurred during synchronization.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button 
+                onClick={() => setShowSyncPopup(false)}
+                className="w-full sm:w-auto"
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -337,7 +642,7 @@ function NFLSyncContent() {
 export default function NFLSyncPage() {
   return (
     <AuthProvider>
-      <AdminGuard requireSuperAdmin={true}>
+      <AdminGuard>
         <NFLSyncContent />
       </AdminGuard>
     </AuthProvider>

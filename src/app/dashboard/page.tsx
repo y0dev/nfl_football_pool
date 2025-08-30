@@ -1,29 +1,34 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { PoolDashboard } from '@/components/pools/pool-dashboard';
-import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
-import { adminService, DashboardStats, Pool } from '@/lib/admin-service';
-import { LogOut, Users, Trophy, Calendar, Clock, TrendingUp, Activity, Plus, BarChart3, Mail, Share2, RefreshCw, Bell, Zap, Shield, Upload, FileSpreadsheet } from 'lucide-react';
-import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createPoolInviteEmail } from '@/lib/mailto-utils';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { 
+  Trophy, 
+  Mail, 
+  Calendar,
+  LogOut,
+  BarChart3,
+  Plus,
+  Bell,
+  TrendingUp
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
+import { adminService, DashboardStats, Pool } from '@/lib/admin-service';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog } from '@/lib/utils';
+import { AuthProvider } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
 
 function CommissionerDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
-  const [currentSeasonType, setCurrentSeasonType] = useState(2); // Default to regular season
+  const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -46,6 +51,13 @@ function CommissionerDashboardContent() {
   const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    type: 'pool_created' | 'participant_joined' | 'picks_submitted' | 'reminder_sent';
+    description: string;
+    timestamp: string;
+    pool_name?: string;
+    participant_name?: string;
+  }>>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -61,11 +73,16 @@ function CommissionerDashboardContent() {
           setIsSuperAdmin(superAdminStatus);
           debugLog('Super admin status:', superAdminStatus);
           
-          // Only load data for regular admins (commissioners)
-          if (!superAdminStatus) {
-            await loadDashboardStats();
-            generateNotifications();
+          // Redirect super admins to admin dashboard
+          if (superAdminStatus) {
+            router.push('/admin/dashboard');
+            return;
           }
+          
+          // Only load data for regular admins (commissioners)
+          await loadDashboardStats();
+          generateNotifications();
+          loadRecentActivity();
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -75,7 +92,7 @@ function CommissionerDashboardContent() {
     };
 
     loadData();
-  }, [user, verifyAdminStatus]);
+  }, [user, verifyAdminStatus, router]);
 
   const loadDashboardStats = async () => {
     try {
@@ -104,6 +121,119 @@ function CommissionerDashboardContent() {
         description: 'Failed to load dashboard data',
         variant: 'destructive',
       });
+    }
+  };
+
+  const loadRecentActivity = async () => {
+    try {
+      if (!user?.email) return;
+
+      // Get real recent activity data from the database
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      
+      const activities = [];
+      const now = new Date();
+      
+      // Get pools created by this commissioner
+      const { data: pools } = await supabase
+        .from('pools')
+        .select('id, name, created_at')
+        .eq('created_by', user.email)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      if (pools) {
+        pools.forEach(pool => {
+          activities.push({
+            type: 'pool_created' as const,
+            description: `Created new pool "${pool.name}"`,
+            timestamp: pool.created_at,
+            pool_name: pool.name
+          });
+        });
+      }
+      
+      // Get recent participant joins
+      const { data: participants } = await supabase
+        .from('participants')
+        .select('id, name, created_at, pool_id')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (participants) {
+        // Get pool names for participants
+        const poolIds = [...new Set(participants.map(p => p.pool_id))];
+        const { data: poolNames } = await supabase
+          .from('pools')
+          .select('id, name')
+          .in('id', poolIds);
+        
+        const poolNameMap = new Map(poolNames?.map(p => [p.id, p.name]) || []);
+        
+        participants.forEach(participant => {
+          const poolName = poolNameMap.get(participant.pool_id) || 'Unknown Pool';
+          activities.push({
+            type: 'participant_joined' as const,
+            description: `${participant.name || 'New Participant'} joined "${poolName}"`,
+            timestamp: participant.created_at,
+            participant_name: participant.name || 'New Participant',
+            pool_name: poolName
+          });
+        });
+      }
+      
+      // Get recent picks submissions
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('created_at, participant_id, pool_id')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (picks && picks.length > 0) {
+        // Group picks by pool and count submissions
+        const poolSubmissions = new Map<string, Set<string>>();
+        picks.forEach(pick => {
+          if (!poolSubmissions.has(pick.pool_id)) {
+            poolSubmissions.set(pick.pool_id, new Set());
+          }
+          poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
+        });
+        
+        // Get pool names for picks
+        const pickPoolIds = [...new Set(picks.map(p => p.pool_id))];
+        const { data: pickPoolNames } = await supabase
+          .from('pools')
+          .select('id, name')
+          .in('id', pickPoolIds);
+        
+        const pickPoolNameMap = new Map(pickPoolNames?.map(p => [p.id, p.name]) || []);
+        
+        poolSubmissions.forEach((participants, poolId) => {
+          const poolName = pickPoolNameMap.get(poolId) || 'Unknown Pool';
+          const participantCount = participants.size;
+          if (participantCount > 0) {
+            activities.push({
+              type: 'picks_submitted' as const,
+              description: `${participantCount} participant${participantCount !== 1 ? 's' : ''} submitted picks for "${poolName}"`,
+              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString()
+            });
+          }
+        });
+      }
+      
+      // Sort activities by timestamp (most recent first) and take top 5
+      const sortedActivities = activities
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 5);
+      
+      setRecentActivity(sortedActivities);
+      
+    } catch (error) {
+      console.error('Error loading recent activity:', error);
+      // Fallback to empty array if there's an error
+      setRecentActivity([]);
     }
   };
 
@@ -146,6 +276,7 @@ function CommissionerDashboardContent() {
     try {
       await loadDashboardStats();
       generateNotifications();
+      loadRecentActivity();
       setLastRefresh(new Date());
       toast({
         title: 'Dashboard Refreshed',
@@ -160,144 +291,6 @@ function CommissionerDashboardContent() {
       });
     } finally {
       setIsRefreshing(false);
-    }
-  };
-
-  const handleQuickAction = (action: string) => {
-    switch (action) {
-      case 'create-pool':
-        // Trigger the create pool dialog by dispatching a custom event
-        const event = new CustomEvent('openCreatePoolDialog');
-        document.dispatchEvent(event);
-        break;
-      case 'view-leaderboard':
-        if (dashboardStats.totalPools > 0) {
-          router.push('/admin/leaderboard');
-        } else {
-          toast({
-            title: 'No Pools',
-            description: 'Create a pool first to view leaderboards',
-            variant: 'destructive',
-          });
-        }
-        break;
-      case 'send-reminders':
-        if (dashboardStats.pendingSubmissions > 0) {
-          router.push('/admin/reminders');
-        } else {
-          toast({
-            title: 'No Reminders Needed',
-            description: 'All participants have submitted their picks!',
-          });
-        }
-        break;
-      case 'override-picks':
-        router.push('/admin/override-picks');
-        break;
-      case 'send-invite':
-        handleSendInvite();
-        break;
-      case 'import-picks':
-        toast({
-          title: 'Feature Disabled',
-          description: 'Import CSV functionality is temporarily disabled',
-          variant: 'destructive',
-        });
-        break;
-    }
-  };
-
-  const handleSendInvite = async () => {
-    try {
-      // Get active pools for this admin using the service
-      if (!user?.email) return;
-      
-      const pools = await adminService.getActivePools(
-        user.email,
-        false // isSuperAdmin = false for commissioners
-      );
-      debugLog('pools', pools);
-
-      if (!pools || pools.length === 0) {
-        toast({
-          title: 'No Pools Available',
-          description: 'You need to create a pool first before sending invitations. Click "Create Pool" to get started.',
-          variant: 'destructive',
-        });
-        // Trigger the create pool dialog
-        const event = new CustomEvent('openCreatePoolDialog');
-        document.dispatchEvent(event);
-        return;
-      }
-      
-      // If only one pool, use it directly
-      if (pools.length === 1) {
-        await sendInviteForPool(pools[0]);
-        return;
-      }
-      
-      // If multiple pools, show selection dialog for invite
-      setAvailablePools(pools);
-      setPoolSelectionMode('invite');
-      setPoolSelectionOpen(true);
-      
-    } catch (error) {
-      console.error('Error preparing invite email:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to prepare invite email',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const sendInviteForPool = async (selectedPool: {id: string, name: string}) => {
-    try {
-      // Create a pool invite email
-      const emailOptions = createPoolInviteEmail(
-        selectedPool.name, 
-        selectedPool.id, 
-        currentWeek,
-        user?.email
-      );
-      
-      const mailtoUrl = createMailtoUrl(emailOptions);
-      
-      // Try to open email client
-      const opened = await openEmailClient(mailtoUrl);
-      
-      if (opened) {
-        toast({
-          title: 'Email Client Opened',
-          description: `Pool invite email prepared for ${selectedPool.name}. Your email client should open automatically.`,
-        });
-      } else {
-        // Fallback: copy mailto URL to clipboard
-        const copied = await copyMailtoToClipboard(mailtoUrl);
-        
-        if (copied) {
-          toast({
-            title: 'Email URL Copied',
-            description: 'Email URL copied to clipboard. Paste it in your browser address bar to open your email client.',
-          });
-        } else {
-          toast({
-            title: 'Manual Action Required',
-            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
-            variant: 'destructive',
-          });
-        }
-      }
-      
-      // Close the dialog if it was open
-      setPoolSelectionOpen(false);
-    } catch (error) {
-      console.error('Error sending invite for pool:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to prepare invite email',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -317,318 +310,295 @@ function CommissionerDashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600"></div>
       </div>
     );
   }
 
-  // Redirect super admins to the admin dashboard
-  if (isSuperAdmin) {
-    router.push('/admin/dashboard');
-    return null;
-  }
-
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
-              Commissioner Dashboard
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600">
-              Manage your NFL Confidence Pools
-            </p>
-            {user?.full_name && (
-              <p className="text-sm sm:text-base text-blue-600 font-medium mt-1">
-                Welcome, {user.full_name}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50">
+      <div className="container mx-auto p-4 sm:p-6">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+                <h1 className="text-2xl sm:text-3xl font-bold">Commissioner Dashboard</h1>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">
+                Manage your NFL Confidence Pools and participants
               </p>
-            )}
-            <div className="flex flex-wrap gap-2 mt-2">
-              <Badge variant="secondary" className="text-xs">
-                Commissioner
-              </Badge>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
-            >
-              <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-              <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
-            </Button>
-            <Button
-              onClick={() => setShowNotifications(!showNotifications)}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 relative h-8 sm:h-9 text-xs sm:text-sm"
-            >
-              <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
-              {notifications.length > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
-                  {notifications.length}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Badge variant="outline" className="text-xs">
+                  Commissioner
                 </Badge>
-              )}
-            </Button>
-            <Button
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              variant="destructive"
-              size="sm"
-              className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
-            >
-              <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
-              <span className="sm:hidden">{isLoggingOut ? '...' : 'Logout'}</span>
-            </Button>
+                <Button
+                  onClick={handleLogout}
+                  variant="destructive"
+                  size="sm"
+                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
+                >
+                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                  <span className="sm:hidden">Logout</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Notifications Panel */}
-        {showNotifications && notifications.length > 0 && (
-          <Card className="mb-4 border-orange-200 bg-orange-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-orange-900 text-sm sm:text-base">
-                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                Notifications
-              </CardTitle>
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Pools</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {notifications.map((notification, index) => (
-                  <div key={index} className="flex items-center gap-2 text-xs sm:text-sm text-orange-800">
-                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                    <span className="break-words">{notification}</span>
-                  </div>
-                ))}
-              </div>
+              <div className="text-2xl font-bold">{dashboardStats.totalPools}</div>
+              <p className="text-xs text-muted-foreground">
+                {dashboardStats.activePools} active
+              </p>
             </CardContent>
           </Card>
-        )}
 
-        {/* Current Week Info */}
-        <div className="mb-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex-1">
-              <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
-              <p className="text-blue-700 text-xs sm:text-sm">
-                Manage your {dashboardStats.totalPools} pool{dashboardStats.totalPools !== 1 ? 's' : ''}, {dashboardStats.totalParticipants} participant{dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Participants</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboardStats.totalParticipants}</div>
+              <p className="text-xs text-muted-foreground">
+                Across all pools
               </p>
-              {dashboardStats.totalPools > 0 && (
-                <p className="text-blue-600 text-xs mt-1">
-                  {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
-                </p>
-              )}
-            </div>
-            <div className="text-right text-xs sm:text-sm text-blue-600 flex-shrink-0">
-              <div>Last updated:</div>
-              <div>{lastRefresh.toLocaleTimeString()}</div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
+              <p className="text-xs text-muted-foreground">
+                Need picks
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
+              <p className="text-xs text-muted-foreground">
+                Picks submitted
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Completion</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {dashboardStats.totalParticipants > 0 ? Math.round((dashboardStats.completedSubmissions / dashboardStats.totalParticipants) * 100) : 0}%
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rate
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Plus className="h-5 w-5" />
+                Create Pool
+              </CardTitle>
+              <CardDescription>
+                Start a new NFL Confidence Pool
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => {
+                  const event = new CustomEvent('openCreatePoolDialog');
+                  document.dispatchEvent(event);
+                }}
+                className="w-full"
+              >
+                Create Pool
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Trophy className="h-5 w-5" />
+                Pool Management
+              </CardTitle>
+              <CardDescription>
+                {isSuperAdmin ? 'Manage all pools and participants' : 'Manage your pools and participants'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/admin/pools')}
+                className="w-full"
+              >
+                {isSuperAdmin ? 'Manage All Pools' : 'Manage My Pools'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="h-5 w-5" />
+                Leaderboards
+              </CardTitle>
+              <CardDescription>
+                {isSuperAdmin ? 'View standings for all pools' : 'View standings for your pools'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/admin/leaderboard')}
+                className="w-full"
+              >
+                {isSuperAdmin ? 'View All Leaderboards' : 'View My Leaderboards'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Mail className="h-5 w-5" />
+                Send Reminders
+              </CardTitle>
+              <CardDescription>
+                Remind participants to submit picks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/admin/reminders')}
+                className="w-full"
+                disabled={dashboardStats.pendingSubmissions === 0}
+              >
+                Send Reminders ({dashboardStats.pendingSubmissions})
+              </Button>
+            </CardContent>
+          </Card>
+
+
+        </div>
+
+        {/* Recent Activity */}
         <Card className="mb-6">
-          <CardHeader className="pb-4 sm:pb-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
-              Quick Actions
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Recent Activity
             </CardTitle>
-            <CardDescription className="text-sm sm:text-base">
-              Common tasks and shortcuts
+            <CardDescription>
+              Latest updates and notifications
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              <Button
-                onClick={() => handleQuickAction('create-pool')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Create Pool</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('view-leaderboard')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">View Leaderboard</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('send-reminders')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Send Reminders</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('override-picks')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Override Picks</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('send-invite')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-              >
-                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="text-xs sm:text-sm">Send Invite</span>
-              </Button>
-              <Button
-                onClick={() => handleQuickAction('import-picks')}
-                variant="outline"
-                className="flex flex-col items-center gap-2 h-16 sm:h-20"
-                disabled={true}
-                title="Import CSV functionality is temporarily disabled"
-              >
-                <Upload className="h-5 w-5 sm:h-6 sm:w-6 opacity-50" />
-                <span className="text-xs sm:text-sm opacity-50">Import Picks</span>
-                <span className="text-xs text-gray-500">(Disabled)</span>
-              </Button>
+          <CardContent>
+            <div className="space-y-4">
+              {recentActivity.length > 0 ? (
+                recentActivity.map((activity, index) => (
+                  <div key={index} className={`flex items-center gap-3 p-3 rounded-lg ${
+                    activity.type === 'pool_created' ? 'bg-green-50' :
+                    activity.type === 'participant_joined' ? 'bg-blue-50' :
+                    activity.type === 'picks_submitted' ? 'bg-purple-50' :
+                    'bg-gray-50'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                      activity.type === 'pool_created' ? 'bg-green-500' :
+                      activity.type === 'participant_joined' ? 'bg-blue-500' :
+                      activity.type === 'picks_submitted' ? 'bg-purple-500' :
+                      'bg-gray-500'
+                    }`}></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{activity.description}</p>
+                      <p className="text-xs text-gray-600">
+                        {new Date(activity.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Bell className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                  <p>No recent activity</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-blue-600">{dashboardStats.totalPools}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total Pools</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-green-600">{dashboardStats.activePools}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Active Pools</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-purple-600">{dashboardStats.totalParticipants}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Participants</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-orange-600">{dashboardStats.totalGames}</div>
-              <div className="text-xs sm:text-sm text-gray-600">
-                Week {currentWeek} Games
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Pending</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Submitted</div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <PoolDashboard hideCreateButton={true} />
-
-      {/* Pool Selection Dialog */}
-      <Dialog open={poolSelectionOpen} onOpenChange={setPoolSelectionOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">
-              {poolSelectionMode === 'import' ? 'Select Pool for Import' : 'Select Pool for Invitation'}
-            </DialogTitle>
-            <DialogDescription className="text-sm sm:text-base">
-              {poolSelectionMode === 'import' 
-                ? 'Choose which pool you\'d like to import picks for.'
-                : 'Choose which pool you\'d like to send an invitation for.'
-              }
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="max-h-60 overflow-y-auto space-y-2">
-              {availablePools.map((pool) => (
-                <div
-                  key={pool.id}
-                  className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => poolSelectionMode === 'import' ? handlePoolSelectionForImport(pool) : sendInviteForPool(pool)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-sm sm:text-base">{pool.name}</h4>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-1 h-7 sm:h-8 text-xs"
-                    >
-                      {poolSelectionMode === 'import' ? (
-                        <>
-                          <Upload className="h-3 w-3" />
-                          <span className="hidden sm:inline">Import Picks</span>
-                          <span className="sm:hidden">Import</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="h-3 w-3" />
-                          <span className="hidden sm:inline">Send Invite</span>
-                          <span className="sm:hidden">Invite</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
+        {/* Role Information - Only visible in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Your Commissioner Access
+              </CardTitle>
+              <CardDescription>
+                Current permissions and pool access
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Role:</span>
+                  <Badge variant="outline">
+                    Commissioner
+                  </Badge>
                 </div>
-              ))}
-            </div>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs sm:text-sm text-blue-800">
-                <strong>Note:</strong> Click on any pool above to {poolSelectionMode === 'import' ? 'import picks for' : 'send an invitation email for'} that specific pool.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPoolSelectionOpen(false)}
-              className="w-full sm:w-auto"
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Pool Access:</span>
+                  <span className="text-sm text-gray-600">
+                    {dashboardStats.totalPools} pools
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Status:</span>
+                  <Badge variant="default">
+                    Active
+                  </Badge>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Last Activity:</span>
+                  <span className="text-sm text-gray-600">
+                    {lastRefresh.toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
 
-export default function CommissionerDashboardPage() {
+export default function CommissionerDashboard() {
   return (
     <AuthProvider>
       <AdminGuard>

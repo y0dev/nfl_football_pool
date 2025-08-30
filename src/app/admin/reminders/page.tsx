@@ -55,8 +55,29 @@ function RemindersContent() {
   const [summaryEmail, setSummaryEmail] = useState('');
 
   useEffect(() => {
-    loadData();
-  }, [user]);
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+        }
+        
+        // Only load data for super admins
+        await loadData();
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    checkAdminStatus();
+  }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
     if (currentWeek && currentSeasonType) {

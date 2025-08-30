@@ -37,10 +37,29 @@ function AdminRegisterContent() {
 
   // Redirect if user is already logged in
   useEffect(() => {
-    if (user) {
-      router.push('/admin/dashboard');
-    }
-  }, [user, router]);
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status first
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+          
+          // Redirect super admins to admin dashboard
+          router.push('/admin/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    checkAdminStatus();
+  }, [user, verifyAdminStatus, router]);
 
   const form = useForm<AdminRegisterFormData>({
     resolver: zodResolver(adminRegisterSchema),

@@ -73,6 +73,27 @@ function OverridePicksContent() {
   const [erasedPicksCount, setErasedPicksCount] = useState(0);
 
   useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status first
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+        }
+        
+        // Only load data for super admins
+        await loadData();
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
     const loadData = async () => {
       try {
         setIsLoading(true);
@@ -107,8 +128,8 @@ function OverridePicksContent() {
       }
     };
 
-    loadData();
-  }, [user]);
+    checkAdminStatus();
+  }, [user, verifyAdminStatus, router]);
 
   // Check if current week is completed
   useEffect(() => {
