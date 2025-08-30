@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { debugLog } from '@/lib/utils';
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -109,7 +110,7 @@ function AdminDashboardContent() {
         user.email,
         isSuperAdmin
       );
-      console.log('stats pools', pools);
+      debugLog('stats pools', pools);
       setAvailablePools(pools);
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
@@ -122,10 +123,12 @@ function AdminDashboardContent() {
   };
 
   const loadAdmins = async () => {
+    debugLog('loadAdmins');
     if (!isSuperAdmin) return;
     
     try {
       const adminsData = await adminService.getAdmins();
+      debugLog('adminsData', adminsData);
       setAdmins(adminsData);
     } catch (error) {
       console.error('Error loading admins:', error);
@@ -403,7 +406,7 @@ function AdminDashboardContent() {
         user.email,
         isSuperAdmin
       );
-      console.log('pools', pools);
+      debugLog('pools', pools);
 
       if (!pools || pools.length === 0) {
         toast({
@@ -631,7 +634,7 @@ function AdminDashboardContent() {
       });
 
       const result = await response.json();
-
+      debugLog('Super Admin: Toggle admin status result', result);
       if (result.success) {
         toast({
           title: 'Success',
@@ -715,7 +718,7 @@ function AdminDashboardContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
-              {isSuperAdmin ? 'Admin Dashboard' : 'My Dashboard'}
+                              {isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
               {isSuperAdmin 
@@ -731,12 +734,12 @@ function AdminDashboardContent() {
             <div className="flex flex-wrap gap-2 mt-2">
               {isSuperAdmin && (
                 <Badge variant="outline" className="text-xs">
-                  Super Admin
+                  Admin
                 </Badge>
               )}
               {!isSuperAdmin && (
                 <Badge variant="secondary" className="text-xs">
-                  Pool Admin
+                  Commissioner
                 </Badge>
               )}
             </div>
@@ -947,7 +950,7 @@ function AdminDashboardContent() {
           </Card>
         </div>
 
-        {/* Super Admin Management */}
+        {/* Admin Management */}
         {isSuperAdmin && (
           <>
             {/* Admin Stats */}
@@ -956,7 +959,7 @@ function AdminDashboardContent() {
                 <CardContent className="p-3 sm:p-4">
                   <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
                   <div className="text-lg sm:text-2xl font-bold text-blue-600">{admins.length}</div>
-                  <div className="text-xs sm:text-sm text-gray-600">Total Admins</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Total Commissioners</div>
                 </CardContent>
               </Card>
               <Card className="text-center">
@@ -965,7 +968,7 @@ function AdminDashboardContent() {
                   <div className="text-lg sm:text-2xl font-bold text-purple-600">
                     {admins.filter(admin => admin.is_super_admin).length}
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-600">Super Admins</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Admins</div>
                 </CardContent>
               </Card>
               <Card className="text-center">
@@ -974,7 +977,7 @@ function AdminDashboardContent() {
                   <div className="text-lg sm:text-2xl font-bold text-green-600">
                     {admins.filter(admin => admin.is_active).length}
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-600">Active Admins</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Active Commissioners</div>
                 </CardContent>
               </Card>
               <Card className="text-center">
@@ -983,7 +986,7 @@ function AdminDashboardContent() {
                   <div className="text-lg sm:text-2xl font-bold text-orange-600">
                     {admins.filter(admin => !admin.is_active).length}
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-600">Inactive Admins</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Inactive Commissioners</div>
                 </CardContent>
               </Card>
             </div>
@@ -992,17 +995,17 @@ function AdminDashboardContent() {
               <CardHeader className="pb-4 sm:pb-6">
                 <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Admin Management
+                  Commissioner Management
                 </CardTitle>
                 <CardDescription className="text-sm sm:text-base">
-                  Manage other admin accounts and reset passwords
+                  Manage other commissioner accounts and reset passwords
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
                 <div className="space-y-4">
                   {/* Admin List */}
                   <div>
-                    <h4 className="font-medium mb-3 text-sm sm:text-base">All Admins ({admins.length})</h4>
+                    <h4 className="font-medium mb-3 text-sm sm:text-base">All Commissioners ({admins.length})</h4>
                     <div className="space-y-3 sm:space-y-4 max-h-60 overflow-y-auto">
                       {admins.map((admin) => (
                         <div key={admin.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border rounded-lg gap-2 sm:gap-3">
@@ -1014,7 +1017,7 @@ function AdminDashboardContent() {
                               </div>
                               <div className="flex flex-wrap gap-1 sm:gap-2">
                                 {admin.is_super_admin && (
-                                  <Badge variant="default" className="text-xs">Super Admin</Badge>
+                                  <Badge variant="default" className="text-xs">Admin</Badge>
                                 )}
                                 <Badge variant={admin.is_active ? "default" : "secondary"} className="text-xs">
                                   {admin.is_active ? 'Active' : 'Inactive'}
@@ -1069,7 +1072,7 @@ function AdminDashboardContent() {
                                   <AlertDialogContent className="sm:max-w-md">
                                     <AlertDialogHeader>
                                       <AlertDialogTitle className="text-lg sm:text-xl text-red-600">
-                                        Delete Admin Account
+                                        Delete Commissioner Account
                                       </AlertDialogTitle>
                                       <AlertDialogDescription className="text-sm sm:text-base">
                                         Are you sure you want to permanently delete {admin.full_name} ({admin.email})? 
@@ -1134,7 +1137,7 @@ function AdminDashboardContent() {
           <DialogHeader>
             <DialogTitle className="text-lg sm:text-xl">Reset Admin Password</DialogTitle>
             <DialogDescription className="text-sm sm:text-base">
-              This will send a password reset email to the specified admin account.
+              This will send a password reset email to the specified commissioner account.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1152,7 +1155,7 @@ function AdminDashboardContent() {
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-xs sm:text-sm text-yellow-800">
                 <strong>Note:</strong> This will send a password reset email to {resetEmail}. 
-                The admin will need to click the link in the email to set a new password.
+                The commissioner will need to click the link in the email to set a new password.
               </p>
             </div>
           </div>

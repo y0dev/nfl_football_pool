@@ -261,13 +261,11 @@ export class AdminService {
   }
 
   /**
-   * Get all admins (used in dashboard for super admin)
+   * Get all admins (used in dashboard for admin)
    */
   async getAdmins(): Promise<Admin[]> {
     try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting all admins');
-      }
+      debugLog('AdminService: Getting all admins');
 
       const { data: admins, error } = await this.supabase
         .from('admins')
@@ -275,21 +273,15 @@ export class AdminService {
         .order('full_name');
 
       if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('AdminService: Admins query error:', error);
-        }
+        debugError('AdminService: Admins query error:', error);
         throw new Error(`Failed to load admins: ${error.message}`);
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Admins result:', { count: admins?.length || 0 });
-      }
+      debugLog('AdminService: Admins result:', { count: admins?.length || 0 });
 
       return admins || [];
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting admins:', error);
-      }
+      debugError('AdminService: Error getting admins:', error);
       throw error;
     }
   }

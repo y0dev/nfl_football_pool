@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For non-super admins, verify they can only send reminders to their own pools
+    // For non-admins, verify they can only send reminders to their own pools
     if (!admin.is_super_admin) {
       const userPools = participants.filter(p => p.pools.created_by === session.user.email);
       if (userPools.length !== participants.length) {
@@ -186,7 +186,7 @@ async function sendReminderEmail(participant: any, games: any[], week: number, s
         
         <p><strong>Please submit your picks before the first game kicks off!</strong></p>
         
-        <p>If you have any questions, please contact your pool administrator.</p>
+                        <p>If you have any questions, please contact your pool commissioner.</p>
         
         <p>Best regards,<br>NFL Confidence Pool Team</p>
       </div>

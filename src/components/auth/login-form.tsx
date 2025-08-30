@@ -52,7 +52,7 @@ export function LoginForm() {
           description: 'Login successful!',
         });
         
-        // Redirect to admin dashboard
+        // Redirect to commissioner dashboard
         window.location.href = '/admin/dashboard';
       } else {
         const errorMessage = result.error || 'Invalid credentials';

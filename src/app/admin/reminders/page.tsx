@@ -155,7 +155,7 @@ function RemindersContent() {
         participantsQuery = participantsQuery.eq('pool_id', selectedPool);
         console.log('Filtering by pool:', selectedPool);
       } else if (!user?.is_super_admin) {
-        // For non-super admins, only show participants from their pools
+        // For non-admins, only show participants from their pools
         const userPoolIds = pools.map(p => p.id);
         console.log('User pool IDs:', userPoolIds);
         

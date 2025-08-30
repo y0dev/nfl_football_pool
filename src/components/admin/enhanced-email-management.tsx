@@ -161,7 +161,7 @@ export function EnhancedEmailManagement({
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [emailPreview, setEmailPreview] = useState({ subject: '', body: '' });
   const [isUpdatingPreview, setIsUpdatingPreview] = useState(false);
-  const [adminName, setAdminName] = useState('Pool Administrator');
+  const [adminName, setAdminName] = useState('Pool Commissioner');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -183,7 +183,7 @@ export function EnhancedEmailManagement({
       }
     } catch (error) {
       console.error('Error loading admin name:', error);
-      // Keep default 'Pool Administrator' if loading fails
+              // Keep default 'Pool Commissioner' if loading fails
     }
   };
 
@@ -336,8 +336,8 @@ export function EnhancedEmailManagement({
     setSelectedTemplate(templateId);
     const template = EMAIL_TEMPLATES.find(t => t.id === templateId);
     if (template?.id === 'custom-message') {
-      setCustomSubject('Message from Pool Administrator');
-      setCustomMessage('This is a custom message from the pool administrator.');
+              setCustomSubject('Message from Pool Commissioner');
+        setCustomMessage('This is a custom message from the pool commissioner.');
     }
     // Show preview when template is selected
     setShowPreview(true);

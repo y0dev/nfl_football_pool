@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     if (existingAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Admin with this email already exists' },
+        { success: false, error: 'Commissioner with this email already exists' },
         { status: 400 }
       );
     }

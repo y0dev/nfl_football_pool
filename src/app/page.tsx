@@ -141,7 +141,7 @@ function LandingPage() {
                 onClick={() => router.push('/admin/login')}
               >
                 <Shield className="h-4 w-4 mr-2" />
-                Admin Login
+                Commissioner Login
               </Button>
             </div>
           </div>

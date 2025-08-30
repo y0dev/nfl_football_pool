@@ -60,7 +60,7 @@ export async function sendTemplatedEmails({
     }
     
     const adminEmail = adminData.email;
-    const adminName = adminData.full_name || 'Pool Administrator'; // Use actual name or fallback
+    const adminName = adminData.full_name || 'Pool Commissioner'; // Use actual name or fallback
     
     // Get all participants
     const allParticipants = await loadUsers(poolId);
@@ -118,8 +118,8 @@ export async function sendTemplatedEmails({
       currentStandings: 'To be determined', // This would be calculated
       finalResults: 'To be determined', // This would be calculated
       seasonHighlights: 'To be determined', // This would be calculated
-      customSubject: 'Message from Pool Administrator',
-      customMessage: 'This is a custom message from the pool administrator.'
+              customSubject: 'Message from Pool Commissioner',
+        customMessage: 'This is a custom message from the pool commissioner.'
     };
     
     // Merge with custom variables

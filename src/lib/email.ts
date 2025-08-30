@@ -83,9 +83,9 @@ class EmailService {
     return html.replace(/<[^>]*>/g, '');
   }
 
-  // Template for admin account creation notification
+  // Template for commissioner account creation notification
   async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
-    const subject = 'New Admin Account Created - NFL Confidence Pool';
+    const subject = 'New Commissioner Account Created - NFL Confidence Pool';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
@@ -93,7 +93,7 @@ class EmailService {
         </h2>
         
         <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin-top: 0;">New Admin Account Details:</h3>
+          <h3 style="color: #1f2937; margin-top: 0;">New Commissioner Account Details:</h3>
           <p><strong>Email:</strong> ${adminEmail}</p>
           <p><strong>Name:</strong> ${adminName}</p>
           <p><strong>Created:</strong> ${new Date().toLocaleString()}</p>
@@ -101,8 +101,8 @@ class EmailService {
         
         <div style="background-color: #dbeafe; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 0; color: #1e40af;">
-            <strong>Note:</strong> This admin account has been created and is now active. 
-            The admin can log in to manage pools and participants.
+            <strong>Note:</strong> This commissioner account has been created and is now active. 
+                          The commissioner can log in to manage pools and participants.
           </p>
         </div>
         
@@ -155,7 +155,7 @@ class EmailService {
         
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; font-size: 14px;">
-            If you have any questions, please contact your pool administrator.
+            If you have any questions, please contact your pool commissioner.
           </p>
         </div>
       </div>

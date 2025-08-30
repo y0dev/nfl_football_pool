@@ -216,7 +216,7 @@ function ParticipantContent() {
             setIsAdmin(true);
             setIsSuperAdmin(admin.is_super_admin);
             
-            // Check if user is the pool admin (created the pool)
+            // Check if user is the pool commissioner (created the pool)
             if (poolId) {
               const { data: poolData } = await supabase
                 .from('pools')
@@ -310,7 +310,7 @@ function ParticipantContent() {
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading participant data:', error);
-      setError('Failed to load pool information. Please try again or contact the pool administrator.');
+              setError('Failed to load pool information. Please try again or contact the pool commissioner.');
     } finally {
       setIsLoading(false);
     }
@@ -613,7 +613,7 @@ function ParticipantContent() {
     if (!isPoolAdmin && !isSuperAdmin) {
       toast({
         title: "Permission Denied",
-        description: "Only pool admins or super admins can unlock picks",
+        description: "Only pool commissioners or admins can unlock picks",
         variant: "destructive",
       });
       return;
@@ -649,7 +649,7 @@ function ParticipantContent() {
             pool_id: poolId,
             week: currentWeek, 
             season_type: currentSeasonType,
-            unlocked_by: isSuperAdmin ? 'super_admin' : 'pool_admin'
+            unlocked_by: isSuperAdmin ? 'admin' : 'pool_commissioner'
           }
         });
 

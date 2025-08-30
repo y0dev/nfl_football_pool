@@ -83,7 +83,7 @@ function OverridePicksContent() {
         setCurrentWeek(weekData?.week || 1);
         setCurrentSeasonType(weekData?.seasonType || 2);
         
-        // Load pools - check if user is super admin
+        // Load pools - check if user is admin
         const isSuperAdmin = await verifyAdminStatus(true);
         const poolsData = await loadPools(user?.email, isSuperAdmin);
         console.log('Pools loaded:', poolsData);

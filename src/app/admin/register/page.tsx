@@ -75,9 +75,9 @@ function AdminRegisterContent() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Admin account created successfully! You can now log in with your credentials.',
+          description: 'Commissioner account created successfully! You can now log in with your credentials.',
         });
-        // Redirect to admin dashboard
+        // Redirect to commissioner dashboard
         setTimeout(() => {
           window.location.href = '/admin/dashboard';
         }, 2000);
@@ -89,7 +89,7 @@ function AdminRegisterContent() {
         });
       }
     } catch (error) {
-      console.error('Admin registration error:', error);
+              console.error('Commissioner registration error:', error);
       toast({
         title: 'Error',
         description: 'Registration failed. Please try again.',
@@ -108,10 +108,10 @@ function AdminRegisterContent() {
             <Shield className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Create Admin Account
+            Create Commissioner Account
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
-            Join the NFL Confidence Pool as an administrator
+            Join the NFL Confidence Pool as a commissioner
           </p>
         </div>
       </div>
@@ -237,7 +237,7 @@ function AdminRegisterContent() {
                     Creating Account...
                   </div>
                 ) : (
-                  'Create Admin Account'
+                  'Create Commissioner Account'
                 )}
               </Button>
             </div>
@@ -260,7 +260,7 @@ function AdminRegisterContent() {
                 href="/admin/login"
                 className="w-full flex justify-center py-3 px-4 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
-                Sign in to Admin Dashboard
+                Sign in to Commissioner Dashboard
               </Link>
             </div>
           </div>

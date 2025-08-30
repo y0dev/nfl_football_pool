@@ -147,7 +147,7 @@ function InviteContent() {
 
     } catch (error) {
       console.error('Error joining pool:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to join the pool. Please try again or contact the pool administrator.';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to join the pool. Please try again or contact the pool commissioner.';
       toast({
         title: "Join Failed",
         description: errorMessage,
@@ -254,7 +254,7 @@ function InviteContent() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">Pool Administrator: {adminEmail || 'Unknown'}</span>
+                  <span className="text-sm text-gray-600">Pool Commissioner: {adminEmail || 'Unknown'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-gray-500" />

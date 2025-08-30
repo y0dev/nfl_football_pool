@@ -46,7 +46,7 @@ export function getDefaultVariables(
     currentWeek,
             season: season || DEFAULT_SEASON, // Use provided season or fallback to default
     adminName,
-    customSubject: 'Message from Pool Administrator',
-    customMessage: 'This is a custom message from the pool administrator.'
+    customSubject: 'Message from Pool Commissioner',
+    customMessage: 'This is a custom message from the pool commissioner.'
   };
 }

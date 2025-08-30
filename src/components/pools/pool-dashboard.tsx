@@ -185,7 +185,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
           user={{ email: user.email, isSuperAdmin }}
         />
       ) : (
-        /* For super admins, show tabs */
+        /* For admins, show tabs */
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
             <TabsTrigger value="all">All Pools</TabsTrigger>
@@ -301,7 +301,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                   onJoined={onPoolJoined}
                 />
               )}
-              {/* Admin Override Button - only show for pool admins or super admins */}
+              {/* Commissioner Override Button - only show for pool commissioners or admins */}
               {(user?.isSuperAdmin || pool.created_by === user?.email) && (
                 <Link href={`/admin/override-picks?pool=${pool.id}`}>
                   <Button

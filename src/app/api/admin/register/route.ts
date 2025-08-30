@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         email,
         password_hash: '', // No need to store password hash since we use Supabase Auth
         full_name: fullName,
-        is_super_admin: false, // Regular admin by default
+        is_super_admin: false, // Regular commissioner by default
         is_active: true,
       })
       .select()
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json(
-        { success: false, error: `Failed to create admin account: ${createError.message}` },
+        { success: false, error: `Failed to create commissioner account: ${createError.message}` },
         { status: 500 }
       );
     }
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       );
       
       if (!emailSent) {
-        console.warn('Email notification failed, but admin account was created successfully');
+        console.warn('Email notification failed, but commissioner account was created successfully');
       } else {
         console.log('Email notification sent successfully');
       }
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     console.log('Registration completed successfully, returning success response');
     return NextResponse.json({
       success: true,
-      message: existingAuthUser ? 'Admin account created successfully for existing user' : 'Admin account created successfully',
+                message: existingAuthUser ? 'Commissioner account created successfully for existing user' : 'Commissioner account created successfully',
       admin: {
         id: newAdmin.id,
         email: newAdmin.email,

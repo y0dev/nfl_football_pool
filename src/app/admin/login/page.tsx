@@ -58,7 +58,7 @@ function AdminLoginContent() {
           title: 'Success',
           description: 'Admin login successful!',
         });
-        // Redirect to admin dashboard
+        // Redirect to commissioner dashboard
         window.location.href = '/admin/dashboard';
       } else {
         toast({
@@ -100,7 +100,7 @@ function AdminLoginContent() {
             <div className="flex items-center justify-center mb-3 sm:mb-4">
               <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
             </div>
-            <CardTitle className="text-xl sm:text-2xl font-bold">Admin Access</CardTitle>
+                            <CardTitle className="text-xl sm:text-2xl font-bold">Commissioner Access</CardTitle>
             <CardDescription className="text-sm sm:text-base">
               Sign in to manage your NFL Confidence Pool
             </CardDescription>
@@ -166,7 +166,7 @@ function AdminLoginContent() {
                   className="w-full h-10 sm:h-12 text-sm sm:text-base font-medium" 
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign In as Admin'}
+                  {isLoading ? 'Signing in...' : 'Sign In as Commissioner'}
                 </Button>
               </form>
             </Form>
@@ -176,7 +176,7 @@ function AdminLoginContent() {
         {/* Help text */}
         <div className="mt-4 sm:mt-6 text-center">
           <p className="text-xs sm:text-sm text-gray-600">
-            Need help? Contact your pool administrator
+            Need help? Contact your pool commissioner
           </p>
         </div>
         
@@ -184,12 +184,12 @@ function AdminLoginContent() {
         <div className="mt-3 sm:mt-4 space-y-2">
           <div className="text-center">
             <Link href="/admin/register" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-              Create Admin Account
+              Create Commissioner Account
             </Link>
           </div>
           {/* <div className="text-center">
             <Link href="/super-admin" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-              Super Admin Dashboard
+              Admin Dashboard
             </Link>
           </div> */}
         </div>
