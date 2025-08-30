@@ -70,6 +70,12 @@ function AdminDashboardContent() {
           setIsSuperAdmin(superAdminStatus);
           debugLog('Super admin status:', superAdminStatus);
           
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+          
           if (superAdminStatus) {
             debugLog('Loading admins...');
             await loadAdmins();
@@ -87,7 +93,7 @@ function AdminDashboardContent() {
     };
 
     loadData();
-  }, [user, verifyAdminStatus]);
+  }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
     if (currentWeek && currentSeasonType && isSuperAdmin !== undefined) {
@@ -104,7 +110,7 @@ function AdminDashboardContent() {
         currentWeek,
         currentSeasonType,
         user.email,
-        isSuperAdmin
+        true // isSuperAdmin = true for admin dashboard
       );
       
       setDashboardStats(stats);
@@ -112,7 +118,7 @@ function AdminDashboardContent() {
       // Also load available pools for the pool selection
       const pools = await adminService.getActivePools(
         user.email,
-        isSuperAdmin
+        true // isSuperAdmin = true for admin dashboard
       );
       debugLog('stats pools', pools);
       setAvailablePools(pools);
@@ -197,18 +203,13 @@ function AdminDashboardContent() {
     
     // Only show notifications if admin has pools to manage
     if (dashboardStats.totalPools === 0) {
-      if (isSuperAdmin) {
-        newNotifications.push('No active pools found in the system. Create a pool to get started!');
-      } else {
-        newNotifications.push('You haven\'t created any pools yet. Create your first pool to get started!');
-      }
+      newNotifications.push('No active pools found in the system. Create a pool to get started!');
       setNotifications(newNotifications);
       return;
     }
     
     if (dashboardStats.pendingSubmissions > 0) {
-      const poolText = isSuperAdmin ? 'participants across all pools' : 'participants';
-      newNotifications.push(`${dashboardStats.pendingSubmissions} ${poolText} haven't submitted picks for Week ${currentWeek}`);
+      newNotifications.push(`${dashboardStats.pendingSubmissions} participants across all pools haven't submitted picks for Week ${currentWeek}`);
     }
     
     if (dashboardStats.totalGames === 0) {
@@ -216,19 +217,16 @@ function AdminDashboardContent() {
     }
     
     if (dashboardStats.activePools === 0) {
-      const poolText = isSuperAdmin ? 'pools in the system are' : 'your pools are';
-      newNotifications.push(`All ${poolText} currently inactive`);
+      newNotifications.push('All pools in the system are currently inactive');
     }
     
     // Add admin-specific notifications
     if (dashboardStats.totalParticipants === 0) {
-      const participantText = isSuperAdmin ? 'No participants have joined any pools yet' : 'No participants have joined your pools yet';
-      newNotifications.push(participantText);
+      newNotifications.push('No participants have joined any pools yet');
     }
     
     if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0) {
-      const completionText = isSuperAdmin ? 'All participants across all pools have submitted their picks for this week!' : 'All participants have submitted their picks for this week!';
-      newNotifications.push(completionText);
+      newNotifications.push('All participants across all pools have submitted their picks for this week!');
     }
     
     setNotifications(newNotifications);
@@ -364,7 +362,7 @@ function AdminDashboardContent() {
       
       const pools = await adminService.getActivePools(
         user.email,
-        isSuperAdmin
+        true // isSuperAdmin = true for admin dashboard
       );
 
       if (!pools || pools.length === 0) {
@@ -408,7 +406,7 @@ function AdminDashboardContent() {
       
       const pools = await adminService.getActivePools(
         user.email,
-        isSuperAdmin
+        true // isSuperAdmin = true for admin dashboard
       );
       debugLog('pools', pools);
 
@@ -722,13 +720,10 @@ function AdminDashboardContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
-                              {isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
+              Admin Dashboard
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
-              {isSuperAdmin 
-                ? 'Manage all NFL Confidence Pools' 
-                : 'Manage your NFL Confidence Pools'
-              }
+              Manage all NFL Confidence Pools
             </p>
             {user?.full_name && (
               <p className="text-sm sm:text-base text-blue-600 font-medium mt-1">
@@ -736,16 +731,9 @@ function AdminDashboardContent() {
               </p>
             )}
             <div className="flex flex-wrap gap-2 mt-2">
-              {isSuperAdmin && (
-                <Badge variant="outline" className="text-xs">
-                  Admin
-                </Badge>
-              )}
-              {!isSuperAdmin && (
-                <Badge variant="secondary" className="text-xs">
-                  Commissioner
-                </Badge>
-              )}
+              <Badge variant="outline" className="text-xs">
+                Admin
+              </Badge>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -816,16 +804,8 @@ function AdminDashboardContent() {
             <div className="flex-1">
               <h3 className="font-semibold text-blue-900 mb-2 text-sm sm:text-base">Current Week: {currentWeek}</h3>
               <p className="text-blue-700 text-xs sm:text-sm">
-            {isSuperAdmin 
-                  ? 'Manage all pools, participants, and view current standings.'
-                  : `Manage your ${dashboardStats.totalPools} pool${dashboardStats.totalPools !== 1 ? 's' : ''}, ${dashboardStats.totalParticipants} participant${dashboardStats.totalParticipants !== 1 ? 's' : ''}, and view current standings.`
-            }
-          </p>
-              {!isSuperAdmin && dashboardStats.totalPools > 0 && (
-                <p className="text-blue-600 text-xs mt-1">
-                  {dashboardStats.completedSubmissions} of {dashboardStats.totalParticipants} participants have submitted picks
-                </p>
-              )}
+                Manage all pools, participants, and view current standings.
+              </p>
             </div>
             <div className="text-right text-xs sm:text-sm text-blue-600 flex-shrink-0">
               <div>Last updated:</div>

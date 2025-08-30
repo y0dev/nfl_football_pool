@@ -52,8 +52,12 @@ export function LoginForm() {
           description: 'Login successful!',
         });
         
-        // Redirect to commissioner dashboard
-        window.location.href = '/admin/dashboard';
+        // Redirect based on admin status
+        if (result.user.is_super_admin) {
+          window.location.href = '/admin/dashboard';
+        } else {
+          window.location.href = '/dashboard';
+        }
       } else {
         const errorMessage = result.error || 'Invalid credentials';
         setLoginError(errorMessage);

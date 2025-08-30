@@ -58,8 +58,12 @@ function AdminLoginContent() {
           title: 'Success',
           description: 'Admin login successful!',
         });
-        // Redirect to commissioner dashboard
-        window.location.href = '/admin/dashboard';
+        // Redirect based on admin status
+        if (result.user.is_super_admin) {
+          window.location.href = '/admin/dashboard';
+        } else {
+          window.location.href = '/dashboard';
+        }
       } else {
         toast({
           title: 'Error',
