@@ -361,7 +361,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/register')}
+                onClick={() => router.push('/admin/commissioners')}
                 className="w-full"
               >
                 Manage Commissioners

@@ -30,14 +30,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { adminId, newPassword } = await request.json();
+    const { adminId, isActive } = await request.json();
     
-    if (!adminId || !newPassword) {
+    if (adminId === undefined || isActive === undefined) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-    }
-
-    if (newPassword.length < 8) {
-      return NextResponse.json({ success: false, error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
     // Get the admin record to verify it exists and is not a super admin
@@ -52,30 +48,30 @@ export async function POST(request: NextRequest) {
     }
 
     if (targetAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Cannot reset super admin passwords' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Cannot modify super admin status' }, { status: 403 });
     }
 
-    // Update the password in the admins table
+    // Update the active status
     const { error: updateError } = await supabase
       .from('admins')
       .update({ 
-        password: newPassword,
+        is_active: isActive,
         updated_at: new Date().toISOString()
       })
       .eq('id', adminId);
 
     if (updateError) {
-      console.error('Error updating password:', updateError);
-      return NextResponse.json({ success: false, error: 'Failed to update password' }, { status: 500 });
+      console.error('Error updating status:', updateError);
+      return NextResponse.json({ success: false, error: 'Failed to update status' }, { status: 500 });
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Password reset successfully' 
+      message: `Commissioner ${isActive ? 'activated' : 'deactivated'} successfully` 
     });
 
   } catch (error) {
-    console.error('Password reset error:', error);
+    console.error('Status toggle error:', error);
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 

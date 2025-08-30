@@ -72,6 +72,8 @@ function OverridePicksContent() {
   const [showEraseSuccessDialog, setShowEraseSuccessDialog] = useState(false);
   const [erasedPicksCount, setErasedPicksCount] = useState(0);
 
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
@@ -79,22 +81,18 @@ function OverridePicksContent() {
         if (user) {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
           
-          // Redirect commissioners to their dashboard
-          if (!superAdminStatus) {
-            router.push('/dashboard');
-            return;
-          }
+          // Both commissioners and admins can access this page
+          // Commissioners will only see their own pools, admins will see all pools
+          await loadData(superAdminStatus);
         }
-        
-        // Only load data for super admins
-        await loadData();
       } catch (error) {
         console.error('Error checking admin status:', error);
       }
     };
 
-    const loadData = async () => {
+    const loadData = async (superAdminStatus: boolean) => {
       try {
         setIsLoading(true);
         
@@ -104,10 +102,18 @@ function OverridePicksContent() {
         setCurrentWeek(weekData?.week || 1);
         setCurrentSeasonType(weekData?.seasonType || 2);
         
-        // Load pools - check if user is admin
-        const isSuperAdmin = await verifyAdminStatus(true);
-        const poolsData = await loadPools(user?.email, isSuperAdmin);
-        console.log('Pools loaded:', poolsData);
+        // Load pools based on user role
+        const poolsData = await loadPools(user?.email, superAdminStatus);
+        console.log('Pools loaded:', {
+          userRole: superAdminStatus ? 'admin' : 'commissioner',
+          userEmail: user?.email,
+          totalPools: poolsData.length,
+          poolsData: poolsData.map(p => ({
+            id: p.id,
+            name: p.name,
+            created_by: p.created_by
+          }))
+        });
         setPools(poolsData);
 
         // Set initial pool from URL parameter
@@ -423,7 +429,7 @@ function OverridePicksContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push('/admin/dashboard')}
+            onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -439,7 +445,13 @@ function OverridePicksContent() {
             ? `Select a pool, participant, and specific picks to override for Week ${currentWeek}`
             : `Select a pool and participant to erase all their picks for Week ${currentWeek}`
           }
+          {!isSuperAdmin && ' (Limited to your pools)'}
         </p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="outline" className="text-xs">
+            {isSuperAdmin ? 'System Admin' : 'Commissioner'}
+          </Badge>
+        </div>
       </div>
 
       {/* Week Status Warning */}
@@ -471,7 +483,10 @@ function OverridePicksContent() {
               Selection
             </CardTitle>
             <CardDescription>
-              Choose pool, participant, and picks to override
+              {isSuperAdmin 
+                ? 'Choose any pool, participant, and picks to override'
+                : 'Choose from your pools, participant, and picks to override'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -502,6 +517,19 @@ function OverridePicksContent() {
                   ))}
                 </SelectContent>
               </Select>
+              {pools.length === 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {isSuperAdmin ? 'No pools available' : 'No pools created by you'}
+                </p>
+              )}
+              {pools.length > 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {isSuperAdmin 
+                    ? `Showing ${pools.length} pools from all users`
+                    : `Showing ${pools.length} pools created by you`
+                  }
+                </p>
+              )}
             </div>
 
             {/* Participant Selection */}

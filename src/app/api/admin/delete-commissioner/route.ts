@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 
-export async function POST(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
     // Verify the request is from a super admin
     const authHeader = request.headers.get('authorization');
@@ -30,14 +30,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { adminId, newPassword } = await request.json();
+    const { adminId } = await request.json();
     
-    if (!adminId || !newPassword) {
-      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-    }
-
-    if (newPassword.length < 8) {
-      return NextResponse.json({ success: false, error: 'Password must be at least 8 characters' }, { status: 400 });
+    if (!adminId) {
+      return NextResponse.json({ success: false, error: 'Missing admin ID' }, { status: 400 });
     }
 
     // Get the admin record to verify it exists and is not a super admin
@@ -52,30 +48,45 @@ export async function POST(request: NextRequest) {
     }
 
     if (targetAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Cannot reset super admin passwords' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Cannot delete super admins' }, { status: 403 });
     }
 
-    // Update the password in the admins table
-    const { error: updateError } = await supabase
+    // Check if commissioner has any pools
+    const { data: pools, error: poolsError } = await supabase
+      .from('pools')
+      .select('id, name')
+      .eq('created_by', targetAdmin.email);
+
+    if (poolsError) {
+      console.error('Error checking pools:', poolsError);
+      return NextResponse.json({ success: false, error: 'Failed to check commissioner pools' }, { status: 500 });
+    }
+
+    if (pools && pools.length > 0) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `Cannot delete commissioner with active pools: ${pools.map(p => p.name).join(', ')}` 
+      }, { status: 400 });
+    }
+
+    // Delete the commissioner
+    const { error: deleteError } = await supabase
       .from('admins')
-      .update({ 
-        password: newPassword,
-        updated_at: new Date().toISOString()
-      })
+      .delete()
       .eq('id', adminId);
 
-    if (updateError) {
-      console.error('Error updating password:', updateError);
-      return NextResponse.json({ success: false, error: 'Failed to update password' }, { status: 500 });
+    if (deleteError) {
+      console.error('Error deleting commissioner:', deleteError);
+      return NextResponse.json({ success: false, error: 'Failed to delete commissioner' }, { status: 500 });
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Password reset successfully' 
+      message: 'Commissioner deleted successfully' 
     });
 
   } catch (error) {
-    console.error('Password reset error:', error);
+    console.error('Delete commissioner error:', error);
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 

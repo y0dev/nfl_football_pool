@@ -13,7 +13,8 @@ import {
   BarChart3,
   Plus,
   Bell,
-  TrendingUp
+  TrendingUp,
+  Edit
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -415,24 +416,25 @@ function CommissionerDashboardContent() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Plus className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Plus className="h-4 w-4" />
                 Create Pool
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Start a new NFL Confidence Pool
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <Button 
                 onClick={() => {
                   const event = new CustomEvent('openCreatePoolDialog');
                   document.dispatchEvent(event);
                 }}
                 className="w-full"
+                size="sm"
               >
                 Create Pool
               </Button>
@@ -440,19 +442,20 @@ function CommissionerDashboardContent() {
           </Card>
 
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Trophy className="h-4 w-4" />
                 Pool Management
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 {isSuperAdmin ? 'Manage all pools and participants' : 'Manage your pools and participants'}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <Button 
                 onClick={() => router.push('/admin/pools')}
                 className="w-full"
+                size="sm"
               >
                 {isSuperAdmin ? 'Manage All Pools' : 'Manage My Pools'}
               </Button>
@@ -460,19 +463,20 @@ function CommissionerDashboardContent() {
           </Card>
 
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BarChart3 className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
                 Leaderboards
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 {isSuperAdmin ? 'View standings for all pools' : 'View standings for your pools'}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <Button 
                 onClick={() => router.push('/admin/leaderboard')}
                 className="w-full"
+                size="sm"
               >
                 {isSuperAdmin ? 'View All Leaderboards' : 'View My Leaderboards'}
               </Button>
@@ -480,22 +484,44 @@ function CommissionerDashboardContent() {
           </Card>
 
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Mail className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mail className="h-4 w-4" />
                 Send Reminders
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Remind participants to submit picks
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <Button 
                 onClick={() => router.push('/admin/reminders')}
                 className="w-full"
+                size="sm"
                 disabled={dashboardStats.pendingSubmissions === 0}
               >
                 Send Reminders ({dashboardStats.pendingSubmissions})
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Edit className="h-4 w-4" />
+                Override Picks
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {isSuperAdmin ? 'Override picks for any pool' : 'Override picks for your pools'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button 
+                onClick={() => router.push('/admin/override-picks')}
+                className="w-full"
+                size="sm"
+              >
+                {isSuperAdmin ? 'Override All Picks' : 'Override My Picks'}
               </Button>
             </CardContent>
           </Card>

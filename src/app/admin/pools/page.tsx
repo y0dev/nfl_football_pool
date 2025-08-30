@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   ArrowLeft,
   Search,
@@ -19,7 +21,10 @@ import {
   Edit,
   Trash2,
   Mail,
-  BarChart3
+  BarChart3,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -44,6 +49,11 @@ function PoolsManagementContent() {
   const [filteredPools, setFilteredPools] = useState<PoolWithParticipants[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedPoolForShare, setSelectedPoolForShare] = useState<PoolWithParticipants | null>(null);
+  const [shareLink, setShareLink] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [currentWeek, setCurrentWeek] = useState(1);
   const [stats, setStats] = useState({
     totalPools: 0,
     activePools: 0,
@@ -63,8 +73,9 @@ function PoolsManagementContent() {
           
           // Both commissioners and admins can access this page
           // Commissioners will only see their own pools, admins will see all pools
-          await loadPools();
-          await loadStats();
+          await loadPools(superAdminStatus);
+          await loadStats(superAdminStatus);
+          await loadCurrentWeek();
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -76,7 +87,7 @@ function PoolsManagementContent() {
     loadData();
   }, [user, verifyAdminStatus, router]);
 
-  const loadPools = async () => {
+  const loadPools = async (superAdminStatus: boolean) => {
     try {
       if (!user?.email) return;
       
@@ -90,7 +101,7 @@ function PoolsManagementContent() {
         .order('created_at', { ascending: false });
       
       // If user is not a super admin, only show pools they created
-      if (!isSuperAdmin) {
+      if (!superAdminStatus) {
         poolsQuery = poolsQuery.eq('created_by', user.email);
       }
       
@@ -104,12 +115,13 @@ function PoolsManagementContent() {
           const { data: participants, error: participantsError } = await supabase
             .from('participants')
             .select('id, is_active, created_at')
-            .eq('pool_id', pool.id);
+            .eq('pool_id', pool.id)
+            .eq('is_active', true); // Only count active participants
           
           if (participantsError) throw participantsError;
           
           const participantCount = participants?.length || 0;
-          const activeParticipantCount = participants?.filter(p => p.is_active).length || 0;
+          const activeParticipantCount = participantCount; // Since we're already filtering for active
           
           // Get last activity (most recent participant join or pool creation)
           const lastActivity = participants && participants.length > 0 
@@ -128,6 +140,22 @@ function PoolsManagementContent() {
       setPools(poolsWithParticipants);
       setFilteredPools(poolsWithParticipants);
       
+      // Debug logging for data accuracy
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Pools loaded:', {
+          userRole: superAdminStatus ? 'admin' : 'commissioner',
+          userEmail: user.email,
+          totalPools: poolsWithParticipants.length,
+          poolsData: poolsWithParticipants.map(p => ({
+            id: p.id,
+            name: p.name,
+            created_by: p.created_by,
+            participantCount: p.participantCount,
+            activeParticipantCount: p.activeParticipantCount
+          }))
+        });
+      }
+      
     } catch (error) {
       console.error('Error loading pools:', error);
       toast({
@@ -138,31 +166,70 @@ function PoolsManagementContent() {
     }
   };
 
-  const loadStats = async () => {
+  const loadCurrentWeek = async () => {
+    try {
+      const { getUpcomingWeek } = await import('@/actions/loadCurrentWeek');
+      const weekData = await getUpcomingWeek();
+      setCurrentWeek(weekData?.week || 1);
+    } catch (error) {
+      console.error('Error loading current week:', error);
+    }
+  };
+
+  const loadStats = async (superAdminStatus: boolean) => {
     try {
       if (!user?.email) return;
       
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
       
+      // Build queries based on user role
+      let poolsQuery = supabase.from('pools').select('*', { count: 'exact', head: true });
+      let activePoolsQuery = supabase.from('pools').select('*', { count: 'exact', head: true }).eq('is_active', true);
+      
+      // If user is not a super admin, only count pools they created
+      if (!superAdminStatus) {
+        poolsQuery = poolsQuery.eq('created_by', user.email);
+        activePoolsQuery = activePoolsQuery.eq('created_by', user.email);
+      }
+      
       // Get total pools
-      const { count: totalPools } = await supabase
-        .from('pools')
-        .select('*', { count: 'exact', head: true });
+      const { count: totalPools } = await poolsQuery;
       
       // Get active pools
-      const { count: activePools } = await supabase
-        .from('pools')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+      const { count: activePools } = await activePoolsQuery;
       
-      // Get total participants
-      const { count: totalParticipants } = await supabase
+      // Get total participants for accessible pools
+      let participantsQuery = supabase
         .from('participants')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
       
-      // Get total games for current week
+      if (!superAdminStatus) {
+        // For commissioners, get participant count only for their pools
+        const { data: userPools } = await supabase
+          .from('pools')
+          .select('id')
+          .eq('created_by', user.email);
+        
+        if (userPools && userPools.length > 0) {
+          const poolIds = userPools.map(p => p.id);
+          participantsQuery = participantsQuery.in('pool_id', poolIds);
+        } else {
+          // No pools created by user, so no participants
+          setStats({
+            totalPools: totalPools || 0,
+            activePools: activePools || 0,
+            totalParticipants: 0,
+            totalGames: 0
+          });
+          return;
+        }
+      }
+      
+      const { count: totalParticipants } = await participantsQuery;
+      
+      // Get total games for current week (same for all users)
       const { count: totalGames } = await supabase
         .from('games')
         .select('*', { count: 'exact', head: true });
@@ -173,6 +240,18 @@ function PoolsManagementContent() {
         totalParticipants: totalParticipants || 0,
         totalGames: totalGames || 0
       });
+      
+      // Debug logging for stats accuracy
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Stats loaded:', {
+          userRole: superAdminStatus ? 'admin' : 'commissioner',
+          userEmail: user.email,
+          totalPools,
+          activePools,
+          totalParticipants,
+          totalGames
+        });
+      }
       
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -220,6 +299,34 @@ function PoolsManagementContent() {
     router.push(`/admin/emails?pool=${poolId}`);
   };
 
+  const handleSharePool = (pool: PoolWithParticipants) => {
+    setSelectedPoolForShare(pool);
+    const baseUrl = window.location.origin;
+    const shareUrl = `${baseUrl}/invite?pool=${pool.id}&week=${currentWeek}`;
+    setShareLink(shareUrl);
+    setShareModalOpen(true);
+    setCopied(false);
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: 'Link Copied!',
+        description: 'Pool invitation link copied to clipboard',
+      });
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      toast({
+        title: 'Copy Failed',
+        description: 'Failed to copy link to clipboard',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -248,11 +355,14 @@ function PoolsManagementContent() {
                 <h1 className="text-2xl sm:text-3xl font-bold">Pool Management</h1>
               </div>
               <p className="text-sm sm:text-base text-gray-600">
-                Manage all NFL Confidence Pools in the system
+                {isSuperAdmin 
+                  ? 'Manage all NFL Confidence Pools in the system'
+                  : 'Manage your NFL Confidence Pools'
+                }
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">
-                  System Admin
+                  {isSuperAdmin ? 'System Admin' : 'Commissioner'}
                 </Badge>
                 <Button
                   onClick={handleLogout}
@@ -360,10 +470,13 @@ function PoolsManagementContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Trophy className="h-5 w-5" />
-              All Pools ({filteredPools.length})
+              {isSuperAdmin ? 'All Pools' : 'My Pools'} ({filteredPools.length})
             </CardTitle>
             <CardDescription>
-              Manage pools, view participants, and monitor activity
+              {isSuperAdmin 
+                ? 'Manage all pools, view participants, and monitor activity'
+                : 'Manage your pools, view participants, and monitor activity'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -441,6 +554,15 @@ function PoolsManagementContent() {
                           Invite
                         </Button>
                         <Button
+                          onClick={() => handleSharePool(pool)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Share
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           className="flex items-center gap-2"
@@ -457,6 +579,74 @@ function PoolsManagementContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Share Pool Modal */}
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Share Pool
+            </DialogTitle>
+            <DialogDescription>
+              Share this pool with participants for Week {currentWeek}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="share-link" className="text-sm font-medium">
+                Pool Invitation Link
+              </Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="share-link"
+                  value={shareLink}
+                  readOnly
+                  className="flex-1"
+                  placeholder="Generating link..."
+                />
+                <Button
+                  onClick={handleCopyLink}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-600" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {selectedPoolForShare && (
+              <div className="bg-gray-50 rounded-lg p-3">
+                <h4 className="font-medium text-sm mb-2">Pool Details</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p><span className="font-medium">Name:</span> {selectedPoolForShare.name}</p>
+                  <p><span className="font-medium">Season:</span> {selectedPoolForShare.season}</p>
+                  <p><span className="font-medium">Week:</span> {currentWeek}</p>
+                  <p><span className="font-medium">Participants:</span> {selectedPoolForShare.participantCount || 0}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-gray-500">
+              <p>• This link will take participants to the pool selection page for Week {currentWeek}</p>
+              <p>• Participants can join the pool and submit their picks</p>
+              <p>• The link includes the current week for easy access</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
