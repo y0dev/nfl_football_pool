@@ -619,6 +619,7 @@ CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(255) PRIMARY KEY,
   week INTEGER NOT NULL,
   season INTEGER NOT NULL,
+  season_type INTEGER DEFAULT 2,
   home_team VARCHAR(255) NOT NULL,
   away_team VARCHAR(255) NOT NULL,
   kickoff_time TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -626,7 +627,8 @@ CREATE TABLE IF NOT EXISTS games (
   home_score INTEGER,
   away_score INTEGER,
   game_status VARCHAR(50) DEFAULT 'scheduled',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 `;
 

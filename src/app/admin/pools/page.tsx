@@ -32,6 +32,7 @@ import { adminService, Pool, Participant } from '@/lib/admin-service';
 import { debugLog } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 
 interface PoolWithParticipants extends Pool {
   participantCount: number;
@@ -54,6 +55,7 @@ function PoolsManagementContent() {
   const [shareLink, setShareLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
+  const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
   const [stats, setStats] = useState({
     totalPools: 0,
     activePools: 0,
@@ -86,6 +88,19 @@ function PoolsManagementContent() {
 
     loadData();
   }, [user, verifyAdminStatus, router]);
+
+  // Listen for custom event to open create pool dialog
+  useEffect(() => {
+    const handleOpenCreatePool = () => {
+      setCreatePoolDialogOpen(true);
+    };
+
+    document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    
+    return () => {
+      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    };
+  }, []);
 
   const loadPools = async (superAdminStatus: boolean) => {
     try {
@@ -174,6 +189,16 @@ function PoolsManagementContent() {
     } catch (error) {
       console.error('Error loading current week:', error);
     }
+  };
+
+  const handlePoolCreated = async () => {
+    // Refresh pools and stats after pool creation
+    await loadPools(isSuperAdmin);
+    await loadStats(isSuperAdmin);
+    toast({
+      title: 'Pool Created',
+      description: 'New pool has been created successfully',
+    });
   };
 
   const loadStats = async (superAdminStatus: boolean) => {
@@ -294,18 +319,18 @@ function PoolsManagementContent() {
     router.push(`/admin/leaderboard?pool=${poolId}`);
   };
 
-  const handleSendInvite = (poolId: string) => {
-    // This would open the email management for the specific pool
-    router.push(`/admin/emails?pool=${poolId}`);
-  };
-
-  const handleSharePool = (pool: PoolWithParticipants) => {
+  const handleSendInvite = (pool: PoolWithParticipants) => {
     setSelectedPoolForShare(pool);
     const baseUrl = window.location.origin;
     const shareUrl = `${baseUrl}/invite?pool=${pool.id}&week=${currentWeek}`;
     setShareLink(shareUrl);
     setShareModalOpen(true);
     setCopied(false);
+  };
+
+  const handleSharePool = (pool: PoolWithParticipants) => {
+    // Navigate to the pool picks page with current week
+    router.push(`/pool/${pool.id}/picks?week=${currentWeek}&seasonType=2`);
   };
 
   const handleCopyLink = async () => {
@@ -545,15 +570,6 @@ function PoolsManagementContent() {
                           Leaderboard
                         </Button>
                         <Button
-                          onClick={() => handleSendInvite(pool.id)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Mail className="h-4 w-4" />
-                          Invite
-                        </Button>
-                        <Button
                           onClick={() => handleSharePool(pool)}
                           variant="outline"
                           size="sm"
@@ -563,12 +579,13 @@ function PoolsManagementContent() {
                           Share
                         </Button>
                         <Button
+                          onClick={() => handleSendInvite(pool)}
                           variant="outline"
                           size="sm"
                           className="flex items-center gap-2"
                         >
-                          <Settings className="h-4 w-4" />
-                          Settings
+                          <Mail className="h-4 w-4" />
+                          Invite
                         </Button>
                       </div>
                     </div>
@@ -580,16 +597,16 @@ function PoolsManagementContent() {
         </Card>
       </div>
 
-      {/* Share Pool Modal */}
+      {/* Pool Invitation Modal */}
       <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Share2 className="h-5 w-5" />
-              Share Pool
+              <Mail className="h-5 w-5" />
+              Pool Invitation
             </DialogTitle>
             <DialogDescription>
-              Share this pool with participants for Week {currentWeek}
+              Invite participants to join this pool for Week {currentWeek}
             </DialogDescription>
           </DialogHeader>
           
@@ -647,6 +664,13 @@ function PoolsManagementContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Create Pool Dialog */}
+      <CreatePoolDialog 
+        open={createPoolDialogOpen} 
+        onOpenChange={setCreatePoolDialogOpen}
+        onPoolCreated={handlePoolCreated}
+      />
     </div>
   );
 }

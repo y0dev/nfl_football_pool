@@ -29,6 +29,7 @@ import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -47,11 +48,13 @@ function AdminDashboardContent() {
     completedSubmissions: 0
   });
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastGameUpdate, setLastGameUpdate] = useState<Date | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -92,9 +95,23 @@ function AdminDashboardContent() {
   useEffect(() => {
     if (currentWeek && currentSeasonType && isSuperAdmin !== undefined) {
       loadDashboardStats();
+      loadLastGameUpdate();
       generateNotifications();
     }
   }, [currentWeek, currentSeasonType, isSuperAdmin]);
+
+  // Listen for custom event to open create pool dialog
+  useEffect(() => {
+    const handleOpenCreatePool = () => {
+      setCreatePoolDialogOpen(true);
+    };
+
+    document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    
+    return () => {
+      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    };
+  }, []);
 
   const loadDashboardStats = async () => {
     try {
@@ -115,6 +132,26 @@ function AdminDashboardContent() {
         description: 'Failed to load dashboard data',
         variant: 'destructive',
       });
+    }
+  };
+
+  const loadLastGameUpdate = async () => {
+    try {
+      const response = await fetch('/api/games?action=last-update');
+      
+      if (!response.ok) {
+        console.error('Error fetching last game update:', response.statusText);
+        return;
+      }
+      
+      const data = await response.json();
+      debugLog('Last Game Update - API Response: ', data);
+      
+      if (data.success && data.lastUpdate) {
+        setLastGameUpdate(new Date(data.lastUpdate));
+      }
+    } catch (error) {
+      console.error('Error loading last game update:', error);
     }
   };
 
@@ -171,6 +208,7 @@ function AdminDashboardContent() {
     setIsRefreshing(true);
     try {
       await loadDashboardStats();
+      await loadLastGameUpdate();
       generateNotifications();
       setLastRefresh(new Date());
       toast({
@@ -187,6 +225,15 @@ function AdminDashboardContent() {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handlePoolCreated = async () => {
+    // Refresh dashboard stats after pool creation
+    await loadDashboardStats();
+    toast({
+      title: 'Pool Created',
+      description: 'New pool has been created successfully',
+    });
   };
 
   const handleLogout = async () => {
@@ -499,8 +546,10 @@ function AdminDashboardContent() {
                 <div className="text-sm text-gray-600">Completed</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{lastRefresh.toLocaleTimeString()}</div>
-                <div className="text-sm text-gray-600">Last Updated</div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {lastGameUpdate ? lastGameUpdate.toLocaleTimeString() : 'N/A'}
+                </div>
+                <div className="text-sm text-gray-600">Last Game Update</div>
               </div>
             </div>
           </CardContent>
@@ -546,10 +595,31 @@ function AdminDashboardContent() {
                   Active
                 </Badge>
               </div>
+
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Last Game Update:</span>
+                <span className="text-sm text-gray-600">
+                  {lastGameUpdate ? lastGameUpdate.toLocaleString() : 'Never'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Last Dashboard Refresh:</span>
+                <span className="text-sm text-gray-600">
+                  {lastRefresh.toLocaleString()}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Create Pool Dialog */}
+      <CreatePoolDialog 
+        open={createPoolDialogOpen} 
+        onOpenChange={setCreatePoolDialogOpen}
+        onPoolCreated={handlePoolCreated}
+      />
     </div>
   );
 }

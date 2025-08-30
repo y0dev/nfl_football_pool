@@ -113,7 +113,7 @@ export class TestHelpers {
    * Wait for toast notification to appear
    */
   async waitForToast(type: 'success' | 'error', timeout = 5000) {
-    const selector = type === 'success' ? '[data-testid="success-toast"]' : '[data-testid="error-toast"]';
+    const selector = type === 'success' ? '.success-toast, .toast-success, [role="status"]' : '.error-toast, .toast-error, [role="alert"]';
     await this.waitForElement(selector, timeout);
   }
 
@@ -200,19 +200,19 @@ export const selectors = {
   adminActions: '[data-testid="admin-actions"]',
   
   // Commissioners Management
-  commissionersList: '[data-testid="commissioners-list"]',
-  commissionerCard: '[data-testid="commissioner-card"]',
-  commissionerName: '[data-testid="commissioner-name"]',
-  commissionerEmail: '[data-testid="commissioner-email"]',
-  commissionerStatus: '[data-testid="commissioner-status"]',
+  commissionersList: '.commissioners-list, .commissioners-table',
+  commissionerCard: '.commissioner-card, .commissioner-row',
+  commissionerName: '.commissioner-name, .name',
+  commissionerEmail: '.commissioner-email, .email',
+  commissionerStatus: '.commissioner-status, .status',
   
   // Quick Actions
-  quickActions: '[data-testid="quick-actions"]',
+  quickActions: '.quick-actions, .action-cards',
   
   // Toast Messages
-  successToast: '[data-testid="success-toast"]',
-  errorToast: '[data-testid="error-toast"]',
+  successToast: '.success-toast, .toast-success, [role="status"]',
+  errorToast: '.error-toast, .toast-error, [role="alert"]',
   
   // Sync History
-  syncHistory: '[data-testid="sync-history"]'
+  syncHistory: '.sync-history, .history-section'
 };

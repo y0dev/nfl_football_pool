@@ -3,8 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 // Create Supabase client dynamically to avoid build-time issues
 function createSupabaseClient() {
-  const supabaseUrl = process.env.SUPABASE_URL!
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Missing Supabase environment variables:', {
+      NEXT_PUBLIC_SUPABASE_URL: !!supabaseUrl,
+      NEXT_PUBLIC_SUPABASE_SERVICE_KEY: !!supabaseServiceKey
+    });
+    throw new Error('Missing Supabase environment variables');
+  }
+  
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
@@ -208,5 +217,60 @@ export async function POST(request: NextRequest) {
       { error: error.message },
       { status: 500 }
     )
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+
+    if (action === 'last-update') {
+      // Get the last game update time
+      const supabase = createSupabaseClient();
+      const { data, error } = await supabase
+        .from('games')
+        .select('updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('Error fetching last game update:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch last game update' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        lastUpdate: data?.updated_at || null,
+        formattedTime: data?.updated_at ? new Date(data.updated_at).toISOString() : null
+      });
+    }
+
+    // Default: return all games
+    const supabase = createSupabaseClient();
+    const { data: games, error } = await supabase
+      .from('games')
+      .select('*')
+      .order('kickoff_time', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({
+      success: true,
+      games: games || []
+    });
+
+  } catch (error: any) {
+    console.error('Error in games GET:', error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
   }
 } 

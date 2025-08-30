@@ -5,6 +5,54 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function createPageUrl(page: string): string {
+  // Normalize page names to lowercase and remove spaces
+  const normalized = page.replace(/\s+/g, "").toLowerCase();
+  switch (normalized) {
+    case "dashboard":
+      return "/dashboard";
+    case "admindashboard":
+      return "/admin/dashboard";
+    case "adminpools":
+      return "/admin/pools";
+    case "adminleaderboard":
+      return "/admin/leaderboard";
+    case "adminnflsync":
+      return "/admin/nfl-sync";
+    case "adminoverridepicks":
+      return "/admin/override-picks";
+    case "admincommissioners":
+      return "/admin/commissioners";
+    case "adminreminders":
+      return "/admin/reminders";
+    case "adminregister":
+      return "/admin/register";
+    case "adminlogin":
+      return "/admin/login";
+    case "poolpicks":
+      return "/pool/[id]/picks";
+    case "invite":
+      return "/invite";
+    case "login":
+      return "/login";
+    case "participant":
+      return "/participant";
+    case "superadmin":
+      return "/super-admin";
+    case "landing":
+      return "/";
+    default:
+      // For dynamic routes like pool picks with specific pool ID
+      if (normalized.startsWith("poolpicks?")) {
+        return "/pool/[id]/picks?" + page.split("?")[1];
+      }
+      if (normalized.startsWith("adminpool?")) {
+        return "/admin/pool/" + page.split("?")[1];
+      }
+      return "/" + normalized;
+  }
+}
+
 /**
  * Application-wide constants
  * These values are used throughout the project and can be easily updated in one place

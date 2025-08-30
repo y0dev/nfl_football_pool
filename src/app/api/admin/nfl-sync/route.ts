@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError, debugLog, debugWarn } from '@/lib/utils';
 
-const RAPIDAPI_HOST = 'api-american-football.api-sports.io';
+const RAPIDAPI_HOST = 'nfl-api-data.p.rapidapi.com';
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 
 export async function POST(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     const endpoint = `https://${RAPIDAPI_HOST}/nfl-scoreboard-week-type?year=${year}&type=${seasonType}&week=${week}`;
 
-    console.log(`🏈 NFL Sync - Fetching from: ${endpoint}`);
+    debugLog(`🏈 NFL Sync - Fetching from: ${endpoint}`);
 
     // Fetch data from RapidAPI
     const response = await fetch(endpoint, {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     const games = data.events || [];
 
-    console.log(`📡 Fetched ${games.length} games from RapidAPI`);
+    debugLog(`📡 Fetched ${games.length} games from RapidAPI`);
 
     if (games.length === 0) {
       return NextResponse.json({
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
           const away = competitors.find((c: any) => c.homeAway === 'away');
 
           if (!home || !away) {
-            console.warn(`⚠️ Skipping game ${game.id}: Missing competitor data`);
+            debugWarn(`⚠️ Skipping game ${game.id}: Missing competitor data`);
             continue;
           }
 
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
           batchPayloads.push(payload);
 
         } catch (error) {
-          console.error(`❌ Error processing game ${game.id}:`, error);
+          debugError(`❌ Error processing game ${game.id}:`, error);
           failedGames++;
           failedGameDetails.push({
             gameId: game.id,
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
             });
 
           if (error) {
-            console.error(`❌ Batch upsert failed:`, error);
+            debugError(`❌ Batch upsert failed:`, error);
             failedGames += batchPayloads.length;
             failedGameDetails.push(...batchPayloads.map(payload => ({
               gameId: payload.id,
@@ -165,11 +166,11 @@ export async function POST(request: NextRequest) {
             })));
           } else {
             successfulUpdates += batchPayloads.length;
-            console.log(`✅ Batch ${Math.floor(i / batchSize) + 1}: Updated ${batchPayloads.length} games`);
+            debugLog(`✅ Batch ${Math.floor(i / batchSize) + 1}: Updated ${batchPayloads.length} games`);
           }
 
         } catch (error) {
-          console.error(`❌ Batch ${Math.floor(i / batchSize) + 1} exception:`, error);
+          debugError(`❌ Batch ${Math.floor(i / batchSize) + 1} exception:`, error);
           failedGames += batchPayloads.length;
           failedGameDetails.push(...batchPayloads.map(payload => ({
             gameId: payload.id,
@@ -184,7 +185,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`📊 NFL Sync Summary: ${successfulUpdates} successful, ${failedGames} failed`);
+    debugLog(`📊 NFL Sync Summary: ${successfulUpdates} successful, ${failedGames} failed`);
 
     return NextResponse.json({
       success: true,
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ NFL Sync error:', error);
+    debugError('❌ NFL Sync error:', error);
     return NextResponse.json(
       { 
         success: false, 

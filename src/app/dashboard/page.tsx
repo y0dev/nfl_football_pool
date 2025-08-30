@@ -23,6 +23,7 @@ import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 
 function CommissionerDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -52,6 +53,7 @@ function CommissionerDashboardContent() {
   const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
   const [recentActivity, setRecentActivity] = useState<Array<{
     type: 'pool_created' | 'participant_joined' | 'picks_submitted' | 'reminder_sent';
     description: string;
@@ -94,6 +96,19 @@ function CommissionerDashboardContent() {
 
     loadData();
   }, [user, verifyAdminStatus, router]);
+
+  // Listen for custom event to open create pool dialog
+  useEffect(() => {
+    const handleOpenCreatePool = () => {
+      setCreatePoolDialogOpen(true);
+    };
+
+    document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    
+    return () => {
+      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
+    };
+  }, []);
 
   const loadDashboardStats = async () => {
     try {
@@ -236,6 +251,16 @@ function CommissionerDashboardContent() {
       // Fallback to empty array if there's an error
       setRecentActivity([]);
     }
+  };
+
+  const handlePoolCreated = async () => {
+    // Refresh dashboard stats after pool creation
+    await loadDashboardStats();
+    await loadRecentActivity();
+    toast({
+      title: 'Pool Created',
+      description: 'New pool has been created successfully',
+    });
   };
 
   const generateNotifications = () => {
@@ -619,6 +644,13 @@ function CommissionerDashboardContent() {
             </CardContent>
           </Card>
         )}
+
+        {/* Create Pool Dialog */}
+        <CreatePoolDialog 
+          open={createPoolDialogOpen} 
+          onOpenChange={setCreatePoolDialogOpen}
+          onPoolCreated={handlePoolCreated}
+        />
       </div>
     </div>
   );
