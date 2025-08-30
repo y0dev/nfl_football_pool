@@ -65,11 +65,15 @@ function AdminDashboardContent() {
         
         // Check admin status
         if (user) {
+          debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
           setIsSuperAdmin(superAdminStatus);
+          debugLog('Super admin status:', superAdminStatus);
           
           if (superAdminStatus) {
+            debugLog('Loading admins...');
             await loadAdmins();
+            debugLog('Admins loaded');
           }
         }
         
@@ -123,8 +127,8 @@ function AdminDashboardContent() {
   };
 
   const loadAdmins = async () => {
-    debugLog('loadAdmins');
-    if (!isSuperAdmin) return;
+    debugLog('Function: loadAdmins - Loading admins...');
+    // if (!isSuperAdmin) return;
     
     try {
       const adminsData = await adminService.getAdmins();
