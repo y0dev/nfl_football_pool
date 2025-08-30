@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - heading "404" [level=1] [ref=e11]
+      - heading "Page Not Found" [level=2] [ref=e12]
+      - paragraph [ref=e13]: Oops! The page you're looking for doesn't exist.
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - heading "What happened?" [level=3] [ref=e16]
+        - paragraph [ref=e17]: The page you're trying to access might have been moved, deleted, or you entered the wrong URL.
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - heading "Common Issues" [level=3] [ref=e20]:
+            - img [ref=e21]
+            - text: Common Issues
+          - list [ref=e24]:
+            - listitem [ref=e25]:
+              - generic [ref=e26]: •
+              - generic [ref=e27]: Check if the URL is spelled correctly
+            - listitem [ref=e28]:
+              - generic [ref=e29]: •
+              - generic [ref=e30]: The page might have been moved or deleted
+            - listitem [ref=e31]:
+              - generic [ref=e32]: •
+              - generic [ref=e33]: You might need to log in to access this page
+        - generic [ref=e34]:
+          - link "Go Home Return to the main page" [ref=e35] [cursor=pointer]:
+            - /url: /
+            - button "Go Home Return to the main page" [ref=e36]:
+              - img [ref=e37]
+              - generic [ref=e40]:
+                - generic [ref=e41]: Go Home
+                - generic [ref=e42]: Return to the main page
+          - link "Login Access your account" [ref=e43] [cursor=pointer]:
+            - /url: /login
+            - button "Login Access your account" [ref=e44]:
+              - img [ref=e45]
+              - generic [ref=e50]:
+                - generic [ref=e51]: Login
+                - generic [ref=e52]: Access your account
+        - generic [ref=e53]:
+          - heading "Looking for a Pool?" [level=3] [ref=e54]:
+            - img [ref=e55]
+            - text: Looking for a Pool?
+          - paragraph [ref=e62]: If you're trying to access a specific NFL Confidence Pool, make sure you have the correct link from the pool commissioner.
+          - generic [ref=e63]:
+            - link "Browse Pools" [ref=e64] [cursor=pointer]:
+              - /url: /
+              - button "Browse Pools" [ref=e65]:
+                - img [ref=e66]
+                - text: Browse Pools
+            - link "Join Pool" [ref=e69] [cursor=pointer]:
+              - /url: /login
+              - button "Join Pool" [ref=e70]
+        - generic [ref=e71]:
+          - paragraph [ref=e72]: Still having trouble? Contact the pool commissioner or technical support.
+          - generic [ref=e73]:
+            - generic [ref=e74]: NFL Football Pool
+            - generic [ref=e75]: Version 1.0
+    - button "Go Back" [ref=e77]:
+      - img [ref=e78]
+      - text: Go Back
+  - button "Open Next.js Dev Tools" [ref=e86] [cursor=pointer]:
+    - img [ref=e87] [cursor=pointer]
+  - alert [ref=e91]
+```

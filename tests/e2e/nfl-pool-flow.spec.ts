@@ -139,6 +139,39 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       // Verify join pool dialog/form appears
       await helpers.expectElementVisible('[data-testid="join-pool-dialog"]');
     });
+
+    test('should allow admin to share pool with participants', async ({ page }) => {
+      // Login as admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to pool management page
+      await page.goto('/admin/pools');
+      await helpers.waitForPageLoad();
+
+      // Find a pool and click the share button
+      const shareButton = page.locator('button:has-text("Share")').first();
+      await shareButton.click();
+
+      // Verify share modal opens
+      await helpers.expectElementVisible('[role="dialog"]');
+      await helpers.expectElementVisible('h2:has-text("Share Pool")');
+
+      // Verify share link is generated
+      const shareLink = page.locator('input[readonly]');
+      await expect(shareLink).toHaveValue(/\/invite\?pool=/);
+
+      // Test copy functionality
+      const copyButton = page.locator('button:has-text("Copy")');
+      await copyButton.click();
+
+      // Verify copy success feedback
+      await helpers.expectElementVisible('button:has-text("Copied!")');
+    });
   });
 
   test.describe('Picks Submission', () => {
@@ -233,6 +266,182 @@ test.describe('NFL Football Pool - End to End Tests', () => {
     });
   });
 
+  test.describe('Commissioners Management System', () => {
+    test('should allow super admin to access commissioners management', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Verify commissioners management page loads
+      await helpers.expectElementVisible('h1:has-text("Commissioners Management")');
+      await helpers.expectElementVisible('[data-testid="commissioners-list"]');
+    });
+
+    test('should prevent regular admins from accessing commissioners management', async ({ page }) => {
+      // Login as regular admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Try to access commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Should be redirected to dashboard
+      await helpers.expectURLContains('/dashboard');
+    });
+
+    test('should display commissioners list with proper information', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Verify commissioners list displays
+      await helpers.expectElementVisible('[data-testid="commissioners-list"]');
+      
+      // Check for commissioner information
+      const commissionerCards = page.locator('[data-testid="commissioner-card"]');
+      if (await commissionerCards.count() > 0) {
+        await helpers.expectElementVisible('[data-testid="commissioner-name"]');
+        await helpers.expectElementVisible('[data-testid="commissioner-email"]');
+        await helpers.expectElementVisible('[data-testid="commissioner-status"]');
+      }
+    });
+
+    test('should allow super admin to reset commissioner password', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Click reset password button for a commissioner
+      const resetPasswordButton = page.locator('button:has-text("Reset Password")').first();
+      await resetPasswordButton.click();
+
+      // Verify reset password modal opens
+      await helpers.expectElementVisible('[role="dialog"]');
+      await helpers.expectElementVisible('h2:has-text("Reset Password")');
+
+      // Fill new password
+      const passwordInput = page.locator('input[type="password"]');
+      await passwordInput.fill('NewPassword123');
+
+      // Submit password reset
+      const submitButton = page.locator('button:has-text("Reset Password")');
+      await submitButton.click();
+
+      // Verify success message
+      await helpers.expectElementVisible('[data-testid="success-toast"]');
+    });
+
+    test('should allow super admin to toggle commissioner status', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Find a commissioner and click deactivate button
+      const deactivateButton = page.locator('button:has-text("Deactivate")').first();
+      await deactivateButton.click();
+
+      // Verify status change
+      await helpers.expectElementVisible('[data-testid="success-toast"]');
+      
+      // Verify button text changed to "Activate"
+      await helpers.expectElementVisible('button:has-text("Activate")');
+    });
+
+    test('should allow super admin to delete commissioner safely', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Click delete button for a commissioner
+      const deleteButton = page.locator('button:has-text("Delete")').first();
+      await deleteButton.click();
+
+      // Verify confirmation dialog opens
+      await helpers.expectElementVisible('[role="alertdialog"]');
+      await helpers.expectElementVisible('h2:has-text("Delete Commissioner")');
+
+      // Confirm deletion
+      const confirmButton = page.locator('button:has-text("Delete Permanently")');
+      await confirmButton.click();
+
+      // Verify success message
+      await helpers.expectElementVisible('[data-testid="success-toast"]');
+    });
+
+    test('should prevent deletion of commissioner with active pools', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioners management page
+      await page.goto('/admin/commissioners');
+      await helpers.waitForPageLoad();
+
+      // Try to delete a commissioner with active pools
+      const deleteButton = page.locator('button:has-text("Delete")').first();
+      await deleteButton.click();
+
+      // Verify confirmation dialog opens
+      await helpers.expectElementVisible('[role="alertdialog"]');
+
+      // Confirm deletion
+      const confirmButton = page.locator('button:has-text("Delete Permanently")');
+      await confirmButton.click();
+
+      // Verify error message about active pools
+      await helpers.expectElementVisible('[data-testid="error-toast"]');
+    });
+  });
+
   test.describe('Admin Functions', () => {
     test('should allow admin to manage participants', async ({ page }) => {
       // Login as admin
@@ -275,6 +484,138 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       
       // Verify confirmation or success message
       await helpers.expectElementVisible('[data-testid="success-message"]');
+    });
+
+    test('should allow admin to override picks', async ({ page }) => {
+      // Login as admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to override picks page
+      await page.goto('/admin/override-picks');
+      await helpers.waitForPageLoad();
+
+      // Verify override picks functionality
+      await helpers.expectElementVisible('h1:has-text("Override Participant Picks")');
+      
+      // Check for pool selection
+      await helpers.expectElementVisible('select[aria-label="Pool"]');
+    });
+
+    test('should allow admin to perform NFL sync', async ({ page }) => {
+      // Login as admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to NFL sync page
+      await page.goto('/admin/nfl-sync');
+      await helpers.waitForPageLoad();
+
+      // Verify NFL sync functionality
+      await helpers.expectElementVisible('h1:has-text("NFL Data Synchronization")');
+      
+      // Check for sync button
+      await helpers.expectElementVisible('button:has-text("Sync Now")');
+      
+      // Check for sync history
+      await helpers.expectElementVisible('[data-testid="sync-history"]');
+    });
+  });
+
+  test.describe('Commissioner Dashboard', () => {
+    test('should display commissioner dashboard with proper features', async ({ page }) => {
+      // Login as commissioner
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to commissioner dashboard
+      await page.goto('/dashboard');
+      await helpers.waitForPageLoad();
+
+      // Verify commissioner dashboard loads
+      await helpers.expectElementVisible('h1:has-text("Commissioner Dashboard")');
+      
+      // Check for quick action cards
+      await helpers.expectElementVisible('[data-testid="quick-actions"]');
+      await helpers.expectElementVisible('button:has-text("Create Pool")');
+      await helpers.expectElementVisible('button:has-text("Pool Management")');
+      await helpers.expectElementVisible('button:has-text("Leaderboards")');
+      await helpers.expectElementVisible('button:has-text("Send Reminders")');
+      await helpers.expectElementVisible('button:has-text("Override Picks")');
+    });
+
+    test('should redirect super admins from commissioner dashboard', async ({ page }) => {
+      // Login as super admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
+      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Try to access commissioner dashboard
+      await page.goto('/dashboard');
+      await helpers.waitForPageLoad();
+
+      // Should be redirected to admin dashboard
+      await helpers.expectURLContains('/admin/dashboard');
+    });
+  });
+
+  test.describe('Pool Management Page Updates', () => {
+    test('should display pool management with share functionality', async ({ page }) => {
+      // Login as admin
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to pool management page
+      await page.goto('/admin/pools');
+      await helpers.waitForPageLoad();
+
+      // Verify pool management page loads
+      await helpers.expectElementVisible('h1:has-text("Pool Management")');
+      
+      // Check for share button on pools
+      const shareButtons = page.locator('button:has-text("Share")');
+      if (await shareButtons.count() > 0) {
+        await helpers.expectElementVisible('button:has-text("Share")');
+      }
+    });
+
+    test('should filter pools based on user role', async ({ page }) => {
+      // Login as commissioner
+      await page.goto('/login');
+      await helpers.waitForPageLoad();
+      await helpers.fillField('input[name="email"]', testData.users.admin.email);
+      await helpers.fillField('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      await helpers.waitForNavigation();
+
+      // Navigate to pool management page
+      await page.goto('/admin/pools');
+      await helpers.waitForPageLoad();
+
+      // Verify only commissioner's pools are shown
+      await helpers.expectElementVisible('h1:has-text("Pool Management")');
+      
+      // Check that the page shows "My Pools" for commissioners
+      await helpers.expectElementVisible('h2:has-text("My Pools")');
     });
   });
 

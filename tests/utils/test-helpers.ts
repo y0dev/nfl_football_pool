@@ -108,6 +108,36 @@ export class TestHelpers {
       });
     });
   }
+
+  /**
+   * Wait for toast notification to appear
+   */
+  async waitForToast(type: 'success' | 'error', timeout = 5000) {
+    const selector = type === 'success' ? '[data-testid="success-toast"]' : '[data-testid="error-toast"]';
+    await this.waitForElement(selector, timeout);
+  }
+
+  /**
+   * Check if modal/dialog is open
+   */
+  async expectModalOpen(title?: string) {
+    if (title) {
+      await this.expectElementVisible(`[role="dialog"] h2:has-text("${title}")`);
+    } else {
+      await this.expectElementVisible('[role="dialog"]');
+    }
+  }
+
+  /**
+   * Check if alert dialog is open
+   */
+  async expectAlertDialogOpen(title?: string) {
+    if (title) {
+      await this.expectElementVisible(`[role="alertdialog"] h2:has-text("${title}")`);
+    } else {
+      await this.expectElementVisible('[role="alertdialog"]');
+    }
+  }
 }
 
 /**
@@ -124,6 +154,11 @@ export const testData = {
       email: 'participant@test.com',
       password: 'participant123',
       name: 'Test Participant'
+    },
+    superAdmin: {
+      email: 'superadmin@test.com',
+      password: 'super123',
+      name: 'Test Super Admin'
     }
   },
   pools: {
@@ -162,5 +197,22 @@ export const selectors = {
   
   // Admin
   adminPanel: '[data-testid="admin-panel"]',
-  adminActions: '[data-testid="admin-actions"]'
+  adminActions: '[data-testid="admin-actions"]',
+  
+  // Commissioners Management
+  commissionersList: '[data-testid="commissioners-list"]',
+  commissionerCard: '[data-testid="commissioner-card"]',
+  commissionerName: '[data-testid="commissioner-name"]',
+  commissionerEmail: '[data-testid="commissioner-email"]',
+  commissionerStatus: '[data-testid="commissioner-status"]',
+  
+  // Quick Actions
+  quickActions: '[data-testid="quick-actions"]',
+  
+  // Toast Messages
+  successToast: '[data-testid="success-toast"]',
+  errorToast: '[data-testid="error-toast"]',
+  
+  // Sync History
+  syncHistory: '[data-testid="sync-history"]'
 };
