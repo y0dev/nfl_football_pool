@@ -26,7 +26,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -225,7 +225,7 @@ function PoolDetailsContent() {
           title: "Success",
           description: description,
         });
-        router.push('/admin/dashboard');
+        router.push(createPageUrl('adminpools'));
       } else {
         toast({
           title: "Error",
@@ -261,9 +261,9 @@ function PoolDetailsContent() {
           <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Pool not found</h3>
           <p className="text-gray-600 mb-4">The pool you&apos;re looking for doesn&apos;t exist.</p>
-          <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
-            Back to Dashboard
-          </Button>
+                  <Button onClick={() => router.push(createPageUrl('adminpools'))} variant="outline">
+          Back to Pools
+        </Button>
         </div>
       </div>
     );
@@ -278,11 +278,11 @@ function PoolDetailsContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push('/admin/dashboard')}
+            onClick={() => router.push(createPageUrl('adminpools'))}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="hidden sm:inline">Back to Pools</span>
             <span className="sm:hidden">Back</span>
           </Button>
         </div>
@@ -524,7 +524,7 @@ function PoolDetailsContent() {
           <PoolSettings 
             poolId={pool.id} 
             poolName={pool.name}
-            onPoolDeleted={() => router.push('/admin/dashboard')}
+            onPoolDeleted={() => router.push(createPageUrl('adminpools'))}
           />
         </TabsContent>
 

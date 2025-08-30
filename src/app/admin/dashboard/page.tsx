@@ -26,7 +26,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Pool, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog } from '@/lib/utils';
+import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
@@ -72,7 +72,7 @@ function AdminDashboardContent() {
           
           // Redirect commissioners to their dashboard
           if (!superAdminStatus) {
-            router.push('/dashboard');
+            router.push(createPageUrl('dashboard'));
             return;
           }
           
@@ -243,7 +243,7 @@ function AdminDashboardContent() {
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
       await signOut();
-      router.push('/admin/login');
+      router.push(createPageUrl('adminlogin'));
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
@@ -408,7 +408,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/commissioners')}
+                onClick={() => router.push(createPageUrl('admincommissioners'))}
                 className="w-full"
               >
                 Manage Commissioners
@@ -428,7 +428,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
                              <Button 
-                 onClick={() => router.push('/admin/pools')}
+                 onClick={() => router.push(createPageUrl('adminpools'))}
                  className="w-full"
                >
                  Manage Pools
@@ -448,7 +448,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/reminders')}
+                onClick={() => router.push(createPageUrl('adminreminders'))}
                 className="w-full"
               >
                 Email Management
@@ -468,7 +468,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/nfl-sync')}
+                onClick={() => router.push(createPageUrl('adminnflsync'))}
                 className="w-full"
               >
                 NFL Sync
@@ -488,7 +488,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/override-picks')}
+                onClick={() => router.push(createPageUrl('adminoverridepicks'))}
                 className="w-full"
               >
                 Override Picks

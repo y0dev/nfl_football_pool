@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function createPageUrl(page: string): string {
+  debugLog('Creating page URL for:', page);
   // Normalize page names to lowercase and remove spaces
   const normalized = page.replace(/\s+/g, "").toLowerCase();
   switch (normalized) {
@@ -29,8 +30,6 @@ export function createPageUrl(page: string): string {
       return "/admin/register";
     case "adminlogin":
       return "/admin/login";
-    case "poolpicks":
-      return "/pool/[id]/picks";
     case "invite":
       return "/invite";
     case "login":
@@ -44,10 +43,23 @@ export function createPageUrl(page: string): string {
     default:
       // For dynamic routes like pool picks with specific pool ID
       if (normalized.startsWith("poolpicks?")) {
+        const params = new URLSearchParams(page.split("?")[1]);
+        const poolId = params.get("poolId");
+        if (poolId) {
+          return `/pool/${poolId}/picks?` + page.split("?")[1];
+        }
         return "/pool/[id]/picks?" + page.split("?")[1];
       }
       if (normalized.startsWith("adminpool?")) {
-        return "/admin/pool/" + page.split("?")[1];
+        const params = new URLSearchParams(page.split("?")[1]);
+        const poolId = params.get("poolId");
+        if (poolId) {
+          return `/admin/pool/${poolId}`;
+        }
+        return "/admin/pool/[id]";
+      }
+      if (normalized.startsWith("adminleaderboard?")) {
+        return "/admin/leaderboard?" + page.split("?")[1];
       }
       return "/" + normalized;
   }

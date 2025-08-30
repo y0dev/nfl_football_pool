@@ -9,6 +9,7 @@ import { Search, Users, Trophy, Calendar, ArrowRight, Shield } from 'lucide-reac
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { createPageUrl } from '@/lib/utils';
 
 interface Game {
   id: string;
@@ -67,7 +68,7 @@ function LandingPage() {
   // Redirect admin users to dashboard
   useEffect(() => {
     if (user?.is_super_admin) {
-      router.push('/admin/dashboard');
+      router.push(createPageUrl('admindashboard'));
     }
   }, [user, router]);
 
@@ -93,7 +94,7 @@ function LandingPage() {
 
       if (pools && pools.length > 0) {
         // Redirect to participant page with the pool ID
-        router.push(`/pool/${pools[0].id}/picks`);
+        router.push(createPageUrl(`poolpicks?poolId=${pools[0].id}`));
       } else {
         // Show error message - you could add a toast notification here
         console.log('No pools found');

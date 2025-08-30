@@ -29,7 +29,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, Pool, Participant } from '@/lib/admin-service';
-import { debugLog } from '@/lib/utils';
+import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
@@ -304,7 +304,7 @@ function PoolsManagementContent() {
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
       await signOut();
-      router.push('/admin/login');
+      router.push(createPageUrl('adminlogin'));
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
@@ -312,11 +312,11 @@ function PoolsManagementContent() {
   };
 
   const handleViewPool = (poolId: string) => {
-    router.push(`/admin/pool/${poolId}`);
+    router.push(createPageUrl(`adminpool?poolId=${poolId}`));
   };
 
   const handleViewLeaderboard = (poolId: string) => {
-    router.push(`/admin/leaderboard?pool=${poolId}`);
+    router.push(createPageUrl(`adminleaderboard?pool=${poolId}`));
   };
 
   const handleSendInvite = (pool: PoolWithParticipants) => {
@@ -371,7 +371,7 @@ function PoolsManagementContent() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/admin/dashboard')}
+                  onClick={() => router.push(createPageUrl('admindashboard'))}
                   className="p-2"
                 >
                   <ArrowLeft className="h-4 w-4" />

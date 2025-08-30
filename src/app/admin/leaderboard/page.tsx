@@ -13,7 +13,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugLog } from '@/lib/utils';
+import { debugLog, createPageUrl } from '@/lib/utils';
 import { 
   ArrowLeft, 
   Trophy, 
@@ -135,14 +135,14 @@ function LeaderboardContent() {
           
           // Both commissioners and admins can access this page
           // Commissioners will only see their own pools, admins will see all pools
-          await loadData();
+          await loadData(superAdminStatus);
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
       }
     };
 
-    const loadData = async () => {
+    const loadData = async (superAdminStatus: boolean) => {
       try {
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData?.week_number || 1);
@@ -150,7 +150,7 @@ function LeaderboardContent() {
         setSelectedWeek(weekData?.week_number || 1);
         setSelectedSeasonType(weekData?.season_type || 2);
         
-        await loadPoolsData();
+        await loadPoolsData(superAdminStatus);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -169,7 +169,7 @@ function LeaderboardContent() {
     }
   }, [selectedPool, selectedWeek, selectedSeasonType]);
 
-  const loadPoolsData = async () => {
+  const loadPoolsData = async (superAdminStatus: boolean) => {
     try {
       // Get pools based on user role
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
@@ -181,7 +181,7 @@ function LeaderboardContent() {
         .order('created_at', { ascending: false });
       
       // If user is not a super admin, only show pools they created
-      if (!isSuperAdmin) {
+      if (!superAdminStatus) {
         poolsQuery = poolsQuery.eq('created_by', user?.email);
       }
       
@@ -441,7 +441,7 @@ function LeaderboardContent() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Button
-                onClick={() => router.push('/admin/dashboard')}
+                onClick={() => router.push(createPageUrl('admindashboard'))}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"

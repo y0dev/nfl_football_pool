@@ -15,6 +15,7 @@ import { Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import { createPageUrl } from '@/lib/utils';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -33,7 +34,7 @@ function AdminLoginContent() {
   // Redirect if user is already logged in
   useEffect(() => {
     if (user) {
-      router.push('/admin/dashboard');
+      router.push(createPageUrl('admindashboard'));
     }
   }, [user, router]);
 
@@ -60,9 +61,9 @@ function AdminLoginContent() {
         });
         // Redirect based on admin status
         if (result.user.is_super_admin) {
-          window.location.href = '/admin/dashboard';
+          window.location.href = createPageUrl('admindashboard');
         } else {
-          window.location.href = '/dashboard';
+          window.location.href = createPageUrl('dashboard');
         }
       } else {
         toast({

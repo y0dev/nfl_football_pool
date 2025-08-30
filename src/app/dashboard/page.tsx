@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Pool } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog } from '@/lib/utils';
+import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
@@ -78,7 +78,7 @@ function CommissionerDashboardContent() {
           
           // Redirect super admins to admin dashboard
           if (superAdminStatus) {
-            router.push('/admin/dashboard');
+            router.push(createPageUrl('admindashboard'));
             return;
           }
           
@@ -327,7 +327,7 @@ function CommissionerDashboardContent() {
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
       await signOut();
-      router.push('/admin/login');
+      router.push(createPageUrl('adminlogin'));
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
@@ -478,7 +478,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push('/admin/pools')}
+                onClick={() => router.push(createPageUrl('adminpools'))}
                 className="w-full"
                 size="sm"
               >
@@ -499,7 +499,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push('/admin/leaderboard')}
+                onClick={() => router.push(createPageUrl('adminleaderboard'))}
                 className="w-full"
                 size="sm"
               >
@@ -520,7 +520,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push('/admin/reminders')}
+                onClick={() => router.push(createPageUrl('adminreminders'))}
                 className="w-full"
                 size="sm"
                 disabled={dashboardStats.pendingSubmissions === 0}
@@ -542,7 +542,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push('/admin/override-picks')}
+                onClick={() => router.push(createPageUrl('adminoverridepicks'))}
                 className="w-full"
                 size="sm"
               >
