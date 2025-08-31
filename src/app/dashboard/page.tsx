@@ -14,16 +14,20 @@ import {
   Plus,
   Bell,
   TrendingUp,
-  Edit
+  Edit,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Pool } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl } from '@/lib/utils';
+import { Game } from '@/types/game';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { loadWeekGames } from '@/actions/loadWeekGames';
 
 function CommissionerDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -61,6 +65,8 @@ function CommissionerDashboardContent() {
     pool_name?: string;
     participant_name?: string;
   }>>([]);
+  const [countdown, setCountdown] = useState<string>('');
+  const [games, setGames] = useState<Game[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -86,6 +92,7 @@ function CommissionerDashboardContent() {
           await loadDashboardStats();
           generateNotifications();
           loadRecentActivity();
+          await loadGames();
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -109,6 +116,45 @@ function CommissionerDashboardContent() {
       document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
     };
   }, []);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (games.length === 0) return;
+
+    const timer = setInterval(() => {
+      const firstGame = games[0];
+      const gameTime = new Date(firstGame.kickoff_time);
+      const now = new Date();
+      const timeDiff = gameTime.getTime() - now.getTime();
+      
+      if (timeDiff <= 0) {
+        setCountdown('Games Started');
+        return;
+      }
+      
+      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+      
+      if (days > 0) {
+        setCountdown(`${days}d ${hours}h ${minutes}m`);
+      } else if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+      } else {
+        setCountdown(`${minutes}m ${seconds}s`);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [games]);
+
+  // Reload games when week or season type changes
+  useEffect(() => {
+    if (currentWeek && currentSeasonType) {
+      loadGames();
+    }
+  }, [currentWeek, currentSeasonType]);
 
   const loadDashboardStats = async () => {
     try {
@@ -137,6 +183,16 @@ function CommissionerDashboardContent() {
         description: 'Failed to load dashboard data',
         variant: 'destructive',
       });
+    }
+  };
+
+  const loadGames = async () => {
+    try {
+      const gamesData = await loadWeekGames(currentWeek, currentSeasonType);
+      setGames(gamesData);
+      debugLog('Loaded games for countdown:', gamesData.length);
+    } catch (error) {
+      console.error('Error loading games for countdown:', error);
     }
   };
 
@@ -301,6 +357,7 @@ function CommissionerDashboardContent() {
     setIsRefreshing(true);
     try {
       await loadDashboardStats();
+      await loadGames();
       generateNotifications();
       loadRecentActivity();
       setLastRefresh(new Date());
@@ -331,6 +388,36 @@ function CommissionerDashboardContent() {
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
+    }
+  };
+
+  const loadCountdown = async () => {
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      const { data } = await supabase
+        .from('seasons')
+        .select('picks_close_at')
+        .eq('season_type', currentSeasonType)
+        .eq('week', currentWeek)
+        .single();
+
+      if (data?.picks_close_at) {
+        const picksCloseAt = new Date(data.picks_close_at);
+        const now = new Date();
+        const diffInSeconds = (picksCloseAt.getTime() - now.getTime()) / 1000;
+
+        if (diffInSeconds > 0) {
+          setCountdown(`${Math.floor(diffInSeconds / 3600)}h ${Math.floor((diffInSeconds % 3600) / 60)}m`);
+        } else {
+          setCountdown('Games Started');
+        }
+      } else {
+        setCountdown('Games Started');
+      }
+    } catch (error) {
+      console.error('Error loading countdown:', error);
+      setCountdown('Games Started');
     }
   };
 
@@ -374,6 +461,45 @@ function CommissionerDashboardContent() {
             </div>
           </div>
         </div>
+
+        
+        {/* Countdown Timer */}
+        {countdown && countdown !== 'Games Started' && (
+          <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 mb-6 sm:mb-8">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-center gap-3">
+                <Clock className="h-5 w-5 text-blue-600" />
+                <div className="text-center">
+                  <div className="text-lg font-bold text-blue-900">
+                    Picks Close In: {countdown}
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    Make sure participants submit their picks before kickoff
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Games Started Warning */}
+        {countdown === 'Games Started' && (
+          <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200 mb-6 sm:mb-8">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div className="text-center">
+                  <div className="text-lg font-bold text-red-900">
+                    Games Have Started!
+                  </div>
+                  <div className="text-sm text-red-700">
+                    All picks are now locked for Week {currentWeek}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
