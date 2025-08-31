@@ -67,6 +67,11 @@ function NFLSyncContent() {
     completedGames: 0,
     scheduledGames: 0
   });
+  const [upcomingSync, setUpcomingSync] = useState({
+    week: 1,
+    seasonType: 2,
+    year: new Date().getFullYear(),
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,6 +92,9 @@ function NFLSyncContent() {
           if (superAdminStatus) {
             await loadCurrentStats();
             loadSyncHistory();
+            // Load upcoming sync information
+            const syncInfo = getUpcomingSyncInfo();
+            setUpcomingSync(syncInfo);
           }
         }
       } catch (error) {
@@ -98,6 +106,29 @@ function NFLSyncContent() {
 
     loadData();
   }, [user, verifyAdminStatus, router]);
+
+  const getUpcomingSyncInfo = () => {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    
+    let seasonType = 2; // Default to regular season
+    let week = 1;
+    
+    // Determine season type and week based on current date
+    if (month >= 8 && month <= 9) {
+      seasonType = 1; // Preseason
+      week = Math.max(1, Math.floor((month - 8) * 4) + Math.floor(currentDate.getDate() / 7));
+    } else if (month >= 10 && month <= 12) {
+      seasonType = 2; // Regular season
+      week = Math.max(1, Math.min(18, Math.floor((month - 10) * 4) + Math.floor(currentDate.getDate() / 7)));
+    } else if (month >= 1 && month <= 2) {
+      seasonType = 3; // Postseason
+      week = Math.max(1, Math.min(5, Math.floor((month - 1) * 4) + Math.floor(currentDate.getDate() / 7)));
+    }
+
+    return { week, seasonType, year };
+  };
 
   const loadCurrentStats = async () => {
     try {
@@ -296,6 +327,42 @@ function NFLSyncContent() {
             </div>
           </div>
         </div>
+
+        {/* Upcoming Sync Information */}
+        <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-900">
+              <Calendar className="h-5 w-5" />
+              Upcoming Sync
+            </CardTitle>
+            <CardDescription className="text-blue-700">
+              Week and season that will be synchronized
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-white rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-blue-600">{upcomingSync.week}</div>
+                <div className="text-sm text-blue-700">Week</div>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-indigo-600">
+                  {getSeasonTypeLabel(upcomingSync.seasonType)}
+                </div>
+                <div className="text-sm text-indigo-700">Season Type</div>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-purple-600">{upcomingSync.year}</div>
+                <div className="text-sm text-purple-700">Season Year</div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+              <div className="text-sm text-blue-800 text-center">
+                <strong>Next sync will update:</strong> Week {upcomingSync.week} of {getSeasonTypeLabel(upcomingSync.seasonType)} {upcomingSync.year}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Current Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
