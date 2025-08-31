@@ -86,7 +86,7 @@ function AdminRegisterContent() {
     setIsLoading(true);
     try {
       console.log('Sending registration request...');
-      const response = await fetch('/api/admin/register', {
+      const response = await fetch('/api/admin/create-commissioner', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,10 +292,10 @@ function AdminRegisterContent() {
 
             <div className="mt-6">
               <Link
-                href="/admin/login"
+                href="/login"
                 className="w-full flex justify-center py-3 px-4 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
-                Sign in to Commissioner Dashboard
+                Sign in to Dashboard
               </Link>
             </div>
           </div>

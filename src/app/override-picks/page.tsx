@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
+import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -833,7 +833,7 @@ function OverridePicksContent() {
       <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
         <Button
           variant="outline"
-          onClick={() => router.push('/admin/dashboard')}
+          onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
         >
           Cancel
         </Button>
@@ -940,9 +940,9 @@ function OverridePicksContent() {
 export default function OverridePicksPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <SharedAdminGuard>
         <OverridePicksContent />
-      </AdminGuard>
+      </SharedAdminGuard>
     </AuthProvider>
   );
 

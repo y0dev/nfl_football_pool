@@ -31,7 +31,7 @@ import { useAuth } from '@/lib/auth';
 import { adminService, Pool, Participant } from '@/lib/admin-service';
 import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
+import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 
 interface PoolWithParticipants extends Pool {
@@ -678,9 +678,9 @@ function PoolsManagementContent() {
 export default function PoolsManagementPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <SharedAdminGuard>
         <PoolsManagementContent />
-      </AdminGuard>
+      </SharedAdminGuard>
     </AuthProvider>
   );
 }

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
+import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
@@ -441,7 +441,7 @@ function LeaderboardContent() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Button
-                onClick={() => router.push(createPageUrl('admindashboard'))}
+                onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
@@ -1019,12 +1019,12 @@ function LeaderboardContent() {
   );
 }
 
-export default function AdminLeaderboardPage() {
+export default function LeaderboardPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <SharedAdminGuard>
         <LeaderboardContent />
-      </AdminGuard>
+      </SharedAdminGuard>
     </AuthProvider>
   );
 }

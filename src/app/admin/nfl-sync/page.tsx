@@ -611,7 +611,7 @@ function NFLSyncContent() {
 
         {/* Sync History */}
         {syncHistory.length > 0 && (
-          <Card>
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -656,9 +656,9 @@ function NFLSyncContent() {
         )}
 
         {/* Information Panel */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center mt-2 gap-2">
+            <CardTitle className="flex items-center gap-2">
               <Info className="h-5 w-5" />
               About NFL Sync
             </CardTitle>
@@ -680,14 +680,6 @@ function NFLSyncContent() {
                   <div>Games are updated in batches of 50 to prevent rate limiting. The system processes preseason, regular season, and postseason games.</div>
                 </div>
               </div>
-              
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Team Names</div>
-                    <div>Team names are stored exactly as received from the NFL API without normalization (e.g., &quot;Kansas City Chiefs&quot; remains &quot;Kansas City Chiefs&quot;).</div>
-                  </div>
-                </div>
               
               <div className="flex items-start gap-3">
                 <Trophy className="h-5 w-5 text-purple-600 mt-0.5" />

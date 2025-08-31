@@ -404,7 +404,7 @@ function CommissionersManagementContent() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                onClick={() => router.push('/admin/register')}
+                onClick={() => router.push('/admin/create-commissioner')}
                 className="flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />

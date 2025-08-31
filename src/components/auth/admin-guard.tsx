@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Loader2, Shield } from 'lucide-react';
+import { debugLog } from '@/lib/utils';
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -19,19 +20,19 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
-        console.log('AdminGuard: No user, setting isVerifying to false');
+        debugLog('AdminGuard: No user, setting isVerifying to false');
         setIsVerifying(false);
         return;
       }
 
-      console.log('AdminGuard: Checking admin status for user:', user.email);
-      console.log('AdminGuard: User admin status from cache:', user.is_super_admin);
-      console.log('AdminGuard: Require super admin:', requireSuperAdmin);
+      debugLog('AdminGuard: Checking admin status for user:', user.email);
+      debugLog('AdminGuard: User admin status from cache:', user.is_super_admin);
+      debugLog('AdminGuard: Require super admin:', requireSuperAdmin);
 
       try {
         // Use the new server-side verification function
         const adminStatus = await verifyAdminStatus(requireSuperAdmin);
-        console.log('AdminGuard: Admin status after verification:', adminStatus);
+        debugLog('AdminGuard: Admin status after verification:', adminStatus);
         setIsAdmin(adminStatus);
       } catch (error) {
         console.error('AdminGuard: Error verifying admin status:', error);
@@ -48,7 +49,7 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
 
   useEffect(() => {
     if (!isVerifying && !isAdmin) {
-      console.log('AdminGuard: Redirecting to admin login - isVerifying:', isVerifying, 'isAdmin:', isAdmin);
+      debugLog('AdminGuard: Redirecting to admin login - isVerifying:', isVerifying, 'isAdmin:', isAdmin);
       // Redirect to admin login if not authenticated or not an admin
       router.push('/admin/login');
     }
@@ -73,7 +74,7 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
         <div className="text-center">
           <Shield className="h-16 w-16 mx-auto mb-4 text-red-500" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You don't have permission to access this page.</p>
+          <p className="text-gray-600 mb-4">You don&apos;t have permission to access this page.</p>
           <button
             onClick={() => router.push('/admin/login')}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
