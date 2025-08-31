@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
         'X-RapidAPI-Key': RAPIDAPI_KEY,
         'X-RapidAPI-Host': RAPIDAPI_HOST,
       },
-      timeout: 30000,
     });
 
     if (!response.ok) {
@@ -96,9 +95,9 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Normalize team names
-          const homeTeam = normalizeTeamName(home.team.displayName);
-          const awayTeam = normalizeTeamName(away.team.displayName);
+          // Use original team names without normalization
+          const homeTeam = home.team.displayName;
+          const awayTeam = away.team.displayName;
 
           // Get scores
           const homeScore = parseInt(home.score || '0');
@@ -211,46 +210,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Helper function to normalize team names
-function normalizeTeamName(teamName: string): string {
-  const teamMappings: { [key: string]: string } = {
-    'Kansas City Chiefs': 'Kansas City',
-    'Buffalo Bills': 'Buffalo',
-    'Miami Dolphins': 'Miami',
-    'New England Patriots': 'New England',
-    'New York Jets': 'NY Jets',
-    'Baltimore Ravens': 'Baltimore',
-    'Cincinnati Bengals': 'Cincinnati',
-    'Cleveland Browns': 'Cleveland',
-    'Pittsburgh Steelers': 'Pittsburgh',
-    'Houston Texans': 'Houston',
-    'Indianapolis Colts': 'Indianapolis',
-    'Jacksonville Jaguars': 'Jacksonville',
-    'Tennessee Titans': 'Tennessee',
-    'Denver Broncos': 'Denver',
-    'Las Vegas Raiders': 'Las Vegas',
-    'Los Angeles Chargers': 'LA Chargers',
-    'Dallas Cowboys': 'Dallas',
-    'New York Giants': 'NY Giants',
-    'Philadelphia Eagles': 'Philadelphia',
-    'Washington Commanders': 'Washington',
-    'Chicago Bears': 'Chicago',
-    'Detroit Lions': 'Detroit',
-    'Green Bay Packers': 'Green Bay',
-    'Minnesota Vikings': 'Minnesota',
-    'Atlanta Falcons': 'Atlanta',
-    'Carolina Panthers': 'Carolina',
-    'New Orleans Saints': 'New Orleans',
-    'Tampa Bay Buccaneers': 'Tampa Bay',
-    'Arizona Cardinals': 'Arizona',
-    'Los Angeles Rams': 'LA Rams',
-    'San Francisco 49ers': 'San Francisco',
-    'Seattle Seahawks': 'Seattle'
-  };
-
-  return teamMappings[teamName] || teamName;
 }
 
 // Helper function to determine game status

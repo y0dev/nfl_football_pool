@@ -33,7 +33,10 @@ interface SyncResult {
   gamesProcessed: number;
   gamesUpdated: number;
   gamesFailed: number;
-  failedGameDetails?: any[];
+  failedGameDetails?: Array<{
+    gameId: string;
+    error: string;
+  }>;
   seasonType: number;
   week: number;
   year: number;
@@ -470,7 +473,7 @@ function NFLSyncContent() {
                 <Database className="h-5 w-5 text-blue-600 mt-0.5" />
                 <div>
                   <div className="font-medium">Data Source</div>
-                  <div>NFL game data is fetched from RapidAPI's American Football API, providing real-time scores, schedules, and game status updates.</div>
+                  <div>NFL game data is fetched from RapidAPI&apos;s American Football API, providing real-time scores, schedules, and game status updates.</div>
                 </div>
               </div>
               
@@ -482,13 +485,13 @@ function NFLSyncContent() {
                 </div>
               </div>
               
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                <div>
-                  <div className="font-medium">Team Name Normalization</div>
-                  <div>Team names are automatically normalized to match your existing database format (e.g., "Kansas City Chiefs" → "Kansas City").</div>
+                              <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <div className="font-medium">Team Names</div>
+                    <div>Team names are stored exactly as received from the NFL API without normalization (e.g., &quot;Kansas City Chiefs&quot; remains &quot;Kansas City Chiefs&quot;).</div>
+                  </div>
                 </div>
-              </div>
               
               <div className="flex items-start gap-3">
                 <Trophy className="h-5 w-5 text-purple-600 mt-0.5" />
