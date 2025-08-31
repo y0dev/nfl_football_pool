@@ -1,4 +1,6 @@
 import { chromium, FullConfig } from '@playwright/test';
+import { execSync } from 'child_process';
+import { join } from 'path';
 
 async function globalSetup(config: FullConfig) {
   const { baseURL } = config.projects[0].use;
@@ -9,7 +11,23 @@ async function globalSetup(config: FullConfig) {
 
   console.log('🚀 Setting up test environment...');
   
-  // Launch browser and create a new context
+  // Step 1: Ensure test data exists in the database
+  console.log('📊 Creating test data...');
+  try {
+    // Run the test data creation script
+    const scriptPath = join(process.cwd(), 'scripts', 'create-test-data.ts');
+    execSync(`npx tsx ${scriptPath}`, { 
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    console.log('✅ Test data created successfully');
+  } catch (error) {
+    console.error('❌ Failed to create test data:', error);
+    // Don't fail the setup - tests might still work with existing data
+    console.log('⚠️ Continuing with existing data...');
+  }
+  
+  // Step 2: Launch browser and create a new context
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();

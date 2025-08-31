@@ -31,10 +31,13 @@ function AdminLoginContent() {
   const { signIn, user } = useAuth();
   const router = useRouter();
 
-  // Redirect if user is already logged in
+  // Redirect if user is already logged in and is a super admin
   useEffect(() => {
-    if (user) {
+    if (user && user.is_super_admin) {
       router.push(createPageUrl('admindashboard'));
+    } else if (user && user.is_super_admin === false) {
+      // Regular admin should go to their dashboard
+      router.push(createPageUrl('dashboard'));
     }
   }, [user, router]);
 
@@ -49,9 +52,14 @@ function AdminLoginContent() {
   const onSubmit = async (data: AdminLoginFormData) => {
     setIsLoading(true);
     try {
+      console.log('Admin login attempt for:', data.email);
       const result = await loginUser(data.email, data.password);
       
+      console.log('Login result:', result);
+      
       if (result.success && result.user) {
+        console.log('Login successful, user data:', result.user);
+        
         // Set the user in the auth context
         await signIn(result.user);
         
@@ -59,13 +67,17 @@ function AdminLoginContent() {
           title: 'Success',
           description: 'Admin login successful!',
         });
+        
         // Redirect based on admin status
         if (result.user.is_super_admin) {
+          console.log('Redirecting super admin to admin dashboard');
           window.location.href = createPageUrl('admindashboard');
         } else {
+          console.log('Redirecting regular admin to dashboard');
           window.location.href = createPageUrl('dashboard');
         }
       } else {
+        console.error('Login failed:', result.error);
         toast({
           title: 'Error',
           description: result.error || 'Invalid credentials',

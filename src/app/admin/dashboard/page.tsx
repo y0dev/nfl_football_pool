@@ -66,21 +66,33 @@ function AdminDashboardContent() {
         // Check admin status
         if (user) {
           debugLog('Checking admin status for user:', user.email);
-          const superAdminStatus = await verifyAdminStatus(true);
-          setIsSuperAdmin(superAdminStatus);
-          debugLog('Super admin status:', superAdminStatus);
+          debugLog('User admin status from cache:', user.is_super_admin);
           
-          // Redirect commissioners to their dashboard
-          if (!superAdminStatus) {
-            router.push(createPageUrl('dashboard'));
+          try {
+            const superAdminStatus = await verifyAdminStatus(true);
+            setIsSuperAdmin(superAdminStatus);
+            debugLog('Super admin status after verification:', superAdminStatus);
+            
+            // Redirect commissioners to their dashboard
+            if (!superAdminStatus) {
+              debugLog('User is not a super admin, redirecting to dashboard');
+              router.push(createPageUrl('dashboard'));
+              return;
+            }
+            
+            if (superAdminStatus) {
+              debugLog('User is super admin, loading admins...');
+              await loadAdmins();
+              debugLog('Admins loaded');
+            }
+          } catch (error) {
+            debugLog('Error verifying admin status:', error);
+            // Don't redirect on error, just set loading to false
+            setIsLoading(false);
             return;
           }
-          
-          if (superAdminStatus) {
-            debugLog('Loading admins...');
-            await loadAdmins();
-            debugLog('Admins loaded');
-          }
+        } else {
+          debugLog('No user found in admin dashboard');
         }
       } catch (error) {
         console.error('Error loading data:', error);

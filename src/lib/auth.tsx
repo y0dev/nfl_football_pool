@@ -6,7 +6,7 @@ interface User {
   id: string;
   email: string;
   full_name?: string;
-  // Remove is_super_admin from client-side storage
+  is_super_admin?: boolean; // Add admin status to user data
 }
 
 interface AuthContextType {
@@ -34,11 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const storedUser = localStorage.getItem('nfl-pool-user');
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            // Only store non-sensitive data
+            // Restore all user data including admin status
             setUser({
               id: parsedUser.id,
               email: parsedUser.email,
-              full_name: parsedUser.full_name
+              full_name: parsedUser.full_name,
+              is_super_admin: parsedUser.is_super_admin
             });
           }
         }
@@ -56,16 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // Only store non-sensitive data
+      // Store all user data including admin status
       const safeUserData = {
         id: userData.id,
         email: userData.email,
-        full_name: userData.full_name
+        full_name: userData.full_name,
+        is_super_admin: userData.is_super_admin
       };
       
       setUser(safeUserData);
       
-      // Store in localStorage for persistence (without sensitive data)
+      // Store in localStorage for persistence (including admin status)
       if (typeof window !== 'undefined') {
         localStorage.setItem('nfl-pool-user', JSON.stringify(safeUserData));
       }
@@ -94,9 +96,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Server-side admin verification
+  // Server-side admin verification with caching
   const verifyAdminStatus = useCallback(async (requireSuperAdmin = false): Promise<boolean> => {
     if (!user) return false;
+    
+    // If we have cached admin status and it's sufficient, use it
+    if (user.is_super_admin !== undefined) {
+      if (requireSuperAdmin) {
+        return user.is_super_admin === true;
+      }
+      return true; // Any admin can access non-super-admin pages
+    }
     
     try {
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
@@ -111,6 +121,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error || !admin) {
         return false;
+      }
+      
+      // Update the user state with admin status
+      const updatedUser = { ...user, is_super_admin: admin.is_super_admin };
+      setUser(updatedUser);
+      
+      // Update localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nfl-pool-user', JSON.stringify(updatedUser));
       }
       
       if (requireSuperAdmin && !admin.is_super_admin) {

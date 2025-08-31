@@ -19,16 +19,22 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
+        console.log('AdminGuard: No user, setting isVerifying to false');
         setIsVerifying(false);
         return;
       }
 
+      console.log('AdminGuard: Checking admin status for user:', user.email);
+      console.log('AdminGuard: User admin status from cache:', user.is_super_admin);
+      console.log('AdminGuard: Require super admin:', requireSuperAdmin);
+
       try {
         // Use the new server-side verification function
         const adminStatus = await verifyAdminStatus(requireSuperAdmin);
+        console.log('AdminGuard: Admin status after verification:', adminStatus);
         setIsAdmin(adminStatus);
       } catch (error) {
-        console.error('Error verifying admin status:', error);
+        console.error('AdminGuard: Error verifying admin status:', error);
         setIsAdmin(false);
       } finally {
         setIsVerifying(false);
@@ -42,6 +48,7 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
 
   useEffect(() => {
     if (!isVerifying && !isAdmin) {
+      console.log('AdminGuard: Redirecting to admin login - isVerifying:', isVerifying, 'isAdmin:', isAdmin);
       // Redirect to admin login if not authenticated or not an admin
       router.push('/admin/login');
     }
