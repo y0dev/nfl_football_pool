@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
@@ -19,7 +20,8 @@ import {
   Activity,
   Database,
   Globe,
-  Zap
+  Zap,
+  Settings
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -72,6 +74,11 @@ function NFLSyncContent() {
     seasonType: 2,
     year: new Date().getFullYear(),
   });
+  const [selectedSyncOptions, setSelectedSyncOptions] = useState({
+    week: 1,
+    seasonType: 2,
+    year: new Date().getFullYear(),
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -95,6 +102,8 @@ function NFLSyncContent() {
             // Load upcoming sync information
             const syncInfo = getUpcomingSyncInfo();
             setUpcomingSync(syncInfo);
+            // Initialize selected sync options with current week
+            setSelectedSyncOptions(syncInfo);
           }
         }
       } catch (error) {
@@ -114,12 +123,14 @@ function NFLSyncContent() {
     
     let seasonType = 2; // Default to regular season
     let week = 1;
-    
+    debugLog('getUpcomingSyncInfo: Current date:', currentDate);
+    debugLog('getUpcomingSyncInfo: Month:', month);
+    debugLog('getUpcomingSyncInfo: Date:', currentDate.getDate());
     // Determine season type and week based on current date
-    if (month === 8) {
+    if (month === 8 && currentDate.getDate() < 25) {
       seasonType = 1; // Preseason
       week = Math.max(1, Math.min(4, Math.floor(currentDate.getDate() / 7) + 1));
-    } else if (month >= 9 && month <= 12) {
+    } else if ((month >= 8 && currentDate.getDate() >= 25) && month <= 12) {
       seasonType = 2; // Regular season
       week = Math.max(1, Math.min(18, Math.floor((month - 9) * 4) + Math.floor(currentDate.getDate() / 7)));
     } else if (month >= 1 && month <= 2) {
@@ -194,6 +205,11 @@ function NFLSyncContent() {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          week: selectedSyncOptions.week,
+          seasonType: selectedSyncOptions.seasonType,
+          year: selectedSyncOptions.year
+        }),
       });
 
       const result: SyncResult = await response.json();
@@ -359,6 +375,103 @@ function NFLSyncContent() {
             <div className="mt-4 p-3 bg-blue-100 rounded-lg">
               <div className="text-sm text-blue-800 text-center">
                 <strong>Next sync will update:</strong> Week {upcomingSync.week} of {getSeasonTypeLabel(upcomingSync.seasonType)} {upcomingSync.year}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sync Options */}
+        <Card className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-900">
+              <Settings className="h-5 w-5" />
+              Sync Options
+            </CardTitle>
+            <CardDescription className="text-green-700">
+              Select which week and season to synchronize
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-green-800">Season Type</label>
+                <Select
+                  value={selectedSyncOptions.seasonType.toString()}
+                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
+                    ...prev,
+                    seasonType: parseInt(value)
+                  }))}
+                >
+                  <SelectTrigger className="bg-white border-green-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Preseason</SelectItem>
+                    <SelectItem value="2">Regular Season</SelectItem>
+                    <SelectItem value="3">Postseason</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-green-800">Week</label>
+                <Select
+                  value={selectedSyncOptions.week.toString()}
+                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
+                    ...prev,
+                    week: parseInt(value)
+                  }))}
+                >
+                  <SelectTrigger className="bg-white border-green-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedSyncOptions.seasonType === 1 && (
+                      // Preseason weeks 1-4
+                      Array.from({ length: 4 }, (_, i) => i + 1).map(week => (
+                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
+                      ))
+                    )}
+                    {selectedSyncOptions.seasonType === 2 && (
+                      // Regular season weeks 1-18
+                      Array.from({ length: 18 }, (_, i) => i + 1).map(week => (
+                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
+                      ))
+                    )}
+                    {selectedSyncOptions.seasonType === 3 && (
+                      // Postseason weeks 1-5
+                      Array.from({ length: 5 }, (_, i) => i + 1).map(week => (
+                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-green-800">Season Year</label>
+                <Select
+                  value={selectedSyncOptions.year.toString()}
+                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
+                    ...prev,
+                    year: parseInt(value)
+                  }))}
+                >
+                  <SelectTrigger className="bg-white border-green-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-3 bg-green-100 rounded-lg">
+              <div className="text-sm text-green-800 text-center">
+                <strong>Selected sync target:</strong> Week {selectedSyncOptions.week} of {getSeasonTypeLabel(selectedSyncOptions.seasonType)} {selectedSyncOptions.year}
               </div>
             </div>
           </CardContent>

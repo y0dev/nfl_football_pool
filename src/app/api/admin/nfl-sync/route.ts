@@ -17,26 +17,44 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Get current NFL week and season info
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    
-    // Simple logic to determine season type and week
-    // This could be enhanced with more sophisticated logic
-    let seasonType = 2; // Default to regular season
-    let week = 1;
-    
-    // Determine season type based on month
-    const month = currentDate.getMonth() + 1;
-    if (month === 8) {
-      seasonType = 1; // Preseason
-      week = Math.max(1, Math.min(4, Math.floor(currentDate.getDate() / 7) + 1));
-    } else if (month >= 9 && month <= 12) {
-      seasonType = 2; // Regular season
-      week = Math.max(1, Math.min(18, Math.floor((month - 9) * 4) + Math.floor(currentDate.getDate() / 7)));
-    } else if (month >= 1 && month <= 2) {
-      seasonType = 3; // Postseason
-      week = Math.max(1, Math.min(5, Math.floor((month - 1) * 4) + Math.floor(currentDate.getDate() / 7)));
+    // Parse request body for custom sync options
+    let requestBody;
+    try {
+      requestBody = await request.json();
+    } catch (error) {
+      // If no body provided, use default logic
+      requestBody = {};
+    }
+
+    // Use provided options or fall back to current week logic
+    let year = requestBody.year || new Date().getFullYear();
+    let seasonType = requestBody.seasonType;
+    let week = requestBody.week;
+
+    // If no custom options provided, use current week logic
+    if (seasonType === undefined || week === undefined) {
+      const currentDate = new Date();
+      year = currentDate.getFullYear();
+      
+      // Simple logic to determine season type and week
+      let defaultSeasonType = 2; // Default to regular season
+      let defaultWeek = 1;
+      
+      // Determine season type based on month
+      const month = currentDate.getMonth() + 1;
+      if (month === 8 && currentDate.getDate() < 25) {
+        defaultSeasonType = 1; // Preseason
+        defaultWeek = Math.max(1, Math.min(4, Math.floor(currentDate.getDate() / 7) + 1));
+      } else if ((month >= 8 && currentDate.getDate() >= 25) && month <= 12) {
+        defaultSeasonType = 2; // Regular season
+        defaultWeek = Math.max(1, Math.min(18, Math.floor((month - 9) * 4) + Math.floor(currentDate.getDate() / 7)));
+      } else if (month >= 1 && month <= 2) {
+        defaultSeasonType = 3; // Postseason
+        defaultWeek = Math.max(1, Math.min(5, Math.floor((month - 1) * 4) + Math.floor(currentDate.getDate() / 7)));
+      }
+
+      seasonType = defaultSeasonType;
+      week = defaultWeek;
     }
 
     const endpoint = `https://${RAPIDAPI_HOST}/nfl-scoreboard-week-type?year=${year}&type=${seasonType}&week=${week}`;
