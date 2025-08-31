@@ -116,12 +116,12 @@ function NFLSyncContent() {
     let week = 1;
     
     // Determine season type and week based on current date
-    if (month >= 8 && month <= 9) {
+    if (month === 8) {
       seasonType = 1; // Preseason
-      week = Math.max(1, Math.floor((month - 8) * 4) + Math.floor(currentDate.getDate() / 7));
-    } else if (month >= 10 && month <= 12) {
+      week = Math.max(1, Math.min(4, Math.floor(currentDate.getDate() / 7) + 1));
+    } else if (month >= 9 && month <= 12) {
       seasonType = 2; // Regular season
-      week = Math.max(1, Math.min(18, Math.floor((month - 10) * 4) + Math.floor(currentDate.getDate() / 7)));
+      week = Math.max(1, Math.min(18, Math.floor((month - 9) * 4) + Math.floor(currentDate.getDate() / 7)));
     } else if (month >= 1 && month <= 2) {
       seasonType = 3; // Postseason
       week = Math.max(1, Math.min(5, Math.floor((month - 1) * 4) + Math.floor(currentDate.getDate() / 7)));
