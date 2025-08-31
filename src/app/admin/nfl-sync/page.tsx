@@ -79,6 +79,7 @@ function NFLSyncContent() {
     seasonType: 2,
     year: new Date().getFullYear(),
   });
+  const [showSyncOptions, setShowSyncOptions] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -347,13 +348,26 @@ function NFLSyncContent() {
         {/* Upcoming Sync Information */}
         <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-900">
-              <Calendar className="h-5 w-5" />
-              Upcoming Sync
-            </CardTitle>
-            <CardDescription className="text-blue-700">
-              Week and season that will be synchronized
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-blue-900">
+                  <Calendar className="h-5 w-5" />
+                  Upcoming Sync
+                </CardTitle>
+                <CardDescription className="text-blue-700">
+                  Week and season that will be synchronized
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSyncOptions(!showSyncOptions)}
+                className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <Settings className="h-4 w-4" />
+                {showSyncOptions ? 'Hide Options' : 'Show Options'}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -381,7 +395,8 @@ function NFLSyncContent() {
         </Card>
 
         {/* Sync Options */}
-        <Card className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+        {showSyncOptions && (
+          <Card className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-900">
               <Settings className="h-5 w-5" />
@@ -476,6 +491,7 @@ function NFLSyncContent() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Current Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -642,7 +658,7 @@ function NFLSyncContent() {
         {/* Information Panel */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center mt-2 gap-2">
               <Info className="h-5 w-5" />
               About NFL Sync
             </CardTitle>
@@ -665,7 +681,7 @@ function NFLSyncContent() {
                 </div>
               </div>
               
-                              <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
                   <div>
                     <div className="font-medium">Team Names</div>
