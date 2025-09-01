@@ -56,6 +56,10 @@ function PoolsManagementContent() {
   const [copied, setCopied] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
+  const [transferPoolDialogOpen, setTransferPoolDialogOpen] = useState(false);
+  const [selectedPoolForTransfer, setSelectedPoolForTransfer] = useState<PoolWithParticipants | null>(null);
+  const [newCommissionerEmail, setNewCommissionerEmail] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
   const [stats, setStats] = useState({
     totalPools: 0,
     activePools: 0,
@@ -352,6 +356,71 @@ function PoolsManagementContent() {
     }
   };
 
+  const handleTransferPool = async () => {
+    if (!selectedPoolForTransfer || !newCommissionerEmail.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please select a pool and enter the new commissioner email',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsTransferring(true);
+    try {
+      // Get the current session token
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch('/api/admin/transfer-pool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          poolId: selectedPoolForTransfer.id,
+          newCommissionerEmail: newCommissionerEmail.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: 'Pool Transferred',
+          description: result.message,
+        });
+        setTransferPoolDialogOpen(false);
+        setSelectedPoolForTransfer(null);
+        setNewCommissionerEmail('');
+        // Reload pools to get updated data
+        await loadPools(isSuperAdmin);
+        await loadStats(isSuperAdmin);
+      } else {
+        throw new Error(result.error || 'Failed to transfer pool');
+      }
+    } catch (error) {
+      console.error('Transfer pool error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to transfer pool. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -587,6 +656,20 @@ function PoolsManagementContent() {
                           <Mail className="h-4 w-4" />
                           Invite
                         </Button>
+                        {isSuperAdmin && (
+                          <Button
+                            onClick={() => {
+                              setSelectedPoolForTransfer(pool);
+                              setTransferPoolDialogOpen(true);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                          >
+                            <Settings className="h-4 w-4" />
+                            Transfer
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -671,6 +754,91 @@ function PoolsManagementContent() {
         onOpenChange={setCreatePoolDialogOpen}
         onPoolCreated={handlePoolCreated}
       />
+
+      {/* Transfer Pool Dialog */}
+      <Dialog open={transferPoolDialogOpen} onOpenChange={setTransferPoolDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Transfer Pool
+            </DialogTitle>
+            <DialogDescription>
+              Transfer pool ownership to another commissioner
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedPoolForTransfer && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h4 className="font-medium text-sm mb-2 text-blue-900">Pool Details</h4>
+                <div className="space-y-1 text-sm text-blue-800">
+                  <p><span className="font-medium">Name:</span> {selectedPoolForTransfer.name}</p>
+                  <p><span className="font-medium">Current Owner:</span> {selectedPoolForTransfer.created_by}</p>
+                  <p><span className="font-medium">Participants:</span> {selectedPoolForTransfer.participantCount || 0}</p>
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <Label htmlFor="new-commissioner" className="text-sm font-medium">
+                New Commissioner Email
+              </Label>
+              <Input
+                id="new-commissioner"
+                type="email"
+                value={newCommissionerEmail}
+                onChange={(e) => setNewCommissionerEmail(e.target.value)}
+                placeholder="commissioner@example.com"
+                className="mt-2"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Enter the email address of the commissioner who will receive this pool
+              </p>
+            </div>
+            
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <h4 className="font-medium text-sm mb-2 text-yellow-900">⚠️ Important</h4>
+              <div className="text-sm text-yellow-800 space-y-1">
+                <p>• This action will transfer complete ownership of the pool</p>
+                <p>• The new commissioner will have full control over the pool</p>
+                <p>• This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleTransferPool}
+                disabled={isTransferring || !newCommissionerEmail.trim()}
+                className="flex items-center gap-2"
+              >
+                {isTransferring ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Transferring...
+                  </>
+                ) : (
+                  <>
+                    <Settings className="h-4 w-4" />
+                    Transfer Pool
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTransferPoolDialogOpen(false);
+                  setSelectedPoolForTransfer(null);
+                  setNewCommissionerEmail('');
+                }}
+                disabled={isTransferring}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

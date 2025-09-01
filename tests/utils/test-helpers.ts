@@ -145,20 +145,20 @@ export class TestHelpers {
  */
 export const testData = {
   users: {
-    admin: {
+    commissioner: {
       email: 'admin@test.com',
       password: 'admin123',
-      name: 'Test Admin'
+      name: 'Test Commissioner'
     },
-    participant: {
-      email: 'participant@test.com',
-      password: 'participant123',
-      name: 'Test Participant'
-    },
-    superAdmin: {
+    // participant: {
+    //   email: 'participant@test.com',
+    //   password: 'participant123',
+    //   name: 'Test Participant'
+    // },
+    admin: {
       email: 'superadmin@test.com',
       password: 'super123',
-      name: 'Test Super Admin'
+      name: 'Test Admin'
     }
   },
   pools: {

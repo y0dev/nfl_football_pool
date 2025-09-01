@@ -394,7 +394,7 @@ function ManageAdminsContent() {
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">
-                  Super Admin
+                  Admin
                 </Badge>
                 <Button
                   onClick={handleLogout}
@@ -541,7 +541,7 @@ function ManageAdminsContent() {
                                 {admin.is_super_admin ? (
                                   <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-200">
                                     <Crown className="h-3 w-3 mr-1" />
-                                    Super Admin
+                                    Admin
                                   </Badge>
                                 ) : (
                                   <Badge variant="secondary">

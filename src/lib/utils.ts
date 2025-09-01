@@ -18,6 +18,8 @@ export function createPageUrl(page: string): string {
       return "/pools";
     case "adminnflsync":
       return "/admin/nfl-sync";
+    case "overridepicks":
+      return "/override-picks";
     case "admincommissioners":
       return "/admin/commissioners";
     case "adminreminders":

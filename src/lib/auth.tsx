@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (userData: User) => Promise<void>;
   signOut: () => Promise<void>;
   verifyAdminStatus: (requireSuperAdmin?: boolean) => Promise<boolean>;
+  isTestAccountBlocked: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,39 +24,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [isTestAccountBlocked, setIsTestAccountBlocked] = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
-    
-    // Check for existing session from localStorage
-    const checkSession = async () => {
-      try {
-        if (typeof window !== 'undefined') {
-          const storedUser = localStorage.getItem('nfl-pool-user');
-          if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
-            // Restore all user data including admin status
-            setUser({
-              id: parsedUser.id,
-              email: parsedUser.email,
-              full_name: parsedUser.full_name,
-              is_super_admin: parsedUser.is_super_admin
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setLoading(false);
+  // Security check for test accounts in production
+  const checkTestAccountSecurity = (user: User | null) => {
+    if (process.env.NODE_ENV === 'production' && user?.email) {
+      const testEmails = ['admin@test.com', 'superadmin@test.com'];
+      if (testEmails.includes(user.email.toLowerCase())) {
+        console.warn('Test account detected in production:', user.email);
+        setIsTestAccountBlocked(true);
+        return true; // Account is blocked
       }
-    };
-
-    checkSession();
-  }, []);
+    }
+    setIsTestAccountBlocked(false);
+    return false; // Account is not blocked
+  };
 
   const signIn = async (userData: User) => {
     try {
       setLoading(true);
+      
+      // Check for test account security
+      const isBlocked = checkTestAccountSecurity(userData);
+      if (isBlocked) {
+        console.warn('Test account detected in production, blocking sign in');
+        throw new Error('Test accounts are not allowed in production');
+      }
       
       // Store all user data including admin status
       const safeUserData = {
@@ -84,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       
       setUser(null);
+      setIsTestAccountBlocked(false);
       
       // Clear localStorage
       if (typeof window !== 'undefined') {
@@ -100,6 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const verifyAdminStatus = useCallback(async (requireSuperAdmin = false): Promise<boolean> => {
     if (!user) return false;
     
+    // Check if test account is blocked
+    if (isTestAccountBlocked) {
+      console.warn('Blocked test account attempting to verify admin status:', user.email);
+      await signOut();
+      return false;
+    }
+
     // If we have cached admin status and it's sufficient, use it
     if (user.is_super_admin !== undefined) {
       if (requireSuperAdmin) {
@@ -141,15 +143,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Error verifying admin status:', error);
       return false;
     }
-  }, [user]);
+  }, [user, isTestAccountBlocked]);
+
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Check for existing session from localStorage
+    const checkSession = async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('nfl-pool-user');
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            
+            // Check for test account security
+            const isBlocked = checkTestAccountSecurity(parsedUser);
+            if (isBlocked) {
+              console.warn('Test account detected in production, logging out automatically');
+              await signOut();
+              return;
+            }
+            
+            // Restore all user data including admin status
+            setUser({
+              id: parsedUser.id,
+              email: parsedUser.email,
+              full_name: parsedUser.full_name,
+              is_super_admin: parsedUser.is_super_admin
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+  }, []);
 
   // Don't render children until mounted to prevent hydration issues
   if (!isMounted) {
     return <div>Loading...</div>;
   }
 
+  const value = {
+    user,
+    loading,
+    signIn,
+    signOut,
+    verifyAdminStatus,
+    isTestAccountBlocked
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, verifyAdminStatus }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -187,30 +187,51 @@ function AdminDashboardContent() {
   const generateNotifications = () => {
     const newNotifications: string[] = [];
     
+    // System health notifications
     if (dashboardStats.totalPools === 0) {
-      newNotifications.push('No active pools found in the system. Create a pool to get started!');
-      setNotifications(newNotifications);
-      return;
+      newNotifications.push('🚨 No active pools found in the system. Create a pool to get started!');
     }
     
+    if (dashboardStats.activePools === 0 && dashboardStats.totalPools > 0) {
+      newNotifications.push('⚠️ All pools in the system are currently inactive');
+    }
+    
+    if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0) {
+      newNotifications.push('📢 No participants have joined any pools yet. Consider sending invitations.');
+    }
+    
+    // Week-specific notifications
     if (dashboardStats.pendingSubmissions > 0) {
-      newNotifications.push(`${dashboardStats.pendingSubmissions} participants across all pools haven't submitted picks for Week ${currentWeek}`);
-    }
-    
-    if (dashboardStats.totalGames === 0) {
-      newNotifications.push('No games scheduled for the current week');
-    }
-    
-    if (dashboardStats.activePools === 0) {
-      newNotifications.push('All pools in the system are currently inactive');
-    }
-    
-    if (dashboardStats.totalParticipants === 0) {
-      newNotifications.push('No participants have joined any pools yet');
+      const percentage = Math.round((dashboardStats.completedSubmissions / (dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions)) * 100);
+      newNotifications.push(`📊 Week ${currentWeek} Progress: ${dashboardStats.completedSubmissions}/${dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions} submissions (${percentage}% complete)`);
     }
     
     if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0) {
-      newNotifications.push('All participants across all pools have submitted their picks for this week!');
+      newNotifications.push('✅ All participants across all pools have submitted their picks for this week!');
+    }
+    
+    // Game-related notifications
+    if (dashboardStats.totalGames === 0) {
+      newNotifications.push('🏈 No games scheduled for the current week. Check NFL sync status.');
+    }
+    
+    // Performance notifications
+    if (dashboardStats.totalPools > 0 && dashboardStats.totalParticipants > 0) {
+      const avgParticipants = Math.round(dashboardStats.totalParticipants / dashboardStats.totalPools);
+      if (avgParticipants < 5) {
+        newNotifications.push('📈 Low participation: Average of ' + avgParticipants + ' participants per pool. Consider promotional activities.');
+      } else if (avgParticipants > 20) {
+        newNotifications.push('🎉 High engagement: Average of ' + avgParticipants + ' participants per pool!');
+      }
+    }
+    
+    // System recommendations
+    if (dashboardStats.totalPools > 5 && dashboardStats.activePools < dashboardStats.totalPools * 0.5) {
+      newNotifications.push('💡 Consider activating more pools to increase system engagement.');
+    }
+    
+    if (dashboardStats.pendingSubmissions > 10) {
+      newNotifications.push('⏰ Consider sending reminder emails to participants who haven\'t submitted picks.');
     }
     
     setNotifications(newNotifications);
@@ -520,7 +541,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push(createPageUrl('adminoverridepicks'))}
+                onClick={() => router.push(createPageUrl('overridepicks'))}
                 className="w-full"
               >
                 Override Picks
