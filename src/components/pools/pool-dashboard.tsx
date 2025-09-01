@@ -14,7 +14,7 @@ import { adminService } from '@/lib/admin-service';
 import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, createPageUrl } from '@/lib/utils';
 
 // import { format } from 'date-fns';
 
@@ -303,7 +303,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
               )}
               {/* Commissioner Override Button - only show for pool commissioners or admins */}
               {(user?.isSuperAdmin || pool.created_by === user?.email) && (
-                <Link href={`/override-picks?pool=${pool.id}`}>
+                <Link href={createPageUrl(`overridepicks?poolId=${pool.id}`)}>
                   <Button
                     variant="outline"
                     size="sm"

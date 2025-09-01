@@ -316,7 +316,7 @@ function PoolsManagementContent() {
   };
 
   const handleViewLeaderboard = (poolId: string) => {
-    router.push(createPageUrl(`adminleaderboard?pool=${poolId}`));
+    router.push(createPageUrl(`leaderboard?pool=${poolId}`));
   };
 
   const handleSendInvite = (pool: PoolWithParticipants) => {

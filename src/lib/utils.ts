@@ -16,17 +16,14 @@ export function createPageUrl(page: string): string {
       return "/admin/dashboard";
     case "adminpools":
       return "/pools";
-    case "adminleaderboard":
-      return "/leaderboard";
     case "adminnflsync":
       return "/admin/nfl-sync";
-    case "adminoverridepicks":
-      return "/override-picks";
     case "admincommissioners":
       return "/admin/commissioners";
     case "adminreminders":
       return "/admin/reminders";
     case "adminregister":
+    case "register":
       return "/register";
     case "adminlogin":
       return "/admin/login";
@@ -58,8 +55,11 @@ export function createPageUrl(page: string): string {
         }
         return "/admin/pool/[id]";
       }
-      if (normalized.startsWith("adminleaderboard?")) {
+      if (normalized.startsWith("leaderboard?")) {
         return "/leaderboard?" + page.split("?")[1];
+      }
+      if (normalized.startsWith("overridepicks?")) {
+        return "/override-picks?" + page.split("?")[1];
       }
       return "/" + normalized;
   }

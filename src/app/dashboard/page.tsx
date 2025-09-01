@@ -625,7 +625,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push(createPageUrl('adminleaderboard'))}
+                onClick={() => router.push(createPageUrl('leaderboard'))}
                 className="w-full"
                 size="sm"
               >
@@ -668,7 +668,7 @@ function CommissionerDashboardContent() {
             </CardHeader>
             <CardContent className="pt-0">
               <Button 
-                onClick={() => router.push(createPageUrl('adminoverridepicks'))}
+                onClick={() => router.push(createPageUrl('overridepicks'))}
                 className="w-full"
                 size="sm"
               >
