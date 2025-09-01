@@ -22,7 +22,7 @@ test.describe('Pool Settings Component', () => {
 
   test('should render pool settings form correctly', async ({ page }) => {
     // Navigate to a page that contains the pool settings component
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Verify the pool settings form is visible
@@ -36,7 +36,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should display current pool information', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Verify current pool name is displayed
@@ -51,7 +51,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should allow editing pool name', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Clear and fill the pool name field
@@ -62,7 +62,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should allow editing pool description', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Clear and fill the pool description field
@@ -73,7 +73,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should toggle test mode correctly', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Click the test mode toggle
@@ -91,7 +91,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should save settings successfully', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Make some changes
@@ -114,7 +114,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should validate required fields', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Clear the pool name field
@@ -133,7 +133,7 @@ test.describe('Pool Settings Component', () => {
       error: 'Failed to update pool settings' 
     });
 
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Make a change
@@ -150,7 +150,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should reset form when cancel is clicked', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Make some changes
@@ -183,7 +183,7 @@ test.describe('Pool Settings Component', () => {
       });
     });
 
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Make a change
@@ -201,7 +201,7 @@ test.describe('Pool Settings Component', () => {
   });
 
   test('should be accessible', async ({ page }) => {
-    await page.goto('/admin/pool/test-pool-id');
+    await page.goto('/pool/test-pool-id');
     await helpers.waitForPageLoad();
 
     // Check for proper ARIA labels

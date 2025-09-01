@@ -53,9 +53,9 @@ export function createPageUrl(page: string): string {
         const params = new URLSearchParams(page.split("?")[1]);
         const poolId = params.get("poolId");
         if (poolId) {
-          return `/admin/pool/${poolId}`;
+          return `/pool/${poolId}`;
         }
-        return "/admin/pool/[id]";
+        return "/pool/[id]";
       }
       if (normalized.startsWith("leaderboard?")) {
         return "/leaderboard?" + page.split("?")[1];

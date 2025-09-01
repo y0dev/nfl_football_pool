@@ -53,6 +53,35 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Cursor styles for interactive elements */
+a, button, [role="button"], [tabindex]:not([tabindex="-1"]) {
+  cursor: pointer;
+}
+
+/* Ensure disabled elements show not-allowed cursor */
+button:disabled, [role="button"]:disabled, [tabindex="-1"] {
+  cursor: not-allowed;
+}
+
+/* Default cursor for non-interactive elements */
+* {
+  cursor: default;
+}
+
+/* Override for interactive elements */
+a, button, [role="button"], [tabindex]:not([tabindex="-1"]), 
+input[type="button"], input[type="submit"], input[type="reset"],
+select, textarea {
+  cursor: pointer;
+}
+
+/* Text selection cursor for text inputs */
+input[type="text"], input[type="email"], input[type="password"], 
+input[type="number"], input[type="search"], input[type="tel"], 
+input[type="url"], textarea {
+  cursor: text;
+}
+
 /* NFL Theme Gradients */
 .nfl-gradient {
   background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%);

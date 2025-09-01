@@ -288,7 +288,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                 poolId={pool.id} 
                 poolName={pool.name}
               />
-              <Link href={`/admin/pool/${pool.id}`}>
+              <Link href={`/pool/${pool.id}`}>
                 <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
                   <Settings className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Details</span>
