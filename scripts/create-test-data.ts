@@ -53,15 +53,9 @@ interface Pool {
 const TEST_CONFIG = {
   admins: [
     {
-      email: 'admin@test.com',
-      password: 'admin123',
-      full_name: 'Test Admin',
-      is_super_admin: true
-    },
-    {
       email: 'superadmin@test.com',
       password: 'super123',
-      full_name: 'Super Admin',
+      full_name: 'Admin',
       is_super_admin: true
     },
     {

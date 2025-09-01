@@ -130,7 +130,7 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
       deadline,
       gamesCount,
       poolUrl,
-      adminName: admin.full_name || 'Pool Administrator'
+      adminName: admin.full_name || 'Pool Commissioner'
     }));
 
     // For now, just log the reminders since email service is not configured
@@ -296,7 +296,7 @@ export async function sendAllSubmittedNotification(params: SendPickRemindersPara
       deadline: 'All picks submitted!',
       gamesCount,
       poolUrl,
-      adminName: admin.full_name || 'Pool Administrator'
+      adminName: admin.full_name || 'Pool Commissioner'
     }));
 
     // For now, just log the notifications since email service is not configured

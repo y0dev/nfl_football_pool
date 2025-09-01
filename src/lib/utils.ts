@@ -5,6 +5,68 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function createPageUrl(page: string): string {
+  debugLog('Creating page URL for:', page);
+  // Normalize page names to lowercase and remove spaces
+  const normalized = page.replace(/\s+/g, "").toLowerCase();
+  switch (normalized) {
+    case "dashboard":
+      return "/dashboard";
+    case "admindashboard":
+      return "/admin/dashboard";
+    case "adminpools":
+      return "/pools";
+    case "adminnflsync":
+      return "/admin/nfl-sync";
+    case "overridepicks":
+      return "/override-picks";
+    case "admincommissioners":
+      return "/admin/commissioners";
+    case "adminreminders":
+      return "/admin/reminders";
+    case "adminregister":
+    case "register":
+      return "/register";
+    case "adminlogin":
+      return "/admin/login";
+    case "invite":
+      return "/invite";
+    case "login":
+      return "/login";
+    case "participant":
+      return "/participant";
+    case "superadmin":
+      return "/super-admin";
+    case "landing":
+      return "/";
+    default:
+      // For dynamic routes like pool picks with specific pool ID
+      if (normalized.startsWith("poolpicks?")) {
+        const params = new URLSearchParams(page.split("?")[1]);
+        const poolId = params.get("poolId");
+        if (poolId) {
+          return `/pool/${poolId}/picks?` + page.split("?")[1];
+        }
+        return "/pool/[id]/picks?" + page.split("?")[1];
+      }
+      if (normalized.startsWith("adminpool?")) {
+        const params = new URLSearchParams(page.split("?")[1]);
+        const poolId = params.get("poolId");
+        if (poolId) {
+          return `/pool/${poolId}`;
+        }
+        return "/pool/[id]";
+      }
+      if (normalized.startsWith("leaderboard?")) {
+        return "/leaderboard?" + page.split("?")[1];
+      }
+      if (normalized.startsWith("overridepicks?")) {
+        return "/override-picks?" + page.split("?")[1];
+      }
+      return "/" + normalized;
+  }
+}
+
 /**
  * Application-wide constants
  * These values are used throughout the project and can be easily updated in one place

@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
+import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -72,8 +72,27 @@ function OverridePicksContent() {
   const [showEraseSuccessDialog, setShowEraseSuccessDialog] = useState(false);
   const [erasedPicksCount, setErasedPicksCount] = useState(0);
 
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
   useEffect(() => {
-    const loadData = async () => {
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status first
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
+          
+          // Both commissioners and admins can access this page
+          // Commissioners will only see their own pools, admins will see all pools
+          await loadData(superAdminStatus);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    const loadData = async (superAdminStatus: boolean) => {
       try {
         setIsLoading(true);
         
@@ -83,10 +102,18 @@ function OverridePicksContent() {
         setCurrentWeek(weekData?.week || 1);
         setCurrentSeasonType(weekData?.seasonType || 2);
         
-        // Load pools - check if user is super admin
-        const isSuperAdmin = await verifyAdminStatus(true);
-        const poolsData = await loadPools(user?.email, isSuperAdmin);
-        console.log('Pools loaded:', poolsData);
+        // Load pools based on user role
+        const poolsData = await loadPools(user?.email, superAdminStatus);
+        console.log('Pools loaded:', {
+          userRole: superAdminStatus ? 'admin' : 'commissioner',
+          userEmail: user?.email,
+          totalPools: poolsData.length,
+          poolsData: poolsData.map(p => ({
+            id: p.id,
+            name: p.name,
+            created_by: p.created_by
+          }))
+        });
         setPools(poolsData);
 
         // Set initial pool from URL parameter
@@ -107,8 +134,8 @@ function OverridePicksContent() {
       }
     };
 
-    loadData();
-  }, [user]);
+    checkAdminStatus();
+  }, [user, verifyAdminStatus, router]);
 
   // Check if current week is completed
   useEffect(() => {
@@ -402,7 +429,7 @@ function OverridePicksContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push('/admin/dashboard')}
+            onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -418,7 +445,13 @@ function OverridePicksContent() {
             ? `Select a pool, participant, and specific picks to override for Week ${currentWeek}`
             : `Select a pool and participant to erase all their picks for Week ${currentWeek}`
           }
+          {!isSuperAdmin && ' (Limited to your pools)'}
         </p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="outline" className="text-xs">
+            {isSuperAdmin ? 'System Admin' : 'Commissioner'}
+          </Badge>
+        </div>
       </div>
 
       {/* Week Status Warning */}
@@ -450,7 +483,10 @@ function OverridePicksContent() {
               Selection
             </CardTitle>
             <CardDescription>
-              Choose pool, participant, and picks to override
+              {isSuperAdmin 
+                ? 'Choose any pool, participant, and picks to override'
+                : 'Choose from your pools, participant, and picks to override'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -481,6 +517,19 @@ function OverridePicksContent() {
                   ))}
                 </SelectContent>
               </Select>
+              {pools.length === 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {isSuperAdmin ? 'No pools available' : 'No pools created by you'}
+                </p>
+              )}
+              {pools.length > 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {isSuperAdmin 
+                    ? `Showing ${pools.length} pools from all users`
+                    : `Showing ${pools.length} pools created by you`
+                  }
+                </p>
+              )}
             </div>
 
             {/* Participant Selection */}
@@ -784,7 +833,7 @@ function OverridePicksContent() {
       <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
         <Button
           variant="outline"
-          onClick={() => router.push('/admin/dashboard')}
+          onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
         >
           Cancel
         </Button>
@@ -891,9 +940,9 @@ function OverridePicksContent() {
 export default function OverridePicksPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <SharedAdminGuard>
         <OverridePicksContent />
-      </AdminGuard>
+      </SharedAdminGuard>
     </AuthProvider>
   );
 

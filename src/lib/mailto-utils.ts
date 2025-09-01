@@ -69,7 +69,7 @@ Click this link to join: ${inviteLink}
 Once you join, you'll be able to make your picks for all the NFL games this week.
 
 Looking forward to seeing your picks!
-Pool Administrator`
+Pool Commissioner`
   };
 }
 
@@ -83,7 +83,7 @@ This is a friendly reminder that you haven't submitted your picks for Week ${wee
 Please log in and submit your picks before the games start.
 
 Thanks!
-Pool Administrator`
+Pool Commissioner`
   };
 }
 

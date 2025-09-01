@@ -28,10 +28,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Prevent deletion of super admins (optional safety measure)
+    // Prevent deletion of admins (optional safety measure)
     if (admin.is_super_admin) {
       return NextResponse.json(
-        { success: false, error: 'Cannot delete super admin accounts' },
+        { success: false, error: 'Cannot delete admin accounts' },
         { status: 403 }
       );
     }
@@ -45,7 +45,7 @@ export async function DELETE(request: NextRequest) {
     if (deleteError) {
       console.error('Error deleting admin:', deleteError);
       return NextResponse.json(
-        { success: false, error: 'Failed to delete admin account' },
+        { success: false, error: 'Failed to delete commissioner account' },
         { status: 500 }
       );
     }
@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Admin account deleted successfully'
+              message: 'Commissioner account deleted successfully'
     });
 
   } catch (error) {

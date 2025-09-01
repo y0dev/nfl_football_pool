@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check permissions - only pool creator or super admin can send summaries
+    // Check permissions - only pool creator or admin can send summaries
     if (!admin.is_super_admin && pool.created_by !== admin.email) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized - Can only send summaries for your own pools' },

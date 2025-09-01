@@ -22,14 +22,14 @@ function SuperAdminContent() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Redirect if user is not logged in or not a super admin
+      // Redirect if user is not logged in or not an admin
   useEffect(() => {
     if (user && !user.is_super_admin) {
       router.push('/admin/dashboard');
     }
   }, [user, router]);
 
-  // Form states for creating super admin
+      // Form states for creating admin
   const [superAdminForm, setSuperAdminForm] = useState({
     email: '',
     password: '',
@@ -71,7 +71,7 @@ function SuperAdminContent() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Super admin account created successfully!',
+          description: 'Admin account created successfully!',
         });
         setSuperAdminForm({ email: '', password: '', confirmPassword: '', fullName: '' });
         
@@ -82,15 +82,15 @@ function SuperAdminContent() {
       } else {
         toast({
           title: 'Error',
-          description: result.error || 'Failed to create super admin',
+          description: result.error || 'Failed to create admin',
           variant: 'destructive',
         });
       }
     } catch (error) {
-      console.error('Error creating super admin:', error);
+              console.error('Error creating admin:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create super admin',
+        description: 'Failed to create admin',
         variant: 'destructive',
       });
     } finally {
@@ -126,12 +126,12 @@ function SuperAdminContent() {
             <div>
               <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                 <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Super Admin Dashboard</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
               </div>
-              <p className="text-sm sm:text-base text-gray-600">Manage admin accounts and system settings</p>
+              <p className="text-sm sm:text-base text-gray-600">Manage commissioner accounts and system settings</p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">
-                  Super Admin
+                  Admin
                 </Badge>
                 <Button
                   onClick={handleLogout}
@@ -153,10 +153,10 @@ function SuperAdminContent() {
               <CardHeader className="pb-4 sm:pb-6">
                 <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Create Super Admin
+                  Create Admin
                 </CardTitle>
                 <CardDescription className="text-sm sm:text-base">
-                  Create a new super administrator account
+                  Create a new administrator account
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
@@ -213,7 +213,7 @@ function SuperAdminContent() {
                     disabled={isCreatingSuperAdmin || !superAdminForm.email || !superAdminForm.password || !superAdminForm.fullName || superAdminForm.password !== superAdminForm.confirmPassword}
                     className="w-full h-10 sm:h-11 text-sm sm:text-base font-medium"
                   >
-                    {isCreatingSuperAdmin ? 'Creating...' : 'Create Super Admin'}
+                    {isCreatingSuperAdmin ? 'Creating...' : 'Create Admin'}
                   </Button>
                 </div>
               </CardContent>

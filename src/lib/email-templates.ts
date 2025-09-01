@@ -55,7 +55,7 @@ Good luck!
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Remind participants to make their weekly picks',
     targetAudience: 'not_submitted',
     category: 'reminder'
@@ -80,7 +80,7 @@ If you have any issues, please contact us immediately.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Urgent reminder for participants who haven\'t submitted picks',
     targetAudience: 'not_submitted',
     category: 'reminder'
@@ -101,7 +101,7 @@ See how you performed this week and check the updated leaderboard. Don't forget 
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Notify participants that week results are available',
     targetAudience: 'submitted',
     category: 'update'
@@ -128,7 +128,7 @@ The playoffs are where legends are made! Make your picks carefully and good luck
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Remind participants about playoff format changes',
     targetAudience: 'all',
     category: 'reminder'
@@ -155,7 +155,7 @@ This is your chance to win it all! Don't miss out on the championship picks.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Remind participants to make Super Bowl picks',
     targetAudience: 'all',
     category: 'reminder'
@@ -182,7 +182,7 @@ Thank you for making this season great! We hope to see you back next year.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Send season wrap-up message to all participants',
     targetAudience: 'all',
     category: 'update'
@@ -203,7 +203,7 @@ If you have any questions, please don't hesitate to reach out.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Send general pool updates to all participants',
     targetAudience: 'all',
     category: 'update'
@@ -226,7 +226,7 @@ These changes will take effect immediately. Thank you for your understanding.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Notify participants about rule changes',
     targetAudience: 'all',
     category: 'update'
@@ -249,7 +249,7 @@ We apologize for any inconvenience and appreciate your patience.
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Alert participants about technical issues',
     targetAudience: 'all',
     category: 'update'
@@ -264,7 +264,7 @@ Best regards,
 
 Best regards,
 {adminName}
-{poolName} Administrator`,
+{poolName} Commissioner`,
     description: 'Send a custom message to participants',
     targetAudience: 'all',
     category: 'custom'

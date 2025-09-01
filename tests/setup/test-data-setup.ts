@@ -27,7 +27,7 @@ export const test = base.extend({
       },
       pools: {
         testPool: {
-          id: 'test-pool-id',
+          id: 'dbb6c3a6-2c60-46b0-b260-a2e0c62d4f41',
           name: 'Test Pool 2025',
           description: 'A test pool for end-to-end testing',
           is_test_mode: true,
@@ -84,25 +84,53 @@ export const test = base.extend({
     await page.fill('input[name="password"]', testData.users.admin.password);
     await page.click('button[type="submit"]');
     
-    // Wait for login to complete
-    await page.waitForURL('**/participant**');
+    // Wait for login to complete - should go to participant dashboard
+    await page.waitForURL('**/dashboard**');
     
     await use(page);
   },
 
-  // Setup admin page context
+  // Setup admin page context with better error handling
   adminPage: async ({ page, testData }, use) => {
-    // Login as admin
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testData.users.admin.email);
-    await page.fill('input[name="password"]', testData.users.admin.password);
-    await page.click('button[type="submit"]');
-    
-    // Wait for login to complete and navigate to admin
-    await page.waitForURL('**/participant**');
-    await page.goto('/admin/dashboard');
-    
-    await use(page);
+    try {
+      // Login as admin
+      await page.goto('/admin/login');
+      
+      // Wait for the login form to be visible
+      await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+      
+      await page.fill('input[name="email"]', testData.users.admin.email);
+      await page.fill('input[name="password"]', testData.users.admin.password);
+      await page.click('button[type="submit"]');
+      
+      // Wait for login to complete and navigate to admin dashboard
+      // Add a longer timeout and better error handling
+      try {
+        await page.waitForURL('**/admin/dashboard**', { timeout: 15000 });
+      } catch (error) {
+        console.error('Failed to reach admin dashboard after login:', error);
+        
+        // Check if we're still on the login page (login failed)
+        const currentUrl = page.url();
+        if (currentUrl.includes('/admin/login')) {
+          // Check for error messages
+          const errorElement = page.locator('[role="alert"], .text-red-600, .text-destructive');
+          if (await errorElement.isVisible()) {
+            const errorText = await errorElement.textContent();
+            throw new Error(`Login failed: ${errorText}`);
+          }
+          throw new Error('Login failed - still on login page');
+        }
+        
+        // Check if we got redirected somewhere else
+        throw new Error(`Unexpected redirect after login: ${currentUrl}`);
+      }
+      
+      await use(page);
+    } catch (error) {
+      console.error('Admin page setup failed:', error);
+      throw error;
+    }
   }
 });
 

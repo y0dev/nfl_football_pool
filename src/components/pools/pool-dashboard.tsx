@@ -14,7 +14,7 @@ import { adminService } from '@/lib/admin-service';
 import { Users, Trophy, Calendar, Plus, Settings, Shield, Edit3, AlertCircle, Unlock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, createPageUrl } from '@/lib/utils';
 
 // import { format } from 'date-fns';
 
@@ -185,7 +185,7 @@ export function PoolDashboard({ hideCreateButton = false }: PoolDashboardProps) 
           user={{ email: user.email, isSuperAdmin }}
         />
       ) : (
-        /* For super admins, show tabs */
+        /* For admins, show tabs */
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
             <TabsTrigger value="all">All Pools</TabsTrigger>
@@ -288,7 +288,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                 poolId={pool.id} 
                 poolName={pool.name}
               />
-              <Link href={`/admin/pool/${pool.id}`}>
+              <Link href={`/pool/${pool.id}`}>
                 <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
                   <Settings className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Details</span>
@@ -301,9 +301,9 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                   onJoined={onPoolJoined}
                 />
               )}
-              {/* Admin Override Button - only show for pool admins or super admins */}
+              {/* Commissioner Override Button - only show for pool commissioners or admins */}
               {(user?.isSuperAdmin || pool.created_by === user?.email) && (
-                <Link href={`/admin/override-picks?pool=${pool.id}`}>
+                <Link href={createPageUrl(`overridepicks?poolId=${pool.id}`)}>
                   <Button
                     variant="outline"
                     size="sm"

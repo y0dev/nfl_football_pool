@@ -108,6 +108,36 @@ export class TestHelpers {
       });
     });
   }
+
+  /**
+   * Wait for toast notification to appear
+   */
+  async waitForToast(type: 'success' | 'error', timeout = 5000) {
+    const selector = type === 'success' ? '.success-toast, .toast-success, [role="status"]' : '.error-toast, .toast-error, [role="alert"]';
+    await this.waitForElement(selector, timeout);
+  }
+
+  /**
+   * Check if modal/dialog is open
+   */
+  async expectModalOpen(title?: string) {
+    if (title) {
+      await this.expectElementVisible(`[role="dialog"] h2:has-text("${title}")`);
+    } else {
+      await this.expectElementVisible('[role="dialog"]');
+    }
+  }
+
+  /**
+   * Check if alert dialog is open
+   */
+  async expectAlertDialogOpen(title?: string) {
+    if (title) {
+      await this.expectElementVisible(`[role="alertdialog"] h2:has-text("${title}")`);
+    } else {
+      await this.expectElementVisible('[role="alertdialog"]');
+    }
+  }
 }
 
 /**
@@ -115,15 +145,20 @@ export class TestHelpers {
  */
 export const testData = {
   users: {
-    admin: {
+    commissioner: {
       email: 'admin@test.com',
       password: 'admin123',
-      name: 'Test Admin'
+      name: 'Test Commissioner'
     },
-    participant: {
-      email: 'participant@test.com',
-      password: 'participant123',
-      name: 'Test Participant'
+    // participant: {
+    //   email: 'participant@test.com',
+    //   password: 'participant123',
+    //   name: 'Test Participant'
+    // },
+    admin: {
+      email: 'superadmin@test.com',
+      password: 'super123',
+      name: 'Test Admin'
     }
   },
   pools: {
@@ -162,5 +197,22 @@ export const selectors = {
   
   // Admin
   adminPanel: '[data-testid="admin-panel"]',
-  adminActions: '[data-testid="admin-actions"]'
+  adminActions: '[data-testid="admin-actions"]',
+  
+  // Commissioners Management
+  commissionersList: '.commissioners-list, .commissioners-table',
+  commissionerCard: '.commissioner-card, .commissioner-row',
+  commissionerName: '.commissioner-name, .name',
+  commissionerEmail: '.commissioner-email, .email',
+  commissionerStatus: '.commissioner-status, .status',
+  
+  // Quick Actions
+  quickActions: '.quick-actions, .action-cards',
+  
+  // Toast Messages
+  successToast: '.success-toast, .toast-success, [role="status"]',
+  errorToast: '.error-toast, .toast-error, [role="alert"]',
+  
+  // Sync History
+  syncHistory: '.sync-history, .history-section'
 };

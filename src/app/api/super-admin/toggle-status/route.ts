@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prevent deactivating super admins (optional security measure)
+    // Prevent deactivating admins (optional security measure)
     if (admin.is_super_admin && !isActive) {
       return NextResponse.json(
-        { success: false, error: 'Cannot deactivate super admin accounts' },
+        { success: false, error: 'Cannot deactivate admin accounts' },
         { status: 400 }
       );
     }

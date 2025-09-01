@@ -8,7 +8,7 @@ export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
       .select('*')
       .eq('is_active', true);
 
-    // If not a super admin, only show pools created by this admin
+    // If not an admin, only show pools created by this commissioner
     if (!isSuperAdmin && adminEmail) {
       query = query.eq('created_by', adminEmail);
     }

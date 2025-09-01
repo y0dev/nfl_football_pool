@@ -2,6 +2,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 
 /**
  * Determines the current week based on game kickoff times
+ * Avoids weeks where all games are finished
  * @returns The current week number and season type
  */
 export async function getCurrentWeekFromGames() {
@@ -12,7 +13,7 @@ export async function getCurrentWeekFromGames() {
     // Get all games ordered by kickoff time
     const { data: games, error } = await supabase
       .from('games')
-      .select('week, season, kickoff_time, season_type')
+      .select('week, season, kickoff_time, season_type, status')
       .order('kickoff_time');
 
     if (error) {
@@ -25,13 +26,9 @@ export async function getCurrentWeekFromGames() {
       return { week: 1, seasonType: 2 }; // Fallback to regular season week 1
     }
 
-    // Find the current week based on game dates
-    let currentWeek = 1;
-    let currentSeasonType = 2; // Default to regular season
-
     // Group games by week and season
     const weekGroups = games.reduce((acc, game) => {
-      const key = `${game.season}-${game.week}`;
+      const key = `${game.season}-${game.week}-${game.season_type}`;
       if (!acc[key]) {
         acc[key] = [];
       }
@@ -39,24 +36,53 @@ export async function getCurrentWeekFromGames() {
       return acc;
     }, {} as Record<string, typeof games>);
 
-    // Find the week that contains the current date
+    // Find the next week that has upcoming games (not all finished)
+    let bestWeek = 1;
+    let bestSeasonType = 2;
+    let bestWeekHasUpcomingGames = false;
+
     for (const [key, weekGames] of Object.entries(weekGroups)) {
-      const [season, week] = key.split('-').map(Number);
-      const weekStart = new Date(weekGames[0].kickoff_time);
-      const weekEnd = new Date(weekGames[weekGames.length - 1].kickoff_time);
+      const [season, week, seasonType] = key.split('-').map(Number);
       
-      // Add 7 days to weekEnd to cover the full week
-      weekEnd.setDate(weekEnd.getDate() + 7);
+      // Check if all games in this week are finished
+      const allGamesFinished = weekGames.every(game => game.status === 'final');
       
-      if (now >= weekStart && now <= weekEnd) {
-        currentWeek = week;
-        currentSeasonType = weekGames[0].season_type;
-        break;
+      // Check if this week has any upcoming games
+      const hasUpcomingGames = weekGames.some(game => {
+        const kickoffTime = new Date(game.kickoff_time);
+        return kickoffTime > now && game.status !== 'final';
+      });
+
+      // Check if this week has any games in progress
+      const hasLiveGames = weekGames.some(game => game.status === 'live');
+
+      // Check if this week has any scheduled games
+      const hasScheduledGames = weekGames.some(game => game.status === 'scheduled');
+
+      // If this week has upcoming games or live games, it's a candidate
+      if (hasUpcomingGames || hasLiveGames || hasScheduledGames) {
+        const weekStart = new Date(weekGames[0].kickoff_time);
+        
+        // If this week has upcoming games and is closer to now than our current best
+        if (hasUpcomingGames && (!bestWeekHasUpcomingGames || weekStart < new Date())) {
+          bestWeek = week;
+          bestSeasonType = seasonType;
+          bestWeekHasUpcomingGames = true;
+        }
+      }
+      
+      // If no week with upcoming games found, find the most recent week that's not all finished
+      if (!bestWeekHasUpcomingGames && !allGamesFinished) {
+        const weekStart = new Date(weekGames[0].kickoff_time);
+        if (weekStart > new Date(bestWeek === 1 ? 0 : Date.now())) {
+          bestWeek = week;
+          bestSeasonType = seasonType;
+        }
       }
     }
 
-    // If no current week found, find the closest upcoming game
-    if (currentWeek === 1) {
+    // If we still don't have a good week, find the closest upcoming game
+    if (bestWeek === 1) {
       let closestGame = null;
       let minTimeDiff = Infinity;
       
@@ -64,20 +90,33 @@ export async function getCurrentWeekFromGames() {
         const kickoffTime = new Date(game.kickoff_time);
         const timeDiff = Math.abs(kickoffTime.getTime() - now.getTime());
         
-        // Find the game closest to current time (past or future)
-        if (timeDiff < minTimeDiff) {
+        // Prefer future games over past games
+        if (kickoffTime > now && timeDiff < minTimeDiff) {
           minTimeDiff = timeDiff;
           closestGame = game;
         }
       }
       
+      // If no future games, find the closest past game
+      if (!closestGame) {
+        for (const game of games) {
+          const kickoffTime = new Date(game.kickoff_time);
+          const timeDiff = Math.abs(kickoffTime.getTime() - now.getTime());
+          
+          if (timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            closestGame = game;
+          }
+        }
+      }
+      
       if (closestGame) {
-        currentWeek = closestGame.week;
-        currentSeasonType = closestGame.season_type;
+        bestWeek = closestGame.week;
+        bestSeasonType = closestGame.season_type;
       }
     }
 
-    return { week: currentWeek, seasonType: currentSeasonType };
+    return { week: bestWeek, seasonType: bestSeasonType };
   } catch (error) {
     console.error('Error getting current week from games:', error);
     return { week: 1, seasonType: 2 }; // Fallback to regular season week 1
@@ -137,7 +176,7 @@ export async function getUpcomingWeekFromGames() {
 
 /**
  * Gets the week that should be unlocked for picks based on the closest upcoming game
- * This function specifically determines which week participants should be able to make picks for
+ * Avoids weeks where all games are finished
  * @returns The week number and season type for picks
  */
 export async function getWeekForPicks() {
@@ -145,11 +184,10 @@ export async function getWeekForPicks() {
     const supabase = getSupabaseClient();
     const now = new Date();
     
-    // Get all future games ordered by kickoff time
+    // Get all games ordered by kickoff time
     const { data: games, error } = await supabase
       .from('games')
-      .select('week, season, kickoff_time, season_type')
-      .gte('kickoff_time', now.toISOString())
+      .select('week, season, kickoff_time, season_type, status')
       .order('kickoff_time');
 
     if (error || !games || games.length === 0) {
@@ -158,27 +196,97 @@ export async function getWeekForPicks() {
       return currentWeekData;
     }
 
-    // Find the game with the closest upcoming kickoff time
-    let closestGame = games[0];
-    let minTimeDiff = Infinity;
-    
-    for (const game of games) {
-      const kickoffTime = new Date(game.kickoff_time);
-      const timeDiff = kickoffTime.getTime() - now.getTime();
+    // Group games by week and season
+    const weekGroups = games.reduce((acc, game) => {
+      const key = `${game.season}-${game.week}-${game.season_type}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(game);
+      return acc;
+    }, {} as Record<string, typeof games>);
+
+    // Find the next week that has upcoming games (not all finished)
+    let bestWeek = 1;
+    let bestSeasonType = 2;
+    let bestWeekHasUpcomingGames = false;
+
+    for (const [key, weekGames] of Object.entries(weekGroups)) {
+      const [season, week, seasonType] = key.split('-').map(Number);
       
-      // Only consider future games (positive time difference)
-      if (timeDiff > 0 && timeDiff < minTimeDiff) {
-        minTimeDiff = timeDiff;
-        closestGame = game;
+      // Check if all games in this week are finished
+      const allGamesFinished = weekGames.every(game => game.status === 'final');
+      
+      // Check if this week has any upcoming games
+      const hasUpcomingGames = weekGames.some(game => {
+        const kickoffTime = new Date(game.kickoff_time);
+        return kickoffTime > now && game.status !== 'final';
+      });
+
+      // Check if this week has any games in progress
+      const hasLiveGames = weekGames.some(game => game.status === 'live');
+
+      // Check if this week has any scheduled games
+      const hasScheduledGames = weekGames.some(game => game.status === 'scheduled');
+
+      // If this week has upcoming games or live games, it's a candidate
+      if (hasUpcomingGames || hasLiveGames || hasScheduledGames) {
+        const weekStart = new Date(weekGames[0].kickoff_time);
+        
+        // If this week has upcoming games and is closer to now than our current best
+        if (hasUpcomingGames && (!bestWeekHasUpcomingGames || weekStart < new Date())) {
+          bestWeek = week;
+          bestSeasonType = seasonType;
+          bestWeekHasUpcomingGames = true;
+        }
+      }
+      
+      // If no week with upcoming games found, find the most recent week that's not all finished
+      if (!bestWeekHasUpcomingGames && !allGamesFinished) {
+        const weekStart = new Date(weekGames[0].kickoff_time);
+        if (weekStart > new Date(bestWeek === 1 ? 0 : Date.now())) {
+          bestWeek = week;
+          bestSeasonType = seasonType;
+        }
       }
     }
 
-    // Return the week and season type of the closest upcoming game
-    // This is the week that should be unlocked for picks
-    return {
-      week: closestGame.week,
-      seasonType: closestGame.season_type
-    };
+    // If we still don't have a good week, find the closest upcoming game
+    if (bestWeek === 1) {
+      let closestGame = null;
+      let minTimeDiff = Infinity;
+      
+      for (const game of games) {
+        const kickoffTime = new Date(game.kickoff_time);
+        const timeDiff = Math.abs(kickoffTime.getTime() - now.getTime());
+        
+        // Prefer future games over past games
+        if (kickoffTime > now && timeDiff < minTimeDiff) {
+          minTimeDiff = timeDiff;
+          closestGame = game;
+        }
+      }
+      
+      // If no future games, find the closest past game
+      if (!closestGame) {
+        for (const game of games) {
+          const kickoffTime = new Date(game.kickoff_time);
+          const timeDiff = Math.abs(kickoffTime.getTime() - now.getTime());
+          
+          if (timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            closestGame = game;
+          }
+        }
+      }
+      
+      if (closestGame) {
+        bestWeek = closestGame.week;
+        bestSeasonType = closestGame.season_type;
+      }
+    }
+
+    return { week: bestWeek, seasonType: bestSeasonType };
   } catch (error) {
     console.error('Error getting week for picks:', error);
     // Fallback to current week

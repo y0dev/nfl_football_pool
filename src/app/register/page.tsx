@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import { debugLog } from '@/lib/utils';
 
 const adminRegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -32,15 +33,35 @@ function AdminRegisterContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
 
   // Redirect if user is already logged in
   useEffect(() => {
-    if (user) {
-      router.push('/admin/dashboard');
-    }
-  }, [user, router]);
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status first
+        if (user && verifyAdminStatus) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          
+          // Redirect commissioners to their dashboard
+          if (!superAdminStatus) {
+            router.push('/dashboard');
+            return;
+          }
+          
+          // Redirect super admins to admin dashboard
+          router.push('/admin/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        // Don't crash the component on auth errors
+      }
+    };
+
+    checkAdminStatus();
+  }, [user, router, verifyAdminStatus]);
 
   const form = useForm<AdminRegisterFormData>({
     resolver: zodResolver(adminRegisterSchema),
@@ -53,10 +74,19 @@ function AdminRegisterContent() {
   });
 
   const onSubmit = async (data: AdminRegisterFormData) => {
+    if (!data || !data.email || !data.password || !data.fullName) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       console.log('Sending registration request...');
-      const response = await fetch('/api/admin/register', {
+      const response = await fetch('/api/admin/create-commissioner', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,15 +99,20 @@ function AdminRegisterContent() {
       });
 
       console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const result = await response.json();
       console.log('Response data:', result);
 
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Admin account created successfully! You can now log in with your credentials.',
+          description: 'Commissioner account created successfully! You can now log in with your credentials.',
         });
-        // Redirect to admin dashboard
+        // Redirect to commissioner dashboard
         setTimeout(() => {
           window.location.href = '/admin/dashboard';
         }, 2000);
@@ -89,7 +124,7 @@ function AdminRegisterContent() {
         });
       }
     } catch (error) {
-      console.error('Admin registration error:', error);
+      console.error('Commissioner registration error:', error);
       toast({
         title: 'Error',
         description: 'Registration failed. Please try again.',
@@ -108,17 +143,17 @@ function AdminRegisterContent() {
             <Shield className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Create Admin Account
+            Create Commissioner Account
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
-            Join the NFL Confidence Pool as an administrator
+            Join the NFL Confidence Pool as a commissioner
           </p>
         </div>
       </div>
 
       <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-xl rounded-2xl py-8 px-6 sm:px-8">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" noValidate>
             <div>
               <Label htmlFor="fullName" className="text-sm font-semibold text-gray-700 mb-2 block">
                 Full Name
@@ -237,7 +272,7 @@ function AdminRegisterContent() {
                     Creating Account...
                   </div>
                 ) : (
-                  'Create Admin Account'
+                  'Create Commissioner Account'
                 )}
               </Button>
             </div>
@@ -257,10 +292,10 @@ function AdminRegisterContent() {
 
             <div className="mt-6">
               <Link
-                href="/admin/login"
+                href="/login"
                 className="w-full flex justify-center py-3 px-4 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
-                Sign in to Admin Dashboard
+                Sign in to Dashboard
               </Link>
             </div>
           </div>

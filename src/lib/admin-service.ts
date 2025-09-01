@@ -50,11 +50,37 @@ export class AdminService {
 
   private constructor() {
     this.supabase = getSupabaseServiceClient();
+    debugLog('AdminService: Service role client initialized');
+    
+          // Test the connection
+      this.testConnection().catch(error => {
+        debugError('AdminService: Connection test failed:', error);
+      });
+  }
+  
+  private async testConnection() {
+    try {
+      debugLog('AdminService: Testing database connection...');
+      const { data, error } = await this.supabase
+        .from('admins')
+        .select('count', { count: 'exact', head: true });
+      
+      if (error) {
+        debugError('AdminService: Connection test failed:', error);
+      } else {
+        debugLog('AdminService: Connection test successful');
+      }
+    } catch (error) {
+      debugError('AdminService: Connection test error:', error);
+    }
   }
 
   public static getInstance(): AdminService {
     if (!AdminService.instance) {
+      debugLog('AdminService: Creating new instance');
       AdminService.instance = new AdminService();
+    } else {
+      debugLog('AdminService: Returning existing instance');
     }
     return AdminService.instance;
   }
@@ -261,34 +287,72 @@ export class AdminService {
   }
 
   /**
-   * Get all admins (used in dashboard for super admin)
+   * Get all admins (used in dashboard for admin)
    */
   async getAdmins(): Promise<Admin[]> {
     try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting all admins');
-      }
+      debugLog('Function: getAdmins - Getting all admins');
 
+      debugLog('AdminService: Executing query: SELECT * FROM admins ORDER BY full_name');
+      
+      // First, let's check if the table exists and has any data
+      const { count: tableCount, error: countError } = await this.supabase
+        .from('admins')
+        .select('id', { count: 'exact', head: true });
+      
+      debugLog('AdminService: Table count check:', { count: tableCount, error: countError });
+      
+      // Let's also check the table structure
+      try {
+        const { data: sampleData, error: sampleError } = await this.supabase
+          .from('admins')
+          .select('id, email, full_name, is_super_admin, is_active, created_at')
+          .limit(1);
+        
+        debugLog('AdminService: Sample data check:', { data: sampleData, error: sampleError });
+      } catch (sampleError) {
+        debugError('AdminService: Sample data check failed:', sampleError);
+      }
+      
       const { data: admins, error } = await this.supabase
         .from('admins')
-        .select('*')
+        .select('id, email, full_name, is_super_admin, is_active, created_at')
         .order('full_name');
 
+      debugLog('AdminService: Raw query result:', { data: admins, error });
+
       if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('AdminService: Admins query error:', error);
-        }
+        debugError('AdminService: Admins query error:', error);
+        debugError('AdminService: Error details:', { 
+          message: error.message, 
+          details: error.details, 
+          hint: error.hint,
+          code: error.code 
+        });
         throw new Error(`Failed to load admins: ${error.message}`);
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Admins result:', { count: admins?.length || 0 });
+      debugLog('AdminService: Admins result:', { count: admins?.length || 0, admins });
+      
+      // Let's also check if the data has the expected structure
+      if (admins && admins.length > 0) {
+        debugLog('AdminService: First admin data structure:', {
+          id: admins[0].id,
+          email: admins[0].email,
+          full_name: admins[0].full_name,
+          is_super_admin: admins[0].is_super_admin,
+          is_active: admins[0].is_active,
+          created_at: admins[0].created_at
+        });
       }
 
       return admins || [];
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting admins:', error);
+      debugError('AdminService: Error getting admins:', error);
+      if (error instanceof Error) {
+        debugError('AdminService: Error type:', typeof error);
+        debugError('AdminService: Error message:', error.message);
+        debugError('AdminService: Error stack:', error.stack);
       }
       throw error;
     }

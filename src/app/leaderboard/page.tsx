@@ -8,11 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
+import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { loadLeaderboard } from '@/actions/loadLeaderboard';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
+import { debugLog, createPageUrl } from '@/lib/utils';
 import { 
   ArrowLeft, 
   Trophy, 
@@ -63,7 +64,7 @@ interface Pool {
 }
 
 function LeaderboardContent() {
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -99,6 +100,7 @@ function LeaderboardContent() {
   const [performanceThreshold, setPerformanceThreshold] = useState(50);
   const [showPerformanceAlerts, setShowPerformanceAlerts] = useState(true);
   const [activeTab, setActiveTab] = useState('weekly');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Helper functions for safe data access
   const getParticipantName = (entry: LeaderboardEntry | LeaderboardEntryWithPicks, isDummy: boolean) => {
@@ -123,7 +125,24 @@ function LeaderboardContent() {
   };
 
   useEffect(() => {
-    const loadData = async () => {
+    const checkAdminStatus = async () => {
+      try {
+        // Check admin status first
+        if (user) {
+          debugLog('Checking admin status for user:', user.email);
+          const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
+          
+          // Both commissioners and admins can access this page
+          // Commissioners will only see their own pools, admins will see all pools
+          await loadData(superAdminStatus);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    const loadData = async (superAdminStatus: boolean) => {
       try {
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData?.week_number || 1);
@@ -131,7 +150,7 @@ function LeaderboardContent() {
         setSelectedWeek(weekData?.week_number || 1);
         setSelectedSeasonType(weekData?.season_type || 2);
         
-        await loadPoolsData();
+        await loadPoolsData(superAdminStatus);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -139,8 +158,8 @@ function LeaderboardContent() {
       }
     };
 
-    loadData();
-  }, [user]);
+    checkAdminStatus();
+  }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
     if (selectedPool && selectedWeek && selectedSeasonType) {
@@ -150,12 +169,29 @@ function LeaderboardContent() {
     }
   }, [selectedPool, selectedWeek, selectedSeasonType]);
 
-  const loadPoolsData = async () => {
+  const loadPoolsData = async (superAdminStatus: boolean) => {
     try {
-      const poolsData = await loadPools(user?.email, user?.is_super_admin);
-      setPools(poolsData);
+      // Get pools based on user role
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
       
-      if (poolsData.length > 0 && !selectedPool) {
+      let poolsQuery = supabase
+        .from('pools')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      // If user is not a super admin, only show pools they created
+      if (!superAdminStatus) {
+        poolsQuery = poolsQuery.eq('created_by', user?.email);
+      }
+      
+      const { data: poolsData, error: poolsError } = await poolsQuery;
+      
+      if (poolsError) throw poolsError;
+      
+      setPools(poolsData || []);
+      
+      if (poolsData && poolsData.length > 0 && !selectedPool) {
         setSelectedPool(poolsData[0].id);
       }
     } catch (error) {
@@ -405,7 +441,7 @@ function LeaderboardContent() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Button
-                onClick={() => router.push('/admin/dashboard')}
+                onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
@@ -414,9 +450,14 @@ function LeaderboardContent() {
                 Back to Dashboard
               </Button>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Pool Analytics & Winners</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              {isSuperAdmin ? 'Pool Analytics & Winners' : 'My Pool Analytics & Winners'}
+            </h1>
             <p className="text-gray-600">
-              Comprehensive view of pool performance, weekly leaderboards, and season winners
+              {isSuperAdmin 
+                ? 'Comprehensive view of all pool performance, weekly leaderboards, and season winners'
+                : 'View performance, leaderboards, and winners for your pools'
+              }
             </p>
           </div>
         </div>
@@ -548,7 +589,7 @@ function LeaderboardContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Admin Controls
+                Commissioner Controls
               </CardTitle>
               <CardDescription>
                 Advanced filtering, sorting, and management tools
@@ -978,12 +1019,12 @@ function LeaderboardContent() {
   );
 }
 
-export default function AdminLeaderboardPage() {
+export default function LeaderboardPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <SharedAdminGuard>
         <LeaderboardContent />
-      </AdminGuard>
+      </SharedAdminGuard>
     </AuthProvider>
   );
 }

@@ -174,10 +174,10 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
             {!currentWeek && (
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Admin Action Required:</strong> The pool administrator needs to add participants to this pool before picks can be made.
+                  <strong>Commissioner Action Required:</strong> The pool commissioner needs to add participants to this pool before picks can be made.
                 </p>
                 <p className="text-sm text-blue-700 mt-2">
-                  Please contact the pool administrator or use the admin dashboard to add participants.
+                  Please contact the pool commissioner or use the commissioner dashboard to add participants.
                 </p>
               </div>
             )}
