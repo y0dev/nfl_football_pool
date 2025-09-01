@@ -303,7 +303,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
               )}
               {/* Commissioner Override Button - only show for pool commissioners or admins */}
               {(user?.isSuperAdmin || pool.created_by === user?.email) && (
-                <Link href={`/admin/override-picks?pool=${pool.id}`}>
+                <Link href={`/override-picks?pool=${pool.id}`}>
                   <Button
                     variant="outline"
                     size="sm"

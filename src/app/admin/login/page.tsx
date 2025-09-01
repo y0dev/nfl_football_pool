@@ -200,7 +200,7 @@ function AdminLoginContent() {
         {/* Additional links */}
         <div className="mt-3 sm:mt-4 space-y-2">
           <div className="text-center">
-            <Link href="/admin/register" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+            <Link href="/register" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
               Create Commissioner Account
             </Link>
           </div>

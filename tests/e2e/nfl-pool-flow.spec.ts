@@ -111,7 +111,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       await helpers.waitForNavigation();
 
       // Navigate to pool management page
-      await page.goto('/admin/pools');
+      await page.goto('/pools');
       await helpers.waitForPageLoad();
 
       // Find a pool and click the share button
@@ -403,7 +403,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       await helpers.waitForNavigation();
 
       // Navigate to override picks page
-      await page.goto('/admin/override-picks');
+      await page.goto('/override-picks');
       await helpers.waitForPageLoad();
 
       // Verify override picks functionality
@@ -492,7 +492,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       await helpers.waitForNavigation();
 
       // Navigate to pool management page
-      await page.goto('/admin/pools');
+      await page.goto('/pools');
       await helpers.waitForPageLoad();
 
       // Verify pool management page loads
@@ -515,7 +515,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       await helpers.waitForNavigation();
 
       // Navigate to pool management page
-      await page.goto('/admin/pools');
+      await page.goto('/pools');
       await helpers.waitForPageLoad();
 
       // Verify only commissioner's pools are shown
@@ -560,7 +560,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
       await helpers.mockAPIResponse('/api/pools', { error: 'Database connection failed' });
       
       // Navigate to admin pools page (which exists)
-      await page.goto('/admin/pools');
+      await page.goto('/pools');
       await helpers.waitForPageLoad();
       
       // Verify error message is displayed
@@ -584,7 +584,7 @@ test.describe('NFL Football Pool - End to End Tests', () => {
 
     test('should handle large datasets efficiently', async ({ page }) => {
       // Navigate to admin leaderboard page (which exists)
-      await page.goto('/admin/leaderboard');
+      await page.goto('/leaderboard');
       await helpers.waitForPageLoad();
       
       // Verify page loads without performance issues
