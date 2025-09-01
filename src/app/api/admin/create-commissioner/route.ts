@@ -72,10 +72,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Auth user created successfully:', newAuthUser.user.id);
+    debugLog('Auth user created successfully:', newAuthUser.user.id);
 
     // Create admin record in admins table using the user's ID
-    console.log('Creating admin record...');
+    debugLog('Creating admin record...');
     const { data: newAdmin, error: createError } = await supabase
       .from('admins')
       .insert({
@@ -93,10 +93,10 @@ export async function POST(request: NextRequest) {
       console.error('Error creating admin record:', createError);
       
       // Clean up the newly created auth user
-      console.log('Cleaning up newly created auth user...');
+      debugLog('Cleaning up newly created auth user...');
       try {
         await supabase.auth.admin.deleteUser(newAuthUser.user.id);
-        console.log('Auth user cleanup successful');
+        debugLog('Auth user cleanup successful');
       } catch (cleanupError) {
         console.error('Failed to cleanup auth user:', cleanupError);
       }
@@ -107,11 +107,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Admin record created successfully');
+    debugLog('Admin record created successfully');
 
     // Log the commissioner creation
     try {
-      console.log('Logging to audit_logs...');
+      debugLog('Logging to audit_logs...');
       await supabase
         .from('audit_logs')
         .insert({
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
           entity_id: newAdmin.id,
           details: { email: email, full_name: fullName }
         });
-      console.log('Audit log created successfully');
+      debugLog('Audit log created successfully');
     } catch (auditError) {
       console.warn('Failed to log commissioner creation to audit_logs:', auditError);
       // Don't fail the creation if audit logging fails
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     // Send email notification to the newly created commissioner
     try {
-      console.log('Sending email notification...');
+      debugLog('Sending email notification...');
       const emailSent = await emailService.sendAdminCreationNotification(
         newAdmin.email,
         newAdmin.full_name || 'Unknown',
@@ -139,14 +139,14 @@ export async function POST(request: NextRequest) {
       if (!emailSent) {
         console.warn('Email notification failed, but commissioner account was created successfully');
       } else {
-        console.log('Email notification sent successfully');
+        debugLog('Email notification sent successfully');
       }
     } catch (error) {
       console.error('Failed to send commissioner creation notification:', error);
       // Don't fail the creation if email fails - just log the error
     }
 
-    console.log('Commissioner creation completed successfully, returning success response');
+    debugLog('Commissioner creation completed successfully, returning success response');
     return NextResponse.json({
       success: true,
       message: 'Commissioner created successfully',

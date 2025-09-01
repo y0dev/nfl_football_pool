@@ -431,6 +431,26 @@ function AdminDashboardContent() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
+                <Shield className="h-5 w-5" />
+                Manage Admins
+              </CardTitle>
+              <CardDescription>
+                Reset passwords and manage admin accounts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/admin/manage-admins')}
+                className="w-full"
+              >
+                Manage Admins
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Trophy className="h-5 w-5" />
                 Pool Management
               </CardTitle>
