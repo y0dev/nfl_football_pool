@@ -1862,7 +1862,12 @@ function PoolPicksContent() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                    <Leaderboard
+                      poolId={poolId}
+                      weekNumber={currentWeek}
+                      seasonType={currentSeasonType}
+                      season={poolSeason}
+                    />
                   </CardContent>
                 </Card>
               ) : (
@@ -1882,9 +1887,11 @@ function PoolPicksContent() {
                         The leaderboard will be available once all participants submit their picks
                       </p>
                       <div className="w-full bg-orange-200 rounded-full h-2">
-                        <div 
+                        <div
                           className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
+                          style={{
+                            width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%`,
+                          }}
                         ></div>
                       </div>
                       <p className="text-sm text-orange-600 mt-2">
@@ -1897,112 +1904,137 @@ function PoolPicksContent() {
             </>
           ) : !weekEnded && !gamesStarted ? (
             <>
-              {/* Picks Section - Only show when games haven't started */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-blue-600" />
-                    Week {currentWeek} Picks
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedUser && hasSubmitted[selectedUser.id]?.submitted
-                      ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
-                      : "Select the winner for each game and assign confidence points"
-                    }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {selectedUser ? (
-                    hasSubmitted[selectedUser.id]?.submitted ? (
-                      <div className="text-center py-8">
-                        <div className="text-gray-500 mb-4">
-                          <Lock className="h-12 w-12 mx-auto mb-2" />
-                          <p className="text-lg font-medium">Picks Submitted</p>
-                          <p className="text-sm">Your picks are locked for this week</p>
+              {submittedCount >= participantCount ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="h-5 w-5 text-yellow-600" />
+                      Week {currentWeek} Leaderboard
+                    </CardTitle>
+                    <CardDescription>
+                      Current standings for {poolName} - Games are in progress
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Leaderboard
+                      poolId={poolId}
+                      weekNumber={currentWeek}
+                      seasonType={currentSeasonType}
+                      season={poolSeason}
+                    />
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-blue-600" />
+                      Week {currentWeek} Picks
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedUser && hasSubmitted[selectedUser.id]?.submitted
+                        ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
+                        : "Select the winner for each game and assign confidence points"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedUser ? (
+                      hasSubmitted[selectedUser.id]?.submitted ? (
+                        <div className="text-center py-8">
+                          <div className="text-gray-500 mb-4">
+                            <Lock className="h-12 w-12 mx-auto mb-2" />
+                            <p className="text-lg font-medium">Picks Submitted</p>
+                            <p className="text-sm">Your picks are locked for this week</p>
+                          </div>
+                          {(isPoolAdmin || isSuperAdmin) && (
+                            <Button
+                              onClick={() => unlockParticipantPicks(selectedUser.id)}
+                              variant="outline"
+                              className="flex items-center gap-2"
+                            >
+                              <Unlock className="h-4 w-4" />
+                              Unlock Picks
+                            </Button>
+                          )}
                         </div>
-                        {(isPoolAdmin || isSuperAdmin) && (
-                          <Button
-                            onClick={() => unlockParticipantPicks(selectedUser.id)}
-                            variant="outline"
-                            className="flex items-center gap-2"
-                          >
-                            <Unlock className="h-4 w-4" />
-                            Unlock Picks
-                          </Button>
-                        )}
-                      </div>
-                    ) : games.length > 0 ? (
+                      ) : games.length > 0 ? (
+                        <div>
+                          {process.env.NODE_ENV === "development" && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="text-sm text-blue-800">
+                                <span className="font-bold">User Selected:</span>{" "}
+                                {selectedUser.name} (ID: {selectedUser.id})
+                              </div>
+                              <div className="text-sm text-blue-700">
+                                Pool: {poolId} | Week: {currentWeek} | Season Type:{" "}
+                                {currentSeasonType}
+                              </div>
+                              <div className="text-sm text-blue-600">
+                                <span className="font-bold">Submission Status:</span>{" "}
+                                {hasSubmitted[selectedUser.id]?.submitted
+                                  ? "Submitted"
+                                  : "Not Submitted"}
+                              </div>
+                              <div className="text-sm text-blue-800">
+                                <span className="font-bold">All Users Status:</span>{" "}
+                                {JSON.stringify(hasSubmitted)}
+                              </div>
+                            </div>
+                          )}
+                          <WeeklyPick
+                            poolId={poolId}
+                            weekNumber={currentWeek}
+                            seasonType={currentSeasonType}
+                            selectedUser={selectedUser}
+                            games={games}
+                            preventGameLoading={true}
+                            onPicksSubmitted={handlePicksSubmitted}
+                            onUserChangeRequested={handleUserChangeRequested}
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          No games found for Week {currentWeek}
+                        </div>
+                      )
+                    ) : (
                       <div>
-                        {process.env.NODE_ENV === 'development' && (
-                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="text-sm text-blue-800">
-                              <span className="font-bold">User Selected:</span> {selectedUser.name} (ID: {selectedUser.id})
+                        {Object.keys(hasSubmitted).length > 0 && (
+                          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="text-sm text-green-800 text-center mb-3">
+                              <span className="font-bold">Picks submitted successfully!</span>{" "}
+                              Best of luck this week!
                             </div>
-                            <div className="text-sm text-blue-700">
-                              Pool: {poolId} | Week: {currentWeek} | Season Type: {currentSeasonType}
-                            </div>
-                            <div className="text-sm text-blue-600">
-                              <span className="font-bold">Submission Status:</span> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}
-                            </div>
-                            <div className="text-sm text-blue-800">
-                              <span className="font-bold">All Users Status:</span> {JSON.stringify(hasSubmitted)}
+                            <div className="flex flex-col items-center gap-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowLeaderboard(true)}
+                                className="text-xs"
+                                disabled={submittedCount < participantCount}
+                              >
+                                <BarChart3 className="h-3 w-3 mr-1" />
+                                View Leaderboard
+                                {submittedCount < participantCount && (
+                                  <span className="ml-1 text-xs">
+                                    ({submittedCount}/{participantCount})
+                                  </span>
+                                )}
+                              </Button>
                             </div>
                           </div>
                         )}
-                        <WeeklyPick 
-                          poolId={poolId} 
-                          weekNumber={currentWeek} 
+                        <PickUserSelection
+                          poolId={poolId}
+                          weekNumber={currentWeek}
                           seasonType={currentSeasonType}
-                          selectedUser={selectedUser}
-                          games={games}
-                          preventGameLoading={true}
-                          onPicksSubmitted={handlePicksSubmitted}
-                          onUserChangeRequested={handleUserChangeRequested}
+                          onUserSelected={handleUserSelected}
                         />
                       </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        No games found for Week {currentWeek}
-                      </div>
-                    )
-                  ) : (
-                    <div>
-                      {Object.keys(hasSubmitted).length > 0 && (
-                        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <div className="text-sm text-green-800 text-center mb-3">
-                            <span className="font-bold">Picks submitted successfully!</span> Best of luck this week!
-                          </div>
-                                                      <div className="flex flex-col items-center gap-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowLeaderboard(true)}
-                              className="text-xs"
-                              disabled={submittedCount < participantCount}
-                            >
-                              <BarChart3 className="h-3 w-3 mr-1" />
-                              View Leaderboard
-                              {submittedCount < participantCount && (
-                                <span className="ml-1 text-xs">
-                                  ({submittedCount}/{participantCount})
-                                </span>
-                              )}
-                            </Button>
-                              
-
-                          </div>
-                        </div>
-                      )}
-                      <PickUserSelection 
-                        poolId={poolId} 
-                        weekNumber={currentWeek} 
-                        seasonType={currentSeasonType}
-                        onUserSelected={handleUserSelected}
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Your Picks Section - Show when games haven't started and user has picks */}
               {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
@@ -2013,7 +2045,8 @@ function PoolPicksContent() {
                       Your Picks for Week {currentWeek}
                     </CardTitle>
                     <CardDescription>
-                      Review your submitted picks for this week (picks are locked until games start)
+                      Review your submitted picks for this week (picks are locked until
+                      games start)
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2032,6 +2065,7 @@ function PoolPicksContent() {
               )}
             </>
           ) : null}
+
 
           {/* Week Ended Message - Show when week has ended */}
           {weekEnded && (
