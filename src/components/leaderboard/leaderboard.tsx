@@ -122,12 +122,17 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   {entry.correct_picks}/{entry.total_picks}
                         </TableCell>
                 {games.map(game => {
+                  const status = game.status.toLowerCase();
                   const pick = entry.picks.find(p => p.game_id === game.id);
-                  const isGameFinal = game.status === 'final' || game.status === 'post';
-                  const isGameInProgress = game.status === 'live' || game.status === 'in_progress';
-                  const isCorrect = pick && isGameFinal && game.winner && pick.predicted_winner === game.winner;
+                  const isGameFinal = status === 'final' || status === 'post';
+                  const isGameInProgress = status === 'live' || status === 'in_progress';
+                  const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner.toLowerCase() === game.winner?.toLowerCase();
                   const confidence = pick?.confidence_points || 0;
-                  
+                  debugLog('Games - Pick:', pick);
+                  debugLog('Games - Is Game Finished:', isGameFinal);
+                  debugLog('Games - Is Game in Progress:', isGameInProgress);
+                  debugLog('Games - Is Correct Pick:', isCorrect);
+                  debugLog('Games - Confidence:', confidence);
                   return (
                     <TableCell key={game.id} className="text-center">
                       <div className="text-xs">
