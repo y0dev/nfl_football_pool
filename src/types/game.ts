@@ -6,7 +6,7 @@ export interface Game {
   away_team: string;
   kickoff_time: string;
   game_status?: string;
-  status?: string;
+  status: string;
   winner?: string | null;
   home_score?: number | null;
   away_score?: number | null;

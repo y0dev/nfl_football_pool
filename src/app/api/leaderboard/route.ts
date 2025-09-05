@@ -147,8 +147,9 @@ export async function GET(request: NextRequest) {
 
           // Calculate points for this game
           let points = 0;
-          if ((game.status === 'final' || game.status === 'post') && game.winner) {
-            if (pick.predicted_winner === game.winner) {
+          const status = game.status.toLowerCase();
+          if ((status === 'final' || status === 'post') && game.winner) {
+            if (pick.predicted_winner.toLowerCase() === game.winner.toLowerCase()) {
               points = pick.confidence_points;
               correctPicks++;
             }
