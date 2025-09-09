@@ -1252,7 +1252,7 @@ function PoolPicksContent() {
               </div>
               <CardTitle className="text-yellow-900 text-2xl">Week {currentWeek} Winner!</CardTitle>
               <CardDescription className="text-yellow-700 text-lg">
-                Congratulations to the champion!
+                Congratulations to this week&apos;s winner!
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-4">
