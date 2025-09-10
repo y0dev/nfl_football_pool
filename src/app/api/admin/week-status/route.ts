@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Get all games for the specified week
     const { data: games, error } = await supabase
       .from('games')
-      .select('winner')
+      .select('status, winner')
       .eq('week', parseInt(week))
       .eq('season_type', parseInt(seasonType))
       .eq('season', parseInt(season));
@@ -33,16 +33,28 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Check if all games have winners (completed)
-    const allGamesCompleted = games && games.length > 0 && games.every(game => game.winner);
+    // Check if all games are properly finished with both status and winner
+    const allGamesCompleted = games && games.length > 0 && games.every(game => {
+      const status = game.status?.toLowerCase();
+      const hasWinner = game.winner && game.winner.trim() !== '';
+      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      return isFinished && hasWinner;
+    });
     
+    const completedGames = games?.filter(game => {
+      const status = game.status?.toLowerCase();
+      const hasWinner = game.winner && game.winner.trim() !== '';
+      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      return isFinished && hasWinner;
+    }).length || 0;
+
     return NextResponse.json({
       week: parseInt(week),
       season_type: parseInt(seasonType),
       season: parseInt(season),
       isCompleted: allGamesCompleted,
       totalGames: games?.length || 0,
-      completedGames: games?.filter(game => game.winner).length || 0
+      completedGames: completedGames
     });
     
   } catch (error) {

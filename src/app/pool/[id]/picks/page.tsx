@@ -152,29 +152,34 @@ function PoolPicksContent() {
   const checkWeekStatus = async () => {
     if (games.length === 0) return;
     
-    const now = new Date();
+    // Check if all games are properly finished with both status and winner
     const allGamesEnded = games.every(game => {
-      const gameTime = new Date(game.kickoff_time);
-      // Consider game ended if it's been more than 3 hours since kickoff
-      const gameEnded = gameTime.getTime() + (3 * 60 * 60 * 1000) < now.getTime();
+      const status = game.status?.toLowerCase();
+      const hasWinner = game.winner && game.winner.trim() !== '';
+      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
       
       debugLog('Week status check for game:', {
         game: `${game.away_team} @ ${game.home_team}`,
-        kickoff: gameTime.toISOString(),
-        now: now.toISOString(),
-        gameEnded,
-        timeDiff: (gameTime.getTime() + (3 * 60 * 60 * 1000) - now.getTime()) / (1000 * 60 * 60) // hours until end
+        status: game.status,
+        winner: game.winner,
+        isFinished,
+        hasWinner,
+        gameEnded: isFinished && hasWinner
       });
       
-      return gameEnded;
+      return isFinished && hasWinner;
     });
     
     if (process.env.NODE_ENV === 'development') {
       console.log('Week status result:', {
-      allGamesEnded,
-      gamesCount: games.length,
-      currentTime: now.toISOString()
-    });
+        allGamesEnded,
+        gamesCount: games.length,
+        gamesStatus: games.map(g => ({ 
+          game: `${g.away_team} @ ${g.home_team}`, 
+          status: g.status, 
+          winner: g.winner 
+        }))
+      });
     }
     
     setWeekEnded(allGamesEnded);

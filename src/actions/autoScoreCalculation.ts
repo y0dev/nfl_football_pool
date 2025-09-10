@@ -104,10 +104,13 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
       return false;
     }
 
-    // Check if all games are finished
-    const allGamesFinished = games.every(game => 
-      game.status === 'finished' && game.winner !== null
-    );
+    // Check if all games are finished with proper status and winner
+    const allGamesFinished = games.every(game => {
+      const status = game.status?.toLowerCase();
+      const hasWinner = game.winner && game.winner.trim() !== '';
+      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      return isFinished && hasWinner;
+    });
 
     if (!allGamesFinished) {
       console.log(`Not all games finished for week ${week}`);
