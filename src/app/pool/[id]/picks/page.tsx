@@ -212,27 +212,26 @@ function PoolPicksContent() {
           }
         }
         
-        // No winner in database, calculate from leaderboard
-        debugLog('No existing winner found, calculating from leaderboard');
-        const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
-        debugLog('Week status result setWeekEnded if allGamesEnded:', response);
+        // No winner in database, calculate using proper winner calculation with tie breakers
+        debugLog('No existing winner found, calculating winner with tie breakers');
+        const response = await fetch(`/api/admin/winners/weekly?poolId=${poolId}&week=${currentWeek}&season=${poolSeason}`);
+        debugLog('Winner calculation response:', response);
         if (response.ok) {
           const result = await response.json();
-          if (result.success && result.leaderboard && result.leaderboard.length > 0) {
-            debugLog('Leaderboard result:', result);
-            const winner = result.leaderboard[0]; // First place
-            debugLog('Winner from leaderboard:', winner);
+          if (result.success && result.weeklyWinners && result.weeklyWinners.length > 0) {
+            const winner = result.weeklyWinners[0];
+            debugLog('Winner with tie breakers:', winner);
             setWeekWinner({
-              participant_name: winner.participant_name,
-              points: winner.total_points,
-              correct_picks: winner.correct_picks
+              participant_name: winner.winner_name,
+              points: winner.winner_points,
+              correct_picks: winner.winner_correct_picks
             });
             setWeekHasPicks(true);
             // Automatically show leaderboard when week ends
             setShowLeaderboard(true);
             
             // If winner has valid points and picks, add to weekly_winners table
-            if (winner.total_points > 0 && winner.correct_picks > 0) {
+            if (winner.winner_points > 0 && winner.winner_correct_picks > 0) {
               try {
                 const addWinnerResponse = await fetch('/api/admin/week-winner', {
                   method: 'POST',
@@ -244,11 +243,11 @@ function PoolPicksContent() {
                     week: currentWeek,
                     season: poolSeason,
                     seasonType: currentSeasonType,
-                    winnerParticipantId: winner.participant_id,
-                    winnerName: winner.participant_name,
-                    winnerPoints: winner.total_points,
-                    winnerCorrectPicks: winner.correct_picks,
-                    totalParticipants: result.totalParticipants || 0
+                    winnerParticipantId: winner.winner_participant_id,
+                    winnerName: winner.winner_name,
+                    winnerPoints: winner.winner_points,
+                    winnerCorrectPicks: winner.winner_correct_picks,
+                    totalParticipants: winner.total_participants || 0
                   }),
                 });
                 
