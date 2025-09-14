@@ -13,7 +13,7 @@ export async function getCurrentWeekFromGames() {
     // Get all games ordered by kickoff time
     const { data: games, error } = await supabase
       .from('games')
-      .select('week, season, kickoff_time, season_type, status')
+      .select('week, season, kickoff_time, season_type, status, winner')
       .order('kickoff_time');
 
     if (error) {
@@ -45,12 +45,19 @@ export async function getCurrentWeekFromGames() {
       const [season, week, seasonType] = key.split('-').map(Number);
       
       // Check if all games in this week are finished
-      const allGamesFinished = weekGames.every(game => game.status === 'final');
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase();
+        const hasWinner = game.winner && game.winner.trim() !== '';
+        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        return isFinished && hasWinner;
+      });
       
       // Check if this week has any upcoming games
       const hasUpcomingGames = weekGames.some(game => {
         const kickoffTime = new Date(game.kickoff_time);
-        return kickoffTime > now && game.status !== 'final';
+        const status = game.status?.toLowerCase();
+        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        return kickoffTime > now && !isFinished;
       });
 
       // Check if this week has any games in progress
@@ -187,7 +194,7 @@ export async function getWeekForPicks() {
     // Get all games ordered by kickoff time
     const { data: games, error } = await supabase
       .from('games')
-      .select('week, season, kickoff_time, season_type, status')
+      .select('week, season, kickoff_time, season_type, status, winner')
       .order('kickoff_time');
 
     if (error || !games || games.length === 0) {
@@ -215,12 +222,19 @@ export async function getWeekForPicks() {
       const [season, week, seasonType] = key.split('-').map(Number);
       
       // Check if all games in this week are finished
-      const allGamesFinished = weekGames.every(game => game.status === 'final');
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase();
+        const hasWinner = game.winner && game.winner.trim() !== '';
+        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        return isFinished && hasWinner;
+      });
       
       // Check if this week has any upcoming games
       const hasUpcomingGames = weekGames.some(game => {
         const kickoffTime = new Date(game.kickoff_time);
-        return kickoffTime > now && game.status !== 'final';
+        const status = game.status?.toLowerCase();
+        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        return kickoffTime > now && !isFinished;
       });
 
       // Check if this week has any games in progress

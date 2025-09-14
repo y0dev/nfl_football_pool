@@ -374,8 +374,13 @@ async function checkIfAllGamesFinished(supabase: any, week: number): Promise<boo
       return true // No games means it's finished
     }
 
-    // Check if all games have a 'finished' status
-    const allFinished = games.every(game => game.status === 'finished')
+    // Check if all games are properly finished with both status and winner
+    const allFinished = games.every(game => {
+      const status = game.status?.toLowerCase();
+      const hasWinner = game.winner && game.winner.trim() !== '';
+      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      return isFinished && hasWinner;
+    });
     console.log(`All games for week ${week} finished: ${allFinished}`)
     return allFinished
   } catch (error) {

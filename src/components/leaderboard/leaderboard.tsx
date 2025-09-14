@@ -127,7 +127,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   const status = game.status.toLowerCase();
                   const pick = entry.picks.find(p => p.game_id === game.id);
                   const isGameFinal = status === 'final' || status === 'post';
-                  const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress';
+                  const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
                   const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner.toLowerCase() === game.winner?.toLowerCase();
                   const confidence = pick?.confidence_points || 0;
                   debugLog('Games - Pick:', pick);
