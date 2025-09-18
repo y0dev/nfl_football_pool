@@ -2169,7 +2169,7 @@ function PoolPicksContent() {
               Picks Submitted Successfully!
             </DialogTitle>
             <DialogDescription className="text-sm sm:text-base">
-              Your picks for Week {currentWeek} have been submitted. You can now select another user to make picks, or review the leaderboard.
+              Your picks for Week {currentWeek} have been submitted. Best of luck!
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
