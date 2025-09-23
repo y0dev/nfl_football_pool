@@ -19,8 +19,8 @@ import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { SubmissionStatus } from '@/components/admin/submission-status';
 import { PoolSettings } from '@/components/admin/pool-settings';
-import { OverrideMondayNightScore } from '@/components/admin/override-monday-night-score';
 import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
+import { PeriodWinnersDisplay } from '@/components/admin/period-winners-display';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
@@ -449,14 +449,7 @@ function PoolDetailsContent() {
           <SubmissionStatus poolId={pool.id} seasonType={currentSeasonType} />
           
           {/* Tie Breaker Management */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <OverrideMondayNightScore
-              poolId={pool.id}
-              poolName={pool.name}
-              week={currentWeek}
-              season={pool.season}
-              seasonType={currentSeasonType}
-            />
+          <div className="mb-6">
             <CalculateTieBreakers
               poolId={pool.id}
               poolName={pool.name}
@@ -466,6 +459,16 @@ function PoolDetailsContent() {
               isCommissioner={true}
             />
           </div>
+
+          {/* Period Winners Display */}
+          <PeriodWinnersDisplay
+            poolId={pool.id}
+            poolName={pool.name}
+            week={currentWeek}
+            season={pool.season}
+            seasonType={currentSeasonType}
+            isCommissioner={true}
+          />
         </TabsContent>
 
         <TabsContent value="participants" className="space-y-6 mt-6">
