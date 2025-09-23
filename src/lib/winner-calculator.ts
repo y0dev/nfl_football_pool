@@ -1,4 +1,9 @@
 import { getSupabaseClient } from './supabase';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from './utils';
+
+interface ParticipantData {
+  name: string;
+}
 
 export interface WinnerResult {
   participant_id: string;
@@ -283,14 +288,30 @@ export async function calculateWeeklyWinners(
     if (scoresError) throw scoresError;
     if (!scores || scores.length === 0) return null;
 
-    // Get tie breaker settings for the pool
+    // Get tie breaker settings and pool type for the pool
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('tie_breaker_question, tie_breaker_answer')
+      .select('tie_breaker_question, tie_breaker_answer, pool_type')
       .eq('id', poolId)
       .single();
 
     if (poolError) throw poolError;
+
+    // Get season type from games table
+    const { data: games, error: gamesError } = await supabase
+      .from('games')
+      .select('season_type')
+      .eq('week', week)
+      .eq('season', season)
+      .limit(1)
+      .single();
+
+    if (gamesError) {
+      console.error('Error fetching season type:', gamesError);
+      return null;
+    }
+
+    const seasonType = games?.season_type || 2; // Default to regular season
 
     // Find the highest score
     const maxPoints = scores[0].points;
@@ -304,7 +325,7 @@ export async function calculateWeeklyWinners(
         week,
         season,
         winner_participant_id: winner.participant_id,
-        winner_name: winner.participants?.name || 'Unknown',
+        winner_name: (winner.participants as ParticipantData[])?.[0]?.name || 'Unknown',
         winner_points: winner.points,
         winner_correct_picks: winner.correct_picks,
         tie_breaker_used: false,
@@ -312,37 +333,61 @@ export async function calculateWeeklyWinners(
         total_participants: scores.length
       };
     } else {
-      // Multiple winners, need tie breaker
-      const tieBreakerResults = await resolveTieBreaker(
-        poolId,
-        week,
-        season,
-        topScorers.map(s => ({
-          participant_id: s.participant_id,
-          participant_name: s.participants?.name || 'Unknown',
-          points: s.points,
-          correct_picks: s.correct_picks,
-          total_picks: s.total_picks
-        }))
-      );
+      // Multiple winners, check if tie breakers should be used
+      const isNormalPool = pool?.pool_type === 'normal' || pool?.pool_type === null || pool?.pool_type === undefined;
+      const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+      const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+      const shouldUseTieBreaker = !isNormalPool || isPeriodWeek || isSuperBowl;
 
-      if (tieBreakerResults.length > 0) {
-        const winner = tieBreakerResults[0];
+      if (!shouldUseTieBreaker) {
+        // For normal pools during regular weeks, all tied participants are winners
+        // Return the first participant as the "winner" but note that it's a tie
+        const winner = topScorers[0];
         return {
           pool_id: poolId,
           week,
           season,
           winner_participant_id: winner.participant_id,
-          winner_name: winner.participant_name,
+          winner_name: (winner.participants as ParticipantData[])?.[0]?.name || 'Unknown',
           winner_points: winner.points,
           winner_correct_picks: winner.correct_picks,
-          tie_breaker_used: true,
+          tie_breaker_used: false,
           tie_breaker_question: pool?.tie_breaker_question || undefined,
-          tie_breaker_answer: pool?.tie_breaker_answer || undefined,
-          winner_tie_breaker_answer: winner.tie_breaker_answer,
-          tie_breaker_difference: winner.tie_breaker_difference,
           total_participants: scores.length
         };
+      } else {
+        // Use tie breaker for knockout pools or normal pools during period weeks
+        const tieBreakerResults = await resolveTieBreaker(
+          poolId,
+          week,
+          season,
+          topScorers.map(s => ({
+            participant_id: s.participant_id,
+            participant_name: (s.participants as ParticipantData[])?.[0]?.name || 'Unknown',
+            points: s.points,
+            correct_picks: s.correct_picks,
+            total_picks: s.total_picks
+          }))
+        );
+
+        if (tieBreakerResults.length > 0) {
+          const winner = tieBreakerResults[0];
+          return {
+            pool_id: poolId,
+            week,
+            season,
+            winner_participant_id: winner.participant_id,
+            winner_name: winner.participant_name,
+            winner_points: winner.points,
+            winner_correct_picks: winner.correct_picks,
+            tie_breaker_used: true,
+            tie_breaker_question: pool?.tie_breaker_question || undefined,
+            tie_breaker_answer: pool?.tie_breaker_answer || undefined,
+            winner_tie_breaker_answer: winner.tie_breaker_answer,
+            tie_breaker_difference: winner.tie_breaker_difference,
+            total_participants: scores.length
+          };
+        }
       }
     }
 
@@ -397,7 +442,7 @@ export async function calculateSeasonWinners(
       } else {
         participantTotals.set(score.participant_id, {
           participant_id: score.participant_id,
-          participant_name: score.participants?.name || 'Unknown',
+          participant_name: (score.participants as ParticipantData[])?.[0]?.name || 'Unknown',
           total_points: score.points,
           total_correct_picks: score.correct_picks,
           weeks_won: 0
@@ -430,6 +475,15 @@ export async function calculateSeasonWinners(
     const maxPoints = totals[0].total_points;
     const topScorers = totals.filter(total => total.total_points === maxPoints);
 
+    // Get pool type for season winner calculation
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('pool_type')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError) throw poolError;
+
     if (topScorers.length === 1) {
       // Single winner, no tie breaker needed
       const winner = topScorers[0];
@@ -445,15 +499,36 @@ export async function calculateSeasonWinners(
         total_participants: totals.length
       };
     } else {
-      // Multiple winners, need tie breaker
-      const tieBreakerResults = await resolveSeasonTieBreaker(
-        poolId,
-        season,
-        topScorers
-      );
+      // Multiple winners, check if tie breakers should be used
+      const isNormalPool = pool?.pool_type === 'normal' || pool?.pool_type === null || pool?.pool_type === undefined;
+      
+      if (!isNormalPool) {
+        // Use tie breaker for knockout pools
+        const tieBreakerResults = await resolveSeasonTieBreaker(
+          poolId,
+          season,
+          topScorers
+        );
 
-      if (tieBreakerResults.length > 0) {
-        const winner = tieBreakerResults[0];
+        if (tieBreakerResults.length > 0) {
+          const winner = tieBreakerResults[0];
+          return {
+            pool_id: poolId,
+            season,
+            winner_participant_id: winner.participant_id,
+            winner_name: winner.participant_name,
+            total_points: winner.total_points,
+            total_correct_picks: winner.total_correct_picks,
+            weeks_won: winner.weeks_won,
+            tie_breaker_used: true,
+            winner_tie_breaker_answer: winner.tie_breaker_answer,
+            tie_breaker_difference: winner.tie_breaker_difference,
+            total_participants: totals.length
+          };
+        }
+      } else {
+        // For normal pools, use weeks won as tie breaker for season winner
+        const winner = topScorers.sort((a, b) => b.weeks_won - a.weeks_won)[0];
         return {
           pool_id: poolId,
           season,
@@ -462,9 +537,7 @@ export async function calculateSeasonWinners(
           total_points: winner.total_points,
           total_correct_picks: winner.total_correct_picks,
           weeks_won: winner.weeks_won,
-          tie_breaker_used: true,
-          winner_tie_breaker_answer: winner.tie_breaker_answer,
-          tie_breaker_difference: winner.tie_breaker_difference,
+          tie_breaker_used: false,
           total_participants: totals.length
         };
       }
@@ -526,7 +599,7 @@ export async function calculatePeriodWinners(
       } else {
         participantTotals.set(score.participant_id, {
           participant_id: score.participant_id,
-          participant_name: score.participants?.name || 'Unknown',
+          participant_name: (score.participants as ParticipantData[])?.[0]?.name || 'Unknown',
           period_points: score.points,
           period_correct_picks: score.correct_picks,
           weeks_won: 0
@@ -561,6 +634,15 @@ export async function calculatePeriodWinners(
     const maxPoints = totals[0].period_points;
     const topScorers = totals.filter(total => total.period_points === maxPoints);
 
+    // Get pool type for period winner calculation
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('pool_type')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError) throw poolError;
+
     if (topScorers.length === 1) {
       // Single winner, no tie breaker needed
       const winner = topScorers[0];
@@ -579,17 +661,41 @@ export async function calculatePeriodWinners(
         total_participants: totals.length
       };
     } else {
-      // Multiple winners, need tie breaker
-      const tieBreakerResults = await resolvePeriodTieBreaker(
-        poolId,
-        season,
-        startWeek,
-        endWeek,
-        topScorers
-      );
+      // Multiple winners, check if tie breakers should be used
+      const isNormalPool = pool?.pool_type === 'normal' || pool?.pool_type === null || pool?.pool_type === undefined;
+      
+      if (!isNormalPool) {
+        // Use tie breaker for knockout pools
+        const tieBreakerResults = await resolvePeriodTieBreaker(
+          poolId,
+          season,
+          startWeek,
+          endWeek,
+          topScorers
+        );
 
-      if (tieBreakerResults.length > 0) {
-        const winner = tieBreakerResults[0];
+        if (tieBreakerResults.length > 0) {
+          const winner = tieBreakerResults[0];
+          return {
+            pool_id: poolId,
+            season,
+            period_name: periodName,
+            start_week: startWeek,
+            end_week: endWeek,
+            winner_participant_id: winner.participant_id,
+            winner_name: winner.participant_name,
+            period_points: winner.period_points,
+            period_correct_picks: winner.period_correct_picks,
+            weeks_won: winner.weeks_won,
+            tie_breaker_used: true,
+            winner_tie_breaker_answer: winner.tie_breaker_answer,
+            tie_breaker_difference: winner.tie_breaker_difference,
+            total_participants: totals.length
+          };
+        }
+      } else {
+        // For normal pools, use weeks won as tie breaker for period winner
+        const winner = topScorers.sort((a, b) => b.weeks_won - a.weeks_won)[0];
         return {
           pool_id: poolId,
           season,
@@ -601,9 +707,7 @@ export async function calculatePeriodWinners(
           period_points: winner.period_points,
           period_correct_picks: winner.period_correct_picks,
           weeks_won: winner.weeks_won,
-          tie_breaker_used: true,
-          winner_tie_breaker_answer: winner.tie_breaker_answer,
-          tie_breaker_difference: winner.tie_breaker_difference,
+          tie_breaker_used: false,
           total_participants: totals.length
         };
       }

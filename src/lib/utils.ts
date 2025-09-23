@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Period weeks where tie breakers are used for normal pools
+// Includes quarter marks (4, 9, 14) and Super Bowl (season_type 3)
+export const PERIOD_WEEKS = [4, 9, 14, 18] as const;
+
+// Super Bowl is in season_type 3 (playoffs)
+export const SUPER_BOWL_SEASON_TYPE = 3;
+
 export function createPageUrl(page: string): string {
   debugLog('Creating page URL for:', page);
   // Normalize page names to lowercase and remove spaces

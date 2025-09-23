@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Save, RefreshCw, Loader2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getTieBreakerSettings, saveTieBreakerSettings, TieBreakerSettings as TieBreakerSettingsType } from '@/lib/tie-breakers';
+import { PERIOD_WEEKS } from '@/lib/utils';
 
 interface TieBreakerSettingsProps {
   poolId: string;
@@ -37,6 +38,11 @@ const DEFAULT_TIE_BREAKERS = [
     id: 'last_week',
     name: 'Last Week Performance',
     description: 'Break ties by points in the most recent week'
+  },
+  {
+    id: 'monday_night_total',
+    name: 'Monday Night Game Total',
+    description: 'Break ties by closest prediction to Monday night game total score'
   },
   {
     id: 'custom',
@@ -204,6 +210,27 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
           </div>
         )}
 
+        {/* Monday Night Total Answer (only shown when Monday night method is selected) */}
+        {settings.method === 'monday_night_total' && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="monday_answer">Monday Night Game Total Score</Label>
+              <Input
+                id="monday_answer"
+                type="number"
+                step="1"
+                placeholder="e.g., 45"
+                value={settings.answer || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, answer: parseInt(e.target.value) || null }))}
+                className="mt-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the actual total points scored in the Monday night game. Participants will predict this score and the closest prediction wins the tie-breaker.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Preview */}
         <div className="p-4 bg-gray-50 rounded-lg">
           <h4 className="font-medium mb-2">Tie-Breaker Preview</h4>
@@ -261,6 +288,7 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
         {/* Help Text */}
         <div className="text-xs text-gray-500 space-y-1">
           <p><strong>Note:</strong> Tie-breaker settings apply to all weeks in the pool.</p>
+          <p>For normal pools, tie-breakers are only used during period weeks ({PERIOD_WEEKS.join(', ')}) and the Super Bowl (playoffs).</p>
           <p>For custom questions, participants will be asked to provide their answer when submitting picks.</p>
           <p>The participant whose answer is closest to the correct answer wins the tie-breaker.</p>
         </div>

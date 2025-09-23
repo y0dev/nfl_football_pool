@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { loadCurrentWeek, isWeekUnlockedForPicks, getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { isWeekUnlockedForPicks, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
+import { MondayNightScoreInput } from './monday-night-score-input';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle, X } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
-import { debugLog, DAYS_BEFORE_GAME, getShortTeamName } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, getShortTeamName, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +53,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
+  const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
   
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
@@ -413,6 +415,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       }
     }
 
+    // Check Monday night score for period weeks and Super Bowl
+    const isPeriodWeek = PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]);
+    const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+    if ((isPeriodWeek || isSuperBowl) && (mondayNightScore === null || mondayNightScore === undefined)) {
+      errors.push('Please enter your Monday night game score prediction for tie-breaking purposes');
+    }
+
     return errors;
   };
 
@@ -449,7 +458,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       debugLog('WeeklyPick: Current games in state:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team })));
       debugLog('WeeklyPick: Week number:', currentWeek, 'Season type:', seasonType);
       
-      const result = await submitPicks(validPicks);
+      const result = await submitPicks(validPicks, mondayNightScore);
 
       if (result.success) {
         toast({
@@ -808,6 +817,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         })}
       </div>
 
+      {/* Monday Night Score Input - Only show for period weeks */}
+      {selectedUser && (
+        <MondayNightScoreInput
+          poolId={poolId}
+          weekNumber={currentWeek}
+          seasonType={seasonType || 2}
+          participantId={selectedUser.id}
+          initialScore={mondayNightScore || undefined}
+          onScoreChange={setMondayNightScore}
+          isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || seasonType === SUPER_BOWL_SEASON_TYPE}
+        />
+      )}
+
       {/* Submit button */}
       <div className="flex flex-col items-center gap-3">
         {/* Debug information - only show in development */}
@@ -874,6 +896,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         }))}
         games={games}
         weekNumber={currentWeek}
+        seasonType={seasonType}
+        mondayNightScore={mondayNightScore}
         onConfirm={confirmSubmission}
         isSubmitting={isLoading}
         userName={selectedUser?.name || 'Unknown User'}

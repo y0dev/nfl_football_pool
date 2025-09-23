@@ -30,6 +30,8 @@ import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { OverrideMondayNightScore } from '@/components/admin/override-monday-night-score';
+import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -571,6 +573,23 @@ function AdminDashboardContent() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Tie Breaker Management */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 sm:mb-8">
+          <OverrideMondayNightScore
+            poolId=""
+            poolName="All Pools"
+            week={currentWeek}
+            season={2024}
+            seasonType={currentSeasonType}
+          />
+          <CalculateTieBreakers
+            week={currentWeek}
+            season={2024}
+            seasonType={currentSeasonType}
+            isCommissioner={false}
+          />
         </div>
 
         {/* Current Week Info */}

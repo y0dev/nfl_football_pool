@@ -71,6 +71,10 @@ async function applyPrimaryTieBreaker(
       results = await breakTieByLastWeek(poolId, week, season, tiedParticipants);
       break;
     
+    case 'monday_night_total':
+      results = await breakTieByMondayNightTotal(poolId, week, season, tiedParticipants, settings);
+      break;
+    
     case 'custom':
       results = await breakTieByCustomQuestion(poolId, week, season, tiedParticipants, settings);
       break;
@@ -603,6 +607,63 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
   } catch (error) {
     console.error('Error getting tie-breaker settings:', error);
     return null;
+  }
+}
+
+/**
+ * Break ties by Monday night game total score
+ */
+async function breakTieByMondayNightTotal(
+  poolId: string,
+  week: number,
+  season: number,
+  participants: Array<{ participant_id: string; participant_name: string }>,
+  settings: TieBreakerSettings
+): Promise<TieBreakerResult[]> {
+  try {
+    if (!settings.answer) {
+      throw new Error('Monday night total answer not set');
+    }
+
+    const { data: tieBreakers, error } = await getSupabaseClient()
+      .from('tie_breakers')
+      .select('participant_id, answer')
+      .eq('pool_id', poolId)
+      .eq('week', week)
+      .eq('season', season)
+      .in('participant_id', participants.map(p => p.participant_id));
+
+    if (error) throw error;
+
+    // Calculate how close each answer is to the correct answer
+    const results: TieBreakerResult[] = participants
+      .map(p => {
+        const tieBreaker = tieBreakers?.find(tb => tb.participant_id === p.participant_id);
+        const difference = tieBreaker ? Math.abs(tieBreaker.answer - settings.answer!) : Infinity;
+        
+        return {
+          participant_id: p.participant_id,
+          participant_name: p.participant_name,
+          tie_breaker_value: difference,
+          tie_breaker_rank: 0
+        };
+      })
+      .sort((a, b) => a.tie_breaker_value - b.tie_breaker_value); // Closest wins
+
+    // Assign ranks
+    results.forEach((result, index) => {
+      result.tie_breaker_rank = index + 1;
+    });
+
+    return results;
+  } catch (error) {
+    console.error('Error breaking tie by Monday night total:', error);
+    return participants.map((p, index) => ({
+      participant_id: p.participant_id,
+      participant_name: p.participant_name,
+      tie_breaker_value: 0,
+      tie_breaker_rank: index + 1
+    }));
   }
 }
 

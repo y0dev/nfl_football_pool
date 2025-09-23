@@ -14,7 +14,7 @@ function LoginContent() {
   // Redirect if user is already logged in
   useEffect(() => {
     if (user) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [user, router]);
 

@@ -586,6 +586,7 @@ CREATE TABLE IF NOT EXISTS pools (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_active BOOLEAN DEFAULT true,
   season INTEGER NOT NULL,
+  pool_type VARCHAR(20) DEFAULT 'normal',
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
   tie_breaker_answer INTEGER,

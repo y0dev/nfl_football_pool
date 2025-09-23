@@ -6,7 +6,7 @@ import { debugLog, DAYS_BEFORE_GAME } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const picks: Pick[] = await request.json();
+    const { picks, mondayNightScore }: { picks: Pick[], mondayNightScore?: number | null } = await request.json();
     if (process.env.NODE_ENV === 'development') {
       console.log('Picks:', picks);
     }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     
     const { data: games, error: gamesError } = await supabase
       .from('games')
-      .select('id, status, kickoff_time, week, season_type')
+      .select('id, status, kickoff_time, week, season, season_type')
       .in('id', gameIds);
     if (process.env.NODE_ENV === 'development') {
       console.log('Games:', games);
@@ -171,6 +171,31 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Failed to submit picks to database' },
         { status: 500 }
       );
+    }
+
+    // Save Monday night score to tie_breakers table if provided
+    if (mondayNightScore !== null && mondayNightScore !== undefined) {
+      const week = games?.[0]?.week || 1;
+      const season = games?.[0]?.season || new Date().getFullYear();
+      const seasonType = games?.[0]?.season_type || 2;
+      
+      const { error: tieBreakerError } = await supabase
+        .from('tie_breakers')
+        .upsert({
+          participant_id: firstPick.participant_id,
+          pool_id: firstPick.pool_id,
+          week: week,
+          season: season,
+          season_type: seasonType,
+          answer: mondayNightScore
+        }, {
+          onConflict: 'participant_id,pool_id,week,season,season_type'
+        });
+
+      if (tieBreakerError) {
+        console.error('Error saving Monday night score:', tieBreakerError);
+        // Don't fail the entire submission for tie breaker errors
+      }
     }
 
     // Delete picks from localStorage

@@ -10,23 +10,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, Trash2, Share2 } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
-import { EmailManagement } from '@/components/admin/email-management';
 import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { SubmissionStatus } from '@/components/admin/submission-status';
 import { PoolSettings } from '@/components/admin/pool-settings';
+import { OverrideMondayNightScore } from '@/components/admin/override-monday-night-score';
+import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl, PERIOD_WEEKS } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -36,6 +36,7 @@ interface Pool {
   is_active: boolean;
   created_at: string;
   description?: string;
+  pool_type?: 'normal' | 'knockout';
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
@@ -53,7 +54,6 @@ function PoolDetailsContent() {
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
   const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE); // Default to regular season
   const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
 
   // Form state for editing
@@ -62,6 +62,7 @@ function PoolDetailsContent() {
     season: DEFAULT_POOL_SEASON,
     is_active: true,
     description: '',
+    pool_type: 'normal' as 'normal' | 'knockout',
     tie_breaker_method: '',
     tie_breaker_question: '',
     tie_breaker_answer: 0
@@ -70,26 +71,8 @@ function PoolDetailsContent() {
   useEffect(() => {
     loadPoolData();
     loadCurrentWeekData();
-  }, [poolId]);
+  }, [poolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debug: Log form state changes
-  useEffect(() => {
-    console.log('Edit form state changed:', editForm);
-  }, [editForm]);
-
-  // Helper function to get human-readable tie breaker method name
-  const getTieBreakerMethodDisplayName = (method: string) => {
-    const methodNames: { [key: string]: string } = {
-      'total_points': 'Total Points',
-      'correct_picks': 'Correct Picks',
-      'confidence_points': 'Confidence Points',
-      'monday_night_total': 'Monday Night Total',
-      'highest_scoring_game': 'Highest Scoring Game',
-      'lowest_scoring_game': 'Lowest Scoring Game',
-      'custom': 'Custom'
-    };
-    return methodNames[method] || method;
-  };
 
   const loadPoolData = async () => {
     try {
@@ -105,6 +88,7 @@ function PoolDetailsContent() {
           season: result.pool.season,
           is_active: result.pool.is_active,
           description: result.pool.description || '',
+          pool_type: result.pool.pool_type || 'normal',
           tie_breaker_method: result.pool.tie_breaker_method || '',
           tie_breaker_question: result.pool.tie_breaker_question || '',
           tie_breaker_answer: result.pool.tie_breaker_answer || 0
@@ -204,44 +188,6 @@ function PoolDetailsContent() {
     }
   };
 
-  const handleDelete = async () => {
-    try {
-      const response = await fetch(`/api/admin/pools/${poolId}`, {
-        method: 'DELETE',
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const deletedData = result.deletedData || {};
-        const totalItems = (deletedData.participants || 0) + (deletedData.picks || 0) + (deletedData.scores || 0) + (deletedData.tieBreakers || 0);
-        
-        let description = "Pool deleted successfully";
-        if (totalItems > 0) {
-          description += `. Also deleted: ${deletedData.participants || 0} participants, ${deletedData.picks || 0} picks, ${deletedData.scores || 0} scores, and ${deletedData.tieBreakers || 0} tie breakers.`;
-        }
-        
-        toast({
-          title: "Success",
-          description: description,
-        });
-        router.push(createPageUrl('adminpools'));
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to delete pool",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting pool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete pool",
-        variant: "destructive",
-      });
-    }
-  };
 
   if (isLoading) {
     return (
@@ -392,6 +338,27 @@ function PoolDetailsContent() {
             />
           </div>
 
+          <div>
+            <Label htmlFor="pool_type">Pool Type</Label>
+            <Select
+              value={editForm.pool_type}
+              onValueChange={(value: 'normal' | 'knockout') => setEditForm({ ...editForm, pool_type: value })}
+              disabled={!isEditing}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select pool type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal Pool</SelectItem>
+                <SelectItem value="knockout">Knockout Pool</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-gray-600 mt-1">
+              Normal pools disable tie breakers during regular weeks (tie breakers only used in period weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs). 
+              Knockout pools always use tie breakers.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="tie_breaker_method">Tie Breaker Method</Label>
@@ -480,6 +447,25 @@ function PoolDetailsContent() {
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <SubmissionStatus poolId={pool.id} seasonType={currentSeasonType} />
+          
+          {/* Tie Breaker Management */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <OverrideMondayNightScore
+              poolId={pool.id}
+              poolName={pool.name}
+              week={currentWeek}
+              season={pool.season}
+              seasonType={currentSeasonType}
+            />
+            <CalculateTieBreakers
+              poolId={pool.id}
+              poolName={pool.name}
+              week={currentWeek}
+              season={pool.season}
+              seasonType={currentSeasonType}
+              isCommissioner={true}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="participants" className="space-y-6 mt-6">

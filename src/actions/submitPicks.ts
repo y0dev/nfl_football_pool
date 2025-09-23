@@ -6,7 +6,7 @@ interface SubmitPicksResult {
   error?: string;
 }
 
-export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
+export async function submitPicks(picks: Pick[], mondayNightScore?: number | null): Promise<SubmitPicksResult> {
   try {
     // Validate picks
     if (picks.length === 0) {
@@ -30,7 +30,10 @@ export async function submitPicks(picks: Pick[]): Promise<SubmitPicksResult> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(picks),
+      body: JSON.stringify({
+        picks,
+        mondayNightScore
+      }),
     });
 
     const result = await response.json();
