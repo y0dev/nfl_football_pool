@@ -32,6 +32,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
 import { PeriodWinnersDisplay } from '@/components/admin/period-winners-display';
+import { ExportData } from '@/components/admin/export-data';
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -631,7 +632,7 @@ function AdminDashboardContent() {
         </Card>
 
         {/* Role Information */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -687,6 +688,15 @@ function AdminDashboardContent() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Data Export Section */}
+        <ExportData 
+          poolId="system-wide"
+          poolName="All Pools"
+          currentWeek={currentWeek}
+          currentSeason={new Date().getFullYear()}
+        />
+
       </div>
 
       {/* Create Pool Dialog */}
