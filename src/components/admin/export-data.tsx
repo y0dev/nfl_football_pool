@@ -86,6 +86,20 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       return;
     }
 
+    // Validate inputs
+    const week = parseInt(selectedWeek);
+    const season = parseInt(selectedSeason);
+    const seasonType = parseInt(selectedSeasonType);
+
+    if (isNaN(week) || isNaN(season) || isNaN(seasonType)) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter valid week, season, and season type values.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsExportingWeekly(true);
     try {
       const response = await fetch('/api/admin/export/weekly-picks', {
@@ -95,9 +109,9 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
         },
         body: JSON.stringify({
           poolId: selectedPoolId,
-          week: parseInt(selectedWeek),
-          season: parseInt(selectedSeason),
-          seasonType: parseInt(selectedSeasonType)
+          week: week,
+          season: season,
+          seasonType: seasonType
         }),
       });
 
@@ -114,7 +128,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `pool-${poolId}-week-${selectedWeek}-season-${selectedSeason}-picks.csv`);
+      link.setAttribute('download', `pool-${selectedPoolId}-week-${selectedWeek}-season-${selectedSeason}-picks.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -155,6 +169,18 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       return;
     }
 
+    // Validate inputs
+    const season = parseInt(selectedSeason);
+
+    if (isNaN(season)) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid season value.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsExportingPeriod(true);
     try {
       const response = await fetch('/api/admin/export/period-data', {
@@ -165,7 +191,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
         body: JSON.stringify({
           poolId: selectedPoolId,
           periodName: selectedPeriod,
-          season: parseInt(selectedSeason)
+          season: season
         }),
       });
 
@@ -182,7 +208,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `pool-${poolId}-${selectedPeriod.replace(/\s+/g, '-').toLowerCase()}-season-${selectedSeason}-period-data.csv`);
+      link.setAttribute('download', `pool-${selectedPoolId}-${selectedPeriod.replace(/\s+/g, '-').toLowerCase()}-season-${selectedSeason}-period-data.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
