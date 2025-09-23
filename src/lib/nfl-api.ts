@@ -123,10 +123,115 @@ interface ESPNScoreboardResponse {
 
 class NFLAPIService {
   private baseUrl: string;
+  private readonly WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  private readonly TARGET_TZ = 'America/Chicago';
 
   constructor() {
     this.baseUrl = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
     console.log("ESPN API Base URL:", this.baseUrl);
+  }
+
+  // Utility: Add n days in UTC
+  private addDaysUTC(d: Date, n: number): Date {
+    return new Date(d.getTime() + n * 86400000);
+  }
+
+  // Convert any Date to a Date object that represents the same wall-clock time in TARGET_TZ.
+  private toZonedDate(date: Date, tz: string = this.TARGET_TZ): Date {
+    const parts = date.toLocaleString('en-US', { timeZone: tz });
+    return new Date(parts);
+  }
+
+  // Format a Date into YYYYMMDD using the timezone-aware conversion
+  private formatYYYYMMDDForTZ(dateObj: Date, tz: string = this.TARGET_TZ): string {
+    const zoned = this.toZonedDate(dateObj, tz);
+    const yyyy = zoned.getFullYear();
+    const mm = String(zoned.getMonth() + 1).padStart(2, '0');
+    const dd = String(zoned.getDate()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}`;
+  }
+
+  /**
+   * Decide whether to use previous day or current day.
+   * Rules: if (day is Friday OR Monday OR Tuesday) AND (hour < 12) in TARGET_TZ -> use previous day.
+   * Otherwise use the same day.
+   */
+  private getAdjustedDateForFinalStatusFromDate(dateObj: Date): {
+    status: "Previous" | "Now";
+    adjustedDate: Date;
+    originalDay: number;
+    originalHour: number;
+  } {
+    const zoned = this.toZonedDate(dateObj, this.TARGET_TZ);
+    const day = zoned.getDay();   // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+    const hour = zoned.getHours(); // 0-23 (target TZ)
+
+    // If Fri (5), Mon (1), or Tue (2) and before 12:00 (noon) in target TZ => use previous calendar day
+    if ((day === 5 || day === 1 || day === 2) && hour < 12) {
+      const prevZoned = new Date(zoned);
+      prevZoned.setDate(zoned.getDate() - 1);
+      const adjustedDate = new Date(prevZoned.toLocaleString('en-US', { timeZone: this.TARGET_TZ }));
+      return { status: "Previous", adjustedDate, originalDay: day, originalHour: hour };
+    }
+
+    // Otherwise return the "now" calendar date (zoned)
+    const adjustedDate = new Date(zoned.toLocaleString('en-US', { timeZone: this.TARGET_TZ }));
+    return { status: "Now", adjustedDate, originalDay: day, originalHour: hour };
+  }
+
+  // Helper functions for season/week classification
+  private firstMondayInSeptemberUTC(year: number): Date {
+    const d = new Date(Date.UTC(year, 8, 1));
+    const dow = d.getUTCDay();
+    const delta = (1 - dow + 7) % 7;
+    d.setUTCDate(1 + delta);
+    d.setUTCHours(0, 0, 0, 0);
+    return d;
+  }
+
+  private kickoffThursdayUTC(seasonYear: number): Date {
+    const laborDayMon = this.firstMondayInSeptemberUTC(seasonYear);
+    const thurs = this.addDaysUTC(laborDayMon, 3);
+    thurs.setUTCHours(0, 0, 0, 0);
+    return thurs;
+  }
+
+  private offsetMinutesFromIso(ts: string): number {
+    const m = String(ts).match(/([+-])(\d{2}):?(\d{2})$/);
+    if (!m) return 0;
+    const sign = m[1] === '-' ? -1 : 1;
+    return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10));
+  }
+
+  private classify(dateIsoStr: string): { year: number; season_type: number; week: number } {
+    const d = new Date(dateIsoStr);
+    const yUTC = d.getUTCFullYear();
+    const mUTC = d.getUTCMonth();
+
+    const seasonYear = (mUTC >= 8) ? yUTC : (mUTC <= 1 ? yUTC - 1 : yUTC);
+    const week1UTC = this.kickoffThursdayUTC(seasonYear);
+    const postStartUTC = this.addDaysUTC(week1UTC, 18 * 7);
+    const preseasonEnd = new Date(Date.UTC(seasonYear, 7, 25, 23, 59, 59)); // Aug 25 UTC
+
+    const offMin = this.offsetMinutesFromIso(dateIsoStr);
+    const localNow = d.getTime() + offMin * 60000;
+    const localWeek1 = week1UTC.getTime() + offMin * 60000;
+    const localPostStart = postStartUTC.getTime() + offMin * 60000;
+    const localPreEnd = preseasonEnd.getTime() + offMin * 60000;
+
+    let season_type, week;
+    if (localNow <= localPreEnd) {
+      season_type = 1; // PRE
+      week = Math.ceil((d.getUTCDate()) / 7);
+    } else if (localNow < localPostStart) {
+      season_type = 2; // REG
+      week = Math.floor((localNow - localWeek1) / this.WEEK_MS) + 1;
+    } else {
+      season_type = 3; // POST
+      week = Math.floor((localNow - localPostStart) / this.WEEK_MS) + 1;
+    }
+    if (week < 1) week = 1;
+    return { year: seasonYear, season_type, week };
   }
 
   private async makeRequest(endpoint: string, params: Record<string, string> = {}) {
@@ -278,6 +383,85 @@ class NFLAPIService {
       
     } catch (error) {
       console.error(`❌ Error fetching games for season ${season}, week ${week}:`, error);
+      return [];
+    }
+  }
+
+  // Get games using ESPN API with date-based endpoint
+  async getGamesWithDateEndpoint(timestamp?: string): Promise<NFLGame[]> {
+    try {
+      // Use provided timestamp or current moment
+      const ts = timestamp || new Date().toISOString();
+      console.log(`📋 Fetching games with date endpoint for timestamp: ${ts}`);
+      
+      // Get season/week info
+      const res = this.classify(ts);
+      
+      // Decide adjusted date based on the timestamp with target timezone semantics
+      const baseDate = new Date(ts);
+      const adjustedInfo = this.getAdjustedDateForFinalStatusFromDate(baseDate);
+      
+      // Build formatted date for ESPN URL (in TARGET_TZ calendar)
+      const formattedAdjustedDate = this.formatYYYYMMDDForTZ(adjustedInfo.adjustedDate, this.TARGET_TZ);
+      
+      // Build final endpoint (ESPN with adjusted date)
+      const endpoint = `/scoreboard?dates=${formattedAdjustedDate}`;
+      
+      console.log(`🌐 Using ESPN endpoint: ${endpoint}`);
+      console.log(`📅 Adjusted date info:`, {
+        status: adjustedInfo.status,
+        originalDay: adjustedInfo.originalDay,
+        originalHour: adjustedInfo.originalHour,
+        formattedAdjustedDate,
+        seasonInfo: res
+      });
+      
+      const data = await this.makeRequest(endpoint);
+      const response = data as ESPNScoreboardResponse;
+      
+      if (!response.events || response.events.length === 0) {
+        console.log(`⚠️  No events found for date ${formattedAdjustedDate}`);
+        return [];
+      }
+      
+      console.log(`📊 Found ${response.events.length} events for date ${formattedAdjustedDate}`);
+      
+      // Convert ESPN games to our format
+      const games: NFLGame[] = response.events.map((game: ESPNGame) => {
+        const homeTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'home');
+        const awayTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'away');
+        
+        if (!homeTeam || !awayTeam) {
+          console.warn(`⚠️  Missing team data for game ${game.id}`);
+          return null;
+        }
+        
+        const status = game.competitions[0]?.status?.type?.state || 'scheduled';
+        const gameStatus = status === 'post' ? 'finished' : 
+                          status === 'in' ? 'live' : 'scheduled';
+        
+        return {
+          id: game.id,
+          date: game.date,
+          time: game.date, // ESPN provides ISO date string
+          home_team: homeTeam.team.displayName,
+          away_team: awayTeam.team.displayName,
+          home_score: homeTeam.score ? parseInt(homeTeam.score) : undefined,
+          away_score: awayTeam.score ? parseInt(awayTeam.score) : undefined,
+          status: gameStatus,
+          week: game.week?.number || res.week,
+          season: game.season?.year || res.year,
+          season_type: game.season?.type || res.season_type,
+          home_team_id: homeTeam.team.abbreviation,
+          away_team_id: awayTeam.team.abbreviation
+        };
+      }).filter(Boolean) as NFLGame[];
+      
+      console.log(`✅ Successfully converted ${games.length} games`);
+      return games;
+      
+    } catch (error) {
+      console.error(`❌ Error fetching games with date endpoint:`, error);
       return [];
     }
   }

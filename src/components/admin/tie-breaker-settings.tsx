@@ -11,6 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Save, RefreshCw, Loader2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getTieBreakerSettings, saveTieBreakerSettings, TieBreakerSettings as TieBreakerSettingsType } from '@/lib/tie-breakers';
+import { PERIOD_WEEKS } from '@/lib/utils';
+import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
+import { Game } from '@/types/game';
 
 interface TieBreakerSettingsProps {
   poolId: string;
@@ -39,6 +42,11 @@ const DEFAULT_TIE_BREAKERS = [
     description: 'Break ties by points in the most recent week'
   },
   {
+    id: 'monday_night_total',
+    name: 'Monday Night Game Total',
+    description: 'Break ties by closest prediction to Monday night game total score'
+  },
+  {
     id: 'custom',
     name: 'Custom Question',
     description: 'Use a custom tie-breaker question'
@@ -49,15 +57,27 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
   const [settings, setSettings] = useState<TieBreakerSettingsType>({
     method: 'total_points',
     question: null,
-    answer: null
+    answer: null,
+    monday_night_game_id: null
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+  const [mondayNightGameInfo, setMondayNightGameInfo] = useState<{
+    game: Game;
+    displayText: string;
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     loadTieBreakerSettings();
   }, [poolId]);
+
+  useEffect(() => {
+    if (settings.method === 'monday_night_total') {
+      loadGames();
+    }
+  }, [settings.method]);
 
   const loadTieBreakerSettings = async () => {
     setIsLoading(true);
@@ -81,6 +101,34 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadGames = async () => {
+    try {
+      // Load games for the current week (we'll use week 1 as default for now)
+      // In a real implementation, you might want to get the current week
+      const response = await fetch('/api/games/week?week=1&seasonType=2');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setGames(result.games);
+          
+          // Identify the Monday night game
+          const mondayNightInfo = getMondayNightGameInfo(result.games);
+          setMondayNightGameInfo(mondayNightInfo);
+          
+          // If we have a Monday night game and no game ID is set, set it
+          if (mondayNightInfo && !settings.monday_night_game_id) {
+            setSettings(prev => ({
+              ...prev,
+              monday_night_game_id: mondayNightInfo.game.id
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading games:', error);
     }
   };
 
@@ -204,6 +252,49 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
           </div>
         )}
 
+        {/* Monday Night Total Answer (only shown when Monday night method is selected) */}
+        {settings.method === 'monday_night_total' && (
+          <div className="space-y-4">
+            {/* Monday Night Game Info */}
+            {mondayNightGameInfo ? (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-sm text-blue-900">Selected Monday Night Game:</span>
+                </div>
+                <div className="text-lg font-semibold text-blue-800">
+                  {mondayNightGameInfo.displayText}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Game ID: {mondayNightGameInfo.game.id} | Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div className="text-sm text-yellow-800">
+                  No Monday night game found for the current week. Please check the games data.
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <Label htmlFor="monday_answer">Monday Night Game Total Score</Label>
+              <Input
+                id="monday_answer"
+                type="number"
+                step="1"
+                placeholder="e.g., 45"
+                value={settings.answer || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, answer: parseInt(e.target.value) || null }))}
+                className="mt-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the actual total points scored in the Monday night game. Participants will predict this score and the closest prediction wins the tie-breaker.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Preview */}
         <div className="p-4 bg-gray-50 rounded-lg">
           <h4 className="font-medium mb-2">Tie-Breaker Preview</h4>
@@ -261,6 +352,7 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
         {/* Help Text */}
         <div className="text-xs text-gray-500 space-y-1">
           <p><strong>Note:</strong> Tie-breaker settings apply to all weeks in the pool.</p>
+          <p>For normal pools, tie-breakers are only used during period weeks ({PERIOD_WEEKS.join(', ')}) and the Super Bowl (playoffs).</p>
           <p>For custom questions, participants will be asked to provide their answer when submitting picks.</p>
           <p>The participant whose answer is closest to the correct answer wins the tie-breaker.</p>
         </div>

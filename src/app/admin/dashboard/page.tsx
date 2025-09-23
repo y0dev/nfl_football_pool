@@ -30,6 +30,8 @@ import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
+import { PeriodWinnersDisplay } from '@/components/admin/period-winners-display';
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -571,6 +573,26 @@ function AdminDashboardContent() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Tie Breaker Management */}
+        <div className="mb-6 sm:mb-8">
+          <CalculateTieBreakers
+            week={currentWeek}
+            season={2024}
+            seasonType={currentSeasonType}
+            isCommissioner={false}
+          />
+        </div>
+
+        {/* Period Winners Display */}
+        <div className="mb-6 sm:mb-8">
+          <PeriodWinnersDisplay
+            week={currentWeek}
+            season={2024}
+            seasonType={currentSeasonType}
+            isCommissioner={false}
+          />
         </div>
 
         {/* Current Week Info */}

@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError, debugLog, debugWarn } from '@/lib/utils';
-
-const RAPIDAPI_HOST = 'nfl-api-data.p.rapidapi.com';
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+import { nflAPI } from '@/lib/nfl-api';
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate environment variables
-    if (!RAPIDAPI_KEY) {
-      return NextResponse.json(
-        { success: false, error: 'RAPIDAPI_KEY environment variable is not set' },
-        { status: 500 }
-      );
-    }
-
     const supabase = getSupabaseServiceClient();
 
     // Parse request body for custom sync options
@@ -26,68 +16,24 @@ export async function POST(request: NextRequest) {
       requestBody = {};
     }
 
-    // Use provided options or fall back to current week logic
-    let year = requestBody.year || new Date().getFullYear();
-    let seasonType = requestBody.seasonType;
-    let week = requestBody.week;
+    // Use provided timestamp or current moment
+    const timestamp = requestBody.timestamp || new Date().toISOString();
+    
+    debugLog(`🏈 NFL Sync - Using ESPN API with timestamp: ${timestamp}`);
 
-    // If no custom options provided, use current week logic
-    if (seasonType === undefined || week === undefined) {
-      const currentDate = new Date();
-      year = currentDate.getFullYear();
-      
-      // Simple logic to determine season type and week
-      let defaultSeasonType = 2; // Default to regular season
-      let defaultWeek = 1;
-      
-      // Determine season type based on month
-      const month = currentDate.getMonth() + 1;
-      if (month === 8 && currentDate.getDate() < 25) {
-        defaultSeasonType = 1; // Preseason
-        defaultWeek = Math.max(1, Math.min(4, Math.floor(currentDate.getDate() / 7) + 1));
-      } else if ((month >= 8 && currentDate.getDate() >= 25) && month <= 12) {
-        defaultSeasonType = 2; // Regular season
-        defaultWeek = Math.max(1, Math.min(18, Math.floor((month - 9) * 4) + Math.floor(currentDate.getDate() / 7)));
-      } else if (month >= 1 && month <= 2) {
-        defaultSeasonType = 3; // Postseason
-        defaultWeek = Math.max(1, Math.min(5, Math.floor((month - 1) * 4) + Math.floor(currentDate.getDate() / 7)));
-      }
+    // Fetch games using ESPN API with date endpoint
+    const games = await nflAPI.getGamesWithDateEndpoint(timestamp);
 
-      seasonType = defaultSeasonType;
-      week = defaultWeek;
-    }
-
-    const endpoint = `https://${RAPIDAPI_HOST}/nfl-scoreboard-week-type?year=${year}&type=${seasonType}&week=${week}`;
-
-    debugLog(`🏈 NFL Sync - Fetching from: ${endpoint}`);
-
-    // Fetch data from RapidAPI
-    const response = await fetch(endpoint, {
-      headers: {
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`RapidAPI request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const games = data.events || [];
-
-    debugLog(`📡 Fetched ${games.length} games from RapidAPI`);
+    debugLog(`📡 Fetched ${games.length} games from ESPN API`);
 
     if (games.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No games found for the current week',
+        message: 'No games found for the current date',
         gamesProcessed: 0,
         gamesUpdated: 0,
         gamesFailed: 0,
-        seasonType,
-        week,
-        year
+        endpoint: 'ESPN API with date endpoint'
       });
     }
 
@@ -103,52 +49,23 @@ export async function POST(request: NextRequest) {
 
       for (const game of batch) {
         try {
-          // Extract game data
-          const competitors = game.competitions[0].competitors;
-          const home = competitors.find((c: any) => c.homeAway === 'home');
-          const away = competitors.find((c: any) => c.homeAway === 'away');
-
-          if (!home || !away) {
-            debugWarn(`⚠️ Skipping game ${game.id}: Missing competitor data`);
-            continue;
-          }
-
-          // Use original team names without normalization
-          const homeTeam = home.team.displayName;
-          const awayTeam = away.team.displayName;
-
-          // Get scores
-          const homeScore = parseInt(home.score || '0');
-          const awayScore = parseInt(away.score || '0');
-
-          // Determine winner
-          let winner = null;
-          if (game.status.type.completed) {
-            if (homeScore > awayScore) {
-              winner = homeTeam;
-            } else if (awayScore > homeScore) {
-              winner = awayTeam;
-            }
-          }
-
-          // Map season type
-          const apiSeasonType = game.season.type;
-          let mappedSeasonType = 2; // Default to regular season
-          if (apiSeasonType === 1) mappedSeasonType = 1; // Preseason
-          else if (apiSeasonType === 3) mappedSeasonType = 3; // Postseason
-
           const payload = {
             id: game.id,
-            week: game.week.number,
-            season: game.season.year,
-            season_type: mappedSeasonType,
-            home_team: homeTeam,
-            away_team: awayTeam,
-            kickoff_time: game.date,
-            home_score: homeScore,
-            away_score: awayScore,
-            winner: winner,
-            status: determineStatus(game.status.type.description),
+            week: game.week,
+            season: game.season,
+            season_type: game.season_type,
+            home_team: game.home_team,
+            away_team: game.away_team,
+            kickoff_time: game.time,
+            home_score: game.home_score || null,
+            away_score: game.away_score || null,
+            winner: game.status === 'finished' && game.home_score !== null && game.away_score !== null
+              ? (game.home_score! > game.away_score! ? game.home_team : game.away_team)
+              : null,
+            status: determineStatus(game.status),
+            home_team_id: game.home_team_id,
+            away_team_id: game.away_team_id,
+            is_active: true,
             updated_at: new Date().toISOString()
           };
 
@@ -211,10 +128,8 @@ export async function POST(request: NextRequest) {
       gamesUpdated: successfulUpdates,
       gamesFailed: failedGames,
       failedGameDetails,
-      seasonType,
-      week,
-      year,
-      endpoint
+      endpoint: 'ESPN API with date endpoint',
+      timestamp
     });
 
   } catch (error) {
@@ -231,16 +146,21 @@ export async function POST(request: NextRequest) {
 }
 
 // Helper function to determine game status
-function determineStatus(statusDescription: string): string {
+function determineStatus(status: string): string {
+  // ESPN API returns status values like 'scheduled', 'live', 'finished'
+  // Map them to our database values
   const statusMappings: { [key: string]: string } = {
-    'Scheduled': 'scheduled',
-    'Live': 'live',
-    'Final': 'final',
-    'Postponed': 'postponed',
-    'Cancelled': 'cancelled',
-    'Suspended': 'suspended',
-    'Delayed': 'delayed'
+    'scheduled': 'scheduled',
+    'live': 'live',
+    'finished': 'final',
+    'post': 'final',
+    'in': 'live',
+    'pre': 'scheduled',
+    'postponed': 'postponed',
+    'cancelled': 'cancelled',
+    'suspended': 'suspended',
+    'delayed': 'delayed'
   };
 
-  return statusMappings[statusDescription] || 'scheduled';
+  return statusMappings[status] || 'scheduled';
 }

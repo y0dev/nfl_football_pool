@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, User } from 'lucide-react';
 import { Game } from '@/types/game';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 
 interface Pick {
   gameId: string;
@@ -26,6 +27,8 @@ interface PickConfirmationDialogProps {
   picks: Pick[];
   games: Game[];
   weekNumber: number;
+  seasonType?: number;
+  mondayNightScore?: number | null;
   onConfirm: () => Promise<void>;
   isSubmitting: boolean;
   userName: string;
@@ -38,6 +41,8 @@ export function PickConfirmationDialog({
   picks,
   games,
   weekNumber,
+  seasonType,
+  mondayNightScore,
   onConfirm,
   isSubmitting,
   userName,
@@ -68,6 +73,11 @@ export function PickConfirmationDialog({
   const sortedPicks = picks
     .filter(pick => pick.pickedTeamId && pick.confidencePoints)
     .sort((a, b) => (b.confidencePoints || 0) - (a.confidencePoints || 0));
+
+  // Check if Monday night score should be shown
+  const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
+  const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+  const shouldShowMondayNightScore = (isPeriodWeek || isSuperBowl) && mondayNightScore !== null && mondayNightScore !== undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -135,6 +145,28 @@ export function PickConfirmationDialog({
               })}
             </div>
           </div>
+
+          {/* Monday Night Score */}
+          {shouldShowMondayNightScore && (
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-3">Monday Night Game Score:</h4>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-blue-900">
+                      Total Points Prediction
+                    </div>
+                    <div className="text-sm text-blue-700">
+                      Used for tie-breaking in {isPeriodWeek ? 'period week' : 'Super Bowl'}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    {mondayNightScore} points
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <p className="text-sm text-amber-800">

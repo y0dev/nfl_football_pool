@@ -29,6 +29,7 @@ export interface Pick {
   week?: number;
   season_type?: number;
   created_at?: string;
+  monday_night_score?: number;
 }
 
 export interface StoredPick extends Pick {

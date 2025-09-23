@@ -1,938 +1,1042 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowLeft, Target, Users, Calendar, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
-import { ArrowLeft, Users, Shield, AlertCircle, CheckCircle, Clock, Save, Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { loadPools } from '@/actions/loadPools';
-import { getPoolParticipants } from '@/actions/adminActions';
-import { MAX_CONFIDENCE_POINTS, DEFAULT_SEASON_TYPE, DEFAULT_WEEK, debugLog } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { AuthProvider } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
+import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 
 interface Pool {
   id: string;
   name: string;
-  description: string;
-  created_by: string;
   season: number;
   is_active: boolean;
-  created_at: string;
-}
-
-interface Participant {
-  id: string;
-  name: string;
-  email?: string;
 }
 
 interface Pick {
   id: string;
+  participant_id: string;
+  pool_id: string;
   game_id: string;
+  predicted_winner: string;
+  confidence_points: number;
+  locked: boolean;
+  submitted_by?: string;
+  created_at: string;
+  participants?: {
+    name: string;
+    email?: string;
+  };
+  games?: {
   home_team: string;
   away_team: string;
-  confidence: number;
-  winner: string;
+    week: number;
+    season: number;
+    season_type: number;
+  };
+}
+
+interface WeekInfo {
+  week: number;
+  season: number;
+  seasonType: number;
+  isPeriodWeek: boolean;
+  isSuperBowl: boolean;
 }
 
 function OverridePicksContent() {
-  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
-  
-  const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
-  const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE);
-  const [isLoading, setIsLoading] = useState(true);
   const [pools, setPools] = useState<Pool[]>([]);
-  const [selectedPool, setSelectedPool] = useState('');
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [selectedParticipant, setSelectedParticipant] = useState('');
-  const [participantPicks, setParticipantPicks] = useState<Pick[]>([]);
-  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [selectedPool, setSelectedPool] = useState<string>('');
+  const [weeks, setWeeks] = useState<number[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<string>('');
+  const [seasonTypes, setSeasonTypes] = useState<{ value: number; label: string }[]>([]);
+  const [selectedSeasonType, setSelectedSeasonType] = useState<string>('2');
+  const [currentSeason, setCurrentSeason] = useState<number>(2024);
+  const [isLoading, setIsLoading] = useState(true);
+  const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null);
+  const [error] = useState<string | null>(null);
+  const [picks, setPicks] = useState<Pick[]>([]);
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
-  const [selectedPicks, setSelectedPicks] = useState<Set<string>>(new Set());
-  const [pickUpdates, setPickUpdates] = useState<{[key: string]: {winner: string, confidence: number}}>({});
-  const [overrideMode, setOverrideMode] = useState<'picks' | 'erase_all'>('picks');
-  const [overrideReason, setOverrideReason] = useState('');
-  const [isOverriding, setIsOverriding] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [usedConfidenceNumbers, setUsedConfidenceNumbers] = useState<Set<number>>(new Set());
-  const [isWeekCompleted, setIsWeekCompleted] = useState(false);
-  const [showEraseSuccessDialog, setShowEraseSuccessDialog] = useState(false);
-  const [erasedPicksCount, setErasedPicksCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showAddPickDialog, setShowAddPickDialog] = useState(false);
+  const [showMondayNightDialog, setShowMondayNightDialog] = useState(false);
+  const [selectedParticipantForManagement, setSelectedParticipantForManagement] = useState<string>('');
+  const [selectedParticipantForNewPick, setSelectedParticipantForNewPick] = useState<string>('');
+  const [availableGames, setAvailableGames] = useState<Array<{
+    id: string;
+    home_team: string;
+    away_team: string;
+    week: number;
+    season: number;
+    season_type: number;
+    kickoff_time: string;
+    status: string;
+  }>>([]);
+  const [allParticipants, setAllParticipants] = useState<Array<{
+    id: string;
+    name: string;
+    email: string | null;
+  }>>([]);
+  const [newPickData, setNewPickData] = useState<{
+    gameId: string;
+    predictedWinner: string;
+    confidencePoints: number;
+  }>({
+    gameId: '',
+    predictedWinner: '',
+    confidencePoints: 1
+  });
+  const [mondayNightScore, setMondayNightScore] = useState<string>('');
 
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      try {
-        // Check admin status first
-        if (user) {
-          debugLog('Checking admin status for user:', user.email);
-          const superAdminStatus = await verifyAdminStatus(true);
-          setIsSuperAdmin(superAdminStatus);
-          
-          // Both commissioners and admins can access this page
-          // Commissioners will only see their own pools, admins will see all pools
-          await loadData(superAdminStatus);
-        }
-      } catch (error) {
-        console.error('Error checking admin status:', error);
-      }
-    };
-
-    const loadData = async (superAdminStatus: boolean) => {
-      try {
-        setIsLoading(true);
-        
-        // Load current week
-        const weekData = await getUpcomingWeek();
-        debugLog('Week data:', weekData);
-        setCurrentWeek(weekData?.week || 1);
-        setCurrentSeasonType(weekData?.seasonType || 2);
-        
-        // Load pools based on user role
-        const poolsData = await loadPools(user?.email, superAdminStatus);
-        console.log('Pools loaded:', {
-          userRole: superAdminStatus ? 'admin' : 'commissioner',
-          userEmail: user?.email,
-          totalPools: poolsData.length,
-          poolsData: poolsData.map(p => ({
-            id: p.id,
-            name: p.name,
-            created_by: p.created_by
-          }))
-        });
-        setPools(poolsData);
-
-        // Set initial pool from URL parameter
-        const poolId = searchParams.get('pool');
-        if (poolId) {
-          setSelectedPool(poolId);
-          loadPoolParticipants(poolId);
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
+  const loadPools = useCallback(async () => {
+    try {
+      // Try both client types
+      const supabase = getSupabaseClient();
+      const serviceSupabase = getSupabaseServiceClient();
+      
+      if (!supabase && !serviceSupabase) {
+        console.error('❌ No Supabase client available');
         toast({
           title: 'Error',
-          description: 'Failed to load initial data',
-          variant: 'destructive',
+          description: 'Database connection not available',
+          variant: 'destructive'
         });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAdminStatus();
-  }, [user, verifyAdminStatus, router]);
-
-  // Check if current week is completed
-  useEffect(() => {
-    if (currentWeek && currentSeasonType) {
-      checkWeekStatus();
-    }
-  }, [currentWeek, currentSeasonType]);
-
-  const checkWeekStatus = async () => {
-    try {
-      const response = await fetch(`/api/admin/week-status?week=${currentWeek}&season_type=${currentSeasonType}&season=2025`);
-      
-      if (!response.ok) {
-        console.error('Error checking week status:', response.statusText);
         return;
       }
+
+      // Use service client if available, otherwise use regular client
+      const client = serviceSupabase || supabase;
       
-      const data = await response.json();
-      setIsWeekCompleted(data.isCompleted);
-      
-      if (data.isCompleted) {
+      const { data: poolsData, error } = await client
+        .from('pools')
+        .select('id, name, season, is_active')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) {
+        console.error('❌ Error loading pools:', error);
         toast({
-          title: 'Week Already Completed',
-          description: `Week ${currentWeek} has already finished. Picks cannot be overridden for completed weeks.`,
-          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load pools',
+          variant: 'destructive'
         });
+        return;
       }
-    } catch (error) {
-      console.error('Error checking week status:', error);
-    }
-  };
 
-  const loadPoolParticipants = async (poolId: string) => {
-    setIsLoadingParticipants(true);
-    try {
-      const participantsData = await getPoolParticipants(poolId);
-      console.log('Participants loaded:', participantsData);
-      setParticipants(participantsData || []);
-    } catch (error) {
-      console.error('Error loading participants:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load participants',
-        variant: 'destructive',
+      setPools(poolsData || []);
+      } catch (error) {
+      console.error('❌ Error loading pools:', error);
+        toast({
+          title: 'Error',
+        description: 'Failed to load pools',
+        variant: 'destructive'
       });
-    } finally {
-      setIsLoadingParticipants(false);
     }
-  };
+  }, [toast]);
 
-  const loadParticipantPicks = async (participantId: string) => {
-    if (!selectedPool) return;
-    
+  const loadPicks = useCallback(async (poolId: string, week: number, season: number, seasonType: number) => {
     setIsLoadingPicks(true);
     try {
-      const response = await fetch(`/api/admin/participant-picks?participant_id=${participantId}&pool_id=${selectedPool}&week=${currentWeek}&season_type=${currentSeasonType}`);
+      const supabase = getSupabaseClient();
+      const serviceSupabase = getSupabaseServiceClient();
+      const client = serviceSupabase || supabase;
       
-      if (!response.ok) {
-        console.error('Error loading participant picks:', response.statusText);
+      if (!client) {
+        console.error('❌ No Supabase client available for loading picks');
         toast({
           title: 'Error',
-          description: 'Failed to load participant picks',
-          variant: 'destructive',
+          description: 'Database connection not available',
+          variant: 'destructive'
         });
         return;
       }
 
-      const data = await response.json();
+      // First get games for this week/season/season_type
+      const { data: gamesData, error: gamesError } = await client
+        .from('games')
+        .select('id, week, season, season_type')
+        .eq('week', week)
+        .eq('season', season)
+        .eq('season_type', seasonType);
+
+      if (gamesError) {
+        console.error('❌ Error loading games:', gamesError);
+        toast({
+          title: 'Error',
+          description: 'Failed to load games for this week',
+          variant: 'destructive'
+        });
+        return;
+      }
       
-      if (!data.picks || data.picks.length === 0) {
-        setParticipantPicks([]);
-        setUsedConfidenceNumbers(new Set());
+      const gameIds = gamesData?.map(game => game.id) || [];
+      
+      console.log(`🔍 Loading picks for Week ${week}, Season ${season}, Season Type ${seasonType}`);
+      console.log(`🎮 Found ${gameIds.length} games:`, gamesData?.map(g => ({ id: g.id, week: g.week, season: g.season, season_type: g.season_type })));
+      
+      if (gameIds.length === 0) {
+        console.log('❌ No games found for this week/season/season_type combination');
+        setPicks([]);
         return;
       }
 
-      setParticipantPicks(data.picks);
-      setSelectedPicks(new Set());
-      setPickUpdates({});
+      const { data: picksData, error } = await client
+        .from('picks')
+        .select(`
+          id,
+          participant_id,
+          pool_id,
+          game_id,
+          predicted_winner,
+          confidence_points,
+          locked,
+          submitted_by,
+          created_at,
+          participants(name, email),
+          games(home_team, away_team, week, season, season_type)
+        `)
+        .eq('pool_id', poolId)
+        .in('game_id', gameIds)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error loading picks:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load picks',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Transform the data to match our interface
+      const transformedPicks = (picksData || []).map(pick => ({
+        ...pick,
+        participants: Array.isArray(pick.participants) ? pick.participants[0] : pick.participants,
+        games: Array.isArray(pick.games) ? pick.games[0] : pick.games
+      }));
       
-      // Track used confidence numbers (exclude 0 values)
-      const usedNumbers = new Set(data.usedConfidenceNumbers as number[]);
-      setUsedConfidenceNumbers(usedNumbers);
+      console.log(`📝 Found ${transformedPicks.length} picks:`, transformedPicks.map(p => ({
+        id: p.id,
+        participant: p.participants?.name,
+        game: p.games ? `${p.games.away_team} @ ${p.games.home_team}` : 'Unknown',
+        week: p.games?.week,
+        season: p.games?.season,
+        season_type: p.games?.season_type
+      })));
+      
+      setPicks(transformedPicks);
     } catch (error) {
-      console.error('Error loading participant picks:', error);
+      console.error('❌ Error loading picks:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load participant picks',
-        variant: 'destructive',
+        description: 'Failed to load picks',
+        variant: 'destructive'
       });
     } finally {
       setIsLoadingPicks(false);
     }
-  };
+  }, [toast]);
 
-  const handlePickSelection = (pickId: string, selected: boolean) => {
-    const newSelected = new Set(selectedPicks);
-    if (selected) {
-      newSelected.add(pickId);
-    } else {
-      newSelected.delete(pickId);
-    }
-    setSelectedPicks(newSelected);
-  };
 
-  const handlePickUpdate = (pickId: string, field: 'winner' | 'confidence', value: string | number) => {
-    setPickUpdates(prev => {
-      const newUpdates = {
-        ...prev,
-        [pickId]: {
-          ...prev[pickId],
-          [field]: field === 'confidence' ? Number(value) : value
-        }
-      };
+  const loadAvailableGames = useCallback(async (week: number, season: number, seasonType: number) => {
+    try {
+      const supabase = getSupabaseClient();
+      const serviceSupabase = getSupabaseServiceClient();
+      const client = serviceSupabase || supabase;
       
-      // Update used confidence numbers
-      if (field === 'confidence') {
-        // Recalculate all used confidence numbers from scratch
-        const allUsedNumbers = new Set<number>();
-        
-        // Add original pick confidences (excluding the current pick being modified)
-        participantPicks.forEach(pick => {
-          if (pick.id !== pickId && pick.confidence !== 0) {
-            allUsedNumbers.add(pick.confidence);
-          }
-        });
-        
-        // Add all updated confidences (excluding the current pick and 0 values)
-        Object.entries(newUpdates).forEach(([updatePickId, update]) => {
-          if (updatePickId !== pickId && update.confidence && update.confidence !== 0) {
-            allUsedNumbers.add(update.confidence);
-          }
-        });
-        
-        // Add the new value if it's not 0
-        const newValue = Number(value);
-        if (newValue !== 0) {
-          allUsedNumbers.add(newValue);
-        }
-        
-        setUsedConfidenceNumbers(allUsedNumbers);
+      if (!client) {
+        console.error('❌ No Supabase client available for loading games');
+        return;
       }
-      
-      return newUpdates;
-    });
-  };
 
-  const handleOverridePicks = async () => {
-    if (!selectedPool || !selectedParticipant || !user) {
+      const { data: gamesData, error } = await client
+        .from('games')
+        .select('id, home_team, away_team, week, season, season_type, kickoff_time, status')
+        .eq('week', week)
+        .eq('season', season)
+        .eq('season_type', seasonType)
+        .order('kickoff_time', { ascending: true });
+
+      if (error) {
+        console.error('❌ Error loading games:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load games',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setAvailableGames(gamesData || []);
+    } catch (error) {
+      console.error('❌ Error loading games:', error);
       toast({
         title: 'Error',
-        description: 'Missing required information',
-        variant: 'destructive',
+        description: 'Failed to load games',
+        variant: 'destructive'
       });
-      return;
     }
+  }, [toast]);
 
-    if (!overrideReason.trim()) {
-      toast({
-        title: 'Reason Required',
-        description: 'Please provide a reason for overriding picks',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (selectedPicks.size === 0) {
-      toast({
-        title: 'No Picks Selected',
-        description: overrideMode === 'picks' 
-          ? 'Please select at least one pick to override'
-          : 'Please confirm that you want to erase all picks',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // For picks mode, check for missing or duplicate confidence numbers
-    if (overrideMode === 'picks') {
-      const confidenceNumbers = new Set<number>();
-      const duplicates: string[] = [];
-      const missingConfidence: string[] = [];
-      
-      Object.entries(pickUpdates).forEach(([pickId, update]) => {
-        const pick = participantPicks.find(p => p.id === pickId);
-        if (pick) {
-          // Check for missing confidence
-          if (update.confidence === 0) {
-            missingConfidence.push(`${pick.away_team} @ ${pick.home_team}`);
-          }
-          // Check for duplicates (only if confidence is not 0)
-          else if (update.confidence) {
-            if (confidenceNumbers.has(update.confidence)) {
-              duplicates.push(`${pick.away_team} @ ${pick.home_team} (${update.confidence})`);
-            } else {
-              confidenceNumbers.add(update.confidence);
-            }
-          }
-        }
-      });
-
-      if (missingConfidence.length > 0) {
-        toast({
-          title: 'Missing Confidence Numbers',
-          description: `The following picks need confidence numbers assigned: ${missingConfidence.join(', ')}`,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (duplicates.length > 0) {
-        toast({
-          title: 'Duplicate Confidence Numbers',
-          description: `The following picks have duplicate confidence numbers: ${duplicates.join(', ')}`,
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
-    setIsOverriding(true);
+  const loadAllParticipants = useCallback(async (poolId: string) => {
     try {
-      // Call the API route instead of direct database calls
-      const response = await fetch('/api/admin/override-picks', {
+      const supabase = getSupabaseClient();
+      const serviceSupabase = getSupabaseServiceClient();
+      const client = serviceSupabase || supabase;
+      
+      if (!client) {
+        console.error('❌ No Supabase client available for loading participants');
+        return;
+      }
+
+      const { data: participantsData, error } = await client
+        .from('participants')
+        .select('id, name, email')
+        .eq('pool_id', poolId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) {
+        console.error('❌ Error loading participants:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load participants',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setAllParticipants(participantsData || []);
+    } catch (error) {
+      console.error('❌ Error loading participants:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load participants',
+        variant: 'destructive'
+      });
+    }
+  }, [toast]);
+
+  const submitNewPick = useCallback(async () => {
+    const participantId = selectedParticipantForNewPick || selectedParticipantForManagement;
+    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const supabase = getSupabaseClient();
+      const serviceSupabase = getSupabaseServiceClient();
+      const client = serviceSupabase || supabase;
+      
+      if (!client) {
+      toast({
+          title: 'Error',
+          description: 'Database connection not available',
+          variant: 'destructive'
+      });
+      return;
+    }
+
+        const { error } = await client
+          .from('picks')
+          .insert({
+            participant_id: participantId,
+            pool_id: selectedPool,
+            game_id: newPickData.gameId,
+            predicted_winner: newPickData.predictedWinner,
+            confidence_points: newPickData.confidencePoints,
+            submitted_by: 'admin_override'
+          });
+
+      if (error) {
+        console.error('❌ Error submitting new pick:', error);
+      toast({
+          title: 'Error',
+          description: 'Failed to submit pick',
+          variant: 'destructive'
+      });
+      return;
+    }
+
+      // Refresh picks
+      if (selectedPool && selectedWeek && currentSeason) {
+        await loadPicks(selectedPool, parseInt(selectedWeek), currentSeason, parseInt(selectedSeasonType || '2'));
+      }
+
+      // Reset form
+      setShowAddPickDialog(false);
+      setSelectedParticipantForNewPick('');
+      setNewPickData({
+        gameId: '',
+        predictedWinner: '',
+        confidencePoints: 1
+      });
+
+        toast({
+        title: 'Success',
+        description: 'Pick submitted successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error submitting new pick:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit pick',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, selectedPool, selectedWeek, currentSeason, selectedSeasonType, loadPicks, toast]);
+
+  const submitMondayNightScore = useCallback(async () => {
+    if (!selectedParticipantForManagement || !mondayNightScore) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a Monday night score',
+        variant: 'destructive'
+        });
+        return;
+      }
+
+    const score = parseInt(mondayNightScore);
+    if (isNaN(score) || score < 0) {
+        toast({
+        title: 'Error',
+        description: 'Monday night score must be a positive number',
+        variant: 'destructive'
+        });
+        return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/admin/override-monday-night-score', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolId: selectedPool,
-          participantId: selectedParticipant,
-          week: currentWeek,
-          seasonType: currentSeasonType,
-          overrideMode,
-          overrideReason,
-          pickUpdates: overrideMode === 'picks' ? pickUpdates : undefined,
-          adminId: user.id
+          participantId: selectedParticipantForManagement,
+          week: parseInt(selectedWeek || '1'),
+          season: currentSeason,
+          seasonType: parseInt(selectedSeasonType || '2'),
+          mondayNightScore: score
         }),
       });
 
       const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to override picks');
-      }
-
-      if (overrideMode === 'picks') {
-        toast({
-          title: 'Picks Updated',
-          description: result.message,
-        });
+      if (result.success) {
+        toast({ title: 'Success', description: result.message });
+        setShowMondayNightDialog(false);
+        setMondayNightScore('');
       } else {
-        // For erase all picks, show success dialog instead of just toast
-        setErasedPicksCount(result.erasedCount || participantPicks.length);
-        setShowEraseSuccessDialog(true);
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error submitting Monday night score:', error);
+      toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedParticipantForManagement, mondayNightScore, selectedPool, selectedWeek, currentSeason, selectedSeasonType, toast]);
+
+  const loadCurrentWeek = useCallback(async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        setIsLoading(false);
+        return;
       }
 
-      // Reset form
-      setOverrideReason('');
-      setSelectedPicks(new Set());
-      setPickUpdates({});
-      setShowConfirmDialog(false);
+      const { data: game, error } = await supabase
+        .from('games')
+        .select('week, season, season_type')
+        .order('week', { ascending: false })
+        .limit(1)
+        .single();
 
+      if (error) {
+        console.error('Error loading current week:', error);
+        // Set default values if we can't load from database
+        setCurrentSeason(2024);
+        const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
+        setWeeks(regularWeeks);
+        setSeasonTypes([
+          { value: 1, label: 'Preseason' },
+          { value: 2, label: 'Regular Season' },
+          { value: 3, label: 'Playoffs' }
+        ]);
+        return;
+      }
+
+      if (game) {
+        setCurrentSeason(game.season || 2024);
+        
+        // Generate weeks 1-18 for regular season
+        const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
+        setWeeks(regularWeeks);
+        
+        // Set season types
+        setSeasonTypes([
+          { value: 1, label: 'Preseason' },
+          { value: 2, label: 'Regular Season' },
+          { value: 3, label: 'Playoffs' }
+        ]);
+      }
     } catch (error) {
-      console.error('Error overriding picks:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to override picks',
-        variant: 'destructive',
-      });
+      console.error('Error loading current week:', error);
+      // Set default values on error
+      setCurrentSeason(2024);
+      const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
+      setWeeks(regularWeeks);
+      setSeasonTypes([
+        { value: 1, label: 'Preseason' },
+        { value: 2, label: 'Regular Season' },
+        { value: 3, label: 'Playoffs' }
+      ]);
     } finally {
-      setIsOverriding(false);
+      setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPools();
+    loadCurrentWeek();
+  }, [loadPools, loadCurrentWeek]);
+
+  useEffect(() => {
+    if (selectedPool && selectedWeek && selectedSeasonType) {
+      const week = parseInt(selectedWeek);
+      const seasonType = parseInt(selectedSeasonType);
+      const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+      const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+      
+      setWeekInfo({
+        week,
+        season: currentSeason,
+        seasonType,
+        isPeriodWeek,
+        isSuperBowl
+      });
+
+      // Load picks for the selected pool, week, and season
+      loadPicks(selectedPool, week, currentSeason, seasonType);
+      // Load available games for the week
+      loadAvailableGames(week, currentSeason, seasonType);
+      // Load all participants for the pool
+      loadAllParticipants(selectedPool);
+      } else {
+      setWeekInfo(null);
+      setPicks([]); // Clear picks when no selection
+      setAvailableGames([]); // Clear games
+      setAllParticipants([]); // Clear participants
+    }
+  }, [selectedPool, selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadAllParticipants]);
+
+  const selectedPoolData = pools.find(p => p.id === selectedPool);
+
+  // Debug logging (can be removed in production)
+  console.log('🔍 Current state:', { 
+    pools: pools.length, 
+    selectedPool, 
+    selectedWeek, 
+    selectedSeasonType,
+    isLoading,
+    error,
+    picks: picks.length,
+    isLoadingPicks
+  });
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>
+              Reload Page
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p>Loading override picks...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 sm:gap-4 mb-4">
+      <div className="flex items-center gap-4 mb-8">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
+          onClick={() => router.back()}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to Dashboard</span>
-            <span className="sm:hidden">Back</span>
+          Back
           </Button>
-        </div>
-        <h1 className="text-xl sm:text-2xl font-bold">
-          {overrideMode === 'picks' ? 'Override Participant Picks' : 'Erase All Participant Picks'}
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600">
-          {overrideMode === 'picks' 
-            ? `Select a pool, participant, and specific picks to override for Week ${currentWeek}`
-            : `Select a pool and participant to erase all their picks for Week ${currentWeek}`
-          }
-          {!isSuperAdmin && ' (Limited to your pools)'}
-        </p>
-        <div className="flex items-center gap-2 mt-2">
-          <Badge variant="outline" className="text-xs">
-            {isSuperAdmin ? 'System Admin' : 'Commissioner'}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Week Status Warning */}
-      {isWeekCompleted && (
-        <div className="col-span-full mb-4">
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 text-red-600" />
                 <div>
-                  <h3 className="font-medium text-red-800">Week Already Completed</h3>
-                  <p className="text-sm text-red-700">
-                    Week {currentWeek} has already finished and all games have results. 
-                    Picks cannot be overridden for completed weeks.
-                  </p>
+          <h1 className="text-3xl font-bold">Override Picks</h1>
+          <p className="text-gray-600">Override participant picks and Monday night scores</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Selection Panel */}
-        <Card>
+      {/* Selection Controls */}
+      <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Selection
+            <Target className="h-5 w-5" />
+            Select Pool and Week
             </CardTitle>
             <CardDescription>
-              {isSuperAdmin 
-                ? 'Choose any pool, participant, and picks to override'
-                : 'Choose from your pools, participant, and picks to override'
-              }
+            Choose the pool and week you want to override picks for
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Pool Selection */}
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="pool-select">Pool *</Label>
-              <Select 
-                value={selectedPool} 
-                onValueChange={(value) => {
-                  console.log('Pool selected:', value);
-                  setSelectedPool(value);
-                  setSelectedParticipant('');
-                  setParticipantPicks([]);
-                  if (value) {
-                    loadPoolParticipants(value);
-                  }
-                }}
-                disabled={isWeekCompleted}
-              >
-                <SelectTrigger className="w-full">
+              <Label htmlFor="pool">Pool</Label>
+              <Select value={selectedPool} onValueChange={setSelectedPool}>
+                <SelectTrigger>
                   <SelectValue placeholder="Select a pool" />
                 </SelectTrigger>
                 <SelectContent>
                   {pools.map((pool) => (
                     <SelectItem key={pool.id} value={pool.id}>
-                      {pool.name}
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        <span>{pool.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {pool.season}
+                        </Badge>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {pools.length === 0 && (
-                <p className="text-sm text-gray-500 mt-1">
-                  {isSuperAdmin ? 'No pools available' : 'No pools created by you'}
-                </p>
-              )}
-              {pools.length > 0 && (
-                <p className="text-sm text-gray-500 mt-1">
-                  {isSuperAdmin 
-                    ? `Showing ${pools.length} pools from all users`
-                    : `Showing ${pools.length} pools created by you`
-                  }
-                </p>
-              )}
             </div>
 
-            {/* Participant Selection */}
-            {selectedPool && (
               <div>
-                <Label htmlFor="participant-select">Participant *</Label>
-                {isLoadingParticipants ? (
-                  <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-600">
-                    Loading participants...
-                  </div>
-                ) : (
-                  <Select 
-                    value={selectedParticipant} 
-                    onValueChange={(value) => {
-                      setSelectedParticipant(value);
-                      setParticipantPicks([]);
-                      if (value) {
-                        loadParticipantPicks(value);
-                      }
-                    }}
-                    disabled={isWeekCompleted}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a participant" />
+              <Label htmlFor="week">Week</Label>
+              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a week" />
                     </SelectTrigger>
                     <SelectContent>
-                      {participants.map((participant) => (
-                        <SelectItem key={participant.id} value={participant.id}>
-                          {participant.name} {participant.email ? `(${participant.email})` : ''}
+                  {weeks.map((week) => {
+                    const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+                    return (
+                      <SelectItem key={week} value={week.toString()}>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Week {week}</span>
+                          {isPeriodWeek && (
+                            <Badge variant="secondary" className="text-xs">
+                              Period Week
+                            </Badge>
+                          )}
+                        </div>
                         </SelectItem>
-                      ))}
+                    );
+                  })}
                     </SelectContent>
                   </Select>
-                )}
               </div>
-            )}
 
-            {/* Override Mode Selection */}
             <div>
-              <Label htmlFor="override-mode">Override Mode *</Label>
-              <Select 
-                value={overrideMode} 
-                onValueChange={(value: 'picks' | 'erase_all') => {
-                  setOverrideMode(value);
-                  setSelectedPicks(new Set());
-                  setPickUpdates({});
-                }}
-                disabled={isWeekCompleted}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
+              <Label htmlFor="seasonType">Season Type</Label>
+              <Select value={selectedSeasonType} onValueChange={setSelectedSeasonType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select season type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="picks">Override Specific Picks</SelectItem>
-                  <SelectItem value="erase_all">Erase All Picks</SelectItem>
+                  {seasonTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value.toString()}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <div className="text-xs text-gray-500 mt-1">
-                {overrideMode === 'picks' 
-                  ? 'Select and modify specific picks to override'
-                  : 'Remove all picks for the selected participant'
-                }
               </div>
             </div>
 
-            {/* Reason Input */}
+          {selectedPool && selectedWeek && selectedSeasonType && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-semibold text-blue-900 mb-2">Selected Configuration</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <Label htmlFor="override-reason">Reason for Override *</Label>
-              <Textarea
-                id="override-reason"
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="Explain why you are overriding these picks..."
-                className="resize-none"
-                rows={3}
-                maxLength={500}
-                disabled={isWeekCompleted}
-              />
-              <div className="text-xs text-gray-500 mt-1">
-                {overrideReason.length}/500 characters
+                  <span className="text-blue-700 font-medium">Pool:</span>
+                  <p className="text-blue-900">{selectedPoolData?.name}</p>
+              </div>
+                <div>
+                  <span className="text-blue-700 font-medium">Week:</span>
+                  <p className="text-blue-900">Week {selectedWeek}</p>
+            </div>
+            <div>
+                  <span className="text-blue-700 font-medium">Season Type:</span>
+                  <p className="text-blue-900">
+                    {seasonTypes.find(t => t.value.toString() === selectedSeasonType)?.label}
+                  </p>
+                </div>
               </div>
             </div>
+          )}
           </CardContent>
         </Card>
 
-        {/* Picks Selection */}
+      {/* Participant Selection and Management */}
+      {weekInfo && selectedPoolData && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {overrideMode === 'picks' ? 'Picks Selection' : 'Erase All Picks'}
+              <Users className="h-5 w-5 text-blue-600" />
+              Manage Participant Picks - Week {weekInfo.week}
             </CardTitle>
             <CardDescription>
-              {overrideMode === 'picks' 
-                ? 'Select and modify specific picks to override'
-                : 'Remove all picks for the selected participant'
-              }
+              Select a participant to add picks, override existing picks, or update Monday night scores.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {!selectedParticipant ? (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Select a participant to view their picks</p>
+          <CardContent className="space-y-4">
+            {/* Participant Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="participant-select">Select Participant</Label>
+              <Select value={selectedParticipantForManagement} onValueChange={setSelectedParticipantForManagement}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a participant to manage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allParticipants.map(participant => (
+                    <SelectItem key={participant.id} value={participant.id}>
+                      {participant.name} ({participant.email || 'No email'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               </div>
-            ) : isLoadingPicks ? (
-              <div className="text-center py-8 text-gray-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p>Loading picks...</p>
+
+            {/* Participant Actions */}
+            {selectedParticipantForManagement && (
+              <div className="space-y-4">
+                {/* Show participant's current picks for this week */}
+                {(() => {
+                  const participantPicks = picks.filter(p => p.participant_id === selectedParticipantForManagement);
+                  const participant = allParticipants.find(p => p.id === selectedParticipantForManagement);
+                  
+                  return (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <h4 className="font-semibold mb-2">{participant?.name}</h4>
+                        <div className="text-sm text-gray-600">
+                          {participantPicks.length > 0 ? (
+                            <span>{participantPicks.length} picks submitted for Week {weekInfo.week}</span>
+                          ) : (
+                            <span>No picks submitted for Week {weekInfo.week}</span>
+                          )}
               </div>
-            ) : participantPicks.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No picks found for this participant</p>
               </div>
-            ) : (
-              <div>
-                {overrideMode === 'picks' ? (
-                  <>
-                    {/* Confidence Numbers Summary */}
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Confidence Numbers Status</h4>
-                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
-                        {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
-                          const isUsed = usedConfidenceNumbers.has(num);
-                          return (
-                            <div
-                              key={num}
-                              className={`text-xs p-1 text-center rounded ${
-                                isUsed 
-                                  ? 'bg-red-100 text-red-700 border border-red-200' 
-                                  : 'bg-green-100 text-green-700 border border-green-200'
-                              }`}
-                            >
-                              {num}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-2 text-xs">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
-                          <span>Available</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-                          <span>Used</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {participantPicks.map((pick) => {
-                        const isSelected = selectedPicks.has(pick.id);
-                        const update = pickUpdates[pick.id];
-                        const currentWinner = update?.winner || pick.winner;
-                        const currentConfidence = update?.confidence !== undefined ? update.confidence : pick.confidence;
-                        const isConfidenceChanged = update?.confidence !== undefined && update.confidence !== pick.confidence;
-                        const isWinnerChanged = update?.winner !== undefined && update.winner !== pick.winner;
-                        const isModified = isConfidenceChanged || isWinnerChanged;
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 flex-wrap">
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          onClick={() => setShowAddPickDialog(true)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          {participantPicks.length > 0 ? 'Override Picks' : 'Add Picks'}
+                        </Button>
                         
-                        return (
-                          <div key={pick.id} className={`border rounded-lg p-3 transition-all duration-200 ${
-                            isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
-                          } ${isModified ? 'ring-2 ring-orange-300' : ''}`}>
-                            <div className="flex items-start gap-2 mb-2">
-                                                        <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handlePickSelection(pick.id, checked as boolean)}
-                            className="mt-0.5 flex-shrink-0"
-                            disabled={isWeekCompleted}
-                          />
-                              <div className="flex-1 min-w-0">
-                                <span className="font-medium text-sm break-words">
-                                  {pick.away_team} @ {pick.home_team}
-                                </span>
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
-                                  <span className="text-xs text-gray-500">
-                                    Current: {pick.winner} ({pick.confidence || 'No Confidence'})
-                                  </span>
-                                  {isModified && (
-                                    <Badge variant="destructive" className="text-xs w-fit">
-                                      Modified
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
+                        {(weekInfo.isPeriodWeek || weekInfo.isSuperBowl) && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setShowMondayNightDialog(true)}
+                          >
+                            <Target className="h-4 w-4 mr-2" />
+                            Update Monday Night Score
+                          </Button>
+                        )}
                             </div>
-                            
-                            {isSelected && (
-                              <div className="space-y-3 ml-6">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs text-gray-600">Winner</Label>
+
+                      {/* Show existing picks in compact format */}
+                      {participantPicks.length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="font-medium text-sm">Current Picks:</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {participantPicks.map(pick => (
+                              <div key={pick.id} className="p-2 border rounded text-xs">
+                                <div className="font-medium">{pick.games?.away_team} @ {pick.games?.home_team}</div>
+                                <div className="text-gray-600">Pick: {pick.predicted_winner} ({pick.confidence_points} pts)</div>
+                      </div>
+                            ))}
+                        </div>
+                        </div>
+                      )}
+                      </div>
+                  );
+                })()}
+                    </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Additional Actions - Compact */}
+      {weekInfo && selectedPoolData && picks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-green-600" />
+              Additional Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  toast({
+                    title: 'Info',
+                    description: 'Bulk edit functionality coming soon'
+                  });
+                }}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Bulk Edit
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  toast({
+                    title: 'Info',
+                    description: 'Export functionality coming soon'
+                  });
+                }}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!selectedPool && (
+        <Alert>
+          <AlertDescription>
+            Please select a pool, week, and season type to begin overriding picks.
+          </AlertDescription>
+        </Alert>
+      )}
+
+        {/* Add Pick Dialog */}
+        <Dialog open={showAddPickDialog} onOpenChange={setShowAddPickDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Pick for Participant</DialogTitle>
+              <DialogDescription>
+                Submit a pick on behalf of a participant who hasn&apos;t submitted yet.
+              </DialogDescription>
+            </DialogHeader>
+            
+        <div className="space-y-4">
+          {/* Participant Selection - Pre-filled if coming from management */}
+          <div className="space-y-2">
+            <Label htmlFor="participant">Participant</Label>
                                                                     <Select 
-                                  value={currentWinner} 
-                                  onValueChange={(value) => handlePickUpdate(pick.id, 'winner', value)}
-                                  disabled={isWeekCompleted}
+              value={selectedParticipantForNewPick || selectedParticipantForManagement} 
+              onValueChange={setSelectedParticipantForNewPick}
                                 >
-                                      <SelectTrigger className={`w-full h-8 ${isWinnerChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
-                                        <SelectValue />
+              <SelectTrigger>
+                <SelectValue placeholder="Select a participant" />
                                       </SelectTrigger>
-                                      <SelectContent position="popper" side="bottom" align="start">
-                                        <SelectItem value={pick.home_team}>{pick.home_team}</SelectItem>
-                                        <SelectItem value={pick.away_team}>{pick.away_team}</SelectItem>
+              <SelectContent>
+                {allParticipants.map(participant => (
+                  <SelectItem key={participant.id} value={participant.id}>
+                    {participant.name} ({participant.email || 'No email'})
+                  </SelectItem>
+                ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
                                   
-                                  <div>
-                                    <Label className="text-xs text-gray-600">Confidence</Label>
+              {/* Game Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="game">Game</Label>
                                                                     <Select 
-                                  value={currentConfidence.toString()} 
-                                  onValueChange={(value) => handlePickUpdate(pick.id, 'confidence', parseInt(value))}
-                                  disabled={isWeekCompleted}
-                                >
-                                      <SelectTrigger className={`w-full h-8 ${isConfidenceChanged ? 'border-orange-500 bg-orange-50' : ''}`}>
-                                        <SelectValue placeholder={currentConfidence === 0 ? "No Confidence" : undefined} />
+                  value={newPickData.gameId} 
+                  onValueChange={(value) => {
+                    const game = availableGames.find(g => g.id === value);
+                    setNewPickData(prev => ({
+                      ...prev,
+                      gameId: value,
+                      predictedWinner: game ? game.home_team : ''
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a game" />
                                       </SelectTrigger>
-                                      <SelectContent position="popper" side="bottom" align="start" className="max-h-60">
-                                        <SelectItem value="0" className="text-gray-500 border-t">
-                                          -- Clear Confidence --
+                  <SelectContent>
+                    {availableGames.map(game => (
+                      <SelectItem key={game.id} value={game.id}>
+                        {game.away_team} @ {game.home_team}
                                         </SelectItem>
-                                        {Array.from({length: MAX_CONFIDENCE_POINTS}, (_, i) => i + 1).map(num => {
-                                          const isUsed = usedConfidenceNumbers.has(num) && num !== pick.confidence && num !== (pickUpdates[pick.id]?.confidence || 0);
-                                          return (
-                                            <SelectItem 
-                                              key={num} 
-                                              value={num.toString()}
-                                              className={isUsed ? 'text-gray-400 line-through' : ''}
-                                              disabled={isUsed}
-                                            >
-                                              {num} {isUsed ? '(Used)' : ''}
-                                            </SelectItem>
-                                          );
-                                        })}
+                    ))}
                                       </SelectContent>
                                     </Select>
-                                  </div>
                                 </div>
                                 
-                                {isModified && (
-                                  <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                                    <strong>Changes:</strong>
-                                    {isWinnerChanged && <div>• Winner: {pick.winner} → {currentWinner}</div>}
-                                    {isConfidenceChanged && <div>• Confidence: {pick.confidence} → {currentConfidence === 0 ? 'No Confidence' : currentConfidence}</div>}</div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  /* Erase All Picks Mode */
-                  <div className="text-center py-8">
-                    <div className="mb-4">
-                      <AlertCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
-                      <h3 className="text-lg font-semibold text-red-700 mb-2">⚠️ Warning: Erase All Picks</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        This will permanently remove <strong>all {participantPicks.length} picks</strong> for this participant <strong>{participants.find(p => p.id === selectedParticipant)?.name}</strong> in Week {currentWeek}.
-                      </p>
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
-                        <h4 className="font-medium text-red-800 mb-2">What will happen:</h4>
-                        <ul className="text-sm text-red-700 space-y-1">
-                          <li>• All picks for {participantPicks.length} games will be deleted</li>
-                          <li>• Confidence points will be reset and available for reuse</li>
-                          <li>• Participant will need to resubmit all picks</li>
-                          <li>• This action cannot be undone</li>
-                        </ul>
+              {/* Predicted Winner */}
+              {newPickData.gameId && (
+                <div className="space-y-2">
+                  <Label htmlFor="predictedWinner">Predicted Winner</Label>
+                  <Select 
+                    value={newPickData.predictedWinner} 
+                    onValueChange={(value) => setNewPickData(prev => ({ ...prev, predictedWinner: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select winner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const game = availableGames.find(g => g.id === newPickData.gameId);
+                        return game ? (
+                          <>
+                            <SelectItem value={game.home_team}>
+                              {game.home_team}
+                            </SelectItem>
+                            <SelectItem value={game.away_team}>
+                              {game.away_team}
+                            </SelectItem>
+                          </>
+                        ) : null;
+                      })()}
+                    </SelectContent>
+                  </Select>
                       </div>
+              )}
+
+              {/* Confidence Points */}
+              <div className="space-y-2">
+                <Label htmlFor="confidencePoints">Confidence Points</Label>
+                <Input
+                  id="confidencePoints"
+                  type="number"
+                  min="1"
+                  max="16"
+                  value={newPickData.confidencePoints}
+                  onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
+                />
                     </div>
-                    
-                    <div className="flex justify-center">
-                      <Checkbox
-                        checked={selectedPicks.size > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedPicks(new Set(participantPicks.map(pick => pick.id)));
-                          } else {
-                            setSelectedPicks(new Set());
-                          }
-                        }}
-                        className="mr-2"
-                        disabled={isWeekCompleted}
-                      />
-                      <Label className="text-sm font-medium text-red-700">
-                        I understand the consequences and want to erase all picks
-                      </Label>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Action Buttons */}
-      <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
-        <Button
-          variant="outline"
-          onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
-        >
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddPickDialog(false)}>
           Cancel
         </Button>
-        
-        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-          <AlertDialogTrigger asChild>
-            <Button
-              disabled={
-                !selectedPool || 
-                !selectedParticipant || 
-                !overrideReason.trim() || 
-                selectedPicks.size === 0 ||
-                isOverriding ||
-                isWeekCompleted
-              }
-              className="flex items-center gap-2"
-            >
-              <Save className="h-4 w-4" />
-              {isOverriding 
-                ? (overrideMode === 'picks' ? 'Updating...' : 'Deleting...') 
-                : (overrideMode === 'picks' ? 'Update Selected Picks' : 'Erase All Picks')
-              }
+              <Button onClick={submitNewPick} disabled={isSaving}>
+                {isSaving ? 'Submitting...' : 'Submit Pick'}
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {overrideMode === 'picks' ? 'Confirm Pick Override' : 'Confirm Erase All Picks'}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {overrideMode === 'picks' 
-                  ? `Are you sure you want to override ${selectedPicks.size} pick${selectedPicks.size !== 1 ? 's' : ''}? This action will update the selected picks with the new values.`
-                  : `Are you sure you want to permanently erase ALL ${participantPicks.length} picks for this participant? This action cannot be undone and will require the participant to resubmit all picks.`
-                }
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleOverridePicks}
-                className="bg-red-600 hover:bg-red-700"
-                disabled={isOverriding}
-              >
-                {isOverriding 
-                  ? (overrideMode === 'picks' ? 'Updating...' : 'Deleting...') 
-                  : (overrideMode === 'picks' ? 'Confirm Override' : 'Confirm Erase All')
-                }
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-      {/* Erase Success Dialog */}
-      <AlertDialog open={showEraseSuccessDialog} onOpenChange={setShowEraseSuccessDialog}>
-        <AlertDialogContent className="sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="h-5 w-5" />
-              Picks Successfully Erased
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm">
-              All picks have been permanently removed for the selected participant.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="font-medium">Participant:</span>
-                <span className="text-green-700">
-                  {participants.find(p => p.id === selectedParticipant)?.name || 'Unknown'}
-                </span>
+    {/* Monday Night Score Dialog */}
+    <Dialog open={showMondayNightDialog} onOpenChange={setShowMondayNightDialog}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Update Monday Night Score</DialogTitle>
+          <DialogDescription>
+            Set the Monday night game score prediction for {allParticipants.find(p => p.id === selectedParticipantForManagement)?.name}.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Monday Night Game Info */}
+          {(() => {
+            const mondayNightGameInfo = getMondayNightGameInfo(availableGames);
+            return mondayNightGameInfo ? (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
+                </div>
+                <div className="text-lg font-semibold text-blue-800">
+                  {mondayNightGameInfo.displayText}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Pool:</span>
-                <span className="text-green-700">
-                  {pools.find(p => p.id === selectedPool)?.name || 'Unknown'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Week:</span>
-                <span className="text-green-700">{currentWeek}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Picks Erased:</span>
-                <span className="text-green-700 font-bold">{erasedPicksCount}</span>
-              </div>
-            </div>
+            ) : null;
+          })()}
+          
+          <div className="space-y-2">
+            <Label htmlFor="mondayNightScore">Monday Night Score</Label>
+            <Input
+              id="mondayNightScore"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="e.g., 45"
+              value={mondayNightScore}
+              onChange={(e) => setMondayNightScore(e.target.value)}
+            />
+            <p className="text-xs text-gray-500">
+              Enter the predicted total points scored in the Monday night game.
+            </p>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => setShowEraseSuccessDialog(false)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowMondayNightDialog(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submitMondayNightScore} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Score'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 }
@@ -940,10 +1044,9 @@ function OverridePicksContent() {
 export default function OverridePicksPage() {
   return (
     <AuthProvider>
-      <SharedAdminGuard>
+      <AdminGuard>
         <OverridePicksContent />
-      </SharedAdminGuard>
+      </AdminGuard>
     </AuthProvider>
   );
-
 }

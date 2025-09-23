@@ -65,12 +65,6 @@ function LandingPage() {
     loadData();
   }, []);
 
-  // Redirect admin users to dashboard
-  useEffect(() => {
-    if (user?.is_super_admin) {
-      router.push(createPageUrl('admindashboard'));
-    }
-  }, [user, router]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
@@ -137,13 +131,23 @@ function LandingPage() {
               <h1 className="text-xl font-bold text-white">NFL Confidence Pool</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white border-none"
-                onClick={() => router.push('/admin/login')}
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Commissioner Login
-              </Button>
+              {user ? (
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white border-none"
+                  onClick={() => router.push('/dashboard')}
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin Dashboard
+                </Button>
+              ) : (
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white border-none"
+                  onClick={() => router.push('/admin/login')}
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Commissioner Login
+                </Button>
+              )}
             </div>
           </div>
         </div>

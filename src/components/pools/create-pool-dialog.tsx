@@ -9,13 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createPool } from '@/actions/createPool';
 import { useAuth } from '@/lib/auth';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, PERIOD_WEEKS } from '@/lib/utils';
 
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
+  pool_type: z.enum(['normal', 'knockout']),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -34,7 +36,8 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     resolver: zodResolver(poolSchema),
     defaultValues: {
       name: '',
-              season: DEFAULT_POOL_SEASON, // Default to current season
+      season: DEFAULT_POOL_SEASON, // Default to current season
+      pool_type: 'normal' as const,
     },
   });
 
@@ -47,6 +50,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         name: data.name,
         created_by: user.email || '',
         season: data.season,
+        pool_type: data.pool_type,
       });
       
       console.log('Pool created successfully');
@@ -104,6 +108,32 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                   </FormControl>
                   <FormDescription>
                     The season for which this pool is valid.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="pool_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pool Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select pool type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal Pool</SelectItem>
+                      <SelectItem value="knockout">Knockout Pool</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Normal pools disable tie breakers during regular weeks (tie breakers only used in period weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs). 
+                    Knockout pools always use tie breakers.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
