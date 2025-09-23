@@ -39,8 +39,8 @@ interface Pick {
     email?: string;
   };
   games?: {
-    home_team: string;
-    away_team: string;
+  home_team: string;
+  away_team: string;
     week: number;
     season: number;
     season_type: number;
@@ -135,10 +135,10 @@ function OverridePicksContent() {
       }
 
       setPools(poolsData || []);
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error loading pools:', error);
-      toast({
-        title: 'Error',
+        toast({
+          title: 'Error',
         description: 'Failed to load pools',
         variant: 'destructive'
       });
@@ -179,7 +179,7 @@ function OverridePicksContent() {
         });
         return;
       }
-
+      
       const gameIds = gamesData?.map(game => game.id) || [];
       
       console.log(`🔍 Loading picks for Week ${week}, Season ${season}, Season Type ${seasonType}`);
@@ -347,13 +347,13 @@ function OverridePicksContent() {
       const client = serviceSupabase || supabase;
       
       if (!client) {
-        toast({
+      toast({
           title: 'Error',
           description: 'Database connection not available',
           variant: 'destructive'
-        });
-        return;
-      }
+      });
+      return;
+    }
 
         const { error } = await client
           .from('picks')
@@ -368,13 +368,13 @@ function OverridePicksContent() {
 
       if (error) {
         console.error('❌ Error submitting new pick:', error);
-        toast({
+      toast({
           title: 'Error',
           description: 'Failed to submit pick',
           variant: 'destructive'
-        });
-        return;
-      }
+      });
+      return;
+    }
 
       // Refresh picks
       if (selectedPool && selectedWeek && currentSeason) {
@@ -390,7 +390,7 @@ function OverridePicksContent() {
         confidencePoints: 1
       });
 
-      toast({
+        toast({
         title: 'Success',
         description: 'Pick submitted successfully'
       });
@@ -412,18 +412,18 @@ function OverridePicksContent() {
         title: 'Error',
         description: 'Please enter a Monday night score',
         variant: 'destructive'
-      });
-      return;
-    }
+        });
+        return;
+      }
 
     const score = parseInt(mondayNightScore);
     if (isNaN(score) || score < 0) {
-      toast({
+        toast({
         title: 'Error',
         description: 'Monday night score must be a positive number',
         variant: 'destructive'
-      });
-      return;
+        });
+        return;
     }
 
     setIsSaving(true);
@@ -544,7 +544,7 @@ function OverridePicksContent() {
       loadAvailableGames(week, currentSeason, seasonType);
       // Load all participants for the pool
       loadAllParticipants(selectedPool);
-    } else {
+      } else {
       setWeekInfo(null);
       setPicks([]); // Clear picks when no selection
       setAvailableGames([]); // Clear games
@@ -599,20 +599,20 @@ function OverridePicksContent() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Button
-          variant="outline"
-          size="sm"
+          <Button
+            variant="outline"
+            size="sm"
           onClick={() => router.back()}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
           Back
-        </Button>
-        <div>
+          </Button>
+                <div>
           <h1 className="text-3xl font-bold">Override Picks</h1>
           <p className="text-gray-600">Override participant picks and Monday night scores</p>
-        </div>
-      </div>
+                </div>
+              </div>
 
       {/* Selection Controls */}
       <Card className="mb-8">
@@ -697,14 +697,14 @@ function OverridePicksContent() {
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="font-semibold text-blue-900 mb-2">Selected Configuration</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
+            <div>
                   <span className="text-blue-700 font-medium">Pool:</span>
                   <p className="text-blue-900">{selectedPoolData?.name}</p>
-                </div>
+              </div>
                 <div>
                   <span className="text-blue-700 font-medium">Week:</span>
                   <p className="text-blue-900">Week {selectedWeek}</p>
-                </div>
+            </div>
             <div>
                   <span className="text-blue-700 font-medium">Season Type:</span>
                   <p className="text-blue-900">
@@ -745,7 +745,7 @@ function OverridePicksContent() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+              </div>
 
             {/* Participant Actions */}
             {selectedParticipantForManagement && (
@@ -765,8 +765,8 @@ function OverridePicksContent() {
                           ) : (
                             <span>No picks submitted for Week {weekInfo.week}</span>
                           )}
-                        </div>
-                      </div>
+              </div>
+              </div>
 
                       {/* Action Buttons */}
                       <div className="flex gap-2 flex-wrap">
@@ -789,7 +789,7 @@ function OverridePicksContent() {
                             Update Monday Night Score
                           </Button>
                         )}
-                      </div>
+                            </div>
 
                       {/* Show existing picks in compact format */}
                       {participantPicks.length > 0 && (
@@ -800,15 +800,15 @@ function OverridePicksContent() {
                               <div key={pick.id} className="p-2 border rounded text-xs">
                                 <div className="font-medium">{pick.games?.away_team} @ {pick.games?.home_team}</div>
                                 <div className="text-gray-600">Pick: {pick.predicted_winner} ({pick.confidence_points} pts)</div>
-                              </div>
+                      </div>
                             ))}
-                          </div>
+                        </div>
                         </div>
                       )}
-                    </div>
+                      </div>
                   );
                 })()}
-              </div>
+                    </div>
             )}
           </CardContent>
         </Card>
@@ -878,27 +878,27 @@ function OverridePicksContent() {
           {/* Participant Selection - Pre-filled if coming from management */}
           <div className="space-y-2">
             <Label htmlFor="participant">Participant</Label>
-            <Select 
+                                                                    <Select 
               value={selectedParticipantForNewPick || selectedParticipantForManagement} 
               onValueChange={setSelectedParticipantForNewPick}
-            >
+                                >
               <SelectTrigger>
                 <SelectValue placeholder="Select a participant" />
-              </SelectTrigger>
+                                      </SelectTrigger>
               <SelectContent>
                 {allParticipants.map(participant => (
                   <SelectItem key={participant.id} value={participant.id}>
                     {participant.name} ({participant.email || 'No email'})
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  
               {/* Game Selection */}
               <div className="space-y-2">
                 <Label htmlFor="game">Game</Label>
-                <Select 
+                                                                    <Select 
                   value={newPickData.gameId} 
                   onValueChange={(value) => {
                     const game = availableGames.find(g => g.id === value);
@@ -911,17 +911,17 @@ function OverridePicksContent() {
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a game" />
-                  </SelectTrigger>
+                                      </SelectTrigger>
                   <SelectContent>
                     {availableGames.map(game => (
                       <SelectItem key={game.id} value={game.id}>
                         {game.away_team} @ {game.home_team}
-                      </SelectItem>
+                                        </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+                                      </SelectContent>
+                                    </Select>
+                                </div>
+                                
               {/* Predicted Winner */}
               {newPickData.gameId && (
                 <div className="space-y-2">
@@ -949,7 +949,7 @@ function OverridePicksContent() {
                       })()}
                     </SelectContent>
                   </Select>
-                </div>
+                      </div>
               )}
 
               {/* Confidence Points */}
@@ -963,16 +963,16 @@ function OverridePicksContent() {
                   value={newPickData.confidencePoints}
                   onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
                 />
-              </div>
-            </div>
+                    </div>
+      </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAddPickDialog(false)}>
-                Cancel
-              </Button>
+          Cancel
+        </Button>
               <Button onClick={submitNewPick} disabled={isSaving}>
                 {isSaving ? 'Submitting...' : 'Submit Pick'}
-              </Button>
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1002,8 +1002,8 @@ function OverridePicksContent() {
             <p className="text-xs text-gray-500">
               Enter the predicted total points scored in the Monday night game.
             </p>
-          </div>
-        </div>
+              </div>
+              </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setShowMondayNightDialog(false)}>
