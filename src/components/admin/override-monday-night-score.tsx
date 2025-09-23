@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,6 @@ export function OverrideMondayNightScore({
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const { toast } = useToast();
 
   // Check if this is a period week or Super Bowl
@@ -48,36 +47,31 @@ export function OverrideMondayNightScore({
   const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
   const shouldShowOverride = isPeriodWeek || isSuperBowl;
 
-  useEffect(() => {
-    if (shouldShowOverride) {
-      loadParticipants();
-    }
-  }, [poolId, shouldShowOverride]);
-
-  const loadParticipants = async () => {
+  const loadParticipants = useCallback(async () => {
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
       
-      // Get participants who have submitted picks for this week
-      let query = supabase
-        .from('picks')
-        .select(`
-          participant_id,
-          participants!inner(id, name, email),
-          pools!inner(id, name)
-        `)
-        .eq('week', week)
-        .eq('season', season);
-
-      if (poolId) {
-        query = query.eq('pool_id', poolId);
+      if (!poolId) {
+        console.error('No poolId provided for loading participants');
+        toast({
+          title: 'Error',
+          description: 'Pool ID is required to load participants',
+          variant: 'destructive'
+        });
+        return;
       }
 
-      const { data: picksData, error: picksError } = await query;
+      // Get all participants from the pool (not just those who submitted picks)
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('participants')
+        .select('id, name, email')
+        .eq('pool_id', poolId)
+        .eq('is_active', true)
+        .order('name');
 
-      if (picksError) {
-        console.error('Error loading participants:', picksError);
+      if (participantsError) {
+        console.error('Error loading participants:', participantsError);
         toast({
           title: 'Error',
           description: 'Failed to load participants',
@@ -86,25 +80,16 @@ export function OverrideMondayNightScore({
         return;
       }
 
-      // Get unique participants with pool info
-      const uniqueParticipants = picksData?.reduce((acc, pick) => {
-        const participant = pick.participants as any;
-        const pool = pick.pools as any;
-        const existingParticipant = acc.find(p => p.id === participant.id && p.poolId === pool.id);
-        
-        if (!existingParticipant) {
-          acc.push({
-            id: participant.id,
-            name: participant.name,
-            email: participant.email,
-            poolId: pool.id,
-            poolName: pool.name
-          });
-        }
-        return acc;
-      }, [] as Participant[]) || [];
+      // Transform to the expected format
+      const participantsList = (participantsData || []).map(participant => ({
+        id: participant.id,
+        name: participant.name,
+        email: participant.email,
+        poolId: poolId,
+        poolName: poolName
+      }));
 
-      setParticipants(uniqueParticipants);
+      setParticipants(participantsList);
     } catch (error) {
       console.error('Error loading participants:', error);
       toast({
@@ -115,7 +100,13 @@ export function OverrideMondayNightScore({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [poolId, poolName, toast]);
+
+  useEffect(() => {
+    if (shouldShowOverride && poolId) {
+      loadParticipants();
+    }
+  }, [shouldShowOverride, poolId, loadParticipants]);
 
   const handleSubmit = async () => {
     if (!selectedParticipant || !mondayNightScore) {
@@ -207,7 +198,7 @@ export function OverrideMondayNightScore({
           Override Monday Night Score
         </CardTitle>
         <CardDescription>
-          Add Monday night game score predictions for participants who submitted picks before the tie breaker update.
+          Add Monday night game score predictions for participants in this pool.
           {isPeriodWeek && ` This is a period week (${PERIOD_WEEKS.join(', ')}) where tie breakers are used.`}
           {isSuperBowl && ' This is the Super Bowl where tie breakers are used.'}
         </CardDescription>
@@ -229,14 +220,11 @@ export function OverrideMondayNightScore({
                   </SelectTrigger>
                   <SelectContent>
                     {participants.map((participant) => (
-                      <SelectItem key={`${participant.id}-${participant.poolId}`} value={participant.id}>
+                      <SelectItem key={participant.id} value={participant.id}>
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4" />
                           <div className="flex flex-col">
                             <span>{participant.name}</span>
-                            {!poolId && participant.poolName && (
-                              <span className="text-xs text-gray-500">{participant.poolName}</span>
-                            )}
                             {participant.email && (
                               <span className="text-xs text-gray-500">({participant.email})</span>
                             )}
