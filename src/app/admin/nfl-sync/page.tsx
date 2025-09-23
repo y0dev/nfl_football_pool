@@ -314,7 +314,7 @@ function NFLSyncContent() {
                 <h1 className="text-2xl sm:text-3xl font-bold">NFL Data Sync</h1>
               </div>
               <p className="text-sm sm:text-base text-gray-600">
-                Synchronize NFL game data from RapidAPI to keep your pools up to date
+                Synchronize NFL game data from ESPN API to keep your pools up to date
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">

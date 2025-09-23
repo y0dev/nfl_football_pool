@@ -179,6 +179,22 @@ export async function POST(request: NextRequest) {
       const season = games?.[0]?.season || new Date().getFullYear();
       const seasonType = games?.[0]?.season_type || 2;
       
+      // Get full game data for Monday night game identification
+      const { data: fullGames, error: fullGamesError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('week', week)
+        .eq('season', season)
+        .eq('season_type', seasonType);
+
+      if (fullGamesError) {
+        console.error('Error loading full games for Monday night identification:', fullGamesError);
+      }
+
+      // Import the Monday night utility to identify the correct game
+      const { getMondayNightGame } = await import('@/lib/monday-night-utils');
+      const mondayNightGame = getMondayNightGame(fullGames || []);
+      
       const { error: tieBreakerError } = await supabase
         .from('tie_breakers')
         .upsert({
@@ -187,7 +203,8 @@ export async function POST(request: NextRequest) {
           week: week,
           season: season,
           season_type: seasonType,
-          answer: mondayNightScore
+          answer: mondayNightScore,
+          game_id: mondayNightGame?.id || null
         }, {
           onConflict: 'participant_id,pool_id,week,season,season_type'
         });

@@ -87,6 +87,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get the Monday night game for this week
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('week', week)
+      .eq('season', season)
+      .eq('season_type', seasonType);
+
+    if (gamesError) {
+      console.error('Error loading games:', gamesError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to load games for this week' },
+        { status: 500 }
+      );
+    }
+
+    // Import the Monday night utility to identify the correct game
+    const { getMondayNightGame } = await import('@/lib/monday-night-utils');
+    const mondayNightGame = getMondayNightGame(gamesData || []);
+
     // Upsert Monday night score to tie_breakers table
     const { error: tieBreakerError } = await supabase
       .from('tie_breakers')
@@ -96,7 +116,8 @@ export async function POST(request: NextRequest) {
         week: week,
         season: season,
         season_type: seasonType,
-        answer: mondayNightScore
+        answer: mondayNightScore,
+        game_id: mondayNightGame?.id || null
       }, {
         onConflict: 'participant_id,pool_id,week,season,season_type'
       });

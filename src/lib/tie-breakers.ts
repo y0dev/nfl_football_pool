@@ -11,6 +11,7 @@ export interface TieBreakerSettings {
   method: string;
   question: string | null;
   answer: number | null;
+  monday_night_game_id?: string | null;
 }
 
 /**
@@ -133,8 +134,16 @@ async function applySecondaryTieBreakers(
       currentRank++;
     } else {
       // Still tied, apply secondary tie breakers
+      // Convert TieBreakerResult[] back to participant format for secondary tie breakers
+      const participantsForSecondary = participants.map(p => ({
+        participant_id: p.participant_id,
+        participant_name: p.participant_name,
+        points: 0, // We don't have the original points here, but secondary tie breakers don't need them
+        correct_picks: 0
+      }));
+      
       const secondaryResults = await applySecondaryTieBreakerCascade(
-        poolId, week, season, participants, settings
+        poolId, week, season, participantsForSecondary, settings
       );
       
       // Assign ranks to secondary results
@@ -157,7 +166,7 @@ async function applySecondaryTieBreakerCascade(
   poolId: string,
   week: number,
   season: number,
-  tiedParticipants: TieBreakerResult[],
+  tiedParticipants: Array<{ participant_id: string; participant_name: string; points: number; correct_picks?: number }>,
   settings: TieBreakerSettings
 ): Promise<TieBreakerResult[]> {
   // Define the cascade of tie breaker methods to try
@@ -549,7 +558,8 @@ async function breakTieByConfidencePoints(
     // Calculate total confidence points for correct picks for each participant
     const confidencePoints = new Map<string, number>();
     picks?.forEach(pick => {
-      if (pick.predicted_winner === pick.games?.winner) {
+      const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
+      if (pick.predicted_winner === game?.winner) {
         const current = confidencePoints.get(pick.participant_id) || 0;
         confidencePoints.set(pick.participant_id, current + pick.confidence_points);
       }
@@ -593,7 +603,7 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
     
     const { data: pool, error } = await supabase
       .from('pools')
-      .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer')
+      .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer, monday_night_game_id')
       .eq('id', poolId)
       .single();
 
@@ -602,7 +612,8 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
     return {
       method: pool.tie_breaker_method || 'total_points',
       question: pool.tie_breaker_question,
-      answer: pool.tie_breaker_answer
+      answer: pool.tie_breaker_answer,
+      monday_night_game_id: pool.monday_night_game_id
     };
   } catch (error) {
     console.error('Error getting tie-breaker settings:', error);
@@ -625,9 +636,33 @@ async function breakTieByMondayNightTotal(
       throw new Error('Monday night total answer not set');
     }
 
-    const { data: tieBreakers, error } = await getSupabaseClient()
+    // Get the Monday night game for this week to validate consistency
+    const { getSupabaseClient } = await import('@/lib/supabase');
+    const supabase = getSupabaseClient();
+    
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('week', week)
+      .eq('season', season)
+      .eq('season_type', 2); // Default to regular season
+
+    if (gamesError) {
+      console.error('Error loading games for tiebreaker:', gamesError);
+      throw gamesError;
+    }
+
+    // Import the Monday night utility to identify the correct game
+    const { getMondayNightGame } = await import('@/lib/monday-night-utils');
+    const mondayNightGame = getMondayNightGame(gamesData || []);
+    
+    if (!mondayNightGame) {
+      console.warn('No Monday night game found for week', week, 'season', season);
+    }
+
+    const { data: tieBreakers, error } = await supabase
       .from('tie_breakers')
-      .select('participant_id, answer')
+      .select('participant_id, answer, game_id')
       .eq('pool_id', poolId)
       .eq('week', week)
       .eq('season', season)
@@ -639,6 +674,12 @@ async function breakTieByMondayNightTotal(
     const results: TieBreakerResult[] = participants
       .map(p => {
         const tieBreaker = tieBreakers?.find(tb => tb.participant_id === p.participant_id);
+        
+        // Validate that the tiebreaker is for the correct Monday night game
+        if (tieBreaker && mondayNightGame && tieBreaker.game_id !== mondayNightGame.id) {
+          console.warn(`Tiebreaker game ID mismatch for participant ${p.participant_id}: expected ${mondayNightGame.id}, got ${tieBreaker.game_id}`);
+        }
+        
         const difference = tieBreaker ? Math.abs(tieBreaker.answer - settings.answer!) : Infinity;
         
         return {
@@ -684,7 +725,8 @@ export async function saveTieBreakerSettings(
       .update({
         tie_breaker_method: settings.method,
         tie_breaker_question: settings.question,
-        tie_breaker_answer: settings.answer
+        tie_breaker_answer: settings.answer,
+        monday_night_game_id: settings.monday_night_game_id
       })
       .eq('id', poolId);
 

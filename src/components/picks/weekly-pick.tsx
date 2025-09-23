@@ -153,7 +153,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     };
 
     loadData();
-  }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast, selectedUser]);
+  }, [poolId, weekNumber, seasonType, preventGameLoading, propGames, toast, selectedUser, currentWeek, games.length]);
 
   // Monitor currentWeek changes
   useEffect(() => {
@@ -827,6 +827,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           initialScore={mondayNightScore || undefined}
           onScoreChange={setMondayNightScore}
           isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || seasonType === SUPER_BOWL_SEASON_TYPE}
+          games={games}
         />
       )}
 

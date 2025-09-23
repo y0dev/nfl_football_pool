@@ -171,20 +171,49 @@ export async function syncPlayoffs(season: number) {
   }
 }
 
-// Sync current week games
+// Sync current week games using ESPN API with date endpoint
 export async function syncCurrentWeek(season: number) {
   try {
-    console.log(`Syncing current week for ${season}...`);
+    console.log(`Syncing current week for ${season} using ESPN date endpoint...`);
     
-    const currentWeek = await nflAPI.getCurrentWeek(season);
+    const games = await nflAPI.getGamesWithDateEndpoint();
     
-    if (!currentWeek) {
-      console.log('Could not determine current week');
-      return { success: false, message: 'Could not determine current week' };
+    if (games.length === 0) {
+      console.log('No games found from ESPN API');
+      return { success: false, message: 'No games found' };
     }
 
-    console.log(`Current week is ${currentWeek.week_number}`);
-    return await syncWeekGames(season, currentWeek.week_number);
+    // Insert games into database
+    const { data, error } = await getSupabaseClient()
+      .from('games')
+      .upsert(
+        games.map(game => ({
+          id: game.id,
+          week: game.week,
+          season: game.season,
+          home_team: game.home_team,
+          away_team: game.away_team,
+          kickoff_time: game.time,
+          home_score: game.home_score || null,
+          away_score: game.away_score || null,
+          winner: game.status === 'finished' && game.home_score !== null && game.away_score !== null
+            ? (game.home_score! > game.away_score! ? game.home_team : game.away_team)
+            : null,
+          status: game.status,
+          home_team_id: game.home_team_id,
+          away_team_id: game.away_team_id,
+          is_active: true
+        })),
+        { onConflict: 'id' }
+      );
+
+    if (error) {
+      console.error('Error syncing games:', error);
+      return { success: false, message: error.message };
+    }
+
+    console.log(`Successfully synced ${games.length} games using ESPN date endpoint`);
+    return { success: true, count: games.length };
   } catch (error) {
     console.error('Failed to sync current week:', error);
     return { success: false, message: 'Failed to sync current week' };

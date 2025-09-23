@@ -11,6 +11,8 @@ import { Loader2, Save, Users, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getSupabaseClient } from '@/lib/supabase';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
+import { Game } from '@/types/game';
 
 interface Participant {
   id: string;
@@ -40,6 +42,11 @@ export function OverrideMondayNightScore({
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+  const [mondayNightGameInfo, setMondayNightGameInfo] = useState<{
+    game: Game;
+    displayText: string;
+  } | null>(null);
   const { toast } = useToast();
 
   // Check if this is a period week or Super Bowl
@@ -102,11 +109,30 @@ export function OverrideMondayNightScore({
     }
   }, [poolId, poolName, toast]);
 
+  const loadGames = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/games/week?week=${week}&seasonType=${seasonType}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setGames(result.games);
+          
+          // Identify the Monday night game
+          const mondayNightInfo = getMondayNightGameInfo(result.games);
+          setMondayNightGameInfo(mondayNightInfo);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading games:', error);
+    }
+  }, [week, seasonType]);
+
   useEffect(() => {
     if (shouldShowOverride && poolId) {
       loadParticipants();
+      loadGames();
     }
-  }, [shouldShowOverride, poolId, loadParticipants]);
+  }, [shouldShowOverride, poolId, loadParticipants, loadGames]);
 
   const handleSubmit = async () => {
     if (!selectedParticipant || !mondayNightScore) {
@@ -204,6 +230,27 @@ export function OverrideMondayNightScore({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Monday Night Game Info */}
+        {mondayNightGameInfo ? (
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="h-4 w-4 text-blue-600" />
+              <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
+            </div>
+            <div className="text-lg font-semibold text-blue-800">
+              {mondayNightGameInfo.displayText}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              Game ID: {mondayNightGameInfo.game.id} | Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="text-sm text-yellow-800">
+              No Monday night game found for Week {week}. Please check the games data.
+            </div>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-6 w-6 animate-spin" />

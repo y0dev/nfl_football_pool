@@ -16,6 +16,7 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
+import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 
 interface Pool {
   id: string;
@@ -82,6 +83,8 @@ function OverridePicksContent() {
     week: number;
     season: number;
     season_type: number;
+    kickoff_time: string;
+    status: string;
   }>>([]);
   const [allParticipants, setAllParticipants] = useState<Array<{
     id: string;
@@ -263,7 +266,7 @@ function OverridePicksContent() {
 
       const { data: gamesData, error } = await client
         .from('games')
-        .select('id, home_team, away_team, week, season, season_type')
+        .select('id, home_team, away_team, week, season, season_type, kickoff_time, status')
         .eq('week', week)
         .eq('season', season)
         .eq('season_type', seasonType)
@@ -988,6 +991,25 @@ function OverridePicksContent() {
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Monday Night Game Info */}
+          {(() => {
+            const mondayNightGameInfo = getMondayNightGameInfo(availableGames);
+            return mondayNightGameInfo ? (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
+                </div>
+                <div className="text-lg font-semibold text-blue-800">
+                  {mondayNightGameInfo.displayText}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+                </div>
+              </div>
+            ) : null;
+          })()}
+          
           <div className="space-y-2">
             <Label htmlFor="mondayNightScore">Monday Night Score</Label>
             <Input
@@ -1002,8 +1024,8 @@ function OverridePicksContent() {
             <p className="text-xs text-gray-500">
               Enter the predicted total points scored in the Monday night game.
             </p>
-              </div>
-              </div>
+          </div>
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setShowMondayNightDialog(false)}>

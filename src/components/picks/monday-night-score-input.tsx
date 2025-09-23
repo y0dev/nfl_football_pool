@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Target } from 'lucide-react';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { Game } from '@/types/game';
+import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 
 interface MondayNightScoreInputProps {
   poolId: string;
@@ -16,16 +18,18 @@ interface MondayNightScoreInputProps {
   initialScore?: number;
   onScoreChange: (score: number | null) => void;
   isRequired?: boolean;
+  games?: Game[];
 }
 
 export function MondayNightScoreInput({
-  poolId,
+  poolId: _poolId,
   weekNumber,
   seasonType,
-  participantId,
+  participantId: _participantId,
   initialScore,
   onScoreChange,
-  isRequired = false
+  isRequired = false,
+  games = []
 }: MondayNightScoreInputProps) {
   const [score, setScore] = useState<number | null>(initialScore || null);
   const [isValid, setIsValid] = useState(true);
@@ -34,6 +38,9 @@ export function MondayNightScoreInput({
   const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
   const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
   const shouldShowInput = isPeriodWeek || isSuperBowl;
+  
+  // Get Monday night game info
+  const mondayNightGameInfo = getMondayNightGameInfo(games);
 
   useEffect(() => {
     onScoreChange(score);
@@ -68,12 +75,37 @@ export function MondayNightScoreInput({
           Monday Night Game Score
         </CardTitle>
         <CardDescription>
-          Enter your prediction for the total points scored in Monday night&apos;s game.
-          This will be used as a tie-breaker if needed.
+          {mondayNightGameInfo ? (
+            <>
+              Enter your prediction for the total points scored in Monday night&apos;s game: <strong>{mondayNightGameInfo.displayText}</strong>.
+              This will be used as a tie-breaker if needed.
+            </>
+          ) : (
+            <>
+              Enter your prediction for the total points scored in Monday night&apos;s game.
+              This will be used as a tie-breaker if needed.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
+          {/* Monday Night Game Info */}
+          {mondayNightGameInfo && (
+            <div className="p-3 bg-white rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
+              </div>
+              <div className="text-lg font-semibold text-blue-800">
+                {mondayNightGameInfo.displayText}
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+              </div>
+            </div>
+          )}
+          
           <div>
             <Label htmlFor="monday-night-score" className="text-sm font-medium">
               Total Points Scored
