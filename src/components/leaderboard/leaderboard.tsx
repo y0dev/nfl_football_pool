@@ -60,7 +60,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   }, [poolId, weekNumber, seasonType, season]);
 
   if (isLoading) {
-  return (
+    return (
       <div className="space-y-4">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
@@ -84,9 +84,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
 
   if (leaderboardData.length === 0) {
     return (
-              <div className="text-center py-8">
+      <div className="text-center py-8">
         <p className="text-gray-500">No leaderboard data available for this week.</p>
-                  </div>
+      </div>
     );
   }
 
@@ -101,42 +101,38 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
               <TableHead className="sticky top-0 bg-white z-20 text-center">Points</TableHead>
               <TableHead className="sticky top-0 bg-white z-20 text-center">Correct</TableHead>
               {games.map((game, index) => (
-                <TableHead key={game.id} className="sticky top-0 bg-white z-20 text-center text-xs">
-                  <div>{getTeamAbbreviation(game.away_team)}</div>
+                <TableHead key={game.id || index} className="sticky top-0 bg-white z-20 text-center text-xs">
+                  <div>{getTeamAbbreviation(game.away_team || '')}</div>
                   <div className="text-gray-500">@</div>
-                  <div>{getTeamAbbreviation(game.home_team)}</div>
+                  <div>{getTeamAbbreviation(game.home_team || '')}</div>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {leaderboardData.map((entry, index) => (
-              <TableRow key={entry.participant_id}>
+              <TableRow key={entry.participant_id || index}>
                 <TableCell className="font-medium">
                   {index + 1}
                   {index === 0 && <Trophy className="h-4 w-4 text-yellow-500 inline ml-1" />}
                   {index === 1 && <Trophy className="h-4 w-4 text-gray-400 inline ml-1" />}
                   {index === 2 && <Trophy className="h-4 w-4 text-orange-500 inline ml-1" />}
-                        </TableCell>
-                <TableCell className="sticky left-0 bg-white z-10 font-medium">{entry.participant_name}</TableCell>
-                <TableCell className="text-center font-bold">{entry.total_points}</TableCell>
-                <TableCell className="text-center">
-                  {entry.correct_picks}/{entry.total_picks}
                 </TableCell>
-                {games.map(game => {
-                  const status = game.status.toLowerCase();
-                  const pick = entry.picks.find(p => p.game_id === game.id);
+                <TableCell className="sticky left-0 bg-white z-10 font-medium">{entry.participant_name || 'Unknown'}</TableCell>
+                <TableCell className="text-center font-bold">{entry.total_points || 0}</TableCell>
+                <TableCell className="text-center">
+                  {entry.correct_picks || 0}/{entry.total_picks || 0}
+                </TableCell>
+                {games.map((game, gameIndex) => {
+                  const status = game.status?.toLowerCase() || '';
+                  const pick = entry.picks?.find(p => p.game_id === game.id);
                   const isGameFinal = status === 'final' || status === 'post';
                   const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
-                  const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner.toLowerCase() === game.winner?.toLowerCase();
+                  const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
                   const confidence = pick?.confidence_points || 0;
-                  debugLog('Games - Pick:', pick);
-                  debugLog('Games - Is Game Finished:', isGameFinal);
-                  debugLog('Games - Is Game in Progress:', isGameInProgress);
-                  debugLog('Games - Is Correct Pick:', isCorrect);
-                  debugLog('Games - Confidence:', confidence);
+                  
                   return (
-                    <TableCell key={game.id} className="text-center">
+                    <TableCell key={game.id || gameIndex} className="text-center">
                       <div className="text-xs">
                         <div className={`font-medium ${
                           isGameInProgress ? 'text-blue-800' :
@@ -144,7 +140,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                           isCorrect ? 'text-green-800' : 'text-red-800'
                         }`}>
                           {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
-                  </div>
+                        </div>
                         <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono min-w-[1.5rem] text-center ${
                           confidence === 0 ? 'bg-gray-100 text-gray-500' :
                           isGameInProgress ? 'bg-blue-100 text-blue-800' :
@@ -152,20 +148,20 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                           isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
                           {confidence}
-                </div>
-                                                  {pick && pick.home_score !== null && pick.away_score !== null && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {pick.away_score}-{pick.home_score}
-                      </div>
-                          )}
+                        </div>
+                        {pick && pick.home_score !== null && pick.away_score !== null && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {pick.away_score}-{pick.home_score}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   );
                 })}
-                  </TableRow>
-                ))}
-            </TableBody>
-    </Table>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
