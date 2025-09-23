@@ -13,7 +13,7 @@ import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { loadPools } from '@/actions/loadPools';
 import { pickStorage } from '@/lib/pick-storage';
@@ -23,7 +23,24 @@ import { Game, SelectedUser } from '@/types/game';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL } from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS } from '@/lib/utils';
+
+// Helper functions for period calculations
+function getPeriodName(week: number): string {
+  if (week <= 4) return 'Period 1';
+  if (week <= 9) return 'Period 2';
+  if (week <= 14) return 'Period 3';
+  if (week <= 18) return 'Period 4';
+  return 'Unknown Period';
+}
+
+function getPeriodWeeks(week: number): number[] {
+  if (week <= 4) return [1, 2, 3, 4];
+  if (week <= 9) return [5, 6, 7, 8, 9];
+  if (week <= 14) return [10, 11, 12, 13, 14];
+  if (week <= 18) return [15, 16, 17, 18];
+  return [];
+}
 
 function PoolPicksContent() {
   const params = useParams();
@@ -1313,6 +1330,36 @@ function PoolPicksContent() {
               />
             </CardContent>
           </Card>
+
+          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+            <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-900">
+                  <Crown className="h-6 w-6 text-purple-600" />
+                  Period Leaderboard
+                </CardTitle>
+                <CardDescription className="text-purple-700">
+                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link 
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodName(currentWeek)}`}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View {getPeriodName(currentWeek)} Leaderboard
+                  </Link>
+                  <div className="text-sm text-purple-600 flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    Period includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );
@@ -1848,6 +1895,36 @@ function PoolPicksContent() {
               </CardHeader>
               <CardContent>
                 <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+            <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-900">
+                  <Crown className="h-6 w-6 text-purple-600" />
+                  Period Leaderboard
+                </CardTitle>
+                <CardDescription className="text-purple-700">
+                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link 
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodName(currentWeek)}`}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View {getPeriodName(currentWeek)} Leaderboard
+                  </Link>
+                  <div className="text-sm text-purple-600 flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    Period includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
