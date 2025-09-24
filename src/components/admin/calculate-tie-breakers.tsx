@@ -113,7 +113,7 @@ export function CalculateTieBreakers({
         </CardTitle>
         <CardDescription>
           Calculate weekly winners with tie breakers for this week.
-          {isPeriodWeek && ` This is a period week (${PERIOD_WEEKS.join(', ')}) where tie breakers are used.`}
+          {isPeriodWeek && ` This is a tie-breaker week (${PERIOD_WEEKS.join(', ')}) where tie breakers are used.`}
           {isSuperBowl && ' This is the Super Bowl where tie breakers are used.'}
           {isCommissioner && ' You can only calculate tie breakers for pools you created.'}
         </CardDescription>

@@ -1340,16 +1340,16 @@ function PoolPicksContent() {
             </CardContent>
           </Card>
 
-          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
             <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-purple-900">
                   <Crown className="h-6 w-6 text-purple-600" />
-                  Period Leaderboard
+                  Quarter Leaderboard
                 </CardTitle>
                 <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                  Week {currentWeek} is a tie-breaker week! View the complete period standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1359,7 +1359,7 @@ function PoolPicksContent() {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View {getPeriodName(currentWeek)} Leaderboard
+                    View {getPeriodName(currentWeek).replace('Period', 'Quarter')} Leaderboard
                   </Link>
                   <div className="text-sm text-purple-600 flex items-center gap-2">
                     <Info className="h-4 w-4" />
@@ -1850,8 +1850,8 @@ function PoolPicksContent() {
                   </Button>
                   <span className="text-xs text-purple-700">
                     {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) 
-                      ? `Week ${currentWeek} is a period week (${getPeriodName(currentWeek)})`
-                      : `Week ${currentWeek} is not a period week`
+                      ? `Week ${currentWeek} is a tie-breaker week (${getPeriodName(currentWeek)})`
+                      : `Week ${currentWeek} is not a tie-breaker week`
                     }
                   </span>
                 </div>
@@ -1945,16 +1945,16 @@ function PoolPicksContent() {
             </Card>
           )}
 
-          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
             <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-purple-900">
                   <Crown className="h-6 w-6 text-purple-600" />
-                  Period Leaderboard
+                  Quarter Leaderboard
                 </CardTitle>
                 <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                  Week {currentWeek} is a tie-breaker week! View the complete period standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1964,11 +1964,11 @@ function PoolPicksContent() {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View {getPeriodName(currentWeek)} Leaderboard
+                    View {getPeriodName(currentWeek).replace('Period', 'Quarter')} Leaderboard
                   </Link>
                   <div className="text-sm text-purple-600 flex items-center gap-2">
                     <Info className="h-4 w-4" />
-                    Period includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
+                    Quarter includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
                   </div>
                 </div>
               </CardContent>

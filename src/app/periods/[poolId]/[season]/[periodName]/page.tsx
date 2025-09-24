@@ -521,7 +521,7 @@ export default function PeriodLeaderboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-yellow-800">
               <Trophy className="h-6 w-6" />
-              Period Winner
+              Quarter Winner
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -560,7 +560,7 @@ export default function PeriodLeaderboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Period Leaderboard
+                Quarter Leaderboard
               </CardTitle>
               <CardDescription>
                 {periodInfo && `Weeks ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`}

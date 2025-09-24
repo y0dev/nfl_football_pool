@@ -131,7 +131,7 @@ export function MondayNightScoreInput({
           
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Clock className="h-4 w-4" />
-            <span>Used for tie-breaking in period weeks ({PERIOD_WEEKS.join(', ')}) and Super Bowl (playoffs)</span>
+            <span>Used for tie-breaking in tie-breaker weeks ({PERIOD_WEEKS.join(', ')}) and Super Bowl (playoffs)</span>
           </div>
           
           {score !== null && isValid && (

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     
     if (!isPeriodWeek && !isSuperBowl) {
       return NextResponse.json(
-        { success: false, error: 'Tie breakers can only be calculated for period weeks or Super Bowl' },
+        { success: false, error: 'Tie breakers can only be calculated for tie-breaker weeks or Super Bowl' },
         { status: 400 }
       );
     }

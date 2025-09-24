@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     
     if (!isPeriodWeek && !isSuperBowl) {
       return NextResponse.json(
-        { success: false, error: 'Monday night scores can only be added for period weeks or Super Bowl' },
+        { success: false, error: 'Monday night scores can only be added for tie-breaker weeks or Super Bowl' },
         { status: 400 }
       );
     }

@@ -817,7 +817,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         })}
       </div>
 
-      {/* Monday Night Score Input - Only show for period weeks */}
+      {/* Monday Night Score Input - Only show for tie-breaker weeks */}
       {selectedUser && (
         <MondayNightScoreInput
           poolId={poolId}

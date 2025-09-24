@@ -89,20 +89,20 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
 
   return (
     <div className="space-y-4">
-      {/* Desktop Table View */}
-      <div className="hidden md:block overflow-x-auto">
+      {/* Responsive Table View */}
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky top-0 bg-white z-20 w-12">Rank</TableHead>
-              <TableHead className="sticky top-0 bg-white z-20">Participant</TableHead>
-              <TableHead className="sticky top-0 bg-white z-20 text-center">Points</TableHead>
-              <TableHead className="sticky top-0 bg-white z-20 text-center">Correct</TableHead>
+              <TableHead className="sticky top-0 bg-white z-20 w-12 text-xs sm:text-sm">Rank</TableHead>
+              <TableHead className="sticky top-0 bg-white z-20 text-xs sm:text-sm">Participant</TableHead>
+              <TableHead className="sticky top-0 bg-white z-20 text-center text-xs sm:text-sm">Points</TableHead>
+              <TableHead className="sticky top-0 bg-white z-20 text-center text-xs sm:text-sm">Correct</TableHead>
               {games.map((game, index) => (
                 <TableHead key={game.id || index} className="sticky top-0 bg-white z-20 text-center text-xs">
-                  <div>{getTeamAbbreviation(game.away_team || '')}</div>
-                  <div className="text-gray-500">@</div>
-                  <div>{getTeamAbbreviation(game.home_team || '')}</div>
+                  <div className="text-xs">{getTeamAbbreviation(game.away_team || '')}</div>
+                  <div className="text-gray-500 text-xs">@</div>
+                  <div className="text-xs">{getTeamAbbreviation(game.home_team || '')}</div>
                 </TableHead>
               ))}
             </TableRow>
@@ -110,15 +110,15 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
           <TableBody>
             {leaderboardData.map((entry, index) => (
               <TableRow key={entry.participant_id || index}>
-                <TableCell className="font-medium">
+                <TableCell className="font-medium text-xs sm:text-sm">
                   {index + 1}
-                  {index === 0 && <Trophy className="h-4 w-4 text-yellow-500 inline ml-1" />}
-                  {index === 1 && <Trophy className="h-4 w-4 text-gray-400 inline ml-1" />}
-                  {index === 2 && <Trophy className="h-4 w-4 text-orange-500 inline ml-1" />}
+                  {index === 0 && <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500 inline ml-1" />}
+                  {index === 1 && <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 inline ml-1" />}
+                  {index === 2 && <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500 inline ml-1" />}
                 </TableCell>
-                <TableCell className="sticky left-0 bg-white z-10 font-medium">{entry.participant_name || 'Unknown'}</TableCell>
-                <TableCell className="text-center font-bold">{entry.total_points || 0}</TableCell>
-                <TableCell className="text-center">
+                <TableCell className="sticky left-0 bg-white z-10 font-medium text-xs sm:text-sm truncate max-w-24 sm:max-w-none">{entry.participant_name || 'Unknown'}</TableCell>
+                <TableCell className="text-center font-bold text-xs sm:text-sm">{entry.total_points || 0}</TableCell>
+                <TableCell className="text-center text-xs sm:text-sm">
                   {entry.correct_picks || 0}/{entry.total_picks || 0}
                 </TableCell>
                 {games.map((game, gameIndex) => {
@@ -160,82 +160,6 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
             ))}
           </TableBody>
         </Table>
-      </div>
-
-      {/* Mobile Card View */}
-      <div className="md:hidden space-y-3">
-        {leaderboardData.map((entry, index) => (
-          <div key={entry.participant_id || index} className="bg-white border rounded-lg p-4 shadow-sm">
-            {/* Header with Rank and Name */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-gray-700">#{index + 1}</span>
-                  {index === 0 && <Trophy className="h-5 w-5 text-yellow-500" />}
-                  {index === 1 && <Trophy className="h-5 w-5 text-gray-400" />}
-                  {index === 2 && <Trophy className="h-5 w-5 text-orange-500" />}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-gray-900 text-lg truncate">
-                  {entry.participant_name || 'Unknown'}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {entry.correct_picks || 0}/{entry.total_picks || 0} correct picks
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600">
-                  {entry.total_points || 0}
-                </div>
-                <div className="text-xs text-gray-600">points</div>
-              </div>
-            </div>
-            
-            {/* Picks Grid */}
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-gray-700 mb-2">Picks:</div>
-              <div className="grid grid-cols-2 gap-2">
-                {games.map((game, gameIndex) => {
-                  const status = game.status?.toLowerCase() || '';
-                  const pick = entry.picks?.find(p => p.game_id === game.id);
-                  const isGameFinal = status === 'final' || status === 'post';
-                  const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
-                  const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
-                  const confidence = pick?.confidence_points || 0;
-                  
-                  return (
-                    <div key={game.id || gameIndex} className="p-2 border rounded text-xs">
-                      <div className="font-medium text-gray-800 mb-1">
-                        {getTeamAbbreviation(game.away_team || '')} @ {getTeamAbbreviation(game.home_team || '')}
-                      </div>
-                      <div className={`font-medium ${
-                        isGameInProgress ? 'text-blue-800' :
-                        !isGameFinal ? 'text-yellow-800' :
-                        isCorrect ? 'text-green-800' : 'text-red-800'
-                      }`}>
-                        {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
-                      </div>
-                      <div className={`inline-block px-1 py-0.5 rounded text-xs font-mono ${
-                        confidence === 0 ? 'bg-gray-100 text-gray-500' :
-                        isGameInProgress ? 'bg-blue-100 text-blue-800' :
-                        !isGameFinal ? 'bg-yellow-100 text-yellow-800' :
-                        isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {confidence} pts
-                      </div>
-                      {pick && pick.home_score !== null && pick.away_score !== null && (
-                        <div className="text-gray-500 mt-1">
-                          {pick.away_score}-{pick.home_score}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
