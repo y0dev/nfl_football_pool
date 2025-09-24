@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { PERIOD_WEEKS } from '@/lib/utils';
+import { debugLog, PERIOD_WEEKS } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,14 +8,18 @@ export async function GET(request: NextRequest) {
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
     const periodName = searchParams.get('periodName');
-
+    
+    debugLog('Period leaderboard API request:', {
+      poolId,
+      season,
+      periodName
+    });
     if (!poolId || !season || !periodName) {
       return NextResponse.json(
         { success: false, error: 'Missing required parameters' },
         { status: 400 }
       );
     }
-
     const supabase = getSupabaseServiceClient();
 
     // Get period winner
@@ -37,6 +41,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    debugLog('Period winner:', periodWinner);
+
     // Get weekly winners for this period
     const periodWeeks = getPeriodWeeks(periodName);
     const { data: weeklyWinners, error: weeklyError } = await supabase
@@ -56,6 +62,8 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    debugLog('Weekly winners:', weeklyWinners);
 
     // Get participant standings for this period
     const { data: standings, error: standingsError } = await supabase
@@ -80,6 +88,8 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    debugLog('Standings:', standings);
 
     // Calculate period totals for each participant
     const participantTotals = new Map();
@@ -120,6 +130,8 @@ export async function GET(request: NextRequest) {
         participantTotals.get(participantId).weeks_won += 1;
       }
     });
+
+    debugLog('Participant totals:', participantTotals);
 
     // Convert to array and sort by total points
     const leaderboard = Array.from(participantTotals.values())

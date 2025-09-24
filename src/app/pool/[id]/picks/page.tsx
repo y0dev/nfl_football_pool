@@ -34,6 +34,14 @@ function getPeriodName(week: number): string {
   return 'Unknown Period';
 }
 
+function getPeriodNumber(week: number): number {
+  if (week <= 4) return 1;
+  if (week <= 9) return 2;
+  if (week <= 14) return 3;
+  if (week <= 18) return 4;
+  return 0;
+}
+
 function getPeriodWeeks(week: number): number[] {
   if (week <= 4) return [1, 2, 3, 4];
   if (week <= 9) return [5, 6, 7, 8, 9];
@@ -1347,7 +1355,7 @@ function PoolPicksContent() {
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodName(currentWeek)}`}
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentWeek)}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -1851,7 +1859,7 @@ function PoolPicksContent() {
                   <div className="text-xs text-purple-600">
                     <p><strong>Period:</strong> {getPeriodName(currentWeek)}</p>
                     <p><strong>Weeks included:</strong> {getPeriodWeeks(currentWeek).join(', ')}</p>
-                    <p><strong>Period link would be:</strong> /periods/{poolId}/{poolSeason}/{getPeriodName(currentWeek)}</p>
+                    <p><strong>Period link would be:</strong> /periods/{poolId}/{poolSeason}/{getPeriodNumber(currentWeek)}</p>
                   </div>
                 )}
               </CardContent>
@@ -1952,7 +1960,7 @@ function PoolPicksContent() {
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodName(currentWeek)}`}
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentWeek)}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -1985,7 +1993,7 @@ function PoolPicksContent() {
                     <p><strong>Period:</strong> {getPeriodName(currentWeek)}</p>
                     <p><strong>Weeks included:</strong> {getPeriodWeeks(currentWeek).join(', ')}</p>
                     <p><strong>Current week:</strong> {currentWeek}</p>
-                    <p><strong>Period link:</strong> /periods/{poolId}/{poolSeason}/{getPeriodName(currentWeek)}</p>
+                    <p><strong>Period link:</strong> /periods/{poolId}/{poolSeason}/{getPeriodNumber(currentWeek)}</p>
                   </div>
                   
                   {/* Mock period leaderboard data */}

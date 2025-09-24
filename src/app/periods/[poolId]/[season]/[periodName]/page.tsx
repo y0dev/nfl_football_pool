@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Trophy, Medal, Award, Users, Calendar } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { debugLog } from '@/lib/utils';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface PeriodWinner {
   id: string;
@@ -25,18 +27,12 @@ interface PeriodWinner {
 }
 
 interface WeeklyWinner {
-  id: string;
-  pool_id: string;
   week: number;
-  season: number;
-  winner_participant_id: string;
   winner_name: string;
   winner_points: number;
   winner_correct_picks: number;
   tie_breaker_used: boolean;
-  tie_breaker_question?: string;
   total_participants: number;
-  created_at: string;
 }
 
 interface LeaderboardEntry {
@@ -68,38 +64,67 @@ export default function PeriodLeaderboardPage() {
   
   const poolId = params.poolId as string;
   const season = params.season as string;
-  const periodName = decodeURIComponent(params.periodName as string);
+  const periodNumber = parseInt(params.periodName as string);
+  
+  // Convert period number to period name
+  const getPeriodNameFromNumber = (num: number): string => {
+    switch (num) {
+      case 1: return 'Period 1';
+      case 2: return 'Period 2';
+      case 3: return 'Period 3';
+      case 4: return 'Period 4';
+      default: return 'Unknown Period';
+    }
+  };
+  
+  const periodName = getPeriodNameFromNumber(periodNumber);
 
   const [periodWinner, setPeriodWinner] = useState<PeriodWinner | null>(null);
   const [weeklyWinners, setWeeklyWinners] = useState<WeeklyWinner[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [periodInfo, setPeriodInfo] = useState<PeriodInfo | null>(null);
+  const [poolName, setPoolName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadPeriodData();
-  }, [poolId, season, periodName]);
+  }, [poolId, season, periodNumber]);
 
   const loadPeriodData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}`
-      );
+      // Fetch period data and pool name in parallel
+      const [periodResponse, poolResponse] = await Promise.all([
+        fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}`),
+        fetch(`/api/pools/${poolId}`)
+      ]);
       
-      const result = await response.json();
+      const periodResult = await periodResponse.json();
+      const poolResult = await poolResponse.json();
       
-      if (result.success) {
-        setPeriodWinner(result.data.periodWinner);
-        setWeeklyWinners(result.data.weeklyWinners);
-        setLeaderboard(result.data.leaderboard);
-        setPeriodInfo(result.data.periodInfo);
+      debugLog('Period data loaded:', periodResult);
+      debugLog('Pool data loaded:', poolResult);
+      debugLog('Weekly winners count:', periodResult.data?.weeklyWinners?.length || 0);
+      debugLog('Period weeks:', periodResult.data?.periodInfo?.weeks || []);
+      
+      if (periodResult.success) {
+        setPeriodWinner(periodResult.data.periodWinner);
+        setWeeklyWinners(periodResult.data.weeklyWinners);
+        setLeaderboard(periodResult.data.leaderboard);
+        setPeriodInfo(periodResult.data.periodInfo);
       } else {
         toast({
           title: 'Error',
-          description: result.error,
+          description: periodResult.error,
           variant: 'destructive'
         });
+      }
+
+      if (poolResult.success && poolResult.pool) {
+        setPoolName(poolResult.pool.name);
+      } else {
+        console.warn('Failed to load pool name:', poolResult.error);
+        setPoolName(`Pool ${poolId.slice(0, 8)}...`);
       }
     } catch (error) {
       console.error('Error loading period data:', error);
@@ -139,6 +164,39 @@ export default function PeriodLeaderboardPage() {
     }
   };
 
+  // Prepare chart data for points per week
+  const prepareChartData = () => {
+    if (!leaderboard || !periodInfo) {
+      debugLog('Chart data preparation - missing data:', { leaderboard: !!leaderboard, periodInfo: !!periodInfo });
+      return [];
+    }
+
+    debugLog('Chart data preparation - leaderboard:', leaderboard);
+    debugLog('Chart data preparation - periodInfo:', periodInfo);
+
+    const chartData = [];
+    const weeks = periodInfo.weeks;
+
+    // Create data structure for each week
+    weeks.forEach(week => {
+      const weekData: any = { week: `Week ${week}` };
+      
+      // Add each participant's points for this week
+      leaderboard.forEach(participant => {
+        const weeklyScore = participant.weekly_scores.find(score => score.week === week);
+        weekData[participant.name] = weeklyScore ? weeklyScore.points : 0;
+        debugLog(`Week ${week} - ${participant.name}:`, weeklyScore ? weeklyScore.points : 0);
+      });
+      
+      chartData.push(weekData);
+    });
+
+    debugLog('Final chart data:', chartData);
+    return chartData;
+  };
+
+  const chartData = prepareChartData();
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -167,7 +225,7 @@ export default function PeriodLeaderboardPage() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">{periodName} Leaderboard</h1>
-          <p className="text-gray-600">Season {season} • Pool {poolId.slice(0, 8)}...</p>
+          <p className="text-gray-600">Season {season} • {poolName || `Pool ${poolId.slice(0, 8)}...`}</p>
         </div>
       </div>
 
@@ -207,6 +265,7 @@ export default function PeriodLeaderboardPage() {
         <TabsList>
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
           <TabsTrigger value="weekly">Weekly Winners</TabsTrigger>
+          <TabsTrigger value="chart" className="hidden md:flex">Points Chart</TabsTrigger>
         </TabsList>
 
         {/* Leaderboard Tab */}
@@ -271,34 +330,140 @@ export default function PeriodLeaderboardPage() {
                 Weekly Winners
               </CardTitle>
               <CardDescription>
-                Individual week winners during this period
+                Winners for each week in {periodName}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {weeklyWinners.map((winner) => (
-                  <div key={winner.id} className="p-4 bg-gray-50 rounded-lg border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-bold text-blue-600">W{winner.week}</span>
+                {periodInfo && periodInfo.weeks.map((week) => {
+                  const winner = weeklyWinners.find(w => w.week === week);
+                  debugLog(`Week ${week} winner:`, winner);
+                  return (
+                    <div key={week} className="p-4 bg-gray-50 rounded-lg border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-bold text-blue-600">W{week}</span>
+                          </div>
+                          <div>
+                            {winner ? (
+                              <>
+                                <h4 className="font-semibold">{winner.winner_name}</h4>
+                                <p className="text-sm text-gray-600">
+                                  {winner.winner_points} points • {winner.winner_correct_picks} correct picks
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <h4 className="font-semibold text-gray-500">No Winner</h4>
+                                <p className="text-sm text-gray-500">
+                                  No picks submitted or all participants had 0 points
+                                </p>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-semibold">{winner.winner_name}</h4>
-                          <p className="text-sm text-gray-600">
-                            {winner.winner_points} points • {winner.winner_correct_picks} correct
-                          </p>
+                        <div className="text-right">
+                          {winner?.tie_breaker_used && (
+                            <Badge variant="secondary">Tie Breaker</Badge>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        {winner.tie_breaker_used && (
-                          <Badge variant="secondary">Tie Breaker</Badge>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Points Chart Tab - Only visible on iPad and larger screens */}
+        <TabsContent value="chart" className="space-y-4 hidden md:block">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Points Per Week Chart
+              </CardTitle>
+              <CardDescription>
+                Visual representation of each participant's points throughout {periodName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartData.length > 0 ? (
+                <div className="h-96 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData}
+                      margin={{
+                        top: 20,
+                        right: 30,
+                        left: 20,
+                        bottom: 20,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="week" 
+                        tick={{ fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12 }}
+                        label={{ value: 'Points', angle: -90, position: 'insideLeft' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value: any, name: string) => [value, name]}
+                        labelFormatter={(label: string) => label}
+                      />
+                      <Legend />
+                      {leaderboard.map((participant, index) => {
+                        // Generate colors for each participant
+                        const colors = [
+                          '#3b82f6', // blue
+                          '#ef4444', // red
+                          '#10b981', // green
+                          '#f59e0b', // yellow
+                          '#8b5cf6', // purple
+                          '#06b6d4', // cyan
+                          '#84cc16', // lime
+                          '#f97316', // orange
+                          '#ec4899', // pink
+                          '#6b7280', // gray
+                        ];
+                        const color = colors[index % colors.length];
+                        
+                        return (
+                          <Line
+                            key={participant.participant_id}
+                            type="monotone"
+                            dataKey={participant.name}
+                            stroke={color}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                            connectNulls={false}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No chart data available</p>
+                  <p className="text-sm">Chart will appear when leaderboard data is loaded</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
