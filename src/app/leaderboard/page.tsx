@@ -837,7 +837,7 @@ function LeaderboardContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="h-5 w-5" />
-                Period Winners
+                Quarter Winners
               </CardTitle>
               <CardDescription>
                 Winners for different periods of the season (quarters, playoffs, etc.)
@@ -847,7 +847,7 @@ function LeaderboardContent() {
               {isLoadingWinners ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Loading period data...</p>
+                  <p className="mt-2 text-gray-600">Loading quarter data...</p>
                 </div>
               ) : periodWinners.length > 0 ? (
                 <div className="space-y-4">
@@ -856,7 +856,7 @@ function LeaderboardContent() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-semibold text-lg">{getPeriodDisplayName(period.period_name)}</h4>
+                            <h4 className="font-semibold text-lg">{getPeriodDisplayName(period.period_name).replace('Period', 'Quarter')}</h4>
                             <p className="text-gray-600">Weeks {period.start_week} - {period.end_week}</p>
                           </div>
                           <div className="text-right">
@@ -892,9 +892,9 @@ function LeaderboardContent() {
               ) : (
                 <div className="text-center py-12">
                   <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Period Winners Yet</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Quarter Winners Yet</h3>
                   <p className="text-gray-600">
-                    Period winners will be calculated as the season progresses.
+                    Quarter winners will be calculated as the season progresses.
                   </p>
                 </div>
               )}
@@ -1006,7 +1006,7 @@ function LeaderboardContent() {
               <p>Leaderboard entries: {leaderboardWithPicks.length}</p>
               <p>Games: {games.length}</p>
               <p>Weekly winners: {weeklyWinners.length}</p>
-              <p>Period winners: {periodWinners.length}</p>
+              <p>Quarter winners: {periodWinners.length}</p>
               <p>Season winner: {seasonWinner ? 'Yes' : 'No'}</p>
               <p>Selected pool: {selectedPool}</p>
               <p>Selected week: {selectedWeek}</p>
