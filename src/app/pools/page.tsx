@@ -656,6 +656,15 @@ function PoolsManagementContent() {
                           <Mail className="h-4 w-4" />
                           Invite
                         </Button>
+                        <Button
+                          onClick={() => router.push(`/admin/pool/${pool.id}`)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Admin
+                        </Button>
                         {isSuperAdmin && (
                           <Button
                             onClick={() => {

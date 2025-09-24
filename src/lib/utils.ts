@@ -5,6 +5,33 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Rank icon and color utilities for leaderboards
+export const getRankIcon = (index: number) => {
+  switch (index) {
+    case 0:
+      return 'trophy-gold';
+    case 1:
+      return 'medal-silver';
+    case 2:
+      return 'award-bronze';
+    default:
+      return `rank-${index + 1}`;
+  }
+};
+
+export const getRankColor = (index: number) => {
+  switch (index) {
+    case 0:
+      return 'bg-yellow-50 border-yellow-200';
+    case 1:
+      return 'bg-gray-50 border-gray-200';
+    case 2:
+      return 'bg-amber-50 border-amber-200';
+    default:
+      return 'bg-white border-gray-200';
+  }
+};
+
 // Period weeks where tie breakers are used for normal pools
 // Includes quarter marks (4, 9, 14) and Super Bowl (season_type 3)
 export const PERIOD_WEEKS = [4, 9, 14, 18] as const;

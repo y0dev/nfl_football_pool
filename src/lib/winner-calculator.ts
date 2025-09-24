@@ -315,6 +315,13 @@ export async function calculateWeeklyWinners(
 
     // Find the highest score
     const maxPoints = scores[0].points;
+    
+    // If all participants have 0 points, there's no winner
+    if (maxPoints === 0) {
+      console.log(`All participants have 0 points for week ${week}, season ${season}. No winner declared.`);
+      return null;
+    }
+    
     const topScorers = scores.filter(score => score.points === maxPoints);
 
     if (topScorers.length === 1) {
