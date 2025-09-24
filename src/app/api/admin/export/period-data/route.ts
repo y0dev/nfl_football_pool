@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportPeriodData } from '@/lib/export-utils';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +14,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get pool name for filename
+    const supabase = getSupabaseServiceClient();
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('name')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError) {
+      console.error('Error fetching pool name:', poolError);
+      // Fallback to pool ID if name fetch fails
+    }
+
+    const poolName = pool?.name || `pool-${poolId}`;
+    const formattedPoolName = poolName.toLowerCase().replace(/\s+/g, '-');
+    const formattedPeriodName = periodName.toLowerCase().replace(/\s+/g, '-');
+
     // Export the period data
     const csvContent = await exportPeriodData(
       poolId, 
@@ -24,7 +42,7 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="pool-${poolId}-${periodName.replace(/\s+/g, '-').toLowerCase()}-season-${season || new Date().getFullYear()}-period-data.csv"`
+        'Content-Disposition': `attachment; filename="${formattedPoolName}-${formattedPeriodName}-season-${season || new Date().getFullYear()}-period-data.csv"`
       }
     });
 

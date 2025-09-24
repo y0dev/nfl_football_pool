@@ -1,5 +1,5 @@
-import { getSupabaseClient } from './supabase';
-import { PERIOD_WEEKS } from './utils';
+import { getSupabaseServiceClient } from './supabase';
+import { debugLog, PERIOD_WEEKS } from './utils';
 
 export interface WeeklyExportData {
   participant_id: string;
@@ -41,11 +41,11 @@ export interface PeriodExportData {
 export async function exportWeeklyPicks(
   poolId: string, 
   week: number, 
-  season: number = new Date().getFullYear(),
-  seasonType: number = 2
+  season: number,
+  seasonType: number
 ): Promise<string> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     
     // First get games for the specified week/season/seasonType
     const { data: games, error: gamesError } = await supabase
@@ -65,20 +65,38 @@ export async function exportWeeklyPicks(
       throw new Error('No games found for this week');
     }
 
-    // Get picks for these games
-    const { data: picks, error: picksError } = await supabase
-      .from('picks')
-      .select(`
-        id,
-        participant_id,
-        game_id,
-        predicted_winner,
-        confidence_points,
-        participants!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .in('game_id', games.map(g => g.id))
-      .order('participants.name', { ascending: true });
+     // Get participants first to create a lookup map
+     const { data: participants, error: participantsError } = await supabase
+       .from('participants')
+       .select('id, name')
+       .eq('pool_id', poolId)
+       .eq('is_active', true);
+
+     if (participantsError) {
+       console.error('Error fetching participants:', participantsError);
+       throw new Error('Failed to fetch participants');
+     }
+
+     if (!participants || participants.length === 0) {
+       throw new Error('No participants found in this pool');
+     }
+
+     // Create a map of participant IDs to names
+     const participantsMap = new Map(participants.map(p => [p.id, p.name]));
+
+     // Get picks for these games
+     const { data: picks, error: picksError } = await supabase
+       .from('picks')
+       .select(`
+         id,
+         participant_id,
+         game_id,
+         predicted_winner,
+         confidence_points
+       `)
+       .eq('pool_id', poolId)
+       .in('game_id', games.map(g => g.id))
+       .order('participant_id', { ascending: true });
 
     if (picksError) {
       console.error('Error fetching picks for export:', picksError);
@@ -89,65 +107,70 @@ export async function exportWeeklyPicks(
       throw new Error('No picks found for this week');
     }
 
+    // debugLog('exportWeeklyPicks - picks', picks);
+
     // Get Monday night scores if this is a period week
     const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
-    let mondayNightScores: any[] = [];
+     let mondayNightScores: { participant_id: string; answer: number }[] = [];
+    debugLog('exportWeeklyPicks - isPeriodWeek', isPeriodWeek);
     
-    if (isPeriodWeek) {
-      const { data: tieBreakers, error: tieBreakerError } = await supabase
-        .from('tie_breakers')
-        .select(`
-          participant_id,
-          answer,
-          participants!inner(name)
-        `)
-        .eq('pool_id', poolId)
-        .eq('week', week)
-        .eq('season', season);
+     if (isPeriodWeek) {
+       const { data: tieBreakers, error: tieBreakerError } = await supabase
+         .from('tie_breakers')
+         .select(`
+           participant_id,
+           answer
+         `)
+         .eq('pool_id', poolId)
+         .eq('week', week)
+         .eq('season', season);
 
-      if (!tieBreakerError && tieBreakers) {
-        mondayNightScores = tieBreakers;
-      }
-    }
+       if (!tieBreakerError && tieBreakers) {
+         mondayNightScores = tieBreakers;
+       }
+     }
 
     // Create a map of games by ID for easy lookup
     const gamesMap = new Map(games.map(game => [game.id, game]));
-
-    // Transform data for CSV export
-    const exportData: WeeklyExportData[] = picks.map((pick: any) => {
-      const game = gamesMap.get(pick.game_id);
-      const participant = pick.participants;
-      
-      if (!game) {
-        console.warn(`Game not found for pick ${pick.id}, game_id: ${pick.game_id}`);
-        return null;
-      }
-
-      const isCorrect = game.winner && pick.predicted_winner.toLowerCase() === game.winner.toLowerCase();
-      const pointsEarned = isCorrect ? pick.confidence_points : 0;
-
-      return {
-        participant_id: pick.participant_id,
-        participant_name: participant.name,
-        game_id: pick.game_id,
-        home_team: game.home_team,
-        away_team: game.away_team,
-        predicted_winner: pick.predicted_winner,
-        confidence_points: pick.confidence_points,
-        game_status: game.status,
-        game_winner: game.winner,
-        home_score: game.home_score,
-        away_score: game.away_score,
-        kickoff_time: game.kickoff_time,
-        is_correct: isCorrect,
-        points_earned: pointsEarned
-      };
-    }).filter(Boolean); // Remove any null entries
-
-    // Create CSV content
-    const csvContent = createWeeklyPicksCSV(exportData, mondayNightScores, week, season);
-    
-    return csvContent;
+    debugLog('exportWeeklyPicks - gamesMap', gamesMap);
+     // Transform data for CSV export
+     const exportData: WeeklyExportData[] = picks
+       .map((pick: { participant_id: string; game_id: string; predicted_winner: string; confidence_points: number; id: string }) => {
+       const game = gamesMap.get(pick.game_id);
+       const participantName = participantsMap.get(pick.participant_id) || pick.participant_id;
+       debugLog('exportWeeklyPicks - game', game);
+       debugLog('exportWeeklyPicks - participantName', participantName);
+       if (!game) {
+         console.warn(`Game not found for pick ${pick.id}, game_id: ${pick.game_id}`);
+         return null;
+       }
+       debugLog('exportWeeklyPicks - game found');
+       const isCorrect = game.winner && pick.predicted_winner.toLowerCase() === game.winner.toLowerCase();
+       const pointsEarned = isCorrect ? pick.confidence_points : 0;
+       debugLog('exportWeeklyPicks - pointsEarned', pointsEarned);
+       return {
+         participant_id: pick.participant_id,
+         participant_name: participantName,
+         game_id: pick.game_id,
+         home_team: game.home_team,
+         away_team: game.away_team,
+         predicted_winner: pick.predicted_winner,
+         confidence_points: pick.confidence_points,
+         game_status: game.status,
+         game_winner: game.winner,
+         home_score: game.home_score,
+         away_score: game.away_score,
+         kickoff_time: game.kickoff_time,
+         is_correct: isCorrect,
+         points_earned: pointsEarned
+       };
+     })
+     .filter((item): item is WeeklyExportData => item !== null); // Remove any null entries
+    debugLog('exportWeeklyPicks - exportData', exportData);
+     // Create CSV content
+     const csvContent = createWeeklyPicksCSV(exportData, mondayNightScores, week, season, participantsMap);
+     // debugLog('exportWeeklyPicks - csvContent', csvContent);
+     return csvContent;
     
   } catch (error) {
     console.error('Failed to export weekly picks:', error);
@@ -159,12 +182,12 @@ export async function exportWeeklyPicks(
  * Export period calculation data for manual verification
  */
 export async function exportPeriodData(
-  poolId: string,
-  periodName: string,
+  poolId: string, 
+  periodName: string, 
   season: number = new Date().getFullYear()
 ): Promise<string> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     
     // Get period weeks
     const periodWeeks = getPeriodWeeks(periodName);
@@ -189,40 +212,40 @@ export async function exportPeriodData(
       throw new Error('No participants found in this pool');
     }
 
-    // Get scores for all weeks in the period
-    const { data: scores, error: scoresError } = await supabase
-      .from('scores')
+    // Get all picks for the period weeks
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
       .select(`
+        id,
         participant_id,
-        week,
-        points,
-        correct_picks,
-        total_picks,
-        rank,
+        game_id,
+        predicted_winner,
+        confidence_points,
         participants!inner(name)
       `)
       .eq('pool_id', poolId)
-      .eq('season', season)
-      .in('week', periodWeeks)
-      .order('participant_id', { ascending: true })
-      .order('week', { ascending: true });
+      .in('game_id', await getGameIdsForWeeks(supabase, periodWeeks, season));
 
-    if (scoresError) {
-      console.error('Error fetching scores:', scoresError);
-      throw new Error('Failed to fetch scores data');
+    if (picksError) {
+      console.error('Error fetching picks:', picksError);
+      throw new Error('Failed to fetch picks data');
     }
 
-    // Get weekly winners for the period
-    const { data: weeklyWinners, error: winnersError } = await supabase
-      .from('weekly_winners')
-      .select('week, winner_participant_id')
-      .eq('pool_id', poolId)
+    // Get all games for the period weeks
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
       .eq('season', season)
+      .eq('season_type', 2)
       .in('week', periodWeeks);
 
-    if (winnersError) {
-      console.error('Error fetching weekly winners:', winnersError);
+    if (gamesError) {
+      console.error('Error fetching games:', gamesError);
+      throw new Error('Failed to fetch games data');
     }
+
+    // Create a map of games by ID for easy lookup
+    const gamesMap = new Map(gamesData?.map(game => [game.id, game]) || []);
 
     // Calculate period totals for each participant
     const participantTotals = new Map<string, PeriodExportData>();
@@ -240,30 +263,103 @@ export async function exportPeriodData(
       });
     });
 
-    // Process scores data
-    scores?.forEach(score => {
-      const participant = participantTotals.get(score.participant_id);
-      if (participant) {
-        participant.total_points += score.points || 0;
-        participant.total_correct_picks += score.correct_picks || 0;
-        participant.total_picks += score.total_picks || 0;
-        
-        participant.weekly_breakdown.push({
-          week: score.week,
-          points: score.points || 0,
-          correct_picks: score.correct_picks || 0,
-          total_picks: score.total_picks || 0,
-          rank: score.rank || 0
-        });
+    // Group picks by participant and week
+    const participantWeekPicks = new Map<string, Map<number, Array<{
+      id: string;
+      participant_id: string;
+      game_id: string;
+      predicted_winner: string;
+      confidence_points: number;
+      participants: { name: string };
+      game_winner?: string | null;
+      game_status?: string;
+    }>>>();
+    
+    picksData?.forEach(pick => {
+      const game = gamesMap.get(pick.game_id);
+      if (!game) return;
+      
+      const week = game.week;
+      if (!participantWeekPicks.has(pick.participant_id)) {
+        participantWeekPicks.set(pick.participant_id, new Map());
       }
+      if (!participantWeekPicks.get(pick.participant_id)!.has(week)) {
+        participantWeekPicks.get(pick.participant_id)!.set(week, []);
+      }
+      participantWeekPicks.get(pick.participant_id)!.get(week)!.push({
+        ...pick,
+        participants: { name: (pick.participants as any).name },
+        game_winner: game.winner,
+        game_status: game.status
+      });
     });
 
-    // Count weeks won
-    weeklyWinners?.forEach(winner => {
-      const participant = participantTotals.get(winner.winner_participant_id);
-      if (participant) {
-        participant.weeks_won += 1;
-      }
+    // Calculate totals for each participant
+    participantWeekPicks.forEach((weekPicks, participantId) => {
+      const participant = participantTotals.get(participantId);
+      if (!participant) return;
+
+      let totalPoints = 0;
+      let totalCorrectPicks = 0;
+      let totalPicks = 0;
+      let weeksWon = 0;
+
+      // Process each week
+      periodWeeks.forEach(week => {
+        const weekPicksData = weekPicks.get(week) || [];
+        let weekPoints = 0;
+        let weekCorrectPicks = 0;
+        const weekTotalPicks = weekPicksData.length;
+
+        weekPicksData.forEach((pick: {
+          id: string;
+          participant_id: string;
+          game_id: string;
+          predicted_winner: string;
+          confidence_points: number;
+          participants: { name: string };
+          game_winner?: string | null;
+          game_status?: string;
+        }) => {
+          const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
+          if (isCorrect) {
+            weekPoints += pick.confidence_points;
+            weekCorrectPicks++;
+          }
+        });
+
+        totalPoints += weekPoints;
+        totalCorrectPicks += weekCorrectPicks;
+        totalPicks += weekTotalPicks;
+
+        // Add to weekly breakdown
+        participant.weekly_breakdown.push({
+          week: week,
+          points: weekPoints,
+          correct_picks: weekCorrectPicks,
+          total_picks: weekTotalPicks,
+          rank: 0 // We'll calculate rank later
+        });
+
+        // Check if this participant won this week (highest points)
+        if (weekPoints > 0) {
+          const isWeekWinner = Array.from(participantWeekPicks.entries()).every(([otherId, otherWeekPicks]) => {
+            if (otherId === participantId) return true;
+            const otherWeekPicksData = otherWeekPicks.get(week) || [];
+            const otherWeekPoints = otherWeekPicksData.reduce((sum, pick) => {
+              const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
+              return sum + (isCorrect ? pick.confidence_points : 0);
+            }, 0);
+            return weekPoints > otherWeekPoints;
+          });
+          if (isWeekWinner) weeksWon++;
+        }
+      });
+
+      participant.total_points = totalPoints;
+      participant.total_correct_picks = totalCorrectPicks;
+      participant.total_picks = totalPicks;
+      participant.weeks_won = weeksWon;
     });
 
     // Convert to array and sort by total points
@@ -272,7 +368,7 @@ export async function exportPeriodData(
 
     // Create CSV content
     const csvContent = createPeriodDataCSV(exportData, periodWeeks);
-    
+    debugLog('exportPeriodData - csvContent', csvContent);
     return csvContent;
     
   } catch (error) {
@@ -281,31 +377,33 @@ export async function exportPeriodData(
   }
 }
 
+// Helper function to get game IDs for specific weeks
+async function getGameIdsForWeeks(supabase: any, weeks: number[], season: number): Promise<string[]> {
+  const { data: games, error } = await supabase
+    .from('games')
+    .select('id')
+    .eq('season', season)
+    .eq('season_type', 2)
+    .in('week', weeks);
+
+  if (error) {
+    console.error('Error fetching game IDs:', error);
+    return [];
+  }
+
+  return games?.map((game: { id: string }) => game.id) || [];
+}
+
 /**
  * Create CSV content for weekly picks export
  */
 function createWeeklyPicksCSV(
   picksData: WeeklyExportData[], 
-  mondayNightScores: any[], 
+  mondayNightScores: { participant_id: string; answer: number }[], 
   week: number, 
-  season: number
+  season: number,
+  participantsMap: Map<string, string>
 ): string {
-  const headers = [
-    'Participant Name',
-    'Game',
-    'Predicted Winner',
-    'Confidence Points',
-    'Game Status',
-    'Actual Winner',
-    'Home Score',
-    'Away Score',
-    'Is Correct',
-    'Points Earned',
-    'Kickoff Time'
-  ];
-
-  const rows = [headers];
-
   // Group picks by participant
   const participantGroups = new Map<string, WeeklyExportData[]>();
   picksData.forEach(pick => {
@@ -315,35 +413,84 @@ function createWeeklyPicksCSV(
     participantGroups.get(pick.participant_name)!.push(pick);
   });
 
-  // Create rows for each participant
-  participantGroups.forEach((picks, participantName) => {
-    picks.forEach(pick => {
-      const row = [
-        participantName,
-        `${pick.away_team} @ ${pick.home_team}`,
-        pick.predicted_winner,
-        pick.confidence_points.toString(),
-        pick.game_status,
-        pick.game_winner || 'TBD',
-        pick.home_score?.toString() || 'TBD',
-        pick.away_score?.toString() || 'TBD',
-        pick.is_correct ? 'Yes' : 'No',
-        pick.points_earned.toString(),
-        new Date(pick.kickoff_time).toLocaleString()
-      ];
-      rows.push(row);
-    });
+  // Get all unique games by game_id and sort them by kickoff time
+  const gamesMap = new Map();
+  picksData.forEach(pick => {
+    if (!gamesMap.has(pick.game_id)) {
+      gamesMap.set(pick.game_id, {
+        id: pick.game_id,
+        home_team: pick.home_team,
+        away_team: pick.away_team,
+        kickoff_time: pick.kickoff_time,
+        status: pick.game_status,
+        winner: pick.game_winner,
+        home_score: pick.home_score,
+        away_score: pick.away_score
+      });
+    }
+  });
+  
+  const games = Array.from(gamesMap.values()).sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime());
+  // debugLog('exportWeeklyPicks - unique games', games);
+
+  // Create headers to match leaderboard structure
+  const headers = ['Rank', 'Participant', 'Points', 'Correct'];
+  games.forEach(game => {
+    headers.push(`${game.away_team} @ ${game.home_team}`);
   });
 
-  // Add Monday night scores section if applicable
+  debugLog('exportWeeklyPicks - headers', headers);
+  const rows = [headers];
+
+  // Create rows for each participant (sorted by total points descending)
+  const sortedParticipants = Array.from(participantGroups.entries()).sort((a, b) => {
+    const aPoints = a[1].reduce((sum, pick) => sum + pick.points_earned, 0);
+    const bPoints = b[1].reduce((sum, pick) => sum + pick.points_earned, 0);
+    return bPoints - aPoints; // Sort descending by points
+  });
+
+  sortedParticipants.forEach(([participantName, picks], index) => {
+    // Calculate total points and correct picks
+    const totalPoints = picks.reduce((sum, pick) => sum + pick.points_earned, 0);
+    const correctPicks = picks.filter(pick => pick.is_correct).length;
+    const totalPicks = picks.length;
+
+    // Create a map of game_id to pick for easy lookup
+    const picksMap = new Map(picks.map(pick => [pick.game_id, pick]));
+
+    // Start the row with rank, participant, points, correct
+    const row = [
+      (index + 1).toString(), // Rank
+      participantName,
+      totalPoints.toString(),
+      `${correctPicks} of ${totalPicks}` // Changed from "3/4" to "3 of 4" to prevent Excel date interpretation
+    ];
+
+    // Add pick data for each game (predicted winner + confidence points)
+    games.forEach(game => {
+      const pick = picksMap.get(game.id);
+      if (pick) {
+        // Format: "Predicted Winner (Confidence Points)" to match leaderboard
+        const pickText = `${pick.predicted_winner} (${pick.confidence_points})`;
+        row.push(pickText);
+      } else {
+        row.push('-');
+      }
+    });
+
+    rows.push(row);
+  });
+
+  // Add Monday night scores if available
   if (mondayNightScores.length > 0) {
     rows.push([]); // Empty row
     rows.push(['MONDAY NIGHT SCORES (TIE BREAKERS)']);
     rows.push(['Participant Name', 'Predicted Score', 'Week', 'Season']);
     
     mondayNightScores.forEach(score => {
+      const participantName = participantsMap.get(score.participant_id) || score.participant_id;
       rows.push([
-        score.participants.name,
+        participantName,
         score.answer.toString(),
         week.toString(),
         season.toString()
@@ -360,7 +507,10 @@ function createWeeklyPicksCSV(
  * Create CSV content for period data export
  */
 function createPeriodDataCSV(periodData: PeriodExportData[], periodWeeks: number[]): string {
+  debugLog('exportPeriodData - periodData', periodData);
+  debugLog('exportPeriodData - periodWeeks', periodWeeks);
   const headers = [
+    'Place',
     'Participant Name',
     'Period',
     'Total Points',
@@ -380,10 +530,12 @@ function createPeriodDataCSV(periodData: PeriodExportData[], periodWeeks: number
 
   const rows = [headers];
 
-  periodData.forEach(participant => {
+  periodData.forEach((participant, index) => {
+    debugLog('exportPeriodData - participant', participant);
     const row = [
+      (index + 1).toString(),
       participant.participant_name,
-      participant.period_name,
+      participant.period_name.replace('Period', 'Q'),
       participant.total_points.toString(),
       participant.total_correct_picks.toString(),
       participant.total_picks.toString(),
@@ -395,6 +547,7 @@ function createPeriodDataCSV(periodData: PeriodExportData[], periodWeeks: number
 
     // Add weekly breakdown data
     periodWeeks.forEach(week => {
+      debugLog('exportPeriodData - week', week);
       const weekData = participant.weekly_breakdown.find(w => w.week === week);
       row.push(weekData ? weekData.points.toString() : '0');
       row.push(weekData ? weekData.correct_picks.toString() : '0');
@@ -427,20 +580,3 @@ function getPeriodWeeks(periodName: string): number[] {
   }
 }
 
-/**
- * Download CSV file
- */
-function downloadCSV(csvContent: string, filename: string): void {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-}
