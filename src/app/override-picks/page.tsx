@@ -668,7 +668,7 @@ function OverridePicksContent() {
                           <span>Week {week}</span>
                           {isPeriodWeek && (
                             <Badge variant="secondary" className="text-xs">
-                              Period Week
+                              Tie-breaker Week
                             </Badge>
                           )}
                         </div>

@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
     
-    // Get period weeks using the same logic as export
+    // Get tie-breaker weeks using the same logic as export
     const periodWeeks = getPeriodWeeks(periodName);
     if (periodWeeks.length === 0) {
       return NextResponse.json(
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all picks for the period weeks
+    // Get all picks for the tie-breaker weeks
     const { data: picksData, error: picksError } = await supabase
       .from('picks')
       .select(`
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all games for the period weeks
+    // Get all games for the tie-breaker weeks
     const { data: gamesData, error: gamesError } = await supabase
       .from('games')
       .select('*')
@@ -266,7 +266,7 @@ export async function GET(request: NextRequest) {
     });
     
     debugLog('Completed weeks (with points):', completedWeeks);
-    debugLog('All period weeks:', periodWeeks);
+    debugLog('All tie-breaker weeks:', periodWeeks);
     
     // Debug: Show weekly scores for each participant
     debugLog('\n=== Weekly Scores for All Participants ===');

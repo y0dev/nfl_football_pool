@@ -32,7 +32,7 @@ export const getRankColor = (index: number) => {
   }
 };
 
-// Period weeks where tie breakers are used for normal pools
+// Tie-breaker weeks where tie breakers are used for normal pools
 // Includes quarter marks (4, 9, 14) and Super Bowl (season_type 3)
 export const PERIOD_WEEKS = [4, 9, 14, 18] as const;
 

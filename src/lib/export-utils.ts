@@ -109,7 +109,7 @@ export async function exportWeeklyPicks(
 
     // debugLog('exportWeeklyPicks - picks', picks);
 
-    // Get Monday night scores if this is a period week
+    // Get Monday night scores if this is a tie-breaker week
     const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
      let mondayNightScores: { participant_id: string; answer: number }[] = [];
     debugLog('exportWeeklyPicks - isPeriodWeek', isPeriodWeek);
@@ -189,7 +189,7 @@ export async function exportPeriodData(
   try {
     const supabase = getSupabaseServiceClient();
     
-    // Get period weeks
+    // Get tie-breaker weeks
     const periodWeeks = getPeriodWeeks(periodName);
     if (periodWeeks.length === 0) {
       throw new Error('Invalid period name');
@@ -212,7 +212,7 @@ export async function exportPeriodData(
       throw new Error('No participants found in this pool');
     }
 
-    // Get all picks for the period weeks
+    // Get all picks for the tie-breaker weeks
     const { data: picksData, error: picksError } = await supabase
       .from('picks')
       .select(`
@@ -231,7 +231,7 @@ export async function exportPeriodData(
       throw new Error('Failed to fetch picks data');
     }
 
-    // Get all games for the period weeks
+    // Get all games for the tie-breaker weeks
     const { data: gamesData, error: gamesError } = await supabase
       .from('games')
       .select('*')
@@ -563,7 +563,7 @@ function createPeriodDataCSV(periodData: PeriodExportData[], periodWeeks: number
 }
 
 /**
- * Get period weeks based on period name
+ * Get tie-breaker weeks based on period name
  */
 function getPeriodWeeks(periodName: string): number[] {
   switch (periodName.toLowerCase()) {

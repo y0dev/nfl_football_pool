@@ -158,7 +158,7 @@ export function PeriodWinnersDisplay({
           Period Winners
         </CardTitle>
         <CardDescription>
-          {isPeriodWeek && `This is a period week (${PERIOD_WEEKS.join(', ')}) where period winners are calculated.`}
+          {isPeriodWeek && `This is a tie-breaker week (${PERIOD_WEEKS.join(', ')}) where period winners are calculated.`}
           {isSuperBowl && ' This is the Super Bowl where period winners are calculated.'}
         </CardDescription>
       </CardHeader>

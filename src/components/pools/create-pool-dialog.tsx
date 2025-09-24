@@ -132,7 +132,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Normal pools disable tie breakers during regular weeks (tie breakers only used in period weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs). 
+                    Normal pools disable tie breakers during regular weeks (tie breakers only used in tie-breaker weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs). 
                     Knockout pools always use tie breakers.
                   </FormDescription>
                   <FormMessage />

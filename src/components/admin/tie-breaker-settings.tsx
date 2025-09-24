@@ -352,7 +352,7 @@ export function TieBreakerSettings({ poolId, poolName }: TieBreakerSettingsProps
         {/* Help Text */}
         <div className="text-xs text-gray-500 space-y-1">
           <p><strong>Note:</strong> Tie-breaker settings apply to all weeks in the pool.</p>
-          <p>For normal pools, tie-breakers are only used during period weeks ({PERIOD_WEEKS.join(', ')}) and the Super Bowl (playoffs).</p>
+          <p>For normal pools, tie-breakers are only used during tie-breaker weeks ({PERIOD_WEEKS.join(', ')}) and the Super Bowl (playoffs).</p>
           <p>For custom questions, participants will be asked to provide their answer when submitting picks.</p>
           <p>The participant whose answer is closest to the correct answer wins the tie-breaker.</p>
         </div>

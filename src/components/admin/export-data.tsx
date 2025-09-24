@@ -284,7 +284,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
                   {Array.from({ length: 18 }, (_, i) => i + 1).map(week => (
                     <SelectItem key={week} value={week.toString()}>
                       Week {week}
-                      {PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]) && ' (Period Week)'}
+                      {PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]) && ' (Tie-breaker Week)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -322,10 +322,10 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 text-blue-800">
                 <Calendar className="h-4 w-4" />
-                <span className="text-sm font-medium">Period Week Detected</span>
+                <span className="text-sm font-medium">Tie-breaker Week Detected</span>
               </div>
               <p className="text-sm text-blue-700 mt-1">
-                This week is a period week. Monday night scores (tie breakers) will be included in the export.
+                This week is a tie-breaker week. Monday night scores (tie breakers) will be included in the export.
               </p>
             </div>
           )}
@@ -432,7 +432,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
               <li>All participant picks with confidence points</li>
               <li>Game results and actual winners</li>
               <li>Points earned for each pick</li>
-              <li>Monday night scores (for period weeks)</li>
+              <li>Monday night scores (for tie-breaker weeks)</li>
               <li>Game kickoff times and status</li>
             </ul>
           </div>

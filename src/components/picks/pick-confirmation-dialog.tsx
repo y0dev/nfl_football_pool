@@ -157,7 +157,7 @@ export function PickConfirmationDialog({
                       Total Points Prediction
                     </div>
                     <div className="text-sm text-blue-700">
-                      Used for tie-breaking in {isPeriodWeek ? 'period week' : 'Super Bowl'}
+                      Used for tie-breaking in {isPeriodWeek ? 'tie-breaker week' : 'Super Bowl'}
                     </div>
                   </div>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">

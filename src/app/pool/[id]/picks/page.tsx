@@ -1340,7 +1340,7 @@ function PoolPicksContent() {
             </CardContent>
           </Card>
 
-          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
             <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
               <CardHeader>
@@ -1349,7 +1349,7 @@ function PoolPicksContent() {
                   Period Leaderboard
                 </CardTitle>
                 <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                  Week {currentWeek} is a tie-breaker week! View the complete period standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1850,8 +1850,8 @@ function PoolPicksContent() {
                   </Button>
                   <span className="text-xs text-purple-700">
                     {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) 
-                      ? `Week ${currentWeek} is a period week (${getPeriodName(currentWeek)})`
-                      : `Week ${currentWeek} is not a period week`
+                      ? `Week ${currentWeek} is a tie-breaker week (${getPeriodName(currentWeek)})`
+                      : `Week ${currentWeek} is not a tie-breaker week`
                     }
                   </span>
                 </div>
@@ -1945,7 +1945,7 @@ function PoolPicksContent() {
             </Card>
           )}
 
-          {/* Period Leaderboard Link - Show when current week is a period week */}
+          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
             <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
               <CardHeader>
@@ -1954,7 +1954,7 @@ function PoolPicksContent() {
                   Period Leaderboard
                 </CardTitle>
                 <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a period week! View the complete period standings and winners.
+                  Week {currentWeek} is a tie-breaker week! View the complete period standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
