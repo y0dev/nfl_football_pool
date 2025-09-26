@@ -86,6 +86,8 @@ export default function PeriodLeaderboardPage() {
   const [poolName, setPoolName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [allWeeksCompleted, setAllWeeksCompleted] = useState(false);
+  const [games, setGames] = useState<any[]>([]);
 
   useEffect(() => {
     loadPeriodData();
@@ -98,6 +100,29 @@ export default function PeriodLeaderboardPage() {
       setSelectedParticipants(leaderboard.map(p => p.name));
     }
   }, [leaderboard, selectedParticipants.length]);
+
+  // Determine if all weeks are completed
+  useEffect(() => {
+    if (periodInfo && games.length > 0) {
+      const completedWeeks = periodInfo.weeks.filter(week => {
+        // A week is completed if all games for that week are finished
+        const weekGames = games.filter(game => game.week === week);
+        if (weekGames.length === 0) return false; // No games for this week
+        
+        const allGamesFinished = weekGames.every(game => {
+          const status = game.status?.toLowerCase() || '';
+          return status === 'final' || status === 'post';
+        });
+        
+        debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
+        return allGamesFinished;
+      });
+      
+      const allCompleted = completedWeeks.length === periodInfo.weeks.length;
+      setAllWeeksCompleted(allCompleted);
+      debugLog('Completed weekss:', completedWeeks, 'All weeks:', periodInfo.weeks, 'All completed:', allCompleted);
+    }
+  }, [periodInfo, games]);
 
   const loadPeriodData = async () => {
     setIsLoading(true);
@@ -187,6 +212,7 @@ export default function PeriodLeaderboardPage() {
           setWeeklyWinners(mappedWeeklyWinners);
           setLeaderboard(mappedLeaderboard);
           setPeriodInfo(mappedPeriodInfo);
+          setGames(periodResult.data.games || []);
         } else {
           // In development, show dummy data if no real data is available
           if (process.env.NODE_ENV === 'development') {
@@ -393,6 +419,15 @@ export default function PeriodLeaderboardPage() {
   };
 
   // Prepare chart data for points per week using selected participants
+  // Function to handle participant selection
+  const handleParticipantSelection = (action: 'select-all' | 'clear-all') => {
+    if (action === 'select-all') {
+      setSelectedParticipants(leaderboard.map(p => p.name));
+    } else if (action === 'clear-all') {
+      setSelectedParticipants([]);
+    }
+  };
+
   const prepareChartData = (): Array<{ week: string; [key: string]: number | string }> => {
     debugLog('Chart data preparation - leaderboard:', leaderboard);
     debugLog('Chart data preparation - selectedParticipants:', selectedParticipants);
@@ -521,7 +556,7 @@ export default function PeriodLeaderboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-yellow-800">
               <Trophy className="h-6 w-6" />
-              Quarter Winner
+              {allWeeksCompleted ? 'Quarter Winner' : 'Current Leader of Quarter'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -625,7 +660,36 @@ export default function PeriodLeaderboardPage() {
               <div className="space-y-3">
                 {periodInfo && periodInfo.weeks.map((week) => {
                   const winner = weeklyWinners.find(w => w.week === week);
-                  debugLog(`Week ${week} winner:`, winner);
+                  const weekGames = games.filter(game => game.week === week);
+                  
+                  // Determine week status
+                  let weekStatus = 'not-started';
+                  let statusText = 'Not Started';
+                  let statusColor = 'bg-gray-100 text-gray-600';
+                  
+                  if (weekGames.length > 0) {
+                    const finishedGames = weekGames.filter(game => {
+                      const status = game.status?.toLowerCase() || '';
+                      return status === 'final' || status === 'post';
+                    });
+                    
+                    if (finishedGames.length === weekGames.length) {
+                      weekStatus = 'completed';
+                      statusText = 'Completed';
+                      statusColor = 'bg-green-100 text-green-600';
+                    } else if (finishedGames.length > 0) {
+                      weekStatus = 'in-progress';
+                      statusText = 'In Progress';
+                      statusColor = 'bg-yellow-100 text-yellow-600';
+                    } else {
+                      weekStatus = 'not-started';
+                      statusText = 'Not Started';
+                      statusColor = 'bg-gray-100 text-gray-600';
+                    }
+                  }
+                  
+                  debugLog(`Week ${week} status: ${weekStatus}, games: ${weekGames.length}, winner:`, winner);
+                  
                   return (
                     <div key={week} className="p-3 sm:p-4 bg-gray-50 rounded-lg border">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -635,7 +699,7 @@ export default function PeriodLeaderboardPage() {
                             <span className="text-sm font-bold text-blue-600">W{week}</span>
                           </div>
                           <div className="min-w-0 flex-1">
-                            {winner ? (
+                            {weekStatus === 'completed' && winner ? (
                               <>
                                 <h4 className="font-semibold text-base sm:text-lg truncate">{winner.winner_name}</h4>
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
@@ -648,25 +712,41 @@ export default function PeriodLeaderboardPage() {
                                   </span>
                                 </div>
                               </>
+                            ) : weekStatus === 'in-progress' ? (
+                              <>
+                                <h4 className="font-semibold text-base sm:text-lg text-yellow-700">Games In Progress</h4>
+                                <p className="text-sm text-yellow-600 mt-1">
+                                  {weekGames.filter(game => {
+                                    const status = game.status?.toLowerCase() || '';
+                                    return status === 'final' || status === 'post';
+                                  }).length} of {weekGames.length} games finished
+                                </p>
+                              </>
                             ) : (
                               <>
-                                <h4 className="font-semibold text-gray-500 text-base sm:text-lg">No Winner</h4>
+                                <h4 className="font-semibold text-base sm:text-lg text-gray-500">Week Not Started</h4>
                                 <p className="text-sm text-gray-500 mt-1">
-                                  No picks submitted or all participants had 0 points
+                                  {weekGames.length} games scheduled
                                 </p>
                               </>
                             )}
                           </div>
                         </div>
                         
-                        {/* Tie breaker badge */}
-                        {winner?.tie_breaker_used && (
-                          <div className="flex justify-start sm:justify-end">
+                        {/* Status badge and tie breaker badge */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                          {/* Status badge */}
+                          <Badge className={`text-xs sm:text-sm ${statusColor}`}>
+                            {statusText}
+                          </Badge>
+                          
+                          {/* Tie breaker badge */}
+                          {winner?.tie_breaker_used && (
                             <Badge variant="secondary" className="text-xs sm:text-sm">
                               Tie Breaker Used
                             </Badge>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -716,13 +796,13 @@ export default function PeriodLeaderboardPage() {
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button
-                    onClick={() => setSelectedParticipants(leaderboard.map(p => p.name))}
+                    onClick={() => handleParticipantSelection('select-all')}
                     className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                   >
                     Select All
                   </button>
                   <button
-                    onClick={() => setSelectedParticipants([])}
+                    onClick={() => handleParticipantSelection('clear-all')}
                     className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                   >
                     Clear All

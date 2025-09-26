@@ -98,6 +98,8 @@ export async function GET(request: NextRequest) {
       .eq('pool_id', poolId)
       .in('game_id', await getGameIdsForWeeks(supabase, periodWeeks, parseInt(season)));
 
+    debugLog('Period Leaderboard - Picks data:', picksData);
+    debugLog('Period Leaderboard - Picks error:', picksError);
     if (picksError) {
       console.error('Error fetching picks:', picksError);
       return NextResponse.json(
@@ -125,6 +127,22 @@ export async function GET(request: NextRequest) {
     // Create a map of games by ID for easy lookup
     const gamesMap = new Map(gamesData?.map(game => [game.id, game]) || []);
 
+    // Determine which weeks are completed (all games finished)
+    const completedWeeksForTotals = periodWeeks.filter(week => {
+      const weekGames = gamesData?.filter(game => game.week === week) || [];
+      if (weekGames.length === 0) return false; // No games for this week
+      
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase() || '';
+        return status === 'final' || status === 'post';
+      });
+      
+      debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
+      return allGamesFinished;
+    });
+    
+    debugLog('Completed weeks for quarter totals:', completedWeeksForTotals);
+
     // Calculate period totals for each participant using the same logic as export
     const participantTotals = new Map<string, ParticipantData>();
     
@@ -141,6 +159,9 @@ export async function GET(request: NextRequest) {
       });
     });
 
+    debugLog('Period Leaderboard - Participants map:', participants);
+    debugLog('Period Leaderboard - Participant totals:', participantTotals);
+    
     // Group picks by participant and week
     const participantWeekPicks = new Map<string, Map<number, Array<PickData>>>();
     
@@ -172,7 +193,7 @@ export async function GET(request: NextRequest) {
       let totalPoints = 0;
       let totalCorrectPicks = 0;
       let totalPicks = 0;
-      debugLog('Participant:', participant);
+      // debugLog('Period Leaderboard - Participant:', participant);
       // Process each week
       periodWeeks.forEach(week => {
         const weekPicksData = weekPicks.get(week) || [];
@@ -180,23 +201,30 @@ export async function GET(request: NextRequest) {
         let weekCorrectPicks = 0;
         const weekTotalPicks = weekPicksData.length;
         if (week === 2) {
-          debugLog('Week picks data:', weekPicksData[0]);
+          // debugLog('Period Leaderboard - Week picks data:', weekPicksData[0]);
         }
         // debugLog('Week:', week);
         // debugLog('Week picks data:', weekPicksData);
-        weekPicksData.forEach((pick: PickData) => {
-          const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
-          if (isCorrect) {
-            weekPoints += pick.confidence_points;
-            weekCorrectPicks++;
-          }
-        });
-        debugLog('Week points:', weekPoints);
-        debugLog('Week correct picks:', weekCorrectPicks);
-        debugLog('Week total picks:', weekTotalPicks);
-        totalPoints += weekPoints;
-        totalCorrectPicks += weekCorrectPicks;
-        totalPicks += weekTotalPicks;
+          weekPicksData.forEach((pick: PickData) => {
+            const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
+            if (isCorrect) {
+              weekPoints += pick.confidence_points;
+              weekCorrectPicks++;
+            }
+          });
+        if (participant.name === 'Barb') {
+          debugLog(`${participant.name} - Week points:`, weekPoints);
+          debugLog(`${participant.name} - Week correct picks:`, weekCorrectPicks);
+          debugLog(`${participant.name} - Week total picks:`, weekTotalPicks);
+          debugLog('Week total picks:', weekTotalPicks);
+        }
+        
+        // Only add to totals if this week is completed
+        if (completedWeeksForTotals.includes(week)) {
+          totalPoints += weekPoints;
+          totalCorrectPicks += weekCorrectPicks;
+          totalPicks += weekTotalPicks;
+        }
 
         // Add to weekly breakdown
         participant.weekly_scores.push({
@@ -258,14 +286,11 @@ export async function GET(request: NextRequest) {
     // Track week winners for weeks_won calculation
     const weekWinners = new Map<number, string[]>(); // week -> array of winner participant IDs
     
-    // Only process weeks that have participants with points (completed weeks)
-    const completedWeeks = periodWeeks.filter(week => {
-      const hasParticipantsWithPoints = Array.from(participantTotals.values())
-        .some(p => p.weekly_scores.some(ws => ws.week === week && ws.points > 0));
-      return hasParticipantsWithPoints;
-    });
+    // Only process weeks that are completed (all games finished) for weeks_won calculation
+    // Use the same logic as quarter totals to ensure consistency
+    const completedWeeksForWins = completedWeeksForTotals;
     
-    debugLog('Completed weeks (with points):', completedWeeks);
+    debugLog('Completed weeks for weeks_won calculation:', completedWeeksForWins);
     debugLog('All tie-breaker weeks:', periodWeeks);
     
     // Debug: Show weekly scores for each participant
@@ -274,7 +299,7 @@ export async function GET(request: NextRequest) {
       debugLog(`${p.name}:`, p.weekly_scores);
     });
     
-    completedWeeks.forEach(week => {
+    completedWeeksForWins.forEach(week => {
       debugLog(`Creating weekly winner data for week ${week}`);
       
       const weekParticipants = Array.from(participantTotals.values())
@@ -286,7 +311,7 @@ export async function GET(request: NextRequest) {
         .filter(p => p.weekPoints > 0) // Only consider participants with points
         .sort((a, b) => b.weekPoints - a.weekPoints);
         
-      debugLog(`Week ${week} participants for weekly winners:`, weekParticipants);
+      // debugLog(`Week ${week} participants for weekly winners:`, weekParticipants);
       
       if (weekParticipants.length > 0) {
         const winner = weekParticipants[0];
@@ -317,8 +342,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate weeks_won based on actual week winners (only for completed weeks)
-    debugLog('\n=== Calculating weeks_won from actual week winners ===');
-    debugLog('Processing weeks_won for completed weeks:', Array.from(weekWinners.keys()));
+    // debugLog('\n=== Calculating weeks_won from actual week winners ===');
+    // debugLog('Processing weeks_won for completed weeks:', Array.from(weekWinners.keys()));
     weekWinners.forEach((winnerIds, week) => {
       debugLog(`Week ${week} winners:`, winnerIds);
       winnerIds.forEach(winnerId => {
@@ -371,7 +396,8 @@ export async function GET(request: NextRequest) {
           name: periodName,
           weeks: periodWeeks,
           totalWeeks: periodWeeks.length
-        }
+        },
+        games: gamesData || []
       }
     });
 

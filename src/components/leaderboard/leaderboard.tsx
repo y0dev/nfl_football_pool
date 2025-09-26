@@ -26,9 +26,14 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
 
   // Function to load Monday night scores for tie-breaker weeks
   const loadMondayNightScores = async (poolId: string, weekNumber: number, season: number) => {
+    debugLog('loadMondayNightScores called with:', { poolId, weekNumber, season, PERIOD_WEEKS });
+    
     if (!PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number])) {
+      debugLog('Not a tie-breaker week, skipping Monday night scores');
       return new Map();
     }
+
+    debugLog('Loading Monday night scores for tie-breaker week:', weekNumber);
 
     try {
       const supabase = getSupabaseServiceClient();
@@ -44,11 +49,14 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
         return new Map();
       }
 
+      debugLog('Monday night scores data:', data);
+
       const scoresMap = new Map<string, number>();
       data?.forEach(score => {
         scoresMap.set(score.participant_id, score.answer);
       });
 
+      debugLog('Monday night scores map:', scoresMap);
       return scoresMap;
     } catch (err) {
       debugError('Error loading Monday night scores:', err);
@@ -77,7 +85,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
           setGames(result.games);
           
           // Load Monday night scores for tie-breaker weeks
+          debugLog('About to load Monday night scores for:', { poolId, weekNumber, season: season || new Date().getFullYear() });
           const mondayNightScoresData = await loadMondayNightScores(poolId, weekNumber, season || new Date().getFullYear());
+          debugLog('Monday night scores loaded:', mondayNightScoresData);
           setMondayNightScores(mondayNightScoresData);
         } else {
           throw new Error(result.error || 'Failed to load leaderboard data');
@@ -125,6 +135,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
     );
   }
 
+  debugLog('Leaderboard render - weekNumber:', weekNumber, 'PERIOD_WEEKS:', PERIOD_WEEKS, 'isPeriodWeek:', PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]));
+  debugLog('Monday night scores:', mondayNightScores);
+
   return (
     <div className="space-y-4">
       {/* Responsive Table View */}
@@ -164,7 +177,11 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                 </TableCell>
                 {PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]) && (
                   <TableCell className="text-center text-xs sm:text-sm">
-                    {mondayNightScores.get(entry.participant_id) || '-'}
+                    {(() => {
+                      const score = mondayNightScores.get(entry.participant_id);
+                      debugLog(`Monday night score for ${entry.participant_name} (${entry.participant_id}):`, score);
+                      return score || '-';
+                    })()}
                   </TableCell>
                 )}
                 {games.map((game, gameIndex) => {
