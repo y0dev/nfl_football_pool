@@ -225,7 +225,7 @@ export function OverrideMondayNightScore({
         </CardTitle>
         <CardDescription>
           Add Monday night game score predictions for participants in this pool.
-          {isPeriodWeek && ` This is a tie-breaker week (${PERIOD_WEEKS.join(', ')}) where tie breakers are used.`}
+          {isPeriodWeek && `This week (${PERIOD_WEEKS.join(', ')}) serves as a tie-breaker.`}
           {isSuperBowl && ' This is the Super Bowl where tie breakers are used.'}
         </CardDescription>
       </CardHeader>

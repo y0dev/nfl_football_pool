@@ -155,18 +155,18 @@ export function PeriodWinnersDisplay({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-yellow-600" />
-          Period Winners
+          Quarter Winners
         </CardTitle>
         <CardDescription>
-          {isPeriodWeek && `This is a tie-breaker week (${PERIOD_WEEKS.join(', ')}) where period winners are calculated.`}
-          {isSuperBowl && ' This is the Super Bowl where period winners are calculated.'}
+          {isPeriodWeek && `This is a tie-breaker week (${PERIOD_WEEKS.join(', ')}) where quarter winners are calculated.`}
+          {isSuperBowl && ' This is the Super Bowl where the final quarter winners are calculated.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span className="ml-2">Loading period information...</span>
+            <span className="ml-2">Loading quarter winners information...</span>
           </div>
         ) : (
           <>
@@ -177,14 +177,14 @@ export function PeriodWinnersDisplay({
                   <div>
                     <h4 className="font-semibold text-yellow-900 flex items-center gap-2">
                       <Trophy className="h-5 w-5" />
-                      {currentPeriod.name} Winner
+                      {currentPeriod.name} Quarter Winner
                     </h4>
                     <p className="text-yellow-800">
                       {periodWinner.winner_name} • {periodWinner.winner_points} points
                     </p>
                     {periodWinner.tie_breaker_used && (
                       <Badge variant="secondary" className="mt-1">
-                        Tie Breaker Used
+                        Tie-breaker Used
                       </Badge>
                     )}
                   </div>
@@ -205,7 +205,7 @@ export function PeriodWinnersDisplay({
             <div className="space-y-2">
               <h4 className="font-semibold flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Available Periods
+                Available Quarters
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {availablePeriods.map((period) => (
@@ -249,7 +249,7 @@ export function PeriodWinnersDisplay({
             {availablePeriods.length === 0 && (
               <Alert>
                 <AlertDescription>
-                  No periods are available yet. Periods become available after they have ended.
+                  No quarters are available yet. Quarters become available after they have ended.
                 </AlertDescription>
               </Alert>
             )}
