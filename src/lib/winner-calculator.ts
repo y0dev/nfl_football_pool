@@ -701,22 +701,75 @@ export async function calculatePeriodWinners(
           };
         }
       } else {
-        // For normal pools, use weeks won as tie breaker for period winner
-        const winner = topScorers.sort((a, b) => b.weeks_won - a.weeks_won)[0];
-        return {
-          pool_id: poolId,
-          season,
-          period_name: periodName,
-          start_week: startWeek,
-          end_week: endWeek,
-          winner_participant_id: winner.participant_id,
-          winner_name: winner.participant_name,
-          period_points: winner.period_points,
-          period_correct_picks: winner.period_correct_picks,
-          weeks_won: winner.weeks_won,
-          tie_breaker_used: false,
-          total_participants: totals.length
-        };
+        // For normal pools, first try weeks won, then Monday night tie-breaker if still tied
+        const sortedByWeeksWon = topScorers.sort((a, b) => b.weeks_won - a.weeks_won);
+        const maxWeeksWon = sortedByWeeksWon[0].weeks_won;
+        const stillTied = sortedByWeeksWon.filter(p => p.weeks_won === maxWeeksWon);
+        
+        if (stillTied.length === 1) {
+          // Single winner by weeks won
+          const winner = stillTied[0];
+          return {
+            pool_id: poolId,
+            season,
+            period_name: periodName,
+            start_week: startWeek,
+            end_week: endWeek,
+            winner_participant_id: winner.participant_id,
+            winner_name: winner.participant_name,
+            period_points: winner.period_points,
+            period_correct_picks: winner.period_correct_picks,
+            weeks_won: winner.weeks_won,
+            tie_breaker_used: false,
+            total_participants: totals.length
+          };
+        } else {
+          // Still tied after weeks won, use Monday night tie-breaker
+          const tieBreakerResults = await resolvePeriodTieBreaker(
+            poolId,
+            season,
+            startWeek,
+            endWeek,
+            stillTied
+          );
+
+          if (tieBreakerResults.length > 0) {
+            const winner = tieBreakerResults[0];
+            return {
+              pool_id: poolId,
+              season,
+              period_name: periodName,
+              start_week: startWeek,
+              end_week: endWeek,
+              winner_participant_id: winner.participant_id,
+              winner_name: winner.participant_name,
+              period_points: winner.period_points,
+              period_correct_picks: winner.period_correct_picks,
+              weeks_won: winner.weeks_won,
+              tie_breaker_used: true,
+              winner_tie_breaker_answer: winner.tie_breaker_answer,
+              tie_breaker_difference: winner.tie_breaker_difference,
+              total_participants: totals.length
+            };
+          } else {
+            // Fallback to first participant if tie-breaker fails
+            const winner = stillTied[0];
+            return {
+              pool_id: poolId,
+              season,
+              period_name: periodName,
+              start_week: startWeek,
+              end_week: endWeek,
+              winner_participant_id: winner.participant_id,
+              winner_name: winner.participant_name,
+              period_points: winner.period_points,
+              period_correct_picks: winner.period_correct_picks,
+              weeks_won: winner.weeks_won,
+              tie_breaker_used: false,
+              total_participants: totals.length
+            };
+          }
+        }
       }
     }
 

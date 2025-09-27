@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Trophy } from 'lucide-react';
 import { Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugError, debugLog, getTeamAbbreviation } from '@/lib/utils';
+import { debugError, debugLog, getTeamAbbreviation, PERIOD_WEEKS } from '@/lib/utils';
+import { getSupabaseServiceClient } from '@/lib/supabase';
 
 interface LeaderboardProps {
   poolId?: string;
@@ -19,8 +20,49 @@ interface LeaderboardProps {
 export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: LeaderboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntryWithPicks[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const [mondayNightScores, setMondayNightScores] = useState<Map<string, number>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
+
+  // Function to load Monday night scores for tie-breaker weeks
+  const loadMondayNightScores = async (poolId: string, weekNumber: number, season: number) => {
+    debugLog('loadMondayNightScores called with:', { poolId, weekNumber, season, PERIOD_WEEKS });
+    
+    if (!PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number])) {
+      debugLog('Not a tie-breaker week, skipping Monday night scores');
+      return new Map();
+    }
+
+    debugLog('Loading Monday night scores for tie-breaker week:', weekNumber);
+
+    try {
+      const supabase = getSupabaseServiceClient();
+      const { data, error } = await supabase
+        .from('tie_breakers')
+        .select('participant_id, answer')
+        .eq('pool_id', poolId)
+        .eq('week', weekNumber)
+        .eq('season', season);
+
+      if (error) {
+        debugError('Error loading Monday night scores:', error);
+        return new Map();
+      }
+
+      debugLog('Monday night scores data:', data);
+
+      const scoresMap = new Map<string, number>();
+      data?.forEach(score => {
+        scoresMap.set(score.participant_id, score.answer);
+      });
+
+      debugLog('Monday night scores map:', scoresMap);
+      return scoresMap;
+    } catch (err) {
+      debugError('Error loading Monday night scores:', err);
+      return new Map();
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -41,6 +83,12 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
         if (result.success) {
           setLeaderboardData(result.leaderboard);
           setGames(result.games);
+          
+          // Load Monday night scores for tie-breaker weeks
+          debugLog('About to load Monday night scores for:', { poolId, weekNumber, season: season || new Date().getFullYear() });
+          const mondayNightScoresData = await loadMondayNightScores(poolId, weekNumber, season || new Date().getFullYear());
+          debugLog('Monday night scores loaded:', mondayNightScoresData);
+          setMondayNightScores(mondayNightScoresData);
         } else {
           throw new Error(result.error || 'Failed to load leaderboard data');
         }
@@ -87,6 +135,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
     );
   }
 
+  debugLog('Leaderboard render - weekNumber:', weekNumber, 'PERIOD_WEEKS:', PERIOD_WEEKS, 'isPeriodWeek:', PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]));
+  debugLog('Monday night scores:', mondayNightScores);
+
   return (
     <div className="space-y-4">
       {/* Responsive Table View */}
@@ -98,6 +149,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
               <TableHead className="sticky top-0 bg-white z-20 text-xs sm:text-sm">Participant</TableHead>
               <TableHead className="sticky top-0 bg-white z-20 text-center text-xs sm:text-sm">Points</TableHead>
               <TableHead className="sticky top-0 bg-white z-20 text-center text-xs sm:text-sm">Correct</TableHead>
+              {PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]) && (
+                <TableHead className="sticky top-0 bg-white z-20 text-center text-xs sm:text-sm">Mon Night</TableHead>
+              )}
               {games.map((game, index) => (
                 <TableHead key={game.id || index} className="sticky top-0 bg-white z-20 text-center text-xs">
                   <div className="text-xs">{getTeamAbbreviation(game.away_team || '')}</div>
@@ -121,6 +175,15 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                 <TableCell className="text-center text-xs sm:text-sm">
                   {entry.correct_picks || 0}/{entry.total_picks || 0}
                 </TableCell>
+                {PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]) && (
+                  <TableCell className="text-center text-xs sm:text-sm">
+                    {(() => {
+                      const score = mondayNightScores.get(entry.participant_id);
+                      debugLog(`Monday night score for ${entry.participant_name} (${entry.participant_id}):`, score);
+                      return score || '-';
+                    })()}
+                  </TableCell>
+                )}
                 {games.map((game, gameIndex) => {
                   const status = game.status?.toLowerCase() || '';
                   const pick = entry.picks?.find(p => p.game_id === game.id);

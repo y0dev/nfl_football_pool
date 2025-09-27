@@ -58,6 +58,7 @@ function AdminDashboardContent() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
+  const [isGeneratingWinners, setIsGeneratingWinners] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -283,6 +284,65 @@ function AdminDashboardContent() {
     } catch (error) {
       console.error('Error logging out:', error);
       setIsLoggingOut(false);
+    }
+  };
+
+  const handleGeneratePeriodWinners = async () => {
+    setIsGeneratingWinners(true);
+    try {
+      const response = await fetch('/api/admin/winners/period', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          season: 2025, // Use current season
+          generateAllPools: true
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate period winners');
+      }
+
+      const result = await response.json();
+      
+      // Prepare summary data for the summary page
+      const summaryData = {
+        operation: 'Period Winners Generation',
+        timestamp: new Date().toISOString(),
+        poolsProcessed: result.poolsProcessed || 0,
+        poolsWithWinners: result.poolsWithWinners || 0,
+        generatedWinners: result.generatedWinners || 0,
+        noWinners: result.noWinners || 0,
+        errors: result.errors || 0,
+        results: result.results || []
+      };
+
+      // Store data in localStorage for the summary page
+      localStorage.setItem('adminSummaryData', JSON.stringify(summaryData));
+
+      // Show success toast
+      toast({
+        title: 'Period Winners Generation Complete',
+        description: `Processed ${summaryData.poolsProcessed} pools, generated ${summaryData.generatedWinners} winners`,
+        duration: 4000,
+      });
+
+      // Navigate to summary page
+      router.push('/admin/summary');
+
+      // Refresh dashboard stats
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Error generating period winners:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate period winners. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingWinners(false);
     }
   };
 
@@ -571,6 +631,37 @@ function AdminDashboardContent() {
                 className="w-full"
               >
                 Create Pool
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Trophy className="h-5 w-5" />
+                Generate Period Winners
+              </CardTitle>
+              <CardDescription>
+                Calculate and generate period winners for all pools
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={handleGeneratePeriodWinners}
+                disabled={isGeneratingWinners}
+                className="w-full"
+              >
+                {isGeneratingWinners ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Generate Winners
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
