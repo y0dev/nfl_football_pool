@@ -134,6 +134,57 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
     }
 
     console.log(`Scores calculated for all pools for week ${week}`);
+    
+    // Check if this is a quarter week and calculate quarter winners
+    const { PERIOD_WEEKS } = await import('@/lib/utils');
+    if (PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number])) {
+      console.log(`Week ${week} is a quarter week. Calculating quarter winners...`);
+      
+      // Get current season
+      const currentSeason = games[0]?.season || new Date().getFullYear();
+      
+      // Calculate quarter winners for each pool
+      for (const pool of pools || []) {
+        try {
+          const { calculateQuarterWinners } = await import('@/lib/winner-calculator');
+          const quarterWinner = await calculateQuarterWinners(pool.id, week, currentSeason);
+          
+          if (quarterWinner) {
+            console.log(`Quarter winner calculated for pool ${pool.id}:`, quarterWinner);
+            
+            // Save the quarter winner to the database
+            const { error: saveError } = await supabase
+              .from('period_winners')
+              .upsert({
+                pool_id: quarterWinner.pool_id,
+                period_name: quarterWinner.period_name,
+                winner_participant_id: quarterWinner.winner_participant_id,
+                winner_name: quarterWinner.winner_name,
+                winner_points: quarterWinner.winner_points,
+                winner_correct_picks: quarterWinner.winner_correct_picks,
+                winner_total_picks: quarterWinner.winner_total_picks,
+                winner_weeks_won: quarterWinner.winner_weeks_won,
+                total_participants: quarterWinner.total_participants,
+                tie_breaker_used: quarterWinner.tie_breaker_used,
+                tie_breaker_answer: quarterWinner.tie_breaker_answer,
+                tie_breaker_difference: quarterWinner.tie_breaker_difference,
+                created_at: new Date().toISOString()
+              }, {
+                onConflict: 'pool_id,period_name'
+              });
+              
+            if (saveError) {
+              console.error('Error saving quarter winner:', saveError);
+            } else {
+              console.log(`Quarter winner saved for pool ${pool.id}, period ${quarterWinner.period_name}`);
+            }
+          }
+        } catch (error) {
+          console.error(`Error calculating quarter winner for pool ${pool.id}:`, error);
+        }
+      }
+    }
+    
     return true;
 
   } catch (error) {

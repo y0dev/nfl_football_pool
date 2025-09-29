@@ -17,10 +17,7 @@ import { ParticipantManagement } from '@/components/admin/participant-management
 import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-management';
 import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
-import { SubmissionStatus } from '@/components/admin/submission-status';
 import { PoolSettings } from '@/components/admin/pool-settings';
-import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
-import { PeriodWinnersDisplay } from '@/components/admin/period-winners-display';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
@@ -444,32 +441,6 @@ function PoolDetailsContent() {
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
           </TabsList>
         </div>
-
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <SubmissionStatus poolId={pool.id} seasonType={currentSeasonType} />
-          
-          {/* Tie Breaker Management */}
-          <div className="mb-6">
-            <CalculateTieBreakers
-              poolId={pool.id}
-              poolName={pool.name}
-              week={currentWeek}
-              season={pool.season}
-              seasonType={currentSeasonType}
-              isCommissioner={true}
-            />
-          </div>
-
-          {/* Period Winners Display */}
-          <PeriodWinnersDisplay
-            poolId={pool.id}
-            poolName={pool.name}
-            week={currentWeek}
-            season={pool.season}
-            seasonType={currentSeasonType}
-            isCommissioner={true}
-          />
-        </TabsContent>
 
         <TabsContent value="participants" className="space-y-6 mt-6">
           <ParticipantManagement 

@@ -844,6 +844,628 @@ async function savePeriodWinner(winner: PeriodWinner): Promise<void> {
 }
 
 /**
+ * Calculate current quarter standings including partial results from the current week
+ * This function provides real-time quarter standings even while games are still in progress
+ */
+export async function calculateCurrentQuarterStandings(
+  poolId: string,
+  quarterWeek: number,
+  season: number
+): Promise<{
+  standings: Array<{
+    participant_id: string;
+    participant_name: string;
+    total_points: number;
+    total_correct: number;
+    total_picks: number;
+    weeks_won: number;
+    current_week_points?: number;
+    current_week_correct?: number;
+    current_week_picks?: number;
+  }>;
+  periodName: string;
+  quarterWeeks: number[];
+  isComplete: boolean;
+  completedWeeks: number[];
+} | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Determine quarter weeks based on the quarter week
+    let quarterWeeks: number[];
+    let periodName: string;
+    
+    switch (quarterWeek) {
+      case 4:
+        quarterWeeks = [1, 2, 3, 4];
+        periodName = 'Q1';
+        break;
+      case 9:
+        quarterWeeks = [5, 6, 7, 8, 9];
+        periodName = 'Q2';
+        break;
+      case 14:
+        quarterWeeks = [10, 11, 12, 13, 14];
+        periodName = 'Q3';
+        break;
+      case 18:
+        quarterWeeks = [15, 16, 17, 18];
+        periodName = 'Q4';
+        break;
+      default:
+        console.log(`Not a quarter week: ${quarterWeek}`);
+        return null;
+    }
+
+    console.log(`Calculating current ${periodName} standings for pool ${poolId}, weeks:`, quarterWeeks);
+
+    // Get all participants in the pool
+    const { data: participants, error: participantsError } = await supabase
+      .from('participants')
+      .select('id, name')
+      .eq('pool_id', poolId);
+
+    if (participantsError) throw participantsError;
+    if (!participants || participants.length === 0) {
+      console.log('No participants found for pool');
+      return null;
+    }
+
+    // Get all picks for the quarter weeks
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
+      .select(`
+        participant_id,
+        predicted_winner,
+        confidence_points,
+        games!inner(id, week, winner, status, season_type)
+      `)
+      .eq('pool_id', poolId)
+      .eq('games.season', season)
+      .eq('games.season_type', 2)
+      .in('games.week', quarterWeeks);
+
+    if (picksError) throw picksError;
+
+    // Get all games for the quarter weeks to check completion status
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('season', season)
+      .eq('season_type', 2)
+      .in('week', quarterWeeks);
+
+    if (gamesError) throw gamesError;
+
+    // Check which weeks are completed
+    const completedWeeks = quarterWeeks.filter(week => {
+      const weekGames = gamesData?.filter(game => game.week === week) || [];
+      if (weekGames.length === 0) return false;
+      
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase() || '';
+        return status === 'final' || status === 'post';
+      });
+      
+      return allGamesFinished;
+    });
+
+    const isComplete = completedWeeks.length === quarterWeeks.length;
+
+    // Calculate quarter totals for each participant
+    const participantTotals = new Map<string, {
+      participant_id: string;
+      participant_name: string;
+      total_points: number;
+      total_correct: number;
+      total_picks: number;
+      weeks_won: number;
+      current_week_points?: number;
+      current_week_correct?: number;
+      current_week_picks?: number;
+    }>();
+
+    participants.forEach(participant => {
+      participantTotals.set(participant.id, {
+        participant_id: participant.id,
+        participant_name: participant.name,
+        total_points: 0,
+        total_correct: 0,
+        total_picks: 0,
+        weeks_won: 0
+      });
+    });
+
+    // Process each week to calculate totals
+    quarterWeeks.forEach(week => {
+      const weekPicks = picksData?.filter(pick => {
+        const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
+        return game?.week === week;
+      }) || [];
+
+      const weekGames = gamesData?.filter(game => game.week === week) || [];
+      const weekTotals = new Map<string, { points: number; correct: number; picks: number }>();
+
+      // Calculate week totals for each participant
+      participants.forEach(participant => {
+        const participantPicks = weekPicks.filter(pick => pick.participant_id === participant.id);
+        let weekPoints = 0;
+        let weekCorrect = 0;
+        let weekPicks = participantPicks.length;
+
+        participantPicks.forEach(pick => {
+          const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
+          // Only count points for games that have finished
+          if (game?.winner && (game.status?.toLowerCase() === 'final' || game.status?.toLowerCase() === 'post')) {
+            if (pick.predicted_winner === game.winner) {
+              weekPoints += pick.confidence_points;
+              weekCorrect++;
+            }
+          }
+        });
+
+        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: weekPicks });
+      });
+
+      // Find week winner (only for completed weeks)
+      const isWeekComplete = completedWeeks.includes(week);
+      if (isWeekComplete) {
+        const weekWinners = Array.from(weekTotals.entries())
+          .map(([participantId, totals]) => ({
+            participant_id: participantId,
+            participant_name: participants.find(p => p.id === participantId)?.name || '',
+            ...totals
+          }))
+          .sort((a, b) => b.points - a.points);
+
+        // Award week win to highest scorer
+        if (weekWinners.length > 0) {
+          const weekWinner = weekWinners[0];
+          const participantTotal = participantTotals.get(weekWinner.participant_id);
+          if (participantTotal) {
+            participantTotal.weeks_won++;
+          }
+        }
+      }
+
+      // Add week totals to quarter totals
+      participants.forEach(participant => {
+        const weekTotal = weekTotals.get(participant.id);
+        const quarterTotal = participantTotals.get(participant.id);
+        if (weekTotal && quarterTotal) {
+          quarterTotal.total_points += weekTotal.points;
+          quarterTotal.total_correct += weekTotal.correct;
+          quarterTotal.total_picks += weekTotal.picks;
+          
+          // Store current week stats if this is the final week
+          if (week === quarterWeek) {
+            quarterTotal.current_week_points = weekTotal.points;
+            quarterTotal.current_week_correct = weekTotal.correct;
+            quarterTotal.current_week_picks = weekTotal.picks;
+          }
+        }
+      });
+    });
+
+    // Convert to array and sort by total points
+    const standings = Array.from(participantTotals.values())
+      .sort((a, b) => b.total_points - a.total_points);
+
+    console.log(`Current ${periodName} standings calculated:`, standings.length, 'participants');
+
+    return {
+      standings,
+      periodName,
+      quarterWeeks,
+      isComplete,
+      completedWeeks
+    };
+
+  } catch (error) {
+    console.error('Error calculating current quarter standings:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculate quarter winners with enhanced tie-breaker logic
+ * This function handles automatic quarter winner calculation when weekly scores are updated
+ */
+export async function calculateQuarterWinners(
+  poolId: string,
+  quarterWeek: number,
+  season: number
+): Promise<PeriodWinner | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Determine quarter weeks based on the quarter week
+    let quarterWeeks: number[];
+    let periodName: string;
+    
+    switch (quarterWeek) {
+      case 4:
+        quarterWeeks = [1, 2, 3, 4];
+        periodName = 'Q1';
+        break;
+      case 9:
+        quarterWeeks = [5, 6, 7, 8, 9];
+        periodName = 'Q2';
+        break;
+      case 14:
+        quarterWeeks = [10, 11, 12, 13, 14];
+        periodName = 'Q3';
+        break;
+      case 18:
+        quarterWeeks = [15, 16, 17, 18];
+        periodName = 'Q4';
+        break;
+      default:
+        console.log(`Not a quarter week: ${quarterWeek}`);
+        return null;
+    }
+
+    console.log(`Calculating ${periodName} winners for pool ${poolId}, weeks:`, quarterWeeks);
+
+    // Get all participants in the pool
+    const { data: participants, error: participantsError } = await supabase
+      .from('participants')
+      .select('id, name')
+      .eq('pool_id', poolId);
+
+    if (participantsError) throw participantsError;
+    if (!participants || participants.length === 0) {
+      console.log('No participants found for pool');
+      return null;
+    }
+
+    // Get all picks for the quarter weeks
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
+      .select(`
+        participant_id,
+        predicted_winner,
+        confidence_points,
+        games!inner(id, week, winner, status, season_type)
+      `)
+      .eq('pool_id', poolId)
+      .eq('games.season', season)
+      .eq('games.season_type', 2)
+      .in('games.week', quarterWeeks);
+
+    if (picksError) throw picksError;
+
+    // Get all games for the quarter weeks to check completion status
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('season', season)
+      .eq('season_type', 2)
+      .in('week', quarterWeeks);
+
+    if (gamesError) throw gamesError;
+
+    // Check if all weeks in the quarter are completed
+    const completedWeeks = quarterWeeks.filter(week => {
+      const weekGames = gamesData?.filter(game => game.week === week) || [];
+      if (weekGames.length === 0) return false;
+      
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase() || '';
+        return status === 'final' || status === 'post';
+      });
+      
+      return allGamesFinished;
+    });
+
+    // Only calculate if all weeks are completed
+    if (completedWeeks.length !== quarterWeeks.length) {
+      console.log(`Not all weeks completed for ${periodName}. Completed: ${completedWeeks.length}/${quarterWeeks.length}`);
+      return null;
+    }
+
+    // Calculate quarter totals for each participant
+    const participantTotals = new Map<string, {
+      participant_id: string;
+      participant_name: string;
+      total_points: number;
+      total_correct: number;
+      total_picks: number;
+      weeks_won: number;
+    }>();
+
+    participants.forEach(participant => {
+      participantTotals.set(participant.id, {
+        participant_id: participant.id,
+        participant_name: participant.name,
+        total_points: 0,
+        total_correct: 0,
+        total_picks: 0,
+        weeks_won: 0
+      });
+    });
+
+    // Process each week to calculate totals
+    quarterWeeks.forEach(week => {
+      const weekPicks = picksData?.filter(pick => {
+        const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
+        return game?.week === week;
+      }) || [];
+
+      const weekGames = gamesData?.filter(game => game.week === week) || [];
+      const weekTotals = new Map<string, { points: number; correct: number; picks: number }>();
+
+      // Calculate week totals for each participant
+      participants.forEach(participant => {
+        const participantPicks = weekPicks.filter(pick => pick.participant_id === participant.id);
+        let weekPoints = 0;
+        let weekCorrect = 0;
+        let weekPicks = participantPicks.length;
+
+        participantPicks.forEach(pick => {
+          const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
+          if (pick.predicted_winner === game?.winner) {
+            weekPoints += pick.confidence_points;
+            weekCorrect++;
+          }
+        });
+
+        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: weekPicks });
+      });
+
+      // Find week winner
+      const weekWinners = Array.from(weekTotals.entries())
+        .map(([participantId, totals]) => ({
+          participant_id: participantId,
+          participant_name: participants.find(p => p.id === participantId)?.name || '',
+          ...totals
+        }))
+        .sort((a, b) => b.points - a.points);
+
+      // Award week win to highest scorer
+      if (weekWinners.length > 0) {
+        const weekWinner = weekWinners[0];
+        const participantTotal = participantTotals.get(weekWinner.participant_id);
+        if (participantTotal) {
+          participantTotal.weeks_won++;
+        }
+      }
+
+      // Add week totals to quarter totals
+      participants.forEach(participant => {
+        const weekTotal = weekTotals.get(participant.id);
+        const quarterTotal = participantTotals.get(participant.id);
+        if (weekTotal && quarterTotal) {
+          quarterTotal.total_points += weekTotal.points;
+          quarterTotal.total_correct += weekTotal.correct;
+          quarterTotal.total_picks += weekTotal.picks;
+        }
+      });
+    });
+
+    // Convert to array and sort by total points
+    const quarterStandings = Array.from(participantTotals.values())
+      .sort((a, b) => b.total_points - a.total_points);
+
+    if (quarterStandings.length === 0) {
+      console.log('No standings calculated');
+      return null;
+    }
+
+    // Check for ties at the top
+    const topScore = quarterStandings[0].total_points;
+    const tiedParticipants = quarterStandings.filter(p => p.total_points === topScore);
+
+    let winner: typeof quarterStandings[0];
+    
+    if (tiedParticipants.length === 1) {
+      winner = tiedParticipants[0];
+    } else {
+      console.log(`Tie detected for ${periodName} winner. Applying tie-breakers...`);
+      
+      // Apply tie-breaker logic
+      const resolvedTie = await resolveQuarterTieBreaker(
+        poolId,
+        quarterWeek,
+        season,
+        tiedParticipants,
+        quarterStandings
+      );
+      
+      winner = resolvedTie[0];
+    }
+
+    const result: PeriodWinner = {
+      pool_id: poolId,
+      period_name: periodName,
+      winner_participant_id: winner.participant_id,
+      winner_name: winner.participant_name,
+      winner_points: winner.total_points,
+      winner_correct_picks: winner.total_correct,
+      winner_total_picks: winner.total_picks,
+      winner_weeks_won: winner.weeks_won,
+      total_participants: participants.length,
+      tie_breaker_used: tiedParticipants.length > 1,
+      tie_breaker_answer: undefined,
+      tie_breaker_difference: undefined
+    };
+
+    console.log(`${periodName} winner calculated:`, result);
+    return result;
+
+  } catch (error) {
+    console.error('Error calculating quarter winners:', error);
+    return null;
+  }
+}
+
+/**
+ * Resolve tie breakers for quarter winners
+ * Uses weeks won first, then Monday night score, then Super Bowl points for final quarter
+ */
+async function resolveQuarterTieBreaker(
+  poolId: string,
+  quarterWeek: number,
+  season: number,
+  tiedParticipants: Array<{
+    participant_id: string;
+    participant_name: string;
+    total_points: number;
+    total_correct: number;
+    total_picks: number;
+    weeks_won: number;
+  }>,
+  allStandings: Array<{
+    participant_id: string;
+    participant_name: string;
+    total_points: number;
+    total_correct: number;
+    total_picks: number;
+    weeks_won: number;
+  }>
+): Promise<Array<{
+  participant_id: string;
+  participant_name: string;
+  total_points: number;
+  total_correct: number;
+  total_picks: number;
+  weeks_won: number;
+  tie_breaker_answer?: number;
+  tie_breaker_difference?: number;
+}>> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // First tie-breaker: weeks won
+    const sortedByWeeksWon = tiedParticipants.sort((a, b) => b.weeks_won - a.weeks_won);
+    const topWeeksWon = sortedByWeeksWon[0].weeks_won;
+    const stillTied = sortedByWeeksWon.filter(p => p.weeks_won === topWeeksWon);
+    
+    if (stillTied.length === 1) {
+      return stillTied;
+    }
+
+    console.log(`Still tied after weeks won tie-breaker. Using Monday night score for week ${quarterWeek}`);
+
+    // Second tie-breaker: Monday night score for the quarter week
+    const { data: tieBreakers, error: tieBreakerError } = await supabase
+      .from('tie_breakers')
+      .select('participant_id, answer')
+      .eq('pool_id', poolId)
+      .eq('week', quarterWeek)
+      .eq('season', season)
+      .in('participant_id', stillTied.map(p => p.participant_id));
+
+    if (tieBreakerError) throw tieBreakerError;
+
+    // Get pool tie breaker answer
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('tie_breaker_answer')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError) throw poolError;
+
+    const poolAnswer = pool?.tie_breaker_answer;
+    if (!poolAnswer) {
+      console.log('No pool tie breaker answer found, using random selection');
+      return stillTied.sort(() => Math.random() - 0.5);
+    }
+
+    // Calculate tie breaker differences
+    const participantsWithTieBreakers = stillTied.map(participant => {
+      const tieBreaker = tieBreakers?.find(tb => tb.participant_id === participant.participant_id);
+      const tieBreakerAnswer = tieBreaker?.answer;
+      const difference = tieBreakerAnswer ? Math.abs(tieBreakerAnswer - poolAnswer) : Infinity;
+      
+      return {
+        ...participant,
+        tie_breaker_answer: tieBreakerAnswer,
+        tie_breaker_difference: difference
+      };
+    });
+
+    // Sort by tie breaker difference (closest wins)
+    const sortedByTieBreaker = participantsWithTieBreakers.sort((a, b) => 
+      (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
+    );
+
+    const closestDifference = sortedByTieBreaker[0].tie_breaker_difference;
+    const stillTiedAfterTieBreaker = sortedByTieBreaker.filter(p => 
+      (p.tie_breaker_difference || Infinity) === closestDifference
+    );
+
+    if (stillTiedAfterTieBreaker.length === 1) {
+      return stillTiedAfterTieBreaker;
+    }
+
+    // Final tie-breaker for Q4: Super Bowl points
+    if (quarterWeek === 18) {
+      console.log('Final quarter tie - using Super Bowl points as tie-breaker');
+      
+      const { data: superBowlTieBreakers, error: superBowlError } = await supabase
+        .from('tie_breakers')
+        .select('participant_id, answer')
+        .eq('pool_id', poolId)
+        .eq('week', 1) // Super Bowl is typically week 1 of playoffs
+        .eq('season', season)
+        .eq('season_type', 3) // Super Bowl season type
+        .in('participant_id', stillTiedAfterTieBreaker.map(p => p.participant_id));
+
+      if (superBowlError) {
+        console.error('Error fetching Super Bowl tie breakers:', superBowlError);
+        return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
+      }
+
+      // Get Super Bowl tie breaker answer
+      const { data: superBowlPool, error: superBowlPoolError } = await supabase
+        .from('pools')
+        .select('super_bowl_tie_breaker_answer')
+        .eq('id', poolId)
+        .single();
+
+      if (superBowlPoolError) {
+        console.error('Error fetching Super Bowl pool answer:', superBowlPoolError);
+        return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
+      }
+
+      const superBowlAnswer = superBowlPool?.super_bowl_tie_breaker_answer;
+      if (!superBowlAnswer) {
+        console.log('No Super Bowl tie breaker answer found, using random selection');
+        return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
+      }
+
+      // Calculate Super Bowl tie breaker differences
+      const participantsWithSuperBowlTieBreakers = stillTiedAfterTieBreaker.map(participant => {
+        const superBowlTieBreaker = superBowlTieBreakers?.find(tb => tb.participant_id === participant.participant_id);
+        const superBowlTieBreakerAnswer = superBowlTieBreaker?.answer;
+        const superBowlDifference = superBowlTieBreakerAnswer ? Math.abs(superBowlTieBreakerAnswer - superBowlAnswer) : Infinity;
+        
+        return {
+          ...participant,
+          tie_breaker_answer: superBowlTieBreakerAnswer,
+          tie_breaker_difference: superBowlDifference
+        };
+      });
+
+      // Sort by Super Bowl tie breaker difference (closest wins)
+      return participantsWithSuperBowlTieBreakers.sort((a, b) => 
+        (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
+      );
+    }
+
+    // For non-Q4 quarters, if still tied after Monday night score, use random selection
+    console.log('Still tied after Monday night score tie-breaker, using random selection');
+    return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
+
+  } catch (error) {
+    console.error('Error resolving quarter tie breaker:', error);
+    return tiedParticipants.sort(() => Math.random() - 0.5);
+  }
+}
+
+/**
  * Resolve tie breakers for weekly winners
  */
 async function resolveTieBreaker(
