@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { season, generateAllPools } = body;
+    const { season, generateAllPools, quarter } = body;
 
     if (!season) {
       return NextResponse.json(
@@ -93,13 +93,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Define the periods for the season
-    const periods = [
+    const allPeriods = [
       { name: 'Q1', startWeek: 1, endWeek: 4 },
       { name: 'Q2', startWeek: 5, endWeek: 8 },
       { name: 'Q3', startWeek: 9, endWeek: 12 },
       { name: 'Q4', startWeek: 13, endWeek: 16 },
       { name: 'Playoffs', startWeek: 17, endWeek: 20 }
     ];
+
+    // Filter periods based on quarter selection
+    const periods = quarter && quarter !== 'all' 
+      ? allPeriods.filter(period => period.name === quarter)
+      : allPeriods;
 
     let poolsProcessed = 0;
     const results = [];

@@ -3,16 +3,33 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { calculateWeeklyWinners } from '@/lib/winner-calculator';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 
+function getQuarterWeeks(quarter: number): number[] {
+  switch (quarter) {
+    case 1:
+      return [1, 2, 3, 4];
+    case 2:
+      return [5, 6, 7, 8, 9];
+    case 3:
+      return [10, 11, 12, 13, 14];
+    case 4:
+      return [15, 16, 17, 18];
+    default:
+      return [];
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { 
       poolId, 
       week, 
-      season 
+      season,
+      quarter 
     }: { 
       poolId?: string;
       week: number;
       season: number;
+      quarter?: string;
     } = await request.json();
 
     // Validate required fields
@@ -104,6 +121,20 @@ export async function POST(request: NextRequest) {
       }
 
       poolsToProcess = pools || [];
+    }
+
+    // Filter pools based on quarter selection
+    if (quarter && quarter !== 'all') {
+      const quarterNumber = parseInt(quarter);
+      const quarterWeeks = getQuarterWeeks(quarterNumber);
+      
+      // Only process pools if the current week is in the selected quarter
+      if (!quarterWeeks.includes(week)) {
+        return NextResponse.json(
+          { success: false, error: `Week ${week} is not in Quarter ${quarterNumber}` },
+          { status: 400 }
+        );
+      }
     }
 
     const results = [];

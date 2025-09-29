@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Shield, 
@@ -30,8 +31,6 @@ import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
-import { CalculateTieBreakers } from '@/components/admin/calculate-tie-breakers';
-import { PeriodWinnersDisplay } from '@/components/admin/period-winners-display';
 import { ExportData } from '@/components/admin/export-data';
 
 function AdminDashboardContent() {
@@ -59,6 +58,17 @@ function AdminDashboardContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
   const [isGeneratingWinners, setIsGeneratingWinners] = useState(false);
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
+
+  // Define quarter options
+  const quarterOptions = [
+    { value: 'all', label: 'All Quarters' },
+    { value: 'Q1', label: 'Quarter 1 (Weeks 1-4)' },
+    { value: 'Q2', label: 'Quarter 2 (Weeks 5-8)' },
+    { value: 'Q3', label: 'Quarter 3 (Weeks 9-12)' },
+    { value: 'Q4', label: 'Quarter 4 (Weeks 13-16)' },
+    { value: 'Playoffs', label: 'Playoffs (Weeks 17-20)' }
+  ];
 
   useEffect(() => {
     const loadData = async () => {
@@ -297,7 +307,8 @@ function AdminDashboardContent() {
         },
         body: JSON.stringify({
           season: 2025, // Use current season
-          generateAllPools: true
+          generateAllPools: true,
+          quarter: selectedQuarter
         }),
       });
 
@@ -645,7 +656,26 @@ function AdminDashboardContent() {
                 Calculate and generate period winners for all pools
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Quarter Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Select Quarter to Generate:
+                </label>
+                <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select quarter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {quarterOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button 
                 onClick={handleGeneratePeriodWinners}
                 disabled={isGeneratingWinners}
@@ -665,26 +695,6 @@ function AdminDashboardContent() {
               </Button>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Tie Breaker Management */}
-        <div className="mb-6 sm:mb-8">
-          <CalculateTieBreakers
-            week={currentWeek}
-            season={2024}
-            seasonType={currentSeasonType}
-            isCommissioner={false}
-          />
-        </div>
-
-        {/* Period Winners Display */}
-        <div className="mb-6 sm:mb-8">
-          <PeriodWinnersDisplay
-            week={currentWeek}
-            season={2024}
-            seasonType={currentSeasonType}
-            isCommissioner={false}
-          />
         </div>
 
         {/* Current Week Info */}

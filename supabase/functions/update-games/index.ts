@@ -31,9 +31,10 @@ serve(async (req) => {
       // Calculate scores for all pools only when all games are finished
       await calculateAllPoolScores(supabase, currentWeek)
       
-      // Check for quarterly winners after week 4
-      if (currentWeek === 4) {
-        await checkQuarterlyWinners(supabase)
+      // Check for quarterly winners for all quarter weeks (4, 9, 14, 18)
+      const quarterWeeks = [4, 9, 14, 18]
+      if (quarterWeeks.includes(currentWeek)) {
+        await checkQuarterlyWinners(supabase, currentWeek)
       }
       
       console.log(`Week ${currentWeek} completed - scores calculated for all pools`)
@@ -248,8 +249,10 @@ async function updateScoresInDatabase(supabase: any, poolId: string, week: numbe
 }
 
 // Check for quarterly winners
-async function checkQuarterlyWinners(supabase: any) {
+async function checkQuarterlyWinners(supabase: any, quarterWeek: number) {
   try {
+    console.log(`Checking quarterly winners for week ${quarterWeek}`)
+    
     // Get all pools
     const { data: pools, error: poolsError } = await supabase
       .from('pools')
@@ -261,9 +264,37 @@ async function checkQuarterlyWinners(supabase: any) {
       return
     }
 
+    // Determine quarter weeks and period name
+    let quarterWeeks: number[]
+    let periodName: string
+    
+    switch (quarterWeek) {
+      case 4:
+        quarterWeeks = [1, 2, 3, 4]
+        periodName = 'Q1'
+        break
+      case 9:
+        quarterWeeks = [5, 6, 7, 8, 9]
+        periodName = 'Q2'
+        break
+      case 14:
+        quarterWeeks = [10, 11, 12, 13, 14]
+        periodName = 'Q3'
+        break
+      case 18:
+        quarterWeeks = [15, 16, 17, 18]
+        periodName = 'Q4'
+        break
+      default:
+        console.log(`Not a quarter week: ${quarterWeek}`)
+        return
+    }
+
+    console.log(`Calculating ${periodName} winners for weeks:`, quarterWeeks)
+
     // Check each pool for quarterly winners
     for (const pool of pools || []) {
-      await determineQuarterlyWinner(supabase, pool.id, pool.name)
+      await determineQuarterlyWinner(supabase, pool.id, pool.name, quarterWeeks, periodName, quarterWeek)
     }
   } catch (error) {
     console.error('Failed to check quarterly winners:', error)
@@ -271,58 +302,250 @@ async function checkQuarterlyWinners(supabase: any) {
 }
 
 // Determine quarterly winner for a pool
-async function determineQuarterlyWinner(supabase: any, poolId: string, poolName: string) {
+async function determineQuarterlyWinner(supabase: any, poolId: string, poolName: string, quarterWeeks: number[], periodName: string, quarterWeek: number) {
   try {
-    // Get scores for weeks 1-4
-    const { data: scores, error } = await supabase
-      .from('scores')
-      .select(`
-        participant_id,
-        participants!inner(name),
-        week,
-        points
-      `)
+    console.log(`Determining ${periodName} winner for pool ${poolName}`)
+    
+    // Get all participants in the pool
+    const { data: participants, error: participantsError } = await supabase
+      .from('participants')
+      .select('id, name')
       .eq('pool_id', poolId)
-      .in('week', [1, 2, 3, 4])
-      .order('week', { ascending: true })
 
-    if (error) {
-      console.error('Error fetching quarterly scores:', error)
+    if (participantsError) {
+      console.error('Error fetching participants:', participantsError)
       return
     }
 
-    // Calculate totals for each participant
-    const standingsMap = new Map()
-    
-    scores?.forEach((score: any) => {
-      const participantId = score.participant_id
-      const participantName = score.participants.name
+    if (!participants || participants.length === 0) {
+      console.log('No participants found for pool')
+      return
+    }
+
+    // Get all picks for the quarter weeks
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
+      .select(`
+        participant_id,
+        predicted_winner,
+        confidence_points,
+        games!inner(id, week, winner, status, season_type)
+      `)
+      .eq('pool_id', poolId)
+      .eq('games.season_type', 2)
+      .in('games.week', quarterWeeks)
+
+    if (picksError) {
+      console.error('Error fetching picks:', picksError)
+      return
+    }
+
+    // Get all games for the quarter weeks to check completion status
+    const { data: gamesData, error: gamesError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('season_type', 2)
+      .in('week', quarterWeeks)
+
+    if (gamesError) {
+      console.error('Error fetching games:', gamesError)
+      return
+    }
+
+    // Check if all weeks in the quarter are completed
+    const completedWeeks = quarterWeeks.filter(week => {
+      const weekGames = gamesData?.filter(game => game.week === week) || []
+      if (weekGames.length === 0) return false
       
-      if (!standingsMap.has(participantId)) {
-        standingsMap.set(participantId, {
-          participant_id: participantId,
-          participant_name: participantName,
-          total_points: 0,
-          weeks_played: 0
-        })
-      }
+      const allGamesFinished = weekGames.every(game => {
+        const status = game.status?.toLowerCase() || ''
+        return status === 'final' || status === 'post'
+      })
       
-      const standing = standingsMap.get(participantId)
-      standing.total_points += score.points
-      standing.weeks_played++
+      return allGamesFinished
     })
 
-    // Find the winner
-    const standings = Array.from(standingsMap.values())
+    // Only calculate if all weeks are completed
+    if (completedWeeks.length !== quarterWeeks.length) {
+      console.log(`Not all weeks completed for ${periodName}. Completed: ${completedWeeks.length}/${quarterWeeks.length}`)
+      return
+    }
+
+    // Calculate quarter totals for each participant
+    const participantTotals = new Map()
+
+    participants.forEach(participant => {
+      participantTotals.set(participant.id, {
+        participant_id: participant.id,
+        participant_name: participant.name,
+        total_points: 0,
+        total_correct: 0,
+        total_picks: 0,
+        weeks_won: 0
+      })
+    })
+
+    // Process each week to calculate totals
+    quarterWeeks.forEach(week => {
+      const weekPicks = picksData?.filter(pick => {
+        const game = Array.isArray(pick.games) ? pick.games[0] : pick.games
+        return game?.week === week
+      }) || []
+
+      const weekTotals = new Map()
+
+      // Calculate week totals for each participant
+      participants.forEach(participant => {
+        const participantPicks = weekPicks.filter(pick => pick.participant_id === participant.id)
+        let weekPoints = 0
+        let weekCorrect = 0
+        let weekPicks = participantPicks.length
+
+        participantPicks.forEach(pick => {
+          const game = Array.isArray(pick.games) ? pick.games[0] : pick.games
+          if (pick.predicted_winner === game?.winner) {
+            weekPoints += pick.confidence_points
+            weekCorrect++
+          }
+        })
+
+        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: weekPicks })
+      })
+
+      // Find week winner
+      const weekWinners = Array.from(weekTotals.entries())
+        .map(([participantId, totals]) => ({
+          participant_id: participantId,
+          participant_name: participants.find(p => p.id === participantId)?.name || '',
+          ...totals
+        }))
+        .sort((a, b) => b.points - a.points)
+
+      // Award week win to highest scorer
+      if (weekWinners.length > 0) {
+        const weekWinner = weekWinners[0]
+        const participantTotal = participantTotals.get(weekWinner.participant_id)
+        if (participantTotal) {
+          participantTotal.weeks_won++
+        }
+      }
+
+      // Add week totals to quarter totals
+      participants.forEach(participant => {
+        const weekTotal = weekTotals.get(participant.id)
+        const quarterTotal = participantTotals.get(participant.id)
+        if (weekTotal && quarterTotal) {
+          quarterTotal.total_points += weekTotal.points
+          quarterTotal.total_correct += weekTotal.correct
+          quarterTotal.total_picks += weekTotal.picks
+        }
+      })
+    })
+
+    // Convert to array and sort by total points
+    const quarterStandings = Array.from(participantTotals.values())
       .sort((a, b) => b.total_points - a.total_points)
 
-    if (standings.length > 0) {
-      const winner = standings[0]
-      console.log(`Quarterly winner for ${poolName}: ${winner.participant_name} with ${winner.total_points} points`)
-      
-      // Log the quarterly winner
-      await logQuarterlyWinner(supabase, poolId, winner)
+    if (quarterStandings.length === 0) {
+      console.log('No standings calculated')
+      return
     }
+
+    // Check for ties at the top
+    const topScore = quarterStandings[0].total_points
+    const tiedParticipants = quarterStandings.filter(p => p.total_points === topScore)
+
+    let winner = quarterStandings[0]
+    
+    if (tiedParticipants.length > 1) {
+      console.log(`Tie detected for ${periodName} winner. Applying tie-breakers...`)
+      
+      // Apply tie-breaker logic: weeks won first, then Monday night score
+      const sortedByWeeksWon = tiedParticipants.sort((a, b) => b.weeks_won - a.weeks_won)
+      const topWeeksWon = sortedByWeeksWon[0].weeks_won
+      const stillTied = sortedByWeeksWon.filter(p => p.weeks_won === topWeeksWon)
+      
+      if (stillTied.length === 1) {
+        winner = stillTied[0]
+      } else {
+        // Use Monday night score tie-breaker
+        console.log(`Still tied after weeks won. Using Monday night score for week ${quarterWeek}`)
+        
+        const { data: tieBreakers, error: tieBreakerError } = await supabase
+          .from('tie_breakers')
+          .select('participant_id, answer')
+          .eq('pool_id', poolId)
+          .eq('week', quarterWeek)
+          .in('participant_id', stillTied.map(p => p.participant_id))
+
+        if (!tieBreakerError && tieBreakers) {
+          const { data: pool, error: poolError } = await supabase
+            .from('pools')
+            .select('tie_breaker_answer')
+            .eq('id', poolId)
+            .single()
+
+          if (!poolError && pool?.tie_breaker_answer) {
+            const poolAnswer = pool.tie_breaker_answer
+            
+            // Calculate tie breaker differences
+            const participantsWithTieBreakers = stillTied.map(participant => {
+              const tieBreaker = tieBreakers.find(tb => tb.participant_id === participant.participant_id)
+              const tieBreakerAnswer = tieBreaker?.answer
+              const difference = tieBreakerAnswer ? Math.abs(tieBreakerAnswer - poolAnswer) : Infinity
+              
+              return {
+                ...participant,
+                tie_breaker_answer: tieBreakerAnswer,
+                tie_breaker_difference: difference
+              }
+            })
+
+            // Sort by tie breaker difference (closest wins)
+            const sortedByTieBreaker = participantsWithTieBreakers.sort((a, b) => 
+              (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
+            )
+
+            winner = sortedByTieBreaker[0]
+          }
+        }
+        
+        // For Q4, could add Super Bowl tie-breaker here if needed
+        if (quarterWeek === 18 && stillTied.length > 1) {
+          console.log('Q4 tie - could implement Super Bowl tie-breaker here')
+        }
+      }
+    }
+
+    console.log(`${periodName} winner for ${poolName}: ${winner.participant_name} with ${winner.total_points} points`)
+    
+    // Save the quarter winner to the database
+    const { error: saveError } = await supabase
+      .from('period_winners')
+      .upsert({
+        pool_id: poolId,
+        period_name: periodName,
+        winner_participant_id: winner.participant_id,
+        winner_name: winner.participant_name,
+        winner_points: winner.total_points,
+        winner_correct_picks: winner.total_correct,
+        winner_total_picks: winner.total_picks,
+        winner_weeks_won: winner.weeks_won,
+        total_participants: participants.length,
+        tie_breaker_used: tiedParticipants.length > 1,
+        tie_breaker_answer: winner.tie_breaker_answer,
+        tie_breaker_difference: winner.tie_breaker_difference,
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'pool_id,period_name'
+      })
+      
+    if (saveError) {
+      console.error('Error saving quarter winner:', saveError)
+    } else {
+      console.log(`${periodName} winner saved for pool ${poolId}`)
+    }
+
   } catch (error) {
     console.error('Failed to determine quarterly winner:', error)
   }
