@@ -1007,7 +1007,7 @@ function PoolPicksContent() {
         if (timeDiff <= 24 * 60 * 60 * 1000) { // Within 24 hours
           stats.locked++;
         }
-      } else if (game.status === 'finished' || game.winner) {
+      } else if (game.status === 'finished' || game.status === 'final' || game.winner) {
         stats.finished++;
       } else {
         stats.inProgress++;
