@@ -177,22 +177,31 @@ function PoolPicksContent() {
   const checkWeekStatus = async () => {
     if (games.length === 0) return;
     
-    // Check if all games are properly finished with both status and winner
+    // Check if all games are properly finished (including tie games)
     const allGamesEnded = games.every(game => {
       const status = game.status?.toLowerCase();
       const hasWinner = game.winner && game.winner.trim() !== '';
       const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
       
+      // For tie games, check if scores are equal and game is finished
+      const isTieGame = game.home_score !== null && game.away_score !== null && 
+                       game.home_score === game.away_score;
+      
+      const gameEnded = isFinished && (hasWinner || isTieGame);
+      
       debugLog('Week status check for game:', {
         game: `${game.away_team} @ ${game.home_team}`,
         status: game.status,
         winner: game.winner,
+        home_score: game.home_score,
+        away_score: game.away_score,
         isFinished,
         hasWinner,
-        gameEnded: isFinished && hasWinner
+        isTieGame,
+        gameEnded
       });
       
-      return isFinished && hasWinner;
+      return gameEnded;
     });
     
     if (process.env.NODE_ENV === 'development') {
@@ -208,7 +217,6 @@ function PoolPicksContent() {
     }
     
     setWeekEnded(allGamesEnded);
-    
     if (allGamesEnded) {
       debugLog('Week status result setWeekEnded if allGamesEnded:', {
         poolId,

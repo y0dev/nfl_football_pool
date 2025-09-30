@@ -58,6 +58,10 @@ export interface PeriodWinner {
   end_week: number;
   winner_participant_id: string;
   winner_name: string;
+  winner_points: number;
+  winner_total_picks: number;
+  winner_correct_picks: number;
+  winner_weeks_won: number;
   period_points: number;
   period_correct_picks: number;
   weeks_won: number;
