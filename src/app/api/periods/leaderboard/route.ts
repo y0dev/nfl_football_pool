@@ -414,8 +414,13 @@ export async function GET(request: NextRequest) {
     debugLog('Unique participant IDs:', uniqueIds.size);
 
     // Convert to array and sort by total points
-    const leaderboard = Array.from(participantTotals.values())
+    let leaderboard = Array.from(participantTotals.values())
       .sort((a, b) => b.total_points - a.total_points);
+    
+    // Apply top 3 tie-breaker logic for period leaderboard
+    const tieBreakerResult = await applyTopThreeTieBreakerLogicForPeriod(leaderboard, poolId, parseInt(season), periodWeeks);
+    leaderboard = tieBreakerResult.finalEntries || tieBreakerResult;
+    const tieBreakerInfo = tieBreakerResult.tieBreakerInfo || null;
     
     // Debug: Show final weeks_won counts and weekly_scores
     debugLog('\n=== Final Results ===');
@@ -511,12 +516,16 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Update the final leaderboard with corrected weeks_won values
-    const finalLeaderboard = Array.from(participantTotals.values())
-      .sort((a, b) => b.total_points - a.total_points);
+    // Update the leaderboard with corrected weeks_won values (keeping tie-breaker order)
+    leaderboard.forEach(participant => {
+      const participantData = participantTotals.get(participant.participant_id);
+      if (participantData) {
+        participant.weeks_won = participantData.weeks_won;
+      }
+    });
 
     debugLog('\n=== Final Results with Corrected weeks_won ===');
-    finalLeaderboard.forEach(p => {
+    leaderboard.forEach(p => {
       debugLog(`${p.name}: ${p.weeks_won} weeks won`);
     });
 
@@ -530,7 +539,7 @@ export async function GET(request: NextRequest) {
       winner_name: leaderboard[0].name,
       winner_points: leaderboard[0].total_points,
       winner_correct_picks: leaderboard[0].total_correct,
-      tie_breaker_used: false,
+      tie_breaker_used: tieBreakerInfo?.wasUsed || false,
       total_participants: participants.length,
       created_at: new Date().toISOString()
     } : null;
@@ -544,13 +553,14 @@ export async function GET(request: NextRequest) {
       data: {
         periodWinner,
         weeklyWinners,
-        leaderboard: finalLeaderboard,
+        leaderboard: leaderboard,
         periodInfo: {
           name: periodName,
           weeks: periodWeeks,
           totalWeeks: periodWeeks.length
         },
-        games: gamesData || []
+        games: gamesData || [],
+        tieBreakerInfo: tieBreakerInfo
       }
     });
 
@@ -592,4 +602,322 @@ async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseService
   }
 
   return games?.map((game) => game.id) || [];
+}
+
+/**
+ * Apply special tie-breaker logic for top 3 positions in period leaderboard
+ * - Use Monday night score tie-breaker for everyone in the top 3
+ * - If positions 4 and 3 have the same score, use Monday night score to determine who is actually in the top 3
+ */
+async function applyTopThreeTieBreakerLogicForPeriod(
+  entries: ParticipantData[],
+  poolId: string,
+  season: number,
+  periodWeeks: number[]
+): Promise<{ finalEntries: ParticipantData[]; tieBreakerInfo: {
+  wasUsed: boolean;
+  tieBreakerWeek: number | null;
+  poolAnswer: number;
+  participantsInvolved: Array<{
+    participant_id: string;
+    name: string;
+    points: number;
+    mondayNightAnswer: number | null;
+    mondayNightDifference: number;
+    originalPosition: number;
+    finalPosition: number;
+  }>;
+} | null }> {
+  try {
+    // If we have less than 4 participants, no special logic needed
+    if (entries.length < 4) {
+      return { finalEntries: entries, tieBreakerInfo: null };
+    }
+
+    // Check if we need to apply Monday night tie-breaker for top 3
+    const topThree = entries.slice(0, 3);
+    const fourthPlace = entries[3];
+    debugLog('Top three:', topThree);
+    debugLog('Fourth place:', fourthPlace);
+    
+    // Check for ties within the top 3 and ties for 3rd place with any participants below
+    const topThreeScores = topThree.map(entry => entry.total_points);
+    const hasTopThreeTies = new Set(topThreeScores).size < topThreeScores.length;
+    
+    const thirdPlaceScore = topThree[2].total_points;
+    // Check if any participant below 3rd place has the same score as 3rd place
+    const hasThirdPlaceTies = entries.slice(3).some(entry => entry.total_points === thirdPlaceScore);
+
+    debugLog('Has top three ties:', hasTopThreeTies);
+    debugLog('Has third place ties:', hasThirdPlaceTies);
+    debugLog('Top three scores:', topThreeScores);
+    debugLog('Third place score:', thirdPlaceScore);
+    debugLog('Participants below 3rd with same score:', entries.slice(3).filter(e => e.total_points === thirdPlaceScore).map(e => e.name));
+
+    // If no ties in top 3 and no ties for 3rd place, return as is
+    if (!hasTopThreeTies && !hasThirdPlaceTies) {
+      debugLog('No ties detected, returning original order');
+      return { finalEntries: entries, tieBreakerInfo: null };
+    }
+
+    // For period leaderboards, we need to find the most recent tie-breaker week
+    // that has Monday night scores available
+    const supabase = getSupabaseServiceClient();
+    
+    // Get the most recent week in the period that has tie-breaker data
+    const sortedWeeks = [...periodWeeks].sort((a, b) => b - a);
+    let tieBreakerWeek = null;
+    let tieBreakers = null;
+    
+    for (const week of sortedWeeks) {
+      const { data: weekTieBreakers, error } = await supabase
+        .from('tie_breakers')
+        .select('participant_id, answer')
+        .eq('pool_id', poolId)
+        .eq('week', week)
+        .eq('season', season)
+        .in('participant_id', entries.slice(0, 4).map(e => e.participant_id));
+
+      if (!error && weekTieBreakers && weekTieBreakers.length > 0) {
+        tieBreakerWeek = week;
+        tieBreakers = weekTieBreakers;
+        break;
+      }
+    }
+
+    if (!tieBreakerWeek || !tieBreakers) {
+      debugLog('No Monday night tie-breaker data found for period weeks:', periodWeeks);
+      return { finalEntries: entries, tieBreakerInfo: null };
+    }
+
+    // Get the pool's Monday night answer for the tie-breaker week
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('tie_breaker_answer')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError || !pool?.tie_breaker_answer) {
+      debugLog('Error loading pool tie-breaker answer:', poolError);
+      return { finalEntries: entries, tieBreakerInfo: null };
+    }
+
+    debugLog('Pool tie-breaker answer:', pool.tie_breaker_answer);
+    const poolAnswer = pool.tie_breaker_answer;
+
+    // Apply tie-breaker logic based on the type of tie
+    // eslint-disable-next-line prefer-const
+    let finalEntries: ParticipantData[] = [...entries];
+    
+    if (hasTopThreeTies) {
+      debugLog('Applying tie-breaker to tied participants in top 3');
+      
+      // Group participants by score to identify ties
+      const scoreGroups = new Map<number, ParticipantData[]>();
+      topThree.forEach(entry => {
+        if (!scoreGroups.has(entry.total_points)) {
+          scoreGroups.set(entry.total_points, []);
+        }
+        scoreGroups.get(entry.total_points)!.push(entry);
+      });
+      
+      debugLog('Score groups:', Array.from(scoreGroups.entries()).map(([score, participants]) => ({
+        score,
+        participants: participants.map(p => p.name)
+      })));
+      
+      // Apply tie-breaker to each group with multiple participants
+      let currentIndex = 0;
+      for (const [score, participants] of scoreGroups) {
+        if (participants.length === 1) {
+          // No tie, keep original position
+          finalEntries[currentIndex] = participants[0];
+          currentIndex++;
+        } else {
+          // Apply tie-breaker to tied participants
+          const tiedWithTieBreakers = participants.map(entry => {
+            const tieBreaker = tieBreakers.find(tb => tb.participant_id === entry.participant_id);
+            const tieBreakerAnswer = tieBreaker?.answer;
+            const difference = tieBreakerAnswer ? Math.abs(tieBreakerAnswer - poolAnswer) : Infinity;
+            
+            return {
+              ...entry,
+              mondayNightDifference: difference,
+              mondayNightAnswer: tieBreakerAnswer
+            };
+          });
+
+          // Sort by Monday night difference (closest wins)
+          tiedWithTieBreakers.sort((a, b) => a.mondayNightDifference - b.mondayNightDifference);
+          
+          // Replace tied participants in final entries
+          const resolvedTied = tiedWithTieBreakers.map(participant => ({
+            participant_id: participant.participant_id,
+            name: participant.name,
+            email: participant.email,
+            total_points: participant.total_points,
+            total_correct: participant.total_correct,
+            total_picks: participant.total_picks,
+            weeks_won: participant.weeks_won,
+            weekly_scores: participant.weekly_scores
+          }));
+          
+          // Insert resolved tied participants at their correct positions
+          resolvedTied.forEach(participant => {
+            finalEntries[currentIndex] = participant;
+            currentIndex++;
+          });
+          
+          debugLog(`Resolved tie for score ${score}:`, resolvedTied.map(p => ({
+            name: p.name,
+            difference: tiedWithTieBreakers.find(t => t.participant_id === p.participant_id)?.mondayNightDifference
+          })));
+        }
+      }
+    }
+    
+    if (hasThirdPlaceTies) {
+      debugLog('Applying tie-breaker for 3rd place with participants below');
+      
+      // Get all participants tied for 3rd place (including 3rd place and any below with same score)
+      const thirdPlaceTiedParticipants = entries.filter(entry => entry.total_points === thirdPlaceScore);
+      
+      debugLog('Participants tied for 3rd place:', thirdPlaceTiedParticipants.map(p => p.name));
+      
+      // Get tie-breaker data for all tied participants
+      const tiedWithTieBreakers = thirdPlaceTiedParticipants.map(entry => {
+        const tieBreaker = tieBreakers.find(tb => tb.participant_id === entry.participant_id);
+        const tieBreakerAnswer = tieBreaker?.answer;
+        const difference = tieBreakerAnswer ? Math.abs(tieBreakerAnswer - poolAnswer) : Infinity;
+        
+        return {
+          ...entry,
+          mondayNightDifference: difference,
+          mondayNightAnswer: tieBreakerAnswer
+        };
+      });
+
+      // Sort by Monday night difference (closest wins)
+      tiedWithTieBreakers.sort((a, b) => a.mondayNightDifference - b.mondayNightDifference);
+      
+      debugLog('Tied participants sorted by Monday night score:', tiedWithTieBreakers.map(p => ({
+        name: p.name,
+        difference: p.mondayNightDifference,
+        answer: p.mondayNightAnswer
+      })));
+      
+      // The winner gets 3rd place, others get subsequent positions
+      const winner = tiedWithTieBreakers[0];
+      const losers = tiedWithTieBreakers.slice(1);
+      
+      // Find current positions
+      const winnerIndex = finalEntries.findIndex(e => e.participant_id === winner.participant_id);
+      
+      // Move winner to 3rd place if not already there
+      if (winnerIndex !== 2) {
+        // Remove winner from current position
+        const winnerEntry = finalEntries.splice(winnerIndex, 1)[0];
+        // Insert at 3rd position
+        finalEntries.splice(2, 0, winnerEntry);
+        debugLog(`Moved ${winner.name} to 3rd place (was at position ${winnerIndex + 1})`);
+      } else {
+        debugLog(`${winner.name} already in 3rd place`);
+      }
+      
+      // Move losers to positions after 3rd place
+      losers.forEach((loser, index) => {
+        const loserIndex = finalEntries.findIndex(e => e.participant_id === loser.participant_id);
+        if (loserIndex !== 3 + index) {
+          // Remove loser from current position
+          const loserEntry = finalEntries.splice(loserIndex, 1)[0];
+          // Insert at correct position after 3rd
+          finalEntries.splice(3 + index, 0, loserEntry);
+          debugLog(`Moved ${loser.name} to position ${4 + index} (was at position ${loserIndex + 1})`);
+        }
+      });
+    }
+
+    // Collect tie-breaker information for the response
+    const tieBreakerInfo = {
+      wasUsed: hasTopThreeTies || hasThirdPlaceTies,
+      tieBreakerWeek: tieBreakerWeek,
+      poolAnswer: poolAnswer,
+      participantsInvolved: [] as Array<{
+        participant_id: string;
+        name: string;
+        points: number;
+        mondayNightAnswer: number | null;
+        mondayNightDifference: number;
+        originalPosition: number;
+        finalPosition: number;
+      }>
+    };
+
+    // Add tie-breaker information for participants involved
+    if (hasTopThreeTies || hasThirdPlaceTies) {
+      // Get all participants who were involved in tie-breaking
+      const involvedParticipants = new Set<string>();
+      
+      if (hasTopThreeTies) {
+        // Add participants from tied groups in top 3
+        const scoreGroups = new Map<number, ParticipantData[]>();
+        topThree.forEach(entry => {
+          if (!scoreGroups.has(entry.total_points)) {
+            scoreGroups.set(entry.total_points, []);
+          }
+          scoreGroups.get(entry.total_points)!.push(entry);
+        });
+        
+        for (const [, participants] of scoreGroups) {
+          if (participants.length > 1) {
+            participants.forEach(p => involvedParticipants.add(p.participant_id));
+          }
+        }
+      }
+      
+      if (hasThirdPlaceTies) {
+        // Add participants tied for 3rd place
+        const thirdPlaceTiedParticipants = entries.filter(entry => entry.total_points === thirdPlaceScore);
+        thirdPlaceTiedParticipants.forEach(p => involvedParticipants.add(p.participant_id));
+      }
+
+      // Collect tie-breaker data for involved participants
+      involvedParticipants.forEach(participantId => {
+        const originalEntry = entries.find(e => e.participant_id === participantId);
+        const finalEntry = finalEntries.find(e => e.participant_id === participantId);
+        const tieBreaker = tieBreakers?.find(tb => tb.participant_id === participantId);
+        
+        if (originalEntry && finalEntry) {
+          const originalPosition = entries.findIndex(e => e.participant_id === participantId) + 1;
+          const finalPosition = finalEntries.findIndex(e => e.participant_id === participantId) + 1;
+          
+          tieBreakerInfo.participantsInvolved.push({
+            participant_id: participantId,
+            name: originalEntry.name,
+            points: originalEntry.total_points,
+            mondayNightAnswer: tieBreaker?.answer || null,
+            mondayNightDifference: tieBreaker ? Math.abs(tieBreaker.answer - poolAnswer) : Infinity,
+            originalPosition,
+            finalPosition
+          });
+        }
+      });
+    }
+
+    debugLog('Applied period top 3 tie-breaker logic:', {
+      tieBreakerWeek,
+      originalTopThree: topThree.map(e => ({ name: e.name, points: e.total_points })),
+      finalTopThree: finalEntries.slice(0, 3).map(e => ({ name: e.name, points: e.total_points })),
+      hasTopThreeTies,
+      hasThirdPlaceTies,
+      poolAnswer,
+      tieBreakerInfo
+    });
+    
+
+    return { finalEntries, tieBreakerInfo };
+  } catch (error) {
+    debugLog('Error applying period top 3 tie-breaker logic:', error);
+    return { finalEntries: entries, tieBreakerInfo: null };
+  }
 }
