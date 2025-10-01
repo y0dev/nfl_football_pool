@@ -88,6 +88,8 @@ export default function PeriodLeaderboardPage() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [allWeeksCompleted, setAllWeeksCompleted] = useState(false);
   const [games, setGames] = useState<any[]>([]);
+  const [tieBreakerInfo, setTieBreakerInfo] = useState<any>(null);
+  const [showTieBreakerInfo, setShowTieBreakerInfo] = useState(false);
 
   useEffect(() => {
     loadPeriodData();
@@ -213,6 +215,7 @@ export default function PeriodLeaderboardPage() {
           setLeaderboard(mappedLeaderboard);
           setPeriodInfo(mappedPeriodInfo);
           setGames(periodResult.data.games || []);
+          setTieBreakerInfo(periodResult.data.tieBreakerInfo || null);
         } else {
           // In development, show dummy data if no real data is available
           if (process.env.NODE_ENV === 'development') {
@@ -534,17 +537,33 @@ export default function PeriodLeaderboardPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 sm:mb-8">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.back()}
-          className="flex items-center gap-2 w-fit"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
-        <div className="min-w-0 flex-1">
+      <div className="space-y-4 mb-6 sm:mb-8">
+        {/* Buttons Row */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.back()}
+            className="flex items-center gap-2 w-fit"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          {tieBreakerInfo && tieBreakerInfo.wasUsed && (
+            <Button
+              variant={showTieBreakerInfo ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowTieBreakerInfo(!showTieBreakerInfo)}
+              className="flex items-center gap-2 w-fit"
+            >
+              <Trophy className="h-4 w-4" />
+              {showTieBreakerInfo ? 'Hide' : 'Show'} Tie-Breaker Details
+            </Button>
+          )}
+        </div>
+        
+        {/* Title Row */}
+        <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold truncate">{periodName} Leaderboard</h1>
           <p className="text-gray-600 text-sm sm:text-base truncate">Season {season} • {poolName || `Pool ${poolId.slice(0, 8)}...`}</p>
         </div>
@@ -567,14 +586,69 @@ export default function PeriodLeaderboardPage() {
                   {periodWinner.winner_points} points • {periodWinner.winner_correct_picks} correct picks
                 </p>
                 {periodWinner.tie_breaker_used && (
-                  <Badge variant="secondary" className="mt-2">
-                    Tie Breaker Used
-                  </Badge>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge variant="secondary">
+                      Tie Breaker Used
+                    </Badge>
+                    {!showTieBreakerInfo && (
+                      <button
+                        onClick={() => setShowTieBreakerInfo(true)}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        View Details
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="text-center sm:text-right">
                 <p className="text-sm text-yellow-600">Total Participants</p>
                 <p className="text-xl sm:text-2xl font-bold text-yellow-900">{periodWinner.total_participants}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tie-Breaker Information */}
+      {tieBreakerInfo && tieBreakerInfo.wasUsed && showTieBreakerInfo && (
+        <Card className="mb-6 sm:mb-8 border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <Trophy className="h-5 w-5" />
+              Tie-Breaker Applied
+            </CardTitle>
+            <CardDescription className="text-blue-700">
+              Monday Night Score Tie-Breaker used for Week {tieBreakerInfo.tieBreakerWeek} 
+              (Actual Score: {tieBreakerInfo.poolAnswer})
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <h4 className="font-semibold text-blue-900">Participants Involved:</h4>
+              <div className="space-y-2">
+                {tieBreakerInfo.participantsInvolved.map((participant: any, index: number) => (
+                  <div key={participant.participant_id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-blue-600">#{participant.finalPosition}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-blue-900">{participant.name}</p>
+                        <p className="text-sm text-blue-600">{participant.points} points</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-blue-600">Monday Night Score</p>
+                      <p className="font-medium text-blue-900">
+                        {participant.mondayNightAnswer !== null ? participant.mondayNightAnswer : 'N/A'}
+                      </p>
+                      <p className="text-xs text-blue-500">
+                        Difference: {participant.mondayNightDifference !== Infinity ? participant.mondayNightDifference : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </CardContent>

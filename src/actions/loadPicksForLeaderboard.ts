@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { applyTieBreakers, getTieBreakerSettings } from '@/lib/tie-breakers';
+import { applyTieBreakers, getTieBreakerSettings, TieBreakerSettings } from '@/lib/tie-breakers';
 import { DEFAULT_SEASON } from '@/lib/utils';
 
 export interface PickData {
@@ -229,7 +229,8 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
           }
         }
         
-        return finalEntries;
+        // Apply special top 3 tie-breaker logic
+        return await applyTopThreeTieBreakerLogic(finalEntries, poolId, weekNumber, seasonToUse, tieBreakerSettings);
       }
     } catch (error) {
       console.error('Error applying tie breakers:', error);
@@ -240,5 +241,119 @@ export async function loadLeaderboardWithPicks(poolId: string, weekNumber: numbe
   } catch (error) {
     console.error('Error loading leaderboard with picks:', error);
     return [];
+  }
+}
+
+/**
+ * Apply special tie-breaker logic for top 3 positions
+ * - Use Monday night score tie-breaker for everyone in the top 3
+ * - If positions 4 and 3 have the same score, use Monday night score to determine who is actually in the top 3
+ */
+async function applyTopThreeTieBreakerLogic(
+  entries: LeaderboardEntryWithPicks[],
+  poolId: string,
+  weekNumber: number,
+  season: number,
+  tieBreakerSettings: TieBreakerSettings
+): Promise<LeaderboardEntryWithPicks[]> {
+  try {
+    // If we have less than 4 participants, no special logic needed
+    if (entries.length < 4) {
+      return entries;
+    }
+
+    // Check if we need to apply Monday night tie-breaker for top 3
+    const topThree = entries.slice(0, 3);
+    const fourthPlace = entries[3];
+    
+    // Check if any of the top 3 have the same score (need tie-breaker)
+    const topThreeScores = topThree.map(entry => entry.total_points);
+    const hasTopThreeTies = new Set(topThreeScores).size < topThreeScores.length;
+    
+    // Check if 3rd and 4th place have the same score
+    const thirdPlaceScore = topThree[2].total_points;
+    const fourthPlaceScore = fourthPlace.total_points;
+    const hasThirdFourthTie = thirdPlaceScore === fourthPlaceScore;
+
+    // If no ties in top 3 and no tie between 3rd and 4th, return as is
+    if (!hasTopThreeTies && !hasThirdFourthTie) {
+      return entries;
+    }
+
+    // Get Monday night tie-breaker data
+    const supabase = getSupabaseClient();
+    const { data: tieBreakers, error } = await supabase
+      .from('tie_breakers')
+      .select('participant_id, answer')
+      .eq('pool_id', poolId)
+      .eq('week', weekNumber)
+      .eq('season', season)
+      .in('participant_id', entries.slice(0, 4).map(e => e.participant_id));
+
+    if (error) {
+      console.error('Error loading Monday night tie-breakers:', error);
+      return entries;
+    }
+
+    // Get the pool's Monday night answer
+    const { data: pool, error: poolError } = await supabase
+      .from('pools')
+      .select('tie_breaker_answer')
+      .eq('id', poolId)
+      .single();
+
+    if (poolError || !pool?.tie_breaker_answer) {
+      console.error('Error loading pool tie-breaker answer:', poolError);
+      return entries;
+    }
+
+    const poolAnswer = pool.tie_breaker_answer;
+
+    // Calculate Monday night score differences for relevant participants
+    const participantsWithTieBreakers = entries.slice(0, 4).map(entry => {
+      const tieBreaker = tieBreakers?.find(tb => tb.participant_id === entry.participant_id);
+      const tieBreakerAnswer = tieBreaker?.answer;
+      const difference = tieBreakerAnswer ? Math.abs(tieBreakerAnswer - poolAnswer) : Infinity;
+      
+      return {
+        ...entry,
+        mondayNightDifference: difference,
+        mondayNightAnswer: tieBreakerAnswer
+      };
+    });
+
+    // Sort by Monday night difference (closest wins)
+    participantsWithTieBreakers.sort((a, b) => a.mondayNightDifference - b.mondayNightDifference);
+
+    // Reconstruct the final leaderboard
+    const finalEntries: LeaderboardEntryWithPicks[] = [];
+    
+    // Add the top 3 based on Monday night tie-breaker
+    const topThreeByTieBreaker = participantsWithTieBreakers.slice(0, 3);
+    finalEntries.push(...topThreeByTieBreaker.map(({ mondayNightDifference, mondayNightAnswer, ...entry }) => entry));
+    
+    // Add the remaining participants (4th place and beyond)
+    const remainingParticipants = participantsWithTieBreakers.slice(3);
+    finalEntries.push(...remainingParticipants.map(({ mondayNightDifference, mondayNightAnswer, ...entry }) => entry));
+    
+    // Add any participants beyond 4th place that weren't involved in tie-breaking
+    if (entries.length > 4) {
+      finalEntries.push(...entries.slice(4));
+    }
+
+    console.log('Applied top 3 tie-breaker logic:', {
+      originalTopThree: topThree.map(e => ({ name: e.participant_name, points: e.total_points })),
+      finalTopThree: finalEntries.slice(0, 3).map(e => ({ name: e.participant_name, points: e.total_points })),
+      mondayNightDifferences: participantsWithTieBreakers.slice(0, 4).map(e => ({ 
+        name: e.participant_name, 
+        difference: e.mondayNightDifference,
+        answer: e.mondayNightAnswer
+      }))
+    });
+
+    return finalEntries;
+  } catch (error) {
+    console.error('Error applying top 3 tie-breaker logic:', error);
+    return entries;
   }
 }
