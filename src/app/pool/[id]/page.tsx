@@ -437,6 +437,7 @@ function PoolDetailsContent() {
             )}
             <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
             <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
+            <TabsTrigger value="season-review" className="text-xs whitespace-nowrap px-2 py-1">Season Review</TabsTrigger>
             <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
           </TabsList>
@@ -469,7 +470,21 @@ function PoolDetailsContent() {
           />
         </TabsContent>
 
-
+        <TabsContent value="season-review" className="space-y-6 mt-6">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold mb-4">Season Review</h3>
+            <p className="text-muted-foreground mb-6">
+              View comprehensive statistics and achievements for the {pool.season} season
+            </p>
+            <Button 
+              onClick={() => router.push(`/season-review/${pool.id}/${pool.season}`)}
+              className="flex items-center gap-2"
+            >
+              <Trophy className="h-4 w-4" />
+              View Season Review
+            </Button>
+          </div>
+        </TabsContent>
 
         <TabsContent value="emails" className="space-y-6 mt-6">
           <EnhancedEmailManagement 
