@@ -29,7 +29,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, Pool, Participant } from '@/lib/admin-service';
-import { debugLog, createPageUrl } from '@/lib/utils';
+import { debugLog, createPageUrl, getMaxWeeksForSeason, MAX_WEEKS_POSTSEASON, MAX_WEEKS_PRESEASON, MAX_WEEKS_REGULAR_SEASON } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
@@ -50,6 +50,19 @@ function PoolsManagementContent() {
   const [filteredPools, setFilteredPools] = useState<PoolWithParticipants[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+  const [overridePool, setOverridePool] = useState<PoolWithParticipants | null>(null);
+  const [overrideType, setOverrideType] = useState<'week' | 'quarter'>('week');
+  const [overrideWeek, setOverrideWeek] = useState<string>('');
+  const [overrideQuarter, setOverrideQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Playoffs'>('Q1');
+  const [overrideSeason, setOverrideSeason] = useState<string>('');
+  const [overrideSeasonType, setOverrideSeasonType] = useState<'Preseason' | 'Regular' | 'Postseason'>('Regular');
+  const [overrideParticipantId, setOverrideParticipantId] = useState<string>('');
+  const [overrideParticipantName, setOverrideParticipantName] = useState<string>('');
+  const [overridePoints, setOverridePoints] = useState<string>('');
+  const [overrideCorrect, setOverrideCorrect] = useState<string>('');
+  const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
+  const [overrideParticipants, setOverrideParticipants] = useState<Array<{ id: string; name: string }>>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedPoolForShare, setSelectedPoolForShare] = useState<PoolWithParticipants | null>(null);
   const [shareLink, setShareLink] = useState('');
@@ -638,6 +651,42 @@ function PoolsManagementContent() {
                           <BarChart3 className="h-4 w-4" />
                           Leaderboard
                         </Button>
+                        {/* Override Winners */}
+                        {(isSuperAdmin || pool.created_by === user?.email) && (
+                          <Button
+                            onClick={() => {
+                              setOverridePool(pool);
+                              setOverrideSeason(String(pool.season));
+                              setOverrideWeek(String(currentWeek));
+                              setOverrideSeasonType('Regular');
+                          // Load participants for dropdown
+                          (async () => {
+                            try {
+                              const { getSupabaseServiceClient } = await import('@/lib/supabase');
+                              const supabase = getSupabaseServiceClient();
+                              const { data: participants } = await supabase
+                                .from('participants')
+                                .select('id, name')
+                                .eq('pool_id', pool.id)
+                                .eq('is_active', true)
+                                .order('name', { ascending: true });
+                              setOverrideParticipants((participants || []).map(p => ({ id: p.id, name: p.name || 'Unknown' })));
+                            } catch (e) {
+                              console.error('Failed to load participants for override', e);
+                              setOverrideParticipants([]);
+                            } finally {
+                              setOverrideDialogOpen(true);
+                            }
+                          })();
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+                          >
+                            <Trophy className="h-4 w-4" />
+                            Override Winner
+                          </Button>
+                        )}
                         <Button
                           onClick={() => handleSharePool(pool)}
                           variant="outline"
@@ -752,6 +801,244 @@ function PoolsManagementContent() {
               <p>• This link will take participants to the pool selection page for Week {currentWeek}</p>
               <p>• Participants can join the pool and submit their picks</p>
               <p>• The link includes the current week for easy access</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Override Winner Dialog */}
+      <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              {overrideType === 'week' ? 'Override Weekly Winner' : 'Override Quarter Winner'}
+            </DialogTitle>
+            <DialogDescription>
+              Manually set the {overrideType === 'week' ? 'weekly' : 'quarter'} winner for a pool
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Load participants when opening */}
+            {/* This is kept inside component state/effects */}
+            {/* Type toggle */}
+            <div className="flex gap-2">
+              <Button
+                variant={overrideType === 'week' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOverrideType('week')}
+              >
+                Weekly
+              </Button>
+              <Button
+                variant={overrideType === 'quarter' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setOverrideType('quarter')}
+              >
+                Quarter
+              </Button>
+            </div>
+
+            {/* Pool details */}
+            {overridePool && (
+              <div className="text-sm text-gray-600">
+                <div className="font-medium">Pool: {overridePool.name}</div>
+                <div>Season: {overrideSeason || overridePool.season}</div>
+              </div>
+            )}
+
+            {/* Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {overrideType === 'week' ? (
+                <>
+                  <div>
+                    <Label htmlFor="ov-week" className="text-sm">Week</Label>
+                    <Input
+                      id="ov-week"
+                      value={overrideWeek}
+                      onChange={(e) => setOverrideWeek(e.target.value)}
+                      placeholder="e.g. 7"
+                      min={1}
+                      max={(overrideSeasonType === 'Preseason' ? MAX_WEEKS_PRESEASON : overrideSeasonType === 'Regular' ? MAX_WEEKS_REGULAR_SEASON : MAX_WEEKS_POSTSEASON)}
+                      type="number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="ov-seasontype" className="text-sm">Season Type</Label>
+                    <select
+                      id="ov-seasontype"
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={overrideSeasonType}
+                      onChange={(e) => setOverrideSeasonType(e.target.value as any)}
+                    >
+                      <option value="Preseason">Preseason</option>
+                      <option value="Regular">Regular</option>
+                      <option value="Postseason">Postseason</option>
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="sm:col-span-2">
+                    <Label htmlFor="ov-quarter" className="text-sm">Quarter</Label>
+                    <select
+                      id="ov-quarter"
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={overrideQuarter}
+                      onChange={(e) => setOverrideQuarter(e.target.value as any)}
+                    >
+                      <option value="Q1">Q1 (Weeks 1-4)</option>
+                      <option value="Q2">Q2 (Weeks 5-8)</option>
+                      <option value="Q3">Q3 (Weeks 9-12)</option>
+                      <option value="Q4">Q4 (Weeks 13-16)</option>
+                      <option value="Playoffs">Playoffs</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <Label htmlFor="ov-season" className="text-sm">Season</Label>
+                <Input id="ov-season" value={overrideSeason} onChange={(e) => setOverrideSeason(e.target.value)} placeholder="e.g. 2025" />
+              </div>
+              <div>
+                <Label htmlFor="ov-participant" className="text-sm">Winner Participant</Label>
+                <select
+                  id="ov-participant"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={overrideParticipantId}
+                  onChange={(e) => {
+                    const pid = e.target.value;
+                    setOverrideParticipantId(pid);
+                    const p = overrideParticipants.find(x => x.id === pid);
+                    setOverrideParticipantName(p?.name || '');
+                  }}
+                >
+                  <option value="">Select participant…</option>
+                  {overrideParticipants.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="ov-participant-name" className="text-sm">Winner Name</Label>
+                <Input id="ov-participant-name" value={overrideParticipantName} onChange={(e) => setOverrideParticipantName(e.target.value)} placeholder="Full name" />
+              </div>
+              <div>
+                <Label htmlFor="ov-points" className="text-sm">Points (optional)</Label>
+                <Input id="ov-points" value={overridePoints} onChange={(e) => setOverridePoints(e.target.value)} placeholder="leave blank to use current" />
+              </div>
+              <div>
+                <Label htmlFor="ov-correct" className="text-sm">Correct Picks (optional)</Label>
+                <Input id="ov-correct" value={overrideCorrect} onChange={(e) => setOverrideCorrect(e.target.value)} placeholder="leave blank to use current" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={async () => {
+                  if (!overridePool) return;
+                  setIsSubmittingOverride(true);
+                  try {
+                  if (!overrideParticipantName.trim()) {
+                      toast({ title: 'Missing fields', description: 'Winner name is required', variant: 'destructive' });
+                      setIsSubmittingOverride(false);
+                      return;
+                    }
+                    const { getSupabaseClient } = await import('@/lib/supabase');
+                    const supabase = getSupabaseClient();
+                    const { data: { session } } = await supabase.auth.getSession();
+
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+                    if (overrideType === 'week') {
+                      // Derive season type number from label
+                      const seasonTypeNum = overrideSeasonType === 'Preseason' ? 1 : overrideSeasonType === 'Regular' ? 2 : 3;
+                      // If points/correct not provided, fetch from leaderboard
+                      let pointsToUse = overridePoints.trim();
+                      let correctToUse = overrideCorrect.trim();
+                      if (!pointsToUse || !correctToUse) {
+                        const lbRes = await fetch(`/api/leaderboard?poolId=${overridePool.id}&week=${Number(overrideWeek)}&seasonType=${seasonTypeNum}&season=${Number(overrideSeason || overridePool.season)}`);
+                        if (lbRes.ok) {
+                          const lb = await lbRes.json();
+                          const entry = (lb.leaderboard || []).find((e: any) => e.participant_id === overrideParticipantId || e.participant_name === overrideParticipantName);
+                          if (entry) {
+                            if (!pointsToUse) pointsToUse = String(entry.total_points || 0);
+                            if (!correctToUse) correctToUse = String(entry.correct_picks || 0);
+                          }
+                        }
+                      }
+                      const res = await fetch('/api/admin/week-winner', {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                          poolId: overridePool.id,
+                          week: Number(overrideWeek),
+                          season: Number(overrideSeason || overridePool.season),
+                          seasonType: seasonTypeNum,
+                          winnerParticipantId: overrideParticipantId || null,
+                          winnerName: overrideParticipantName.trim(),
+                          winnerPoints: Number(pointsToUse || 0),
+                          winnerCorrectPicks: Number(correctToUse || 0),
+                          totalParticipants: overridePool.participantCount || 0
+                        })
+                      });
+                      if (!res.ok) throw new Error('Failed to save weekly winner');
+                      toast({ title: 'Weekly winner saved', description: `Week ${overrideWeek} winner overridden.` });
+                    } else {
+                      // For quarter override, if points/correct missing, derive from periods leaderboard
+                      let pointsToUse = overridePoints.trim();
+                      let correctToUse = overrideCorrect.trim();
+                      if (!pointsToUse || !correctToUse) {
+                        const periodNameMap: Record<string, string> = { Q1: 'Period 1', Q2: 'Period 2', Q3: 'Period 3', Q4: 'Period 4', Playoffs: 'Playoffs' };
+                        const plRes = await fetch(`/api/periods/leaderboard?poolId=${overridePool.id}&season=${Number(overrideSeason || overridePool.season)}&periodName=${encodeURIComponent(periodNameMap[overrideQuarter])}`);
+                        if (plRes.ok) {
+                          const data = await plRes.json();
+                          const leaderboard = data?.data?.leaderboard || [];
+                          const entry = leaderboard.find((e: any) => e.participant_id === overrideParticipantId || e.name === overrideParticipantName);
+                          if (entry) {
+                            if (!pointsToUse) pointsToUse = String(entry.total_points || 0);
+                            if (!correctToUse) correctToUse = String(entry.total_correct || 0);
+                          }
+                        }
+                      }
+                      const res = await fetch('/api/admin/period-winner', {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                          poolId: overridePool.id,
+                          season: Number(overrideSeason || overridePool.season),
+                          periodName: overrideQuarter,
+                          winnerParticipantId: overrideParticipantId || null,
+                          winnerName: overrideParticipantName.trim(),
+                          periodPoints: Number(pointsToUse || 0),
+                          periodCorrectPicks: Number(correctToUse || 0),
+                          totalParticipants: overridePool.participantCount || 0
+                        })
+                      });
+                      if (!res.ok) throw new Error('Failed to save period winner');
+                      toast({ title: 'Quarter winner saved', description: `${overrideQuarter} winner overridden.` });
+                    }
+
+                    setOverrideDialogOpen(false);
+                    setOverrideParticipantId('');
+                    setOverrideParticipantName('');
+                    setOverridePoints('');
+                    setOverrideCorrect('');
+                  } catch (e) {
+                    console.error(e);
+                    toast({ title: 'Save failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+                  } finally {
+                    setIsSubmittingOverride(false);
+                  }
+                }}
+                disabled={isSubmittingOverride}
+              >
+                {isSubmittingOverride ? 'Saving...' : 'Save'}
+              </Button>
+              <Button variant="outline" onClick={() => setOverrideDialogOpen(false)} disabled={isSubmittingOverride}>Cancel</Button>
             </div>
           </div>
         </DialogContent>
