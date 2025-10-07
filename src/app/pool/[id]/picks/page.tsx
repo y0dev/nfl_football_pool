@@ -13,14 +13,14 @@ import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, Settings, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
-import { loadPools } from '@/actions/loadPools';
 import { pickStorage } from '@/lib/pick-storage';
-import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 import { Game, SelectedUser } from '@/types/game';
-import { useAuth } from '@/lib/auth';
+//
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS } from '@/lib/utils';
@@ -79,7 +79,7 @@ function PoolPicksContent() {
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [gamesStarted, setGamesStarted] = useState(false);
-  const [hasPicks, setHasPicks] = useState(false);
+  // const [hasPicks, setHasPicks] = useState(false); // retained for future use
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [weekWinner, setWeekWinner] = useState<{
     participant_name: string;
@@ -94,26 +94,25 @@ function PoolPicksContent() {
   const router = useRouter();
 
   // Helper function to get current user's submission status
-  const getCurrentUserSubmissionStatus = () => {
-    if (!selectedUser) return false;
-    return hasSubmitted[selectedUser.id]?.submitted || false;
-  };
+  // const getCurrentUserSubmissionStatus = () => {
+  //   if (!selectedUser) return false;
+  //   return hasSubmitted[selectedUser.id]?.submitted || false;
+  // };
 
   // Helper function to get the most recently submitted user
-  const getMostRecentSubmittedUser = () => {
-    const submittedUsers = Object.entries(hasSubmitted)
-      .filter(([_, data]) => data.submitted)
-      .map(([userId, data]) => ({ id: userId, name: data.name }));
-    
-    return submittedUsers.length > 0 ? submittedUsers[0] : null;
-  };
+  // const getMostRecentSubmittedUser = () => {
+  //   const submittedUsers = Object.entries(hasSubmitted)
+  //     .filter(([_, data]) => data.submitted)
+  //     .map(([userId, data]) => ({ id: userId, name: data.name }));
+  //   return submittedUsers.length > 0 ? submittedUsers[0] : null;
+  // };
 
   // Navigate to a specific week with season transition handling
-  const navigateToWeek = (week: number, seasonType: number, season: number) => {
+  const navigateToWeek = (week: number, seasonType: number) => {
     // Handle season transitions
     let targetWeek = week;
     let targetSeasonType = seasonType;
-    const targetSeason = season;
+    // const targetSeason = season;
 
     // Previous week navigation
     if (week < 1) {
@@ -354,6 +353,7 @@ function PoolPicksContent() {
   // Check week status when games change
   useEffect(() => {
     checkWeekStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [games, poolId, currentWeek, currentSeasonType, poolSeason]);
 
   // Automatically show leaderboard when week ends
@@ -480,7 +480,7 @@ function PoolPicksContent() {
             
             // Set picks status if available
             if (pool.picks_status) {
-              setHasPicks(pool.picks_status.hasPicks || false);
+              // hasPicks is deprecated in this component; only track submitted count
               setSubmittedCount(pool.picks_status.submittedCount || 0);
             }
           } else {
@@ -657,10 +657,10 @@ function PoolPicksContent() {
           console.error('Games API response error:', response.status, errorText);
           throw new Error(`Failed to load games (${response.status})`);
         }
-      } catch (error) {
-        console.error('Error loading games:', error);
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
+      } catch (e) {
+        console.error('Error loading games:', e);
+        if (e instanceof Error) {
+          if (e.name === 'AbortError') {
             toast({
               title: "Warning",
               description: "Games request timed out",
@@ -669,7 +669,7 @@ function PoolPicksContent() {
           } else {
             toast({
               title: "Warning",
-              description: `Could not load games data: ${error.message}`,
+              description: `Could not load games data: ${e.message}`,
               variant: "destructive",
             });
           }
@@ -698,7 +698,7 @@ function PoolPicksContent() {
               name: poolSession.userName,
             });
           }
-        } catch (error) {
+        } catch {
           debugLog('No saved user session found for pool:', poolId);
         }
       }
@@ -714,6 +714,7 @@ function PoolPicksContent() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId, weekParam]);
 
   useEffect(() => {
@@ -724,6 +725,7 @@ function PoolPicksContent() {
 
   useEffect(() => {
     checkUserSubmissionStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser, poolId, currentWeek, currentSeasonType]);
 
   const handleRefresh = async () => {
@@ -742,10 +744,10 @@ function PoolPicksContent() {
     setSelectedUser(user);
     
     // Load picks from localStorage if they exist
-    loadPicksFromLocalStorage(userId, poolId!, currentWeek, currentSeasonType);
+    loadPicksFromLocalStorage(userId, poolId!, currentWeek);
   };
 
-  const loadPicksFromLocalStorage = async (participantId: string, poolId: string, week: number, seasonType: number) => {
+  const loadPicksFromLocalStorage = async (participantId: string, poolId: string, week: number) => {
     try {
       const { pickStorage } = await import('@/lib/pick-storage');
       
@@ -766,8 +768,8 @@ function PoolPicksContent() {
       } else {
         debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
-    } catch (error) {
-      console.error('Error loading picks from localStorage:', error);
+      } catch (err) {
+        console.error('Error loading picks from localStorage:', err);
       toast({
         title: "Warning",
         description: "Could not load saved picks from previous session",
@@ -845,8 +847,8 @@ function PoolPicksContent() {
           description: "Pool link copied to clipboard",
         });
       }
-    } catch (error) {
-      console.error('Error sharing:', error);
+      } catch (e) {
+      console.error('Error sharing:', e);
     }
   };
 
@@ -1069,7 +1071,7 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                       disabled={currentWeek <= 1 && currentSeasonType <= 1}
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
@@ -1094,7 +1096,7 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
                       disabled={currentWeek >= 18 && currentSeasonType >= 3}
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
@@ -1215,7 +1217,7 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                       disabled={currentWeek <= 1 && currentSeasonType <= 1}
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
@@ -1240,7 +1242,7 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
                       disabled={currentWeek >= 18 && currentSeasonType >= 3}
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
@@ -1326,26 +1328,51 @@ function PoolPicksContent() {
             </Card>
           )}
 
-          {/* Season Leaderboard - Show accumulated scores across all weeks */}
+          {/* Quarter Leaderboard - default visible */}
           <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Trophy className="h-6 w-6 text-blue-600" />
-                Season {poolSeason} Overall Standings
+                Current Quarter Standings
               </CardTitle>
               <CardDescription className="text-blue-700">
-                Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
+                Live totals for the current period based on completed games
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SeasonLeaderboard 
-                poolId={poolId} 
-                season={poolSeason} 
+              <QuarterLeaderboard 
+                poolId={poolId}
+                season={poolSeason}
                 currentWeek={currentWeek}
-                currentSeasonType={currentSeasonType}
               />
             </CardContent>
           </Card>
+
+          {/* Season Leaderboard - toggled */}
+          <div className="mt-4">
+            <details>
+              <summary className="cursor-pointer text-sm text-blue-800 hover:underline">Show Season Standings</summary>
+              <Card className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-900">
+                    <Trophy className="h-6 w-6 text-blue-600" />
+                    Season {poolSeason} Overall Standings
+                  </CardTitle>
+                  <CardDescription className="text-blue-700">
+                    Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SeasonLeaderboard 
+                    poolId={poolId} 
+                    season={poolSeason} 
+                    currentWeek={currentWeek}
+                    currentSeasonType={currentSeasonType}
+                  />
+                </CardContent>
+              </Card>
+            </details>
+          </div>
 
           {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
@@ -1497,11 +1524,11 @@ function PoolPicksContent() {
                       {games.length} games
                     </span>
                     {(() => {
-                      const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season for display
+                      // Default to regular season for display
                         const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
                         return (
                         <Badge variant="secondary" className="text-xs">
-                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
+                          {seasonTypeNames[(seasonTypeParam ? parseInt(seasonTypeParam) : 2) as keyof typeof seasonTypeNames] || 'Unknown'}
                         </Badge>
                       );
                       })()}
@@ -1512,7 +1539,7 @@ function PoolPicksContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType, poolSeason)}
+                    onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                     disabled={currentWeek <= 1 && currentSeasonType <= 1}
                     className="flex items-center gap-1 px-3 py-2 h-9"
                     title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
@@ -1541,7 +1568,7 @@ function PoolPicksContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType, poolSeason)}
+                    onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
                     disabled={currentWeek >= 18 && currentSeasonType >= 3}
                     className="flex items-center gap-1 px-3 py-2 h-9"
                     title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
