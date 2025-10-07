@@ -637,6 +637,28 @@ function CommissionerDashboardContent() {
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
+                <Trophy className="h-4 w-4" />
+                Season Review
+              </CardTitle>
+              <CardDescription className="text-xs">
+                View comprehensive season statistics and achievements
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button 
+                onClick={() => router.push(createPageUrl('adminpools'))}
+                className="w-full"
+                size="sm"
+                variant="outline"
+              >
+                Select Pool for Review
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Mail className="h-4 w-4" />
                 Send Reminders
               </CardTitle>
