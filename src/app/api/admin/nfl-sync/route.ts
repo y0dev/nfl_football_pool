@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError, debugLog, debugWarn } from '@/lib/utils';
+import { debugError, debugLog } from '@/lib/utils';
 import { nflAPI } from '@/lib/nfl-api';
 
 export async function POST(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     let requestBody;
     try {
       requestBody = await request.json();
-    } catch (error) {
+    } catch {
       // If no body provided, use default logic
       requestBody = {};
     }
@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
         gamesProcessed: 0,
         gamesUpdated: 0,
         gamesFailed: 0,
+        week: 1,
+        year: new Date().getFullYear(),
+        seasonType: 2,
         endpoint: 'ESPN API with date endpoint'
       });
     }
@@ -41,7 +44,10 @@ export async function POST(request: NextRequest) {
     const batchSize = 20;
     let successfulUpdates = 0;
     let failedGames = 0;
-    const failedGameDetails: any[] = [];
+    const failedGameDetails: Array<{
+      gameId: string;
+      error: string;
+    }> = [];
 
     for (let i = 0; i < games.length; i += batchSize) {
       const batch = games.slice(i, i + batchSize);
@@ -57,10 +63,10 @@ export async function POST(request: NextRequest) {
             home_team: game.home_team,
             away_team: game.away_team,
             kickoff_time: game.time,
-            home_score: game.home_score || null,
-            away_score: game.away_score || null,
-            winner: game.status === 'finished' && game.home_score !== null && game.away_score !== null
-              ? (game.home_score! > game.away_score! ? game.home_team : game.away_team)
+            home_score: game.home_score !== undefined ? game.home_score : null,
+            away_score: game.away_score !== undefined ? game.away_score : null,
+            winner: game.status === 'finished' && game.home_score !== undefined && game.away_score !== undefined
+              ? (game.home_score > game.away_score ? game.home_team : game.away_team)
               : null,
             status: determineStatus(game.status),
             home_team_id: game.home_team_id,
@@ -121,6 +127,12 @@ export async function POST(request: NextRequest) {
 
     debugLog(`📊 NFL Sync Summary: ${successfulUpdates} successful, ${failedGames} failed`);
 
+    // Extract week, season, and season_type from the first game (they should all be the same)
+    const firstGame = games[0];
+    const week = firstGame?.week || 1;
+    const year = firstGame?.season || new Date().getFullYear();
+    const seasonType = firstGame?.season_type || 2;
+
     return NextResponse.json({
       success: true,
       message: 'NFL data sync completed',
@@ -128,6 +140,9 @@ export async function POST(request: NextRequest) {
       gamesUpdated: successfulUpdates,
       gamesFailed: failedGames,
       failedGameDetails,
+      week,
+      year,
+      seasonType,
       endpoint: 'ESPN API with date endpoint',
       timestamp
     });
