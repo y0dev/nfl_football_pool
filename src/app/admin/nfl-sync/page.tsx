@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
@@ -78,9 +77,9 @@ function NFLSyncContent() {
     year: new Date().getFullYear(),
   });
   const [selectedSyncOptions, setSelectedSyncOptions] = useState({
-    week: 1,
-    seasonType: 2,
-    year: new Date().getFullYear(),
+    // week: 1,           // Commented out - RapidAPI specific
+    // seasonType: 2,      // Commented out - RapidAPI specific  
+    // year: new Date().getFullYear(), // Commented out - RapidAPI specific
     date: new Date(),
   });
   const [showSyncOptions, setShowSyncOptions] = useState(false);
@@ -107,9 +106,9 @@ function NFLSyncContent() {
             // Load upcoming sync information
             const syncInfo = getUpcomingSyncInfo();
             setUpcomingSync(syncInfo);
-            // Initialize selected sync options with current week
+            // Initialize selected sync options with current date
             setSelectedSyncOptions({
-              ...syncInfo,
+              // ...syncInfo,  // Commented out - RapidAPI specific
               date: new Date()
             });
           }
@@ -214,9 +213,9 @@ function NFLSyncContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          week: selectedSyncOptions.week,
-          seasonType: selectedSyncOptions.seasonType,
-          year: selectedSyncOptions.year,
+          // week: selectedSyncOptions.week,           // Commented out - RapidAPI specific
+          // seasonType: selectedSyncOptions.seasonType, // Commented out - RapidAPI specific
+          // year: selectedSyncOptions.year,            // Commented out - RapidAPI specific
           timestamp: selectedSyncOptions.date.toISOString()
         }),
       });
@@ -396,7 +395,7 @@ function NFLSyncContent() {
             </div>
             <div className="mt-4 p-3 bg-blue-100 rounded-lg">
               <div className="text-sm text-blue-800 text-center">
-                <strong>Default sync will update:</strong> {format(new Date(), "PPP")} - Week {upcomingSync.week} of {getSeasonTypeLabel(upcomingSync.seasonType)} {upcomingSync.year}
+                <strong>Default sync will update:</strong> {format(new Date(), "MMM dd, yyyy")} (ESPN API)
               </div>
             </div>
           </CardContent>
@@ -411,13 +410,13 @@ function NFLSyncContent() {
               Sync Options
             </CardTitle>
             <CardDescription className="text-green-700">
-              Select which date, week and season to synchronize
+              Select which date to synchronize (ESPN API)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-green-800">Sync Date</label>
+            <div className="flex justify-center">
+              <div className="space-y-2 w-full max-w-sm">
+                  <label className="text-sm font-medium text-green-800 text-center block">Sync Date</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -425,7 +424,7 @@ function NFLSyncContent() {
                       className="w-full justify-start text-left font-normal bg-white border-green-200 hover:bg-green-50"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedSyncOptions.date ? format(selectedSyncOptions.date, "PPP") : "Pick a date"}
+                      {selectedSyncOptions.date ? format(selectedSyncOptions.date, "MMM dd, yyyy") : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -448,86 +447,11 @@ function NFLSyncContent() {
                   </PopoverContent>
                 </Popover>
               </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-green-800">Season Type</label>
-                <Select
-                  value={selectedSyncOptions.seasonType.toString()}
-                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
-                    ...prev,
-                    seasonType: parseInt(value)
-                  }))}
-                >
-                  <SelectTrigger className="bg-white border-green-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Preseason</SelectItem>
-                    <SelectItem value="2">Regular Season</SelectItem>
-                    <SelectItem value="3">Postseason</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-green-800">Week</label>
-                <Select
-                  value={selectedSyncOptions.week.toString()}
-                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
-                    ...prev,
-                    week: parseInt(value)
-                  }))}
-                >
-                  <SelectTrigger className="bg-white border-green-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectedSyncOptions.seasonType === 1 && (
-                      // Preseason weeks 1-4
-                      Array.from({ length: 4 }, (_, i) => i + 1).map(week => (
-                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
-                      ))
-                    )}
-                    {selectedSyncOptions.seasonType === 2 && (
-                      // Regular season weeks 1-18
-                      Array.from({ length: 18 }, (_, i) => i + 1).map(week => (
-                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
-                      ))
-                    )}
-                    {selectedSyncOptions.seasonType === 3 && (
-                      // Postseason weeks 1-5
-                      Array.from({ length: 5 }, (_, i) => i + 1).map(week => (
-                        <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-green-800">Season Year</label>
-                <Select
-                  value={selectedSyncOptions.year.toString()}
-                  onValueChange={(value) => setSelectedSyncOptions(prev => ({
-                    ...prev,
-                    year: parseInt(value)
-                  }))}
-                >
-                  <SelectTrigger className="bg-white border-green-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             
             <div className="mt-4 p-3 bg-green-100 rounded-lg">
               <div className="text-sm text-green-800 text-center">
-                <strong>Selected sync target:</strong> {format(selectedSyncOptions.date, "PPP")} - Week {selectedSyncOptions.week} of {getSeasonTypeLabel(selectedSyncOptions.seasonType)} {selectedSyncOptions.year}
+                <strong>Selected sync target:</strong> {format(selectedSyncOptions.date, "MMM dd, yyyy")} (ESPN API)
               </div>
             </div>
           </CardContent>
@@ -710,7 +634,7 @@ function NFLSyncContent() {
                 <Database className="h-5 w-5 text-blue-600 mt-0.5" />
                 <div>
                   <div className="font-medium">Data Source</div>
-                  <div>NFL game data is fetched from RapidAPI&apos;s American Football API, providing real-time scores, schedules, and game status updates.</div>
+                  <div>NFL game data is fetched from ESPN API, providing real-time scores, schedules, and game status updates.</div>
                 </div>
               </div>
               
