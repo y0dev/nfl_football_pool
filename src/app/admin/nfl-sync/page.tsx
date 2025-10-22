@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
 import { 
   ArrowLeft,
   RefreshCw,
@@ -14,7 +17,7 @@ import {
   XCircle,
   AlertTriangle,
   Info,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Trophy,
   Activity,
@@ -78,6 +81,7 @@ function NFLSyncContent() {
     week: 1,
     seasonType: 2,
     year: new Date().getFullYear(),
+    date: new Date(),
   });
   const [showSyncOptions, setShowSyncOptions] = useState(false);
 
@@ -104,7 +108,10 @@ function NFLSyncContent() {
             const syncInfo = getUpcomingSyncInfo();
             setUpcomingSync(syncInfo);
             // Initialize selected sync options with current week
-            setSelectedSyncOptions(syncInfo);
+            setSelectedSyncOptions({
+              ...syncInfo,
+              date: new Date()
+            });
           }
         }
       } catch (error) {
@@ -209,7 +216,8 @@ function NFLSyncContent() {
         body: JSON.stringify({
           week: selectedSyncOptions.week,
           seasonType: selectedSyncOptions.seasonType,
-          year: selectedSyncOptions.year
+          year: selectedSyncOptions.year,
+          timestamp: selectedSyncOptions.date.toISOString()
         }),
       });
 
@@ -351,7 +359,7 @@ function NFLSyncContent() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-blue-900">
-                  <Calendar className="h-5 w-5" />
+                  <CalendarIcon className="h-5 w-5" />
                   Upcoming Sync
                 </CardTitle>
                 <CardDescription className="text-blue-700">
@@ -388,7 +396,7 @@ function NFLSyncContent() {
             </div>
             <div className="mt-4 p-3 bg-blue-100 rounded-lg">
               <div className="text-sm text-blue-800 text-center">
-                <strong>Next sync will update:</strong> Week {upcomingSync.week} of {getSeasonTypeLabel(upcomingSync.seasonType)} {upcomingSync.year}
+                <strong>Default sync will update:</strong> {format(new Date(), "PPP")} - Week {upcomingSync.week} of {getSeasonTypeLabel(upcomingSync.seasonType)} {upcomingSync.year}
               </div>
             </div>
           </CardContent>
@@ -403,11 +411,44 @@ function NFLSyncContent() {
               Sync Options
             </CardTitle>
             <CardDescription className="text-green-700">
-              Select which week and season to synchronize
+              Select which date, week and season to synchronize
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-green-800">Sync Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal bg-white border-green-200 hover:bg-green-50"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedSyncOptions.date ? format(selectedSyncOptions.date, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedSyncOptions.date}
+                      onSelect={(date: Date | undefined) => {
+                        if (date) {
+                          setSelectedSyncOptions(prev => ({
+                            ...prev,
+                            date: date
+                          }));
+                        }
+                      }}
+                      disabled={(date: Date) =>
+                        date > new Date() || date < new Date("1900-01-01")
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
               <div className="space-y-2">
                 <label className="text-sm font-medium text-green-800">Season Type</label>
                 <Select
@@ -486,7 +527,7 @@ function NFLSyncContent() {
             
             <div className="mt-4 p-3 bg-green-100 rounded-lg">
               <div className="text-sm text-green-800 text-center">
-                <strong>Selected sync target:</strong> Week {selectedSyncOptions.week} of {getSeasonTypeLabel(selectedSyncOptions.seasonType)} {selectedSyncOptions.year}
+                <strong>Selected sync target:</strong> {format(selectedSyncOptions.date, "PPP")} - Week {selectedSyncOptions.week} of {getSeasonTypeLabel(selectedSyncOptions.seasonType)} {selectedSyncOptions.year}
               </div>
             </div>
           </CardContent>
@@ -580,7 +621,7 @@ function NFLSyncContent() {
               
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <CalendarIcon className="h-4 w-4 text-gray-500" />
                   <span>Season: {lastSyncResult.year}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -745,7 +786,7 @@ function NFLSyncContent() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <CalendarIcon className="h-4 w-4 text-gray-500" />
                       <span><strong>Season:</strong> {lastSyncResult.year}</span>
                     </div>
                     <div className="flex items-center gap-2">
