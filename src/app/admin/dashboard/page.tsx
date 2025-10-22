@@ -606,19 +606,19 @@ function AdminDashboardContent() {
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Shield className="h-5 w-5" />
-                Override Picks
+                <Trophy className="h-5 w-5" />
+                Season Review
               </CardTitle>
               <CardDescription>
-                Override participant picks
+                Review each pool by week
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push(createPageUrl('overridepicks'))}
+                onClick={() => router.push('/admin/season-review')}
                 className="w-full"
               >
-                Override Picks
+                Season Review
               </Button>
             </CardContent>
           </Card>
