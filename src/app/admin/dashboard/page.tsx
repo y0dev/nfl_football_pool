@@ -615,7 +615,7 @@ function AdminDashboardContent() {
             </CardHeader>
             <CardContent>
               <Button 
-                onClick={() => router.push('/admin/season-review')}
+                onClick={() => router.push('/season-review')}
                 className="w-full"
               >
                 Season Review

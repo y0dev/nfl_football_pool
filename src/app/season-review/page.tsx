@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
-import { AdminGuard } from '@/components/auth/admin-guard';
 
 interface Pool {
   id: string;
@@ -75,11 +74,10 @@ interface WeeklyStats {
   tie_breakers_used: number;
 }
 
-function AdminSeasonReviewContent() {
-  const { user, verifyAdminStatus } = useAuth();
+function SeasonReviewContent() {
+  const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
   const [weeklyWinners, setWeeklyWinners] = useState<WeeklyWinner[]>([]);
@@ -91,15 +89,7 @@ function AdminSeasonReviewContent() {
     const loadData = async () => {
       try {
         if (user) {
-          const superAdminStatus = await verifyAdminStatus(true);
-          setIsSuperAdmin(superAdminStatus);
-          
-          if (superAdminStatus) {
-            await loadPools();
-          } else {
-            router.push('/dashboard');
-            return;
-          }
+          await loadPools();
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -109,7 +99,7 @@ function AdminSeasonReviewContent() {
     };
 
     loadData();
-  }, [user, verifyAdminStatus, router]);
+  }, [user]);
 
   const loadPools = async () => {
     try {
@@ -205,7 +195,7 @@ function AdminSeasonReviewContent() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/admin/dashboard')}
+                  onClick={() => router.push('/pools')}
                   className="p-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -216,11 +206,6 @@ function AdminSeasonReviewContent() {
               <p className="text-sm sm:text-base text-gray-600">
                 Review each pool's performance week by week
               </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  System Admin
-                </Badge>
-              </div>
             </div>
           </div>
         </div>
@@ -503,12 +488,10 @@ function AdminSeasonReviewContent() {
   );
 }
 
-export default function AdminSeasonReviewPage() {
+export default function SeasonReviewPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
-        <AdminSeasonReviewContent />
-      </AdminGuard>
+      <SeasonReviewContent />
     </AuthProvider>
   );
 }
