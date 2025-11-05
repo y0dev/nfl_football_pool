@@ -6,9 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 import { 
   ArrowLeft,
   RefreshCw,
@@ -46,6 +45,9 @@ interface SyncResult {
   year: number;
   endpoint: string;
   timestamp?: string;
+  gamesUpdatedFlag?: boolean;
+  teamRecordsUpdatedFlag?: boolean;
+  teamRecordsUpdated?: number;
 }
 
 interface SyncHistory {
@@ -81,6 +83,8 @@ function NFLSyncContent() {
     // seasonType: 2,      // Commented out - RapidAPI specific  
     // year: new Date().getFullYear(), // Commented out - RapidAPI specific
     date: new Date(),
+    updateGames: true,
+    updateTeamRecords: true,
   });
   const [showSyncOptions, setShowSyncOptions] = useState(false);
 
@@ -109,7 +113,9 @@ function NFLSyncContent() {
             // Initialize selected sync options with current date
             setSelectedSyncOptions({
               // ...syncInfo,  // Commented out - RapidAPI specific
-              date: new Date()
+              date: new Date(),
+              updateGames: true,
+              updateTeamRecords: true,
             });
           }
         }
@@ -216,13 +222,17 @@ function NFLSyncContent() {
           // week: selectedSyncOptions.week,           // Commented out - RapidAPI specific
           // seasonType: selectedSyncOptions.seasonType, // Commented out - RapidAPI specific
           // year: selectedSyncOptions.year,            // Commented out - RapidAPI specific
-          timestamp: selectedSyncOptions.date.toISOString()
+          timestamp: selectedSyncOptions.date.toISOString(),
+          updateGames: selectedSyncOptions.updateGames,
+          updateTeamRecords: selectedSyncOptions.updateTeamRecords,
         }),
       });
 
       const result: SyncResult = await response.json();
 
+      debugLog('Sync result', result);
       if (result.success) {
+        debugLog('Sync successful, result', result);
         setLastSyncResult(result);
         saveSyncHistory(result);
         
@@ -395,7 +405,7 @@ function NFLSyncContent() {
             </div>
             <div className="mt-4 p-3 bg-blue-100 rounded-lg">
               <div className="text-sm text-blue-800 text-center">
-                <strong>Default sync will update:</strong> {format(new Date(), "MMM dd, yyyy")} (ESPN API)
+                <strong>Default sync will update:</strong> {format(new Date(), "MMM dd, yyyy", { locale: enUS })} (ESPN API)
               </div>
             </div>
           </CardContent>
@@ -416,42 +426,62 @@ function NFLSyncContent() {
           <CardContent>
             <div className="flex justify-center">
               <div className="space-y-2 w-full max-w-sm">
-                  <label className="text-sm font-medium text-green-800 text-center block">Sync Date</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal bg-white border-green-200 hover:bg-green-50"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedSyncOptions.date ? format(selectedSyncOptions.date, "MMM dd, yyyy") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedSyncOptions.date}
-                      onSelect={(date: Date | undefined) => {
-                        if (date) {
-                          setSelectedSyncOptions(prev => ({
-                            ...prev,
-                            date: date
-                          }));
-                        }
-                      }}
-                      disabled={(date: Date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <label htmlFor="sync-date" className="text-sm font-medium text-green-800 text-center block">
+                  Sync Date
+                </label>
+                <input
+                  id="sync-date"
+                  type="date"
+                  value={selectedSyncOptions.date.toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const date = e.target.value ? new Date(e.target.value) : new Date();
+                    setSelectedSyncOptions(prev => ({
+                      ...prev,
+                      date: date
+                    }));
+                  }}
+                  max={new Date().toISOString().split('T')[0]}
+                  min="1900-01-01"
+                  className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
               </div>
             </div>
             
-            <div className="mt-4 p-3 bg-green-100 rounded-lg">
-              <div className="text-sm text-green-800 text-center">
-                <strong>Selected sync target:</strong> {format(selectedSyncOptions.date, "MMM dd, yyyy")} (ESPN API)
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-center space-x-6">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedSyncOptions.updateGames}
+                    onChange={(e) => {
+                      setSelectedSyncOptions(prev => ({
+                        ...prev,
+                        updateGames: e.target.checked
+                      }));
+                    }}
+                    className="w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-green-800">Update Games</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedSyncOptions.updateTeamRecords}
+                    onChange={(e) => {
+                      setSelectedSyncOptions(prev => ({
+                        ...prev,
+                        updateTeamRecords: e.target.checked
+                      }));
+                    }}
+                    className="w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-green-800">Update Team Records</span>
+                </label>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <div className="text-sm text-green-800 text-center">
+                  <strong>Selected sync target:</strong> {format(selectedSyncOptions.date, "MMM dd, yyyy", { locale: enUS })} (ESPN API)
+                </div>
               </div>
             </div>
           </CardContent>
@@ -686,24 +716,36 @@ function NFLSyncContent() {
               <div className="space-y-6">
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{lastSyncResult.gamesProcessed}</div>
-                    <div className="text-sm text-blue-700">Games Processed</div>
-                  </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{lastSyncResult.gamesUpdated}</div>
-                    <div className="text-sm text-green-700">Successfully Updated</div>
-                  </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">{lastSyncResult.gamesFailed}</div>
-                    <div className="text-sm text-red-700">Failed Updates</div>
-                  </div>
-                  <div className="text-center p-3 bg-purple-50 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {getSeasonTypeLabel(lastSyncResult.seasonType)}
+                  {lastSyncResult.gamesUpdatedFlag && (
+                    <>
+                      <div className="text-center p-3 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{lastSyncResult.gamesProcessed}</div>
+                        <div className="text-sm text-blue-700">Games Processed</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">{lastSyncResult.gamesUpdated}</div>
+                        <div className="text-sm text-green-700">Games Updated</div>
+                      </div>
+                      <div className="text-center p-3 bg-red-50 rounded-lg">
+                        <div className="text-2xl font-bold text-red-600">{lastSyncResult.gamesFailed}</div>
+                        <div className="text-sm text-red-700">Failed Updates</div>
+                      </div>
+                    </>
+                  )}
+                  {lastSyncResult.teamRecordsUpdatedFlag && (
+                    <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                      <div className="text-2xl font-bold text-indigo-600">{lastSyncResult.teamRecordsUpdated || 0}</div>
+                      <div className="text-sm text-indigo-700">Team Records Updated</div>
                     </div>
-                    <div className="text-sm text-purple-700">Week {lastSyncResult.week}</div>
-                  </div>
+                  )}
+                  {!lastSyncResult.gamesUpdatedFlag && !lastSyncResult.teamRecordsUpdatedFlag && (
+                    <div className="text-center p-3 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {getSeasonTypeLabel(lastSyncResult.seasonType)}
+                      </div>
+                      <div className="text-sm text-purple-700">Week {lastSyncResult.week}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Details */}
@@ -751,15 +793,23 @@ function NFLSyncContent() {
                       <div className="flex items-center gap-2 text-green-800">
                         <CheckCircle className="h-5 w-5" />
                         <span className="font-medium">
-                          {lastSyncResult.gamesUpdated > 0 
-                            ? `Successfully synchronized ${lastSyncResult.gamesUpdated} NFL games!`
-                            : 'No new games to update at this time.'
+                          {lastSyncResult.gamesUpdatedFlag && lastSyncResult.teamRecordsUpdatedFlag
+                            ? `Successfully synchronized ${lastSyncResult.gamesUpdated} games and ${lastSyncResult.teamRecordsUpdated || 0} team records!`
+                            : lastSyncResult.gamesUpdatedFlag
+                              ? lastSyncResult.gamesUpdated > 0
+                                ? `Successfully synchronized ${lastSyncResult.gamesUpdated} NFL games!`
+                                : 'No new games to update at this time.'
+                              : `Successfully synchronized ${lastSyncResult.teamRecordsUpdated || 0} team records!`
                           }
                         </span>
                       </div>
                       <p className="text-sm text-green-700 mt-2">
-                        Your pools will now have the most up-to-date game information including scores, 
-                        game status, and winner determinations.
+                        {lastSyncResult.gamesUpdatedFlag && lastSyncResult.teamRecordsUpdatedFlag
+                          ? 'Your pools will now have the most up-to-date game information including scores, game status, winner determinations, and team records.'
+                          : lastSyncResult.gamesUpdatedFlag
+                            ? 'Your pools will now have the most up-to-date game information including scores, game status, and winner determinations.'
+                            : 'Team records have been updated with the latest win-loss-tie information.'
+                        }
                       </p>
                     </div>
                   )}

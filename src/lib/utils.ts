@@ -246,7 +246,7 @@ export function getNFLTeamName(abbreviation: string): string {
     'SF': 'San Francisco 49ers',
     'TB': 'Tampa Bay Buccaneers',
     'TEN': 'Tennessee Titans',
-    'WAS': 'Washington Commanders'
+    'WSH': 'Washington Commanders'
   }
   return teamNames[abbreviation] || abbreviation
 }
@@ -272,7 +272,7 @@ export function getTeamAbbreviation(fullName: string): string {
     'Dallas Cowboys': 'DAL',
     'Philadelphia Eagles': 'PHI',
     'New York Giants': 'NYG',
-    'Washington Commanders': 'WAS',
+    'Washington Commanders': 'WSH',
     'Green Bay Packers': 'GB',
     'Minnesota Vikings': 'MIN',
     'Chicago Bears': 'CHI',
@@ -314,7 +314,7 @@ export function getShortTeamName(teamName: string): string {
     'Los Angeles Chargers': 'LA Chargers',
     'Dallas Cowboys': 'Dal Cowboys',
     'Philadelphia Eagles': 'Phi Eagles',
-    'Washington Commanders': 'Was Commanders',
+    'Washington Commanders': 'Wsh Commanders',
     'Chicago Bears': 'Chi Bears',
     'Detroit Lions': 'Det Lions',
     'Green Bay Packers': 'GB Packers',

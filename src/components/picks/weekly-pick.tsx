@@ -61,6 +61,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Load current week and games (only if not prevented)
   useEffect(() => {
     const loadData = async () => {
+      // Load data for the week
       debugLog('WeeklyPick: loadData called with props:', { weekNumber, seasonType, preventGameLoading, propGames: propGames?.length || 0 });
       debugLog('WeeklyPick: current state:', { currentWeek, games: games.length });
       
@@ -711,7 +712,23 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                   {isLocked && <Badge variant="secondary">Locked</Badge>}
                 </CardTitle>
                 <CardDescription>
-                  {window.innerWidth < 640 ? getShortTeamName(game.away_team) : game.away_team} @ {window.innerWidth < 640 ? getShortTeamName(game.home_team) : game.home_team}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>{window.innerWidth < 640 ? getShortTeamName(game.away_team) : game.away_team}</span>
+                    {game.away_team_record && (
+                      <Badge variant="outline" className="text-xs">
+                        {game.away_team_record.wins}-{game.away_team_record.losses}
+                        {game.away_team_record.ties > 0 && `-${game.away_team_record.ties}`}
+                      </Badge>
+                    )}
+                    <span className="text-gray-500">@</span>
+                    <span>{window.innerWidth < 640 ? getShortTeamName(game.home_team) : game.home_team}</span>
+                    {game.home_team_record && (
+                      <Badge variant="outline" className="text-xs">
+                        {game.home_team_record.wins}-{game.home_team_record.losses}
+                        {game.home_team_record.ties > 0 && `-${game.home_team_record.ties}`}
+                      </Badge>
+                    )}
+                  </div>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

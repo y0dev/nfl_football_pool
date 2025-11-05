@@ -1,5 +1,17 @@
 // Centralized Game interface and related types
 
+export interface TeamRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  home_wins?: number;
+  home_losses?: number;
+  home_ties?: number;
+  road_wins?: number;
+  road_losses?: number;
+  road_ties?: number;
+}
+
 export interface Game {
   id: string;
   home_team: string;
@@ -18,6 +30,8 @@ export interface Game {
   away_team_city?: string;
   home_team_name?: string;
   away_team_name?: string;
+  home_team_record?: TeamRecord;
+  away_team_record?: TeamRecord;
 }
 
 export interface Pick {

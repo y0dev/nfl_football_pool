@@ -157,13 +157,6 @@ function LandingPage() {
               {user ? (
                 <>
                   <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white border-none"
-                    onClick={() => router.push('/season-review')}
-                  >
-                    <Trophy className="h-4 w-4 mr-2" />
-                    Season Review
-                  </Button>
-                  <Button
                     className="bg-green-600 hover:bg-green-700 text-white border-none"
                     onClick={() => {
                       if (isSuperAdmin === true) {
