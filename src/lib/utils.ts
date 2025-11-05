@@ -369,6 +369,26 @@ export function calculateWeekFromDate(date: Date = new Date()): number {
  * Get season type from date (simple date-based calculation)
  * This is a fallback when database functions are not available
  */
+export function getWeekPeriod(week: number): string {
+  if (week <= 4) return 'Q1';
+  if (week <= 9) return 'Q2';
+  if (week <= 13) return 'Q3';
+  if (week <= 17) return 'Q4';
+  return 'Playoffs';
+}
+
+export function getWeekPeriodColor(week: number): string {
+  const period = getWeekPeriod(week);
+  switch (period) {
+    case 'Q1': return 'bg-blue-100 text-blue-800';
+    case 'Q2': return 'bg-green-100 text-green-800';
+    case 'Q3': return 'bg-yellow-100 text-yellow-800';
+    case 'Q4': return 'bg-purple-100 text-purple-800';
+    case 'Playoffs': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+}
+
 export function getSeasonTypeFromDate(date: Date = new Date()): number {
   const month = date.getMonth() + 1; // 0-indexed
   if (month >= 8 && month <= 9) return 1; // Preseason

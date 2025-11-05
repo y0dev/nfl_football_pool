@@ -40,8 +40,6 @@ import {
   RefreshCw, 
   Copy, 
   Share2, 
-  Bookmark, 
-  Flag, 
   CheckCircle, 
   XCircle, 
   Minus,
@@ -80,7 +78,6 @@ function LeaderboardContent() {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGamesStarted, setIsGamesStarted] = useState(false);
-  const [allParticipantsSubmitted, setAllParticipantsSubmitted] = useState(false);
   const [allGamesFinished, setAllGamesFinished] = useState(false);
   
   // Winner data
@@ -94,35 +91,9 @@ function LeaderboardContent() {
   const [sortBy, setSortBy] = useState<'points' | 'accuracy' | 'name' | 'correct_picks'>('points');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showOnlySubmitted, setShowOnlySubmitted] = useState(false);
-  const [highlightedParticipant, setHighlightedParticipant] = useState<string | null>(null);
-  const [favoriteParticipants, setFavoriteParticipants] = useState<Set<string>>(new Set());
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [performanceThreshold, setPerformanceThreshold] = useState(50);
-  const [showPerformanceAlerts, setShowPerformanceAlerts] = useState(true);
   const [activeTab, setActiveTab] = useState('weekly');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-
-  // Helper functions for safe data access
-  const getParticipantName = (entry: LeaderboardEntry | LeaderboardEntryWithPicks, isDummy: boolean) => {
-    if (isDummy) {
-      return (entry as LeaderboardEntry).participants?.name || 'Unknown';
-    }
-    return (entry as LeaderboardEntryWithPicks).participant_name || 'Unknown';
-  };
-
-  const getTotalPoints = (entry: LeaderboardEntry | LeaderboardEntryWithPicks, isDummy: boolean) => {
-    if (isDummy) {
-      return (entry as LeaderboardEntry).points || 0;
-    }
-    return (entry as LeaderboardEntryWithPicks).total_points || 0;
-  };
-
-  const getParticipantId = (entry: LeaderboardEntry | LeaderboardEntryWithPicks, isDummy: boolean) => {
-    if (isDummy) {
-      return (entry as LeaderboardEntry).id || 'unknown';
-    }
-    return (entry as LeaderboardEntryWithPicks).participant_id || 'unknown';
-  };
 
   useEffect(() => {
     const checkAdminStatus = async () => {

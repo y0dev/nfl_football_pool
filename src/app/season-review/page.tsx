@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
+import { getWeekPeriod, getWeekPeriodColor } from '@/lib/utils';
 
 interface Pool {
   id: string;
@@ -130,14 +131,17 @@ function SeasonReviewContent() {
       const statsResult = await statsResponse.json();
 
       if (weeklyResult.success) {
+        console.log('weeklyResult', weeklyResult);
         setWeeklyWinners(weeklyResult.weeklyWinners || []);
       }
       
       if (seasonResult.success) {
+        console.log('seasonResult', seasonResult);
         setSeasonWinner(seasonResult.seasonWinner);
       }
       
       if (statsResult.success) {
+        console.log('statsResult', statsResult);
         setWeeklyStats(statsResult.weeklyStats || []);
       }
       
@@ -156,25 +160,6 @@ function SeasonReviewContent() {
     }
   };
 
-  const getWeekPeriod = (week: number) => {
-    if (week <= 4) return 'Q1';
-    if (week <= 8) return 'Q2';
-    if (week <= 12) return 'Q3';
-    if (week <= 16) return 'Q4';
-    return 'Playoffs';
-  };
-
-  const getWeekPeriodColor = (week: number) => {
-    const period = getWeekPeriod(week);
-    switch (period) {
-      case 'Q1': return 'bg-blue-100 text-blue-800';
-      case 'Q2': return 'bg-green-100 text-green-800';
-      case 'Q3': return 'bg-yellow-100 text-yellow-800';
-      case 'Q4': return 'bg-purple-100 text-purple-800';
-      case 'Playoffs': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   if (isLoading) {
     return (
@@ -309,7 +294,10 @@ function SeasonReviewContent() {
                               <div className="flex items-center gap-4 text-sm text-gray-600">
                                 <div className="flex items-center gap-1">
                                   <Target className="h-4 w-4" />
-                                  <span>{winner.winner_correct_picks}/{winner.total_participants}</span>
+                                  <span>
+                                    {winner.winner_correct_picks}/
+                                    {weeklyStats.find(s => s.week === winner.week)?.total_games || '?'}
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Star className="h-4 w-4" />
