@@ -572,7 +572,90 @@ function PoolPicksContent() {
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
-            const gamesData = result.games;
+            let gamesData = result.games;
+            
+            // Load team records for the season if games exist
+            if (gamesData && gamesData.length > 0) {
+              const season = gamesData[0].season || poolSeason;
+              
+              try {
+                const recordsResponse = await fetch(`/api/team-records?season=${season}`, {
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                });
+                
+                if (recordsResponse.ok) {
+                  const recordsResult = await recordsResponse.json();
+                  if (recordsResult.success && recordsResult.records) {
+                    // Create a map of team_id (database UUID) to team record
+                    const recordsMapById = new Map<string, any>();
+                    // Also create a fallback map by abbreviation
+                    const recordsMapByAbbr = new Map<string, any>();
+                    
+                    recordsResult.records.forEach((record: any) => {
+                      const recordData = {
+                        wins: record.wins || 0,
+                        losses: record.losses || 0,
+                        ties: record.ties || 0,
+                        home_wins: record.home_wins,
+                        home_losses: record.home_losses,
+                        home_ties: record.home_ties,
+                        road_wins: record.road_wins,
+                        road_losses: record.road_losses,
+                        road_ties: record.road_ties
+                      };
+                      
+                      // Map by team_id (database UUID) - primary lookup
+                      if (record.team_id) {
+                        recordsMapById.set(record.team_id, recordData);
+                      }
+                      
+                      // Map by abbreviation as fallback
+                      if (record.team_abbreviation) {
+                        recordsMapByAbbr.set(record.team_abbreviation.toLowerCase(), recordData);
+                      }
+                    });
+                    
+                    // Attach team records to games
+                    gamesData = gamesData.map((game: Game) => {
+                      // Try to match by team_id (database UUID) first
+                      let homeRecord = game.home_team_id ? recordsMapById.get(game.home_team_id.toString()) : undefined;
+                      let awayRecord = game.away_team_id ? recordsMapById.get(game.away_team_id.toString()) : undefined;
+                      
+                      // Fallback to abbreviation matching if UUID match failed
+                      if (!homeRecord && game.home_team_id) {
+                        const homeAbbr = game.home_team_id.toString().toLowerCase();
+                        homeRecord = recordsMapByAbbr.get(homeAbbr);
+                      }
+                      if (!homeRecord && game.home_team) {
+                        homeRecord = recordsMapByAbbr.get(game.home_team.toLowerCase());
+                      }
+                      
+                      if (!awayRecord && game.away_team_id) {
+                        const awayAbbr = game.away_team_id.toString().toLowerCase();
+                        awayRecord = recordsMapByAbbr.get(awayAbbr);
+                      }
+                      if (!awayRecord && game.away_team) {
+                        awayRecord = recordsMapByAbbr.get(game.away_team.toLowerCase());
+                      }
+                      
+                      return {
+                        ...game,
+                        home_team_record: homeRecord,
+                        away_team_record: awayRecord
+                      };
+                    });
+                    
+                    debugLog('Attached team records to games');
+                  }
+                }
+              } catch (recordsError) {
+                console.error('Error loading team records:', recordsError);
+                // Continue without team records if fetch fails
+              }
+            }
+            
             setGames(gamesData);
             
             debugLog('Loaded games:',

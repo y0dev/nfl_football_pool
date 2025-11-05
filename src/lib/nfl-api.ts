@@ -2,6 +2,18 @@ import dotenv from 'dotenv';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
+interface TeamRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  home_wins?: number;
+  home_losses?: number;
+  home_ties?: number;
+  road_wins?: number;
+  road_losses?: number;
+  road_ties?: number;
+}
+
 interface NFLGame {
   id: string;
   date: string;
@@ -16,6 +28,8 @@ interface NFLGame {
   season_type: number;
   home_team_id: string;
   away_team_id: string;
+  home_team_record?: TeamRecord;
+  away_team_record?: TeamRecord;
 }
 
 interface NFLTeam {
@@ -81,6 +95,16 @@ interface ESPNGame {
       score: string;
       linescores?: Array<{
         value: number;
+      }>;
+      statistics: Array<{
+        name: string;
+        value: number;
+      }>;
+      records: Array<{ 
+        name: string; 
+        abbreviation: string;
+        type: string;
+        summary: string;
       }>;
     }>;
     venue: {
@@ -387,6 +411,44 @@ class NFLAPIService {
     }
   }
 
+  // Helper function to parse W-L-T from summary string (e.g., "3-5-1" or "2-1-1")
+  private parseRecordSummary(summary: string): { wins: number; losses: number; ties: number } {
+    const parts = summary.split('-');
+    const wins = parseInt(parts[0] || '0', 10) || 0;
+    const losses = parseInt(parts[1] || '0', 10) || 0;
+    const ties = parts[2] ? parseInt(parts[2] || '0', 10) || 0 : 0;
+    return { wins, losses, ties };
+  }
+
+  // Helper function to extract team records from ESPN competitor records
+  private extractTeamRecords(competitor: { records?: Array<{ type: string; summary: string }> }): TeamRecord {
+    const record: TeamRecord = { wins: 0, losses: 0, ties: 0 };
+    
+    if (!competitor.records || !Array.isArray(competitor.records)) {
+      return record;
+    }
+
+    competitor.records.forEach((rec) => {
+      const parsed = this.parseRecordSummary(rec.summary);
+      
+      if (rec.type === 'total' || rec.type === 'overall') {
+        record.wins = parsed.wins;
+        record.losses = parsed.losses;
+        record.ties = parsed.ties;
+      } else if (rec.type === 'home') {
+        record.home_wins = parsed.wins;
+        record.home_losses = parsed.losses;
+        record.home_ties = parsed.ties;
+      } else if (rec.type === 'road' || rec.type === 'away') {
+        record.road_wins = parsed.wins;
+        record.road_losses = parsed.losses;
+        record.road_ties = parsed.ties;
+      }
+    });
+
+    return record;
+  }
+
   // Get games using ESPN API with date-based endpoint
   async getGamesWithDateEndpoint(timestamp?: string): Promise<NFLGame[]> {
     try {
@@ -397,22 +459,22 @@ class NFLAPIService {
       // Get season/week info
       const res = this.classify(ts);
       
-      // Decide adjusted date based on the timestamp with target timezone semantics
-      const baseDate = new Date(ts);
-      const adjustedInfo = this.getAdjustedDateForFinalStatusFromDate(baseDate);
+      // Extract the date portion directly from the ISO string to avoid timezone conversion issues
+      // The user selects a specific calendar date, so we should use that date as-is
+      const dateObj = new Date(ts);
+      // Use UTC date components to match the selected calendar date
+      const year = dateObj.getUTCFullYear();
+      const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getUTCDate()).padStart(2, '0');
+      const formattedDate = `${year}${month}${day}`;
       
-      // Build formatted date for ESPN URL (in TARGET_TZ calendar)
-      const formattedAdjustedDate = this.formatYYYYMMDDForTZ(adjustedInfo.adjustedDate, this.TARGET_TZ);
-      
-      // Build final endpoint (ESPN with adjusted date)
-      const endpoint = `/scoreboard?dates=${formattedAdjustedDate}`;
+      // Build final endpoint (ESPN with selected date)
+      const endpoint = `/scoreboard?dates=${formattedDate}`;
       
       console.log(`🌐 Using ESPN endpoint: ${endpoint}`);
-      console.log(`📅 Adjusted date info:`, {
-        status: adjustedInfo.status,
-        originalDay: adjustedInfo.originalDay,
-        originalHour: adjustedInfo.originalHour,
-        formattedAdjustedDate,
+      console.log(`📅 Date info:`, {
+        originalTimestamp: ts,
+        formattedDate,
         seasonInfo: res
       });
       
@@ -420,11 +482,11 @@ class NFLAPIService {
       const response = data as ESPNScoreboardResponse;
       
       if (!response.events || response.events.length === 0) {
-        console.log(`⚠️  No events found for date ${formattedAdjustedDate}`);
+        console.log(`⚠️  No events found for date ${formattedDate}`);
         return [];
       }
       
-      console.log(`📊 Found ${response.events.length} events for date ${formattedAdjustedDate}`);
+      console.log(`📊 Found ${response.events.length} events for date ${formattedDate}`);
       
       // Convert ESPN games to our format
       const games: NFLGame[] = response.events.map((game: ESPNGame) => {
@@ -440,6 +502,10 @@ class NFLAPIService {
         const gameStatus = status === 'post' ? 'finished' : 
                           status === 'in' ? 'live' : 'scheduled';
         
+        // Extract team records from ESPN API
+        const homeTeamRecord = this.extractTeamRecords(homeTeam);
+        const awayTeamRecord = this.extractTeamRecords(awayTeam);
+        
         return {
           id: game.id,
           date: game.date,
@@ -453,7 +519,9 @@ class NFLAPIService {
           season: game.season?.year || res.year,
           season_type: game.season?.type || res.season_type,
           home_team_id: homeTeam.team.abbreviation,
-          away_team_id: awayTeam.team.abbreviation
+          away_team_id: awayTeam.team.abbreviation,
+          home_team_record: homeTeamRecord,
+          away_team_record: awayTeamRecord
         };
       }).filter(Boolean) as NFLGame[];
       
@@ -612,12 +680,138 @@ class NFLAPIService {
   }
 
   // Get standings
-  async getStandings(season: number): Promise<any[]> {
+  async getStandings(season: number): Promise<unknown[]> {
     try {
       const data = await this.makeRequest('/standings', { season: season.toString() });
       return data.standings || [];
     } catch (error) {
       console.error('Failed to get standings:', error);
+      return [];
+    }
+  }
+
+  async getTeamESPNTeamId(): Promise<unknown[]> {
+    try {
+      const data = await this.makeRequest('/teams');
+      return data || [];
+    } catch (error) {
+      console.error('Failed to get team ESPN team ID:', error);
+      return [];
+    }
+  }
+
+  // Get team record from ESPN API
+  async getTeamRecord(teamId: string): Promise<{
+    teamId: string;
+    abbreviation: string;
+    wins: number;
+    losses: number;
+    ties: number;
+    home_wins?: number;
+    home_losses?: number;
+    home_ties?: number;
+    road_wins?: number;
+    road_losses?: number;
+    road_ties?: number;
+  } | null> {
+    try {
+      const data = await this.makeRequest(`/teams/${teamId}`) as any;
+      const team = data?.team;
+      // console.log('team record', team);
+      if (!team || !team.record) {
+        return null;
+      }
+
+      const record = team.record;
+      const abbreviation = team.abbreviation || '';
+      
+      // Parse overall record
+      const totalRecord = record.items?.find((item: any) => item.type === 'total');
+      const homeRecord = record.items?.find((item: any) => item.type === 'home');
+      const roadRecord = record.items?.find((item: any) => item.type === 'road');
+
+      const wins = totalRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value || 0;
+      const losses = totalRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value || 0;
+      const ties = totalRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value || 0;
+
+      const home_wins = homeRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value;
+      const home_losses = homeRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value;
+      const home_ties = homeRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value;
+
+      const road_wins = roadRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value;
+      const road_losses = roadRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value;
+      const road_ties = roadRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value;
+
+      return {
+        teamId,
+        abbreviation,
+        wins,
+        losses,
+        ties,
+        home_wins,
+        home_losses,
+        home_ties,
+        road_wins,
+        road_losses,
+        road_ties
+      };
+    } catch (error) {
+      console.error(`Failed to get team record for team ${teamId}:`, error);
+      return null;
+    }
+  }
+
+  // Get all team IDs from standings
+  async getAllTeamIds(): Promise<string[]> {
+    try {
+      const data = await this.getTeamESPNTeamId() as any;
+      console.log('data', data);
+      
+      const teamIds: string[] = [];
+      
+      // Handle different possible structures
+      if (data?.sports && Array.isArray(data.sports)) {
+        data.sports.forEach((sport: any) => {
+          if (sport.leagues && Array.isArray(sport.leagues)) {
+            sport.leagues.forEach((league: any) => {
+              if (league.teams && Array.isArray(league.teams)) {
+                league.teams.forEach((team: any) => {
+                  if (team.team?.id) {
+                    teamIds.push(team.team.id);
+                  } else if (team.id) {
+                    teamIds.push(team.id);
+                  }
+                });
+              }
+            });
+          }
+        });
+      } else if (data?.leagues && Array.isArray(data.leagues)) {
+        data.leagues.forEach((league: any) => {
+          if (league.teams && Array.isArray(league.teams)) {
+            league.teams.forEach((team: any) => {
+              if (team.team?.id) {
+                teamIds.push(team.team.id);
+              } else if (team.id) {
+                teamIds.push(team.id);
+              }
+            });
+          }
+        });
+      } else if (data?.leagues?.teams && Array.isArray(data.leagues.teams)) {
+        data.leagues.teams.forEach((team: any) => {
+          if (team.team?.id) {
+            teamIds.push(team.team.id);
+          } else if (team.id) {
+            teamIds.push(team.id);
+          }
+        });
+      }
+      
+      console.log('Extracted team IDs:', teamIds);
+      return teamIds;
+    } catch (error) {
+      console.error('Failed to get team IDs from standings:', error);
       return [];
     }
   }

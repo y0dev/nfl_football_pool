@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
@@ -51,6 +51,8 @@ function PoolDetailsContent() {
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
   const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE); // Default to regular season
   const [isSaving, setIsSaving] = useState(false);
+  const [teamRecords, setTeamRecords] = useState<any[]>([]);
+  const [loadingTeamRecords, setLoadingTeamRecords] = useState(false);
   const { toast } = useToast();
 
   // Form state for editing
@@ -69,6 +71,12 @@ function PoolDetailsContent() {
     loadPoolData();
     loadCurrentWeekData();
   }, [poolId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (pool?.season) {
+      loadTeamRecords(pool.season);
+    }
+  }, [pool?.season]);
 
 
   const loadPoolData = async () => {
@@ -116,6 +124,24 @@ function PoolDetailsContent() {
       setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE); // Default to regular season
     } catch (error) {
       console.error('Error loading current week:', error);
+    }
+  };
+
+  const loadTeamRecords = async (season: number) => {
+    try {
+      setLoadingTeamRecords(true);
+      const response = await fetch(`/api/admin/team-records?season=${season}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setTeamRecords(result.records || []);
+      } else {
+        console.error('Error loading team records:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading team records:', error);
+    } finally {
+      setLoadingTeamRecords(false);
     }
   };
 
@@ -442,6 +468,79 @@ function PoolDetailsContent() {
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          {/* Team Records */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Team Records - {pool.season} Season
+              </CardTitle>
+              <CardDescription>
+                Current NFL team standings and statistics
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingTeamRecords ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : teamRecords.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-semibold">Team</th>
+                        <th className="text-center p-2 font-semibold">W-L-T</th>
+                        <th className="text-center p-2 font-semibold">Win %</th>
+                        <th className="text-center p-2 font-semibold">PF</th>
+                        <th className="text-center p-2 font-semibold">PA</th>
+                        <th className="text-center p-2 font-semibold">Diff</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamRecords.map((record: any) => (
+                        <tr key={record.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{record.team?.name || record.team?.abbreviation || 'Unknown'}</span>
+                              {record.team?.conference && (
+                                <Badge variant="outline" className="text-xs">
+                                  {record.team.conference}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-center p-2">
+                            <span className="font-medium">
+                              {record.wins}-{record.losses}
+                              {record.ties > 0 && `-${record.ties}`}
+                            </span>
+                          </td>
+                          <td className="text-center p-2">{record.win_percentage}</td>
+                          <td className="text-center p-2">{record.points_for}</td>
+                          <td className="text-center p-2">{record.points_against}</td>
+                          <td className="text-center p-2">
+                            <span className={record.point_differential >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {record.point_differential >= 0 ? '+' : ''}{record.point_differential}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No team records available for {pool.season} season</p>
+                  <p className="text-sm mt-2">Team records will be updated automatically when games are synced.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="participants" className="space-y-6 mt-6">
           <ParticipantManagement 

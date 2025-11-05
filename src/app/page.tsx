@@ -23,13 +23,36 @@ interface Game {
 }
 
 function LandingPage() {
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(true);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (user) {
+        setIsCheckingAdmin(true);
+        try {
+          const superAdminStatus = await verifyAdminStatus(true);
+          setIsSuperAdmin(superAdminStatus);
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+          setIsSuperAdmin(false);
+        } finally {
+          setIsCheckingAdmin(false);
+        }
+      } else {
+        setIsSuperAdmin(null);
+      }
+    };
+
+    checkAdminStatus();
+  }, [user]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -132,13 +155,22 @@ function LandingPage() {
             </div>
             <div className="flex items-center gap-4">
               {user ? (
-                <Button
-                  className="bg-green-600 hover:bg-green-700 text-white border-none"
-                  onClick={() => router.push('/dashboard')}
-                >
-                  <Shield className="h-4 w-4 mr-2" />
-                  Admin Dashboard
-                </Button>
+                <>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 text-white border-none"
+                    onClick={() => {
+                      if (isSuperAdmin === true) {
+                        router.push('/admin/dashboard');
+                      } else if (isSuperAdmin === false) {
+                        router.push('/dashboard');
+                      }
+                    }}
+                    disabled={isCheckingAdmin}
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    {isCheckingAdmin ? 'Loading...' : isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
+                  </Button>
+                </>
               ) : (
                 <Button
                   className="bg-blue-600 hover:bg-blue-700 text-white border-none"
