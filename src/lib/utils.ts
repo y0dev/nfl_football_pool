@@ -213,80 +213,61 @@ export function formatTime(date: string | Date) {
   return `${displayHours}:${minutes} ${ampm}`
 }
 
+// List of all NFL teams (as JSON objects) - matches structure in populate-playoff-teams.py
+export const NFL_TEAMS = [
+  { name: 'Arizona Cardinals', abbreviation: 'ARI', conference: 'NFC' },
+  { name: 'Los Angeles Rams', abbreviation: 'LAR', conference: 'NFC' },
+  { name: 'San Francisco 49ers', abbreviation: 'SF', conference: 'NFC' },
+  { name: 'Seattle Seahawks', abbreviation: 'SEA', conference: 'NFC' },
+
+  { name: 'Atlanta Falcons', abbreviation: 'ATL', conference: 'NFC' },
+  { name: 'Carolina Panthers', abbreviation: 'CAR', conference: 'NFC' },
+  { name: 'New Orleans Saints', abbreviation: 'NO', conference: 'NFC' },
+  { name: 'Tampa Bay Buccaneers', abbreviation: 'TB', conference: 'NFC' },
+
+  { name: 'Chicago Bears', abbreviation: 'CHI', conference: 'NFC' },
+  { name: 'Detroit Lions', abbreviation: 'DET', conference: 'NFC' },
+  { name: 'Green Bay Packers', abbreviation: 'GB', conference: 'NFC' },
+  { name: 'Minnesota Vikings', abbreviation: 'MIN', conference: 'NFC' },
+
+  { name: 'Dallas Cowboys', abbreviation: 'DAL', conference: 'NFC' },
+  { name: 'New York Giants', abbreviation: 'NYG', conference: 'NFC' },
+  { name: 'Philadelphia Eagles', abbreviation: 'PHI', conference: 'NFC' },
+  { name: 'Washington Commanders', abbreviation: 'WSH', conference: 'NFC' },
+  
+  { name: 'Baltimore Ravens', abbreviation: 'BAL', conference: 'AFC' },
+  { name: 'Cincinnati Bengals', abbreviation: 'CIN', conference: 'AFC' },
+  { name: 'Cleveland Browns', abbreviation: 'CLE', conference: 'AFC' },
+  { name: 'Pittsburgh Steelers', abbreviation: 'PIT', conference: 'AFC' },
+
+  { name: 'Buffalo Bills', abbreviation: 'BUF', conference: 'AFC' },
+  { name: 'Miami Dolphins', abbreviation: 'MIA', conference: 'AFC' },   
+  { name: 'New England Patriots', abbreviation: 'NE', conference: 'AFC' },
+  { name: 'New York Jets', abbreviation: 'NYJ', conference: 'AFC' },
+
+  { name: 'Denver Broncos', abbreviation: 'DEN', conference: 'AFC' },
+  { name: 'Kansas City Chiefs', abbreviation: 'KC', conference: 'AFC' },
+  { name: 'Las Vegas Raiders', abbreviation: 'LV', conference: 'AFC' },
+  { name: 'Los Angeles Chargers', abbreviation: 'LAC', conference: 'AFC' },
+
+  { name: 'Houston Texans', abbreviation: 'HOU', conference: 'AFC' },
+  { name: 'Indianapolis Colts', abbreviation: 'IND', conference: 'AFC' },
+  { name: 'Jacksonville Jaguars', abbreviation: 'JAX', conference: 'AFC' },
+  { name: 'Tennessee Titans', abbreviation: 'TEN', conference: 'AFC' },
+] as const;
+
 export function getNFLTeamName(abbreviation: string): string {
-  const teamNames: Record<string, string> = {
-    'ARI': 'Arizona Cardinals',
-    'ATL': 'Atlanta Falcons',
-    'BAL': 'Baltimore Ravens',
-    'BUF': 'Buffalo Bills',
-    'CAR': 'Carolina Panthers',
-    'CHI': 'Chicago Bears',
-    'CIN': 'Cincinnati Bengals',
-    'CLE': 'Cleveland Browns',
-    'DAL': 'Dallas Cowboys',
-    'DEN': 'Denver Broncos',
-    'DET': 'Detroit Lions',
-    'GB': 'Green Bay Packers',
-    'HOU': 'Houston Texans',
-    'IND': 'Indianapolis Colts',
-    'JAX': 'Jacksonville Jaguars',
-    'KC': 'Kansas City Chiefs',
-    'LAC': 'Los Angeles Chargers',
-    'LAR': 'Los Angeles Rams',
-    'LV': 'Las Vegas Raiders',
-    'MIA': 'Miami Dolphins',
-    'MIN': 'Minnesota Vikings',
-    'NE': 'New England Patriots',
-    'NO': 'New Orleans Saints',
-    'NYG': 'New York Giants',
-    'NYJ': 'New York Jets',
-    'PHI': 'Philadelphia Eagles',
-    'PIT': 'Pittsburgh Steelers',
-    'SEA': 'Seattle Seahawks',
-    'SF': 'San Francisco 49ers',
-    'TB': 'Tampa Bay Buccaneers',
-    'TEN': 'Tennessee Titans',
-    'WSH': 'Washington Commanders'
-  }
-  return teamNames[abbreviation] || abbreviation
+  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
+  return team?.name || abbreviation;
 }
 
 export function getTeamAbbreviation(fullName: string): string {
-  const teamAbbreviations: Record<string, string> = {
-    'New England Patriots': 'NE',
-    'Buffalo Bills': 'BUF',
-    'New York Jets': 'NYJ',
-    'Miami Dolphins': 'MIA',
-    'Baltimore Ravens': 'BAL',
-    'Cincinnati Bengals': 'CIN',
-    'Cleveland Browns': 'CLE',
-    'Pittsburgh Steelers': 'PIT',
-    'Houston Texans': 'HOU',
-    'Indianapolis Colts': 'IND',
-    'Jacksonville Jaguars': 'JAX',
-    'Tennessee Titans': 'TEN',
-    'Kansas City Chiefs': 'KC',
-    'Las Vegas Raiders': 'LV',
-    'Los Angeles Chargers': 'LAC',
-    'Denver Broncos': 'DEN',
-    'Dallas Cowboys': 'DAL',
-    'Philadelphia Eagles': 'PHI',
-    'New York Giants': 'NYG',
-    'Washington Commanders': 'WSH',
-    'Green Bay Packers': 'GB',
-    'Minnesota Vikings': 'MIN',
-    'Chicago Bears': 'CHI',
-    'Detroit Lions': 'DET',
-    'New Orleans Saints': 'NO',
-    'Tampa Bay Buccaneers': 'TB',
-    'Atlanta Falcons': 'ATL',
-    'Carolina Panthers': 'CAR',
-    'San Francisco 49ers': 'SF',
-    'Seattle Seahawks': 'SEA',
-    'Los Angeles Rams': 'LAR',
-    'Arizona Cardinals': 'ARI'
+  const team = NFL_TEAMS.find(t => t.name === fullName);
+  if (team) {
+    return team.abbreviation;
   }
-  return teamAbbreviations[fullName] || fullName.split(' ').map(word => word[0]).join('').toUpperCase();
+  // Fallback: generate abbreviation from name
+  return fullName.split(' ').map(word => word[0]).join('').toUpperCase();
 }
 
 /**
@@ -294,41 +275,14 @@ export function getTeamAbbreviation(fullName: string): string {
  * Returns a shortened version of the team name suitable for smaller screens
  */
 export function getShortTeamName(teamName: string): string {
-  const teamNameMap: Record<string, string> = {
-    'New England Patriots': 'NE Patriots',
-    'New York Jets': 'NY Jets',
-    'New York Giants': 'NY Giants',
-    'Buffalo Bills': 'Buf Bills',
-    'Miami Dolphins': 'Mia Dolphins',
-    'Baltimore Ravens': 'Bal Ravens',
-    'Cincinnati Bengals': 'Cin Bengals',
-    'Cleveland Browns': 'Cle Browns',
-    'Pittsburgh Steelers': 'Pit Steelers',
-    'Houston Texans': 'Hou Texans',
-    'Indianapolis Colts': 'Ind Colts',
-    'Jacksonville Jaguars': 'Jax Jaguars',
-    'Tennessee Titans': 'Ten Titans',
-    'Denver Broncos': 'Den Broncos',
-    'Kansas City Chiefs': 'Kan Chiefs',
-    'Las Vegas Raiders': 'LV Raiders',
-    'Los Angeles Chargers': 'LA Chargers',
-    'Dallas Cowboys': 'Dal Cowboys',
-    'Philadelphia Eagles': 'Phi Eagles',
-    'Washington Commanders': 'Wsh Commanders',
-    'Chicago Bears': 'Chi Bears',
-    'Detroit Lions': 'Det Lions',
-    'Green Bay Packers': 'GB Packers',
-    'Minnesota Vikings': 'Min Vikings',
-    'Atlanta Falcons': 'Atl Falcons',
-    'Carolina Panthers': 'Car Panthers',
-    'New Orleans Saints': 'NO Saints',
-    'Tampa Bay Buccaneers': 'TB Buccaneers',
-    'Arizona Cardinals': 'Ari Cardinals',
-    'Los Angeles Rams': 'LA Rams',
-    'San Francisco 49ers': 'SF 49ers',
-    'Seattle Seahawks': 'Sea Seahawks'
-  };
-  return teamNameMap[teamName] || teamName;
+  const team = NFL_TEAMS.find(t => t.name === teamName);
+  if (!team) {
+    return teamName;
+  }
+  
+  // Generate short name from abbreviation and last word
+  const lastWord = teamName.split(' ').pop() || '';
+  return `${team.abbreviation} ${lastWord}`;
 }
 
 /**

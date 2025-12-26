@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
+import { getPlayoffConfidencePoints, isPlayoffGame } from '@/lib/playoff-utils';
 
 export async function calculateScores(weekNumber: number = 1) {
   try {
@@ -197,6 +198,19 @@ export async function checkAndCalculateWeeklyScores(poolId: string, week: number
 async function calculateWeeklyScores(poolId: string, week: number) {
   try {
     const supabase = getSupabaseClient();
+    
+    // Get pool season to check for playoff confidence points
+    const { data: pool } = await supabase
+      .from('pools')
+      .select('season')
+      .eq('id', poolId)
+      .single();
+
+    if (!pool) {
+      console.error('Pool not found');
+      return;
+    }
+
     // Get all picks for the week
     const { data: picks, error: picksError } = await supabase
       .from('picks')
@@ -205,7 +219,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
         predicted_winner,
         confidence_points,
         game_id,
-        games!inner(winner, home_team, away_team)
+        games!inner(winner, home_team, away_team, season_type, season)
       `)
       .eq('pool_id', poolId)
       .eq('games.week', week);
@@ -213,6 +227,22 @@ async function calculateWeeklyScores(poolId: string, week: number) {
     if (picksError) {
       console.error('Error fetching picks:', picksError);
       return;
+    }
+
+    // Check if this is a playoff week (season_type = 3)
+    const firstGame = picks?.[0]?.games;
+    const isPlayoff = firstGame && isPlayoffGame(firstGame.season_type);
+
+    // For playoff games, load playoff confidence points for all participants
+    const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
+    if (isPlayoff) {
+      const participantIds = new Set(picks?.map((p: any) => p.participant_id) || []);
+      for (const participantId of participantIds) {
+        const pointsMap = await getPlayoffConfidencePoints(poolId, pool.season, participantId);
+        if (pointsMap) {
+          playoffConfidencePointsMap.set(participantId, pointsMap);
+        }
+      }
     }
 
     // Calculate scores for each participant
@@ -237,7 +267,21 @@ async function calculateWeeklyScores(poolId: string, week: number) {
       // Check if pick is correct
       if (game.winner && pick.predicted_winner === game.winner) {
         score.correct_picks++;
-        score.points += pick.confidence_points;
+        
+        // For playoff games, use confidence points from playoff_confidence_points table
+        // For regular season, use confidence points from picks table
+        let pointsToAdd = pick.confidence_points;
+        if (isPlayoff) {
+          const participantPlayoffPoints = playoffConfidencePointsMap.get(participantId);
+          if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+            pointsToAdd = participantPlayoffPoints[pick.predicted_winner];
+          } else {
+            // If no playoff confidence points found, use 0 (shouldn't happen if properly set up)
+            pointsToAdd = 0;
+          }
+        }
+        
+        score.points += pointsToAdd;
       }
     });
 
@@ -252,7 +296,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
     // Update scores in database
     await updateScoresInDatabase(poolId, week, scores);
 
-    console.log(`Scores calculated for pool ${poolId}, week ${week}`);
+    console.log(`Scores calculated for pool ${poolId}, week ${week}${isPlayoff ? ' (using playoff confidence points)' : ''}`);
 
   } catch (error) {
     console.error('Failed to calculate weekly scores:', error);
