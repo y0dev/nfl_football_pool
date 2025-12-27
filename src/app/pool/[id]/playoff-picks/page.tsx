@@ -127,7 +127,7 @@ function PlayoffPicksContent() {
   }, [poolId, currentRound, roundParam, router]);
 
   useEffect(() => {
-    if (selectedUser && games.length > 0) {
+    if (selectedUser && games.length > 0 && poolSeason) {
       checkConfidencePoints();
       loadPicks();
       loadRoundScores();
@@ -136,7 +136,7 @@ function PlayoffPicksContent() {
         loadTieBreakerScore();
       }
     }
-  }, [selectedUser, games, currentRound]);
+  }, [selectedUser, games, currentRound, poolSeason]);
 
   // Load picks from localStorage after picks are loaded from database
   useEffect(() => {
@@ -291,7 +291,7 @@ function PlayoffPicksContent() {
       const gamesByRound: PlayoffRound[] = [];
       const weekToLoad = currentRound; // Round number maps directly to week number
       
-      const response = await fetch(`/api/games/week?week=${weekToLoad}&seasonType=3&season=${poolData.pool.season}`);
+      const response = await fetch(`/api/games/week?week=${weekToLoad}&seasonType=3&season=${poolData.pool?.season || 2025}`);
       const data = await response.json();
       debugLog('Playoff picks page: Loading games for week:', weekToLoad, 'season type:', 3, 'season:', poolData.pool.season);
       debugLog('Playoff picks page: Data:', data);
@@ -393,15 +393,53 @@ function PlayoffPicksContent() {
     return stats;
   };
 
-  const checkConfidencePoints = async () => {
-    if (!selectedUser) return;
+  const checkConfidencePoints = async (userId?: string) => {
+    // Use provided userId or fall back to selectedUser
+    const userToCheck = userId || selectedUser?.id;
+    if (!userToCheck) return;
+
+    // Always fetch the pool season fresh to ensure we have the correct value
+    // This avoids issues with stale state when navigating between rounds
+    let seasonToUse = poolSeason;
+    try {
+      const poolResponse = await fetch(`/api/pools/${poolId}`);
+      const poolData = await poolResponse.json();
+      if (poolData.success && poolData.pool?.season) {
+        seasonToUse = poolData.pool.season;
+        // Update state if it's different
+        if (seasonToUse !== poolSeason) {
+          setPoolSeason(seasonToUse);
+        }
+      } else {
+        console.error('Could not get pool season from API');
+        // Fall back to current poolSeason state if API fails
+        if (!seasonToUse) {
+          return; // Don't check if we don't have a season
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching pool season:', error);
+      // Fall back to current poolSeason state if API fails
+      if (!seasonToUse) {
+        return; // Don't check if we don't have a season
+      }
+    }
 
     try {
-      const response = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${poolSeason}&participantId=${selectedUser.id}`);
+      const response = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonToUse}&participantId=${userToCheck}`);
       const data = await response.json();
-
+      
       if (data.success) {
         setHasConfidencePoints(data.hasSubmission || false);
+        debugLog('Confidence points check result:', { 
+          participantId: userToCheck, 
+          season: seasonToUse, 
+          hasSubmission: data.hasSubmission,
+          currentRound
+        });
+      } else {
+        console.error('Error checking confidence points - API returned error:', data.error);
+        setHasConfidencePoints(false);
       }
     } catch (error) {
       console.error('Error checking confidence points:', error);
@@ -666,13 +704,18 @@ function PlayoffPicksContent() {
     }
   };
 
-  const handleUserSelected = (userId: string, userName: string) => {
+  const handleUserSelected = async (userId: string, userName: string) => {
     setSelectedUser({ id: userId, name: userName });
     userSessionManager.createSession(userId, userName, poolId, '');
     // Clear any previously stored picks when selecting a new user
     pickStorage.clearPicks();
     setHasUnsavedChanges(false);
     setLastSaved(null);
+    
+    // Reset hasConfidencePoints and check immediately for the new user
+    setHasConfidencePoints(false);
+    // Check confidence points right away for the newly selected user
+    await checkConfidencePoints(userId);
   };
 
   const handlePickChange = (gameId: string, winner: string) => {
@@ -1130,7 +1173,7 @@ function PlayoffPicksContent() {
             Back to Playoff Confidence Points
           </Button>
           <h1 className="text-2xl sm:text-3xl font-bold">{poolName} - Playoff Picks</h1>
-          <p className="text-gray-600">Season {poolSeason}</p>
+          <p className="text-gray-600">Season {poolSeason || '...'}</p>
         </div>
         <PickUserSelection
           key={`${poolId}-${currentRound}-${userListKey}`}
@@ -1157,7 +1200,7 @@ function PlayoffPicksContent() {
             Back to Playoff Confidence Points
           </Button>
           <h1 className="text-2xl sm:text-3xl font-bold">{poolName} - Playoff Picks</h1>
-          <p className="text-gray-600">Season {poolSeason}</p>
+          <p className="text-gray-600">Season {poolSeason || '...'}</p>
         </div>
         <Card>
           <CardHeader>
