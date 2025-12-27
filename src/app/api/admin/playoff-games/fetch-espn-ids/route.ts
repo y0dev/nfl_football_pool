@@ -17,20 +17,20 @@ export async function POST(request: NextRequest) {
     const getPlayoffDates = (weekNum: number, year: number): string[] => {
       switch (weekNum) {
         case 1: // Wild Card (usually 2nd weekend of January)
-          return [`${year}0111`, `${year}0112`];
+          return [`${year}0109`, `${year}0110`, `${year}0111`, `${year}0112`];
         case 2: // Divisional (usually 3rd weekend of January)
-          return [`${year}0118`, `${year}0119`];
+          return [`${year}0118`, `${year}0119`, `${year}0120`, `${year}0121`];
         case 3: // Conference Championship (usually 4th weekend of January)
-          return [`${year}0125`, `${year}0126`];
+          return [`${year}0125`, `${year}0126`, `${year}0127`, `${year}0128`];
         case 4: // Super Bowl (usually 1st Sunday of February)
-          return [`${year}0208`, `${year}0209`];
+          return [`${year}0208`, `${year}0209`, `${year}0210`, `${year}0211`];
         default:
           return [];
       }
     };
 
     const dates = getPlayoffDates(week, season);
-    const games: Array<{ id: string; away_team: string; home_team: string; kickoff_time: string }> = [];
+    const games: Array<{ id: string; away_team?: string; home_team?: string; kickoff_time: string }> = [];
 
     for (const dateStr of dates) {
       try {
@@ -49,19 +49,31 @@ export async function POST(request: NextRequest) {
             const competitions = event.competitions || [];
             
             for (const competition of competitions) {
-              const competitors = competition.competitors || [];
-              if (competitors.length === 2) {
-                const awayTeam = competitors.find((c: any) => c.homeAway === 'away');
-                const homeTeam = competitors.find((c: any) => c.homeAway === 'home');
+              // Extract game ID and kickoff time (team names are optional for TBD games)
+              const gameId = competition.id || event.id;
+              const kickoffTime = competition.date || event.date;
+              
+              if (gameId && kickoffTime) {
+                // Try to extract team names if available
+                const competitors = competition.competitors || [];
+                let awayTeam: string | undefined;
+                let homeTeam: string | undefined;
                 
-                if (awayTeam?.team?.displayName && homeTeam?.team?.displayName) {
-                  games.push({
-                    id: competition.id || event.id,
-                    away_team: awayTeam.team.displayName,
-                    home_team: homeTeam.team.displayName,
-                    kickoff_time: competition.date || event.date
-                  });
+                if (competitors.length === 2) {
+                  const awayTeamObj = competitors.find((c: any) => c.homeAway === 'away');
+                  const homeTeamObj = competitors.find((c: any) => c.homeAway === 'home');
+                  
+                  if (awayTeamObj?.team?.displayName && homeTeamObj?.team?.displayName) {
+                    awayTeam = awayTeamObj.team.displayName;
+                    homeTeam = homeTeamObj.team.displayName;
+                  }
                 }
+                
+                games.push({
+                  id: gameId,
+                  kickoff_time: kickoffTime,
+                  ...(awayTeam && homeTeam ? { away_team: awayTeam, home_team: homeTeam } : {})
+                });
               }
             }
           }

@@ -136,7 +136,7 @@ function PlayoffManagementContent() {
 
       if (data.success) {
         setGames(data.games || []);
-        // Removed auto-fetching - user will manually trigger via button
+        debugLog('PLAYOFFS: Games loaded:', data.games);
       } else {
         toast({
           title: 'Error',
@@ -149,8 +149,10 @@ function PlayoffManagementContent() {
     }
   };
 
-  const fetchGameIdsForGamesWithoutIds = async (gamesWithoutIds: PlayoffGame[]) => {
-    setFetchingGameIds(true);
+    const fetchGameIdsForGamesWithoutIds = async (gamesWithoutIds: PlayoffGame[]) => {
+      debugLog('Fetching game IDs for games without IDs');
+      debugLog('Games without IDs:', gamesWithoutIds);
+      setFetchingGameIds(true);
     
     try {
       // Group games by week
@@ -257,19 +259,172 @@ function PlayoffManagementContent() {
     }
   };
 
+  const fetchGamesForRound = async (round: number) => {
+    try {
+      debugLog(`Fetching game IDs for round ${round} (${ROUND_NAMES[round]}) from ESPN`);
+      
+      // Calculate playoff year: 2025 season games are in Jan/Feb 2026
+      const playoffYear = season + 1;
+      
+      // Use the server-side API route to fetch ESPN game IDs (avoids CORS issues)
+      const response = await fetch('/api/admin/playoff-games/fetch-espn-ids', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ season: playoffYear, week: round })
+      });
+
+      const data = await response.json();
+      debugLog('PLAYOFFS: Response:', response);
+      debugLog('PLAYOFFS: Data:', data);
+      // Extract IDs, kickoff times, and team names (if available) from the ESPN games
+      const espnGameIds: Array<{ id: string; kickoff_time: string; away_team?: string; home_team?: string }> = [];
+      if (data.success && data.games && data.games.length > 0) {
+        for (const game of data.games) {
+          if (game.id && game.kickoff_time) {
+            espnGameIds.push({
+              id: game.id,
+              kickoff_time: game.kickoff_time,
+              ...(game.away_team && game.home_team ? { away_team: game.away_team, home_team: game.home_team } : {})
+            });
+          }
+        }
+      }
+      
+      debugLog(`Fetched ${espnGameIds.length} game IDs from ESPN for round ${round}`);
+
+      // Get expected number of games for this round
+      const expectedGameCount = ROUND_GAME_COUNTS[round];
+      const roundGames = getGamesByRound(round);
+      const existingGameCount = roundGames.length;
+      
+      // Calculate how many games we need to create
+      const gamesNeeded = expectedGameCount - existingGameCount;
+
+      if (gamesNeeded <= 0) {
+        debugLog(`Round ${round} already has ${existingGameCount} games (expected ${expectedGameCount})`);
+        return;
+      }
+
+      // Create games using the fetched ESPN IDs (use actual team names if available, otherwise TBD)
+      const gamesToCreate: PlayoffGame[] = [];
+      for (let i = 0; i < gamesNeeded && i < espnGameIds.length; i++) {
+        const espnGame = espnGameIds[i];
+        gamesToCreate.push({
+          season,
+          week: round,
+          away_team: espnGame.away_team || 'TBD',
+          home_team: espnGame.home_team || 'TBD',
+          id: espnGame.id,
+          kickoff_time: espnGame.kickoff_time,
+          status: 'scheduled'
+        });
+      }
+
+      // If we have fewer ESPN IDs than needed, create remaining games with generated IDs
+      // Generate a unique ID for games without ESPN IDs using a timestamp-based format
+      for (let i = espnGameIds.length; i < gamesNeeded; i++) {
+        // Generate a default kickoff time if not provided
+        const defaultDates: Record<number, string> = {
+          1: `${playoffYear}-01-11T18:00:00Z`,
+          2: `${playoffYear}-01-18T18:00:00Z`,
+          3: `${playoffYear}-01-25T18:00:00Z`,
+          4: `${playoffYear}-02-08T18:00:00Z`
+        };
+        
+        // Generate a unique ID for TBD games: season_3_week_TBD_timestamp
+        const timestamp = Date.now();
+        const generatedId = `${season}_3_${round}_TBD_${timestamp}_${i}`;
+        
+        gamesToCreate.push({
+          season,
+          week: round,
+          away_team: 'TBD',
+          home_team: 'TBD',
+          id: generatedId,
+          kickoff_time: defaultDates[round] || new Date().toISOString(),
+          status: 'scheduled'
+        });
+      }
+
+      // Save new games to database
+      if (gamesToCreate.length > 0) {
+        const saveResponse = await fetch('/api/admin/playoff-games', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season,
+            games: gamesToCreate
+          })
+        });
+
+        const saveData = await saveResponse.json();
+        if (saveData.success) {
+          debugLog(`Created ${gamesToCreate.length} new games for round ${round} with TBD placeholders`);
+          toast({
+            title: 'Success',
+            description: `Created ${gamesToCreate.length} game(s) for ${ROUND_NAMES[round]} with TBD placeholders`,
+          });
+          // Reload games to refresh the state
+          await loadGames();
+        } else {
+          console.error('Error saving games:', saveData.error);
+          toast({
+            title: 'Error',
+            description: `Failed to save games for ${ROUND_NAMES[round]}: ${saveData.error}`,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        debugLog(`No games to create for round ${round}`);
+      }
+    } catch (error) {
+      console.error(`Error fetching games for round ${round}:`, error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch games for ${ROUND_NAMES[round]}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleFetchAllGameIds = async () => {
-    // Find all games without IDs
-    const gamesWithoutIds = games.filter(g => !g.id);
+    // Check all expected playoff games - ensure all games in all rounds have IDs
+    const gamesNeedingIds: PlayoffGame[] = [];
     
-    if (gamesWithoutIds.length === 0) {
+    // Check each round (1-4) for expected number of games
+    for (const round of [1, 2, 3, 4]) {
+      const expectedGameCount = ROUND_GAME_COUNTS[round];
+      const roundGames = getGamesByRound(round);
+      
+      // Check if we have the expected number of games
+      if (roundGames.length < expectedGameCount) {
+        // Missing some games entirely - fetch from ESPN and create them
+        debugLog(`Round ${round} (${ROUND_NAMES[round]}) has ${roundGames.length} games but expects ${expectedGameCount}`);
+        // Fetch all games for this round from ESPN
+        await fetchGamesForRound(round);
+        // Reload games after fetching
+        await loadGames();
+      }
+      
+      // Check existing games in this round for missing IDs
+      const roundGamesAfterFetch = getGamesByRound(round);
+      const roundGamesWithoutIds = roundGamesAfterFetch.filter(g => !g.id);
+      if (roundGamesWithoutIds.length > 0) {
+        gamesNeedingIds.push(...roundGamesWithoutIds);
+        debugLog(`Round ${round} (${ROUND_NAMES[round]}) has ${roundGamesWithoutIds.length} games without IDs`);
+      }
+    }
+    
+    if (gamesNeedingIds.length === 0) {
       toast({
         title: 'Info',
-        description: 'All games already have IDs assigned.',
+        description: 'All expected playoff games already have IDs assigned.',
       });
       return;
     }
 
-    await fetchGameIdsForGamesWithoutIds(gamesWithoutIds);
+    debugLog(`Total games needing IDs: ${gamesNeedingIds.length}`);
+    await fetchGameIdsForGamesWithoutIds(gamesNeedingIds);
   };
 
   const handleSaveTeam = async () => {

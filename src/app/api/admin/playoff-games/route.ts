@@ -85,14 +85,20 @@ export async function POST(request: NextRequest) {
     // Get existing games for this season and season_type
     const { data: existingGames } = await supabase
       .from('games')
-      .select('id, week, away_team, home_team')
+      .select('id, week, away_team, home_team, kickoff_time')
       .eq('season', season)
       .eq('season_type', 3);
 
-    const existingMap = new Map();
+    // Create maps for lookup: by key (week_away_home) and by ID
+    const existingMap = new Map(); // key -> id
+    const existingIds = new Set<string>(); // Set of all existing IDs
+    const existingGamesById = new Map(); // id -> game object (for checking TBD status)
+    
     (existingGames || []).forEach(game => {
       const key = `${game.week}_${game.away_team}_${game.home_team}`;
       existingMap.set(key, game.id);
+      existingIds.add(game.id);
+      existingGamesById.set(game.id, game);
     });
 
     const toInsert = [];
@@ -111,7 +117,8 @@ export async function POST(request: NextRequest) {
         winner: game.winner || null
       };
 
-      // Include ID if provided (e.g., from ESPN)
+      // Include ID only if provided (e.g., from ESPN)
+      // If no ID is provided, don't include it and let the database generate one
       if (game.id) {
         gameData.id = game.id;
       }
@@ -130,33 +137,64 @@ export async function POST(request: NextRequest) {
         gameData.kickoff_time = defaultDates[game.week] || new Date().toISOString();
       }
 
-      // If game has an ID and matches existing, update it
-      if (game.id) {
+      // Check if game ID already exists in database
+      if (game.id && existingIds.has(game.id)) {
+        // Game with this ID already exists - update it (especially kickoff_time and teams if TBD)
+        const existingGame = existingGamesById.get(game.id);
+        const hasTbdTeams = existingGame && 
+          (existingGame.away_team === 'TBD' || existingGame.home_team === 'TBD');
+        const hasNewTeams = game.away_team && game.away_team !== 'TBD' && 
+                           game.home_team && game.home_team !== 'TBD';
+        
+        // Prepare update data
+        const updateData: any = {
+          id: game.id,
+          kickoff_time: gameData.kickoff_time,
+          status: gameData.status,
+          is_playoff: gameData.is_playoff,
+          winner: gameData.winner
+        };
+        
+        // If existing game has TBD teams and we have actual team names from ESPN, update them
+        if (hasTbdTeams && hasNewTeams) {
+          updateData.away_team = gameData.away_team;
+          updateData.home_team = gameData.home_team;
+        }
+        
+        toUpdate.push(updateData);
+      } else if (game.id) {
+        // New game with ID from ESPN - check if key exists
         const existingKey = `${game.week}_${game.away_team}_${game.home_team}`;
         if (existingMap.has(existingKey)) {
+          // Same teams but different ID - update existing game with new ID and data
           toUpdate.push({ id: existingMap.get(existingKey)!, ...gameData, id: game.id });
-        } else if (existingMap.has(key)) {
-          toUpdate.push({ id: existingMap.get(key)!, ...gameData, id: game.id });
         } else {
-          // New game with ID from ESPN
+          // Completely new game with ID
           toInsert.push(gameData);
         }
       } else if (existingMap.has(key)) {
+        // Existing game without ID in request - update it
         toUpdate.push({ id: existingMap.get(key)!, ...gameData });
       } else {
-        toInsert.push(gameData);
+        // New game without ID - database will generate one
+        const { id, ...gameDataWithoutId } = gameData;
+        toInsert.push(gameDataWithoutId);
       }
     }
 
     // Perform updates
     for (const game of toUpdate) {
       const { id: gameId, ...updateData } = game;
-      // If the game data includes an ID from ESPN, update it
-      const updatePayload = updateData;
-      if (game.id && game.id !== gameId) {
-        // Update ID if it's different (e.g., adding ESPN ID to existing game)
-        updatePayload.id = game.id;
-      }
+      // For updates, we don't change the ID, just update other fields
+      const updatePayload: any = {};
+      
+      // Only include fields that should be updated
+      if (updateData.kickoff_time) updatePayload.kickoff_time = updateData.kickoff_time;
+      if (updateData.away_team) updatePayload.away_team = updateData.away_team;
+      if (updateData.home_team) updatePayload.home_team = updateData.home_team;
+      if (updateData.status) updatePayload.status = updateData.status;
+      if (updateData.winner !== undefined) updatePayload.winner = updateData.winner;
+      if (updateData.is_playoff !== undefined) updatePayload.is_playoff = updateData.is_playoff;
       
       const { error } = await supabase
         .from('games')
@@ -166,7 +204,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('Error updating game:', error);
         return NextResponse.json(
-          { success: false, error: `Failed to update game` },
+          { success: false, error: `Failed to update game ${gameId}` },
           { status: 500 }
         );
       }

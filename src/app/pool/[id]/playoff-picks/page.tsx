@@ -363,11 +363,12 @@ function PlayoffPicksContent() {
 
   const getGameStatusStats = () => {
     const currentRoundGames = games.filter(g => g.week === currentRound);
-    if (currentRoundGames.length === 0) return null;
+    // Use expected game count for the round, not just the actual games that exist
+    const expectedGameCount = ROUND_GAME_COUNTS[currentRound] || currentRoundGames.length;
     
     const now = new Date();
     const stats = {
-      total: currentRoundGames.length,
+      total: expectedGameCount, // Show expected count for the round
       upcoming: 0,
       inProgress: 0,
       finished: 0,
