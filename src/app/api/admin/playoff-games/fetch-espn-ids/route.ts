@@ -1,3 +1,4 @@
+import { debugLog } from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Fetch ESPN game IDs for playoff games
@@ -44,7 +45,8 @@ export async function POST(request: NextRequest) {
         if (response.ok) {
           const data = await response.json();
           const events = data.events || [];
-
+          debugLog(`PLAYOFFS: Events for date ${dateStr}:`, events);
+          
           for (const event of events) {
             const competitions = event.competitions || [];
             

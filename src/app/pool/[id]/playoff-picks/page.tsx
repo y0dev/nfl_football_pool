@@ -19,6 +19,7 @@ import { debugLog, getShortTeamName } from '@/lib/utils';
 import { Game, Pick, SelectedUser, StoredPick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 interface PlayoffRound {
   week: number;
@@ -73,6 +74,7 @@ function PlayoffPicksContent() {
   const [gamesStarted, setGamesStarted] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
+  const [upcomingRound, setUpcomingRound] = useState<number>(1);
   const [debugLeaderboard, setDebugLeaderboard] = useState<Array<{
     participant_id: string;
     participant_name: string;
@@ -115,6 +117,24 @@ function PlayoffPicksContent() {
   const navigateToNextRound = () => {
     if (currentRound < 4) {
       navigateToRound(currentRound + 1);
+    }
+  };
+  
+  // Navigate to current round (upcoming playoff round)
+  const navigateToCurrentRound = async () => {
+    try {
+      const upcomingWeek = await getUpcomingWeek();
+      // If current week is a playoff week, navigate to that round
+      if (upcomingWeek.seasonType === 3 && upcomingWeek.week >= 1 && upcomingWeek.week <= 4) {
+        navigateToRound(upcomingWeek.week);
+      } else {
+        // If current week is regular season or preseason, navigate to picks page
+        window.location.href = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`;
+      }
+    } catch (error) {
+      console.error('Error getting current round:', error);
+      // Fallback to round 1 (Wild Card)
+      navigateToRound(1);
     }
   };
 
@@ -327,6 +347,19 @@ function PlayoffPicksContent() {
         setGamesStarted(hasStarted);
       } else {
         setGamesStarted(false);
+      }
+
+      // Load upcoming round for current round button
+      try {
+        const upcomingWeek = await getUpcomingWeek();
+        if (upcomingWeek.seasonType === 3 && upcomingWeek.week >= 1 && upcomingWeek.week <= 4) {
+          setUpcomingRound(upcomingWeek.week);
+        } else {
+          setUpcomingRound(1); // Default to Wild Card
+        }
+      } catch (error) {
+        console.error('Error getting upcoming round:', error);
+        setUpcomingRound(1);
       }
 
     } catch (error) {
@@ -1273,15 +1306,19 @@ function PlayoffPicksContent() {
                   </Button>
                   
                   <Button
-                    variant="outline"
+                    variant={currentRound === upcomingRound ? "default" : "outline"}
                     size="sm"
-                    onClick={() => navigateToRound(1)}
-                    className="flex items-center gap-1 px-3 py-2 h-9"
-                    title="Go to first round (Wild Card)"
+                    onClick={navigateToCurrentRound}
+                    className={`flex items-center gap-1 px-3 py-2 h-9 ${
+                      currentRound === upcomingRound 
+                        ? "bg-blue-600 text-white hover:bg-blue-700" 
+                        : ""
+                    }`}
+                    title="Go to current/upcoming round"
                   >
                     <Calendar className="h-3 w-3" />
-                    <span className="hidden xs:inline">Wild Card</span>
-                    <span className="xs:hidden">Round 1</span>
+                    <span className="hidden xs:inline">Current Round</span>
+                    <span className="xs:hidden">Current</span>
                   </Button>
                   
                   <Button
@@ -1342,10 +1379,6 @@ function PlayoffPicksContent() {
               </div>
               
               <div className="flex flex-col lg:flex-row items-center gap-4">
-                <div className="text-sm text-gray-600 text-center lg:text-right">
-                  <p>Welcome to the pool!</p>
-                  <p>Make your playoff picks below.</p>
-                </div>
                 <div className="flex flex-wrap justify-center gap-2 max-w-full px-2">
                   <Button
                     variant="outline"
@@ -2002,27 +2035,6 @@ function PlayoffPicksContent() {
           </CardContent>
         </Card>
       )}
-
-      {/* Overall Playoff Standings - default visible */}
-      <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-900">
-            <Trophy className="h-6 w-6 text-blue-600" />
-            Playoff Standings
-          </CardTitle>
-          <CardDescription className="text-blue-700">
-            Live totals across all playoff rounds based on completed games
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SeasonLeaderboard 
-            poolId={poolId}
-            season={poolSeason}
-            currentWeek={currentRound}
-            currentSeasonType={3}
-          />
-        </CardContent>
-      </Card>
         </div>
       </div>
     </div>

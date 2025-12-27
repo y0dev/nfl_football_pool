@@ -643,21 +643,23 @@ function PlayoffsPageContent() {
                       })}
                   </div>
                 </div>
-
-                {/* Debug Mode Checkbox */}
-                <div className="flex items-center space-x-2 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <Checkbox
-                    id="debug-mode"
-                    checked={debugMode}
-                    onCheckedChange={(checked) => setDebugMode(checked === true)}
-                  />
-                  <Label
-                    htmlFor="debug-mode"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Debug Mode: Submit to DB and navigate to playoff picks page
-                  </Label>
-                </div>
+                      
+                {/* Debug Mode Checkbox - Only visible in development */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="flex items-center space-x-2 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <Checkbox
+                      id="debug-mode"
+                      checked={debugMode}
+                      onCheckedChange={(checked) => setDebugMode(checked === true)}
+                    />
+                    <Label
+                      htmlFor="debug-mode"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Debug Mode: Submit to DB and navigate to playoff picks page
+                    </Label>
+                  </div>
+                )}
 
                 <Button
                   onClick={handleSubmit}

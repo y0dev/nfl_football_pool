@@ -168,6 +168,12 @@ function PoolPicksContent() {
   const navigateToCurrentWeek = async () => {
     try {
       const upcomingWeek = await getUpcomingWeek();
+      // If current week is a playoff week, navigate to playoff-picks page
+      if (upcomingWeek.seasonType === 3) {
+        // For playoffs, week number maps directly to round number (week 1 = round 1, etc.)
+        window.location.href = `/pool/${poolId}/playoff-picks?round=${upcomingWeek.week}`;
+        return;
+      }
       const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`;
       window.location.href = newUrl;
     } catch (error) {
@@ -1683,10 +1689,12 @@ function PoolPicksContent() {
               </div>
               
               <div className="flex flex-col lg:flex-row items-center gap-4">
-                <div className="text-sm text-gray-600 text-center lg:text-right">
-                  <p>Welcome to the pool!</p>
-                  <p>Make your picks below to participate.</p>
-                </div>
+                {currentWeek === 1 && currentSeasonType === 2 && (
+                  <div className="text-sm text-gray-600 text-center lg:text-right">
+                    <p>Welcome to the pool!</p>
+                    <p>Make your picks below to participate.</p>
+                  </div>
+                )}
                 <div className="flex flex-wrap justify-center gap-2 max-w-full px-2">
                   <Button
                     variant="outline"
