@@ -1,0 +1,87 @@
+[
+  {
+    "team_name": "Kansas City Chiefs",
+    "team_abbreviation": "KC",
+    "conference": "AFC",
+    "seed": 1
+  },
+  {
+    "team_name": "Buffalo Bills",
+    "team_abbreviation": "BUF",
+    "conference": "AFC",
+    "seed": 2
+  },
+  {
+    "team_name": "Baltimore Ravens",
+    "team_abbreviation": "BAL",
+    "conference": "AFC",
+    "seed": 3
+  },
+  {
+    "team_name": "Houston Texans",
+    "team_abbreviation": "HOU",
+    "conference": "AFC",
+    "seed": 4
+  },
+  {
+    "team_name": "Cleveland Browns",
+    "team_abbreviation": "CLE",
+    "conference": "AFC",
+    "seed": 5
+  },
+  {
+    "team_name": "Miami Dolphins",
+    "team_abbreviation": "MIA",
+    "conference": "AFC",
+    "seed": 6
+  },
+  {
+    "team_name": "Pittsburgh Steelers",
+    "team_abbreviation": "PIT",
+    "conference": "AFC",
+    "seed": 7
+  },
+  {
+    "team_name": "San Francisco 49ers",
+    "team_abbreviation": "SF",
+    "conference": "NFC",
+    "seed": 1
+  },
+  {
+    "team_name": "Dallas Cowboys",
+    "team_abbreviation": "DAL",
+    "conference": "NFC",
+    "seed": 2
+  },
+  {
+    "team_name": "Detroit Lions",
+    "team_abbreviation": "DET",
+    "conference": "NFC",
+    "seed": 3
+  },
+  {
+    "team_name": "Tampa Bay Buccaneers",
+    "team_abbreviation": "TB",
+    "conference": "NFC",
+    "seed": 4
+  },
+  {
+    "team_name": "Philadelphia Eagles",
+    "team_abbreviation": "PHI",
+    "conference": "NFC",
+    "seed": 5
+  },
+  {
+    "team_name": "Los Angeles Rams",
+    "team_abbreviation": "LAR",
+    "conference": "NFC",
+    "seed": 6
+  },
+  {
+    "team_name": "Green Bay Packers",
+    "team_abbreviation": "GB",
+    "conference": "NFC",
+    "seed": 7
+  }
+]
+

@@ -530,6 +530,70 @@ export type Database = {
           updated_at?: string
         }
       }
+      playoff_teams: {
+        Row: {
+          id: string
+          season: number
+          team_name: string
+          team_abbreviation: string | null
+          conference: string | null
+          seed: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          season: number
+          team_name: string
+          team_abbreviation?: string | null
+          conference?: string | null
+          seed?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          season?: number
+          team_name?: string
+          team_abbreviation?: string | null
+          conference?: string | null
+          seed?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      playoff_confidence_points: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          season: number
+          team_name: string
+          confidence_points: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          season: number
+          team_name: string
+          confidence_points: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          season?: number
+          team_name?: string
+          confidence_points?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       audit_logs: {
         Row: {
           id: string
@@ -751,6 +815,35 @@ CREATE TABLE IF NOT EXISTS period_winners (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(pool_id, season, period_name)
+);
+`;
+
+export const playoffTeamsTable = `
+CREATE TABLE IF NOT EXISTS playoff_teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  season INTEGER NOT NULL,
+  team_name VARCHAR(255) NOT NULL,
+  team_abbreviation VARCHAR(10),
+  conference VARCHAR(50),
+  seed INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(season, team_name)
+);
+`;
+
+export const playoffConfidencePointsTable = `
+CREATE TABLE IF NOT EXISTS playoff_confidence_points (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+  pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,
+  team_name VARCHAR(255) NOT NULL,
+  confidence_points INTEGER NOT NULL CHECK (confidence_points > 0),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(participant_id, pool_id, season, team_name),
+  UNIQUE(participant_id, pool_id, season, confidence_points)
 );
 `;
 

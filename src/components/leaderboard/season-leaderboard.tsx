@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, TrendingUp, Users } from 'lucide-react';
+import { debugLog } from '@/lib/utils';
 
 interface SeasonLeaderboardEntry {
   participant_name: string;
@@ -39,7 +40,7 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
         }
 
         const result = await response.json();
-        
+        debugLog('SEASON LEADERBOARD: Result:', result);
         if (result.success) {
           setLeaderboard(result.leaderboard || []);
         } else {

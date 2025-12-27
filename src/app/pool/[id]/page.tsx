@@ -463,6 +463,7 @@ function PoolDetailsContent() {
             )}
             <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
             <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
+            <TabsTrigger value="playoffs" className="text-xs whitespace-nowrap px-2 py-1">Playoffs</TabsTrigger>
             <TabsTrigger value="season-review" className="text-xs whitespace-nowrap px-2 py-1">Season Review</TabsTrigger>
             <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
@@ -567,6 +568,22 @@ function PoolDetailsContent() {
             weekNumber={currentWeek}
             seasonType={currentSeasonType}
           />
+        </TabsContent>
+
+        <TabsContent value="playoffs" className="space-y-6 mt-6">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold mb-4">Playoff Confidence Points</h3>
+            <p className="text-muted-foreground mb-6">
+              Set confidence points for playoff teams at the beginning of playoffs
+            </p>
+            <Button 
+              onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
+              className="flex items-center gap-2"
+            >
+              <Trophy className="h-4 w-4" />
+              Manage Playoff Confidence Points
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="season-review" className="space-y-6 mt-6">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog } from '@/lib/utils';
+import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +86,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Get season from games (all games should have the same season)
+    const gameSeason = seasonNumber || games[0]?.season || new Date().getFullYear();
+
+    // For playoff games, load playoff confidence points for all participants
+    const isPlayoffSeasonType = seasonTypeNumber === 3;
+    const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
+    
+    if (isPlayoffSeasonType) {
+      for (const participant of participants) {
+        try {
+          const playoffPoints = await getPlayoffConfidencePoints(poolId, gameSeason, participant.id);
+          debugLog('Playoff confidence points for participant:', participant.id, playoffPoints);
+          if (playoffPoints) {
+            playoffConfidencePointsMap.set(participant.id, playoffPoints);
+          }
+        } catch (error) {
+          console.error(`Error loading playoff confidence points for participant ${participant.id}:`, error);
+        }
+      }
+    }
+
     // Get picks for all participants in this pool for these games
     const { data: picks, error: picksError } = await supabase
       .from('picks')
@@ -128,6 +150,16 @@ export async function GET(request: NextRequest) {
         const pick = participantPicks.get(game.id);
         if (pick) {
           totalPicks++;
+          
+          // For playoff games, use playoff confidence points for the predicted winner
+          let confidencePoints = pick.confidence_points;
+          if (isPlayoffSeasonType && pick.predicted_winner) {
+            const participantPlayoffPoints = playoffConfidencePointsMap.get(participant.id);
+            if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+              confidencePoints = participantPlayoffPoints[pick.predicted_winner];
+            }
+          }
+          
           picks.push({
             id: pick.id,
             participant_id: participant.id,
@@ -136,7 +168,7 @@ export async function GET(request: NextRequest) {
             home_team: game.home_team,
             away_team: game.away_team,
             predicted_winner: pick.predicted_winner,
-            confidence_points: pick.confidence_points,
+            confidence_points: confidencePoints,
             week: game.week,
             season_type: game.season_type,
             game_status: game.status,
@@ -150,7 +182,8 @@ export async function GET(request: NextRequest) {
           const status = game.status.toLowerCase();
           if ((status === 'final' || status === 'post') && game.winner) {
             if (pick.predicted_winner.toLowerCase() === game.winner.toLowerCase()) {
-              points = pick.confidence_points;
+              // For playoff games, use playoff confidence points; otherwise use pick confidence points
+              points = confidencePoints;
               correctPicks++;
             }
           }
