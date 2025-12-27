@@ -1903,13 +1903,13 @@ function PlayoffPicksContent() {
                     {/* Leaderboard - Show when all participants have submitted */}
                     {showLeaderboard[round.week] && (
                       <div className="mt-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <Trophy className="h-5 w-5 text-yellow-600" />
+                        <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+                          <CardHeader className="text-center">
+                            <CardTitle className="flex items-center justify-center gap-2 text-yellow-900 text-2xl">
+                              <Crown className="h-6 w-6" />
                               {round.roundName} Final Results
                             </CardTitle>
-                            <CardDescription>
+                            <CardDescription className="text-yellow-700 text-lg">
                               Complete standings for {poolName} - {round.roundName}
                             </CardDescription>
                           </CardHeader>
