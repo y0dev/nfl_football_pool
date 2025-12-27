@@ -80,6 +80,7 @@ function PlayoffManagementContent() {
   // Games state
   const [games, setGames] = useState<PlayoffGame[]>([]);
   const [editingGame, setEditingGame] = useState<PlayoffGame | null>(null);
+  const [originalGameId, setOriginalGameId] = useState<string | undefined>(undefined);
   const [gameDialogOpen, setGameDialogOpen] = useState(false);
   const [selectedRound, setSelectedRound] = useState<number>(1);
   const [teamSeeds, setTeamSeeds] = useState<Record<string, number>>({});
@@ -579,7 +580,41 @@ function PlayoffManagementContent() {
       }
     }
 
+    // Check if ID was changed
+    const idChanged = originalGameId && editingGame.id && originalGameId !== editingGame.id;
+    
+    // If ID changed, check if new ID already exists
+    if (idChanged && editingGame.id) {
+      const existingGameWithNewId = games.find(g => g.id === editingGame.id);
+      if (existingGameWithNewId) {
+        toast({
+          title: 'Error',
+          description: `A game with ID "${editingGame.id}" already exists. Please use a different ID.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     try {
+      // If ID changed, we need to delete the old game first, then create/update with new ID
+      if (idChanged && originalGameId) {
+        // Delete the old game
+        const deleteResponse = await fetch(`/api/admin/playoff-games?id=${originalGameId}`, {
+          method: 'DELETE',
+        });
+        
+        if (!deleteResponse.ok) {
+          const deleteData = await deleteResponse.json();
+          toast({
+            title: 'Error',
+            description: deleteData.error || 'Failed to delete old game',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       const response = await fetch('/api/admin/playoff-games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -594,10 +629,11 @@ function PlayoffManagementContent() {
       if (data.success) {
         toast({
           title: 'Success',
-          description: 'Playoff game saved successfully',
+          description: idChanged ? 'Playoff game ID updated successfully' : 'Playoff game saved successfully',
         });
         setGameDialogOpen(false);
         setEditingGame(null);
+        setOriginalGameId(undefined);
         await loadGames();
       } else {
         toast({
@@ -682,6 +718,7 @@ function PlayoffManagementContent() {
   const openGameDialog = (game?: PlayoffGame) => {
     if (game) {
       setEditingGame({ ...game });
+      setOriginalGameId(game.id);
       setSelectedRound(game.week);
     } else {
       setEditingGame({
@@ -692,6 +729,7 @@ function PlayoffManagementContent() {
         status: 'scheduled',
         winner: null
       });
+      setOriginalGameId(undefined);
     }
     setGameDialogOpen(true);
   };
@@ -1018,6 +1056,7 @@ function PlayoffManagementContent() {
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead>Game ID</TableHead>
                               <TableHead>Home Team</TableHead>
                               <TableHead>Away Team</TableHead>
                               <TableHead>Kickoff</TableHead>
@@ -1029,6 +1068,11 @@ function PlayoffManagementContent() {
                           <TableBody>
                             {roundGames.map((game) => (
                               <TableRow key={game.id}>
+                                <TableCell>
+                                  <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                    {game.id || 'No ID'}
+                                  </code>
+                                </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   {teamSeeds[game.home_team] && (
@@ -1189,6 +1233,18 @@ function PlayoffManagementContent() {
             </DialogHeader>
           {editingGame && (
             <div className="space-y-4">
+              <div>
+                <Label>Game ID</Label>
+                <Input
+                  type="text"
+                  value={editingGame.id || ''}
+                  onChange={(e) => setEditingGame({ ...editingGame, id: e.target.value || undefined })}
+                  placeholder="Enter game ID (e.g., ESPN ID)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {editingGame.id ? 'Current ID: ' + editingGame.id : 'Leave empty to auto-generate or fetch from ESPN'}
+                </p>
+              </div>
               <div>
                 <Label>Round</Label>
                 <Select
