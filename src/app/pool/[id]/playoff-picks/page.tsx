@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle, Crown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
+import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { loadUsers } from '@/actions/loadUsers';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, getShortTeamName } from '@/lib/utils';
@@ -1929,6 +1930,27 @@ function PlayoffPicksContent() {
           </div>
         )}
 
+      {/* Overall Playoff Standings - default visible */}
+      <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-blue-900">
+            <Trophy className="h-6 w-6 text-blue-600" />
+            Playoff Standings
+          </CardTitle>
+          <CardDescription className="text-blue-700">
+            Live totals across all playoff rounds based on completed games
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SeasonLeaderboard 
+            poolId={poolId}
+            season={poolSeason}
+            currentWeek={currentRound}
+            currentSeasonType={3}
+          />
+        </CardContent>
+      </Card>
+
       {/* Debug Leaderboard */}
       {debugMode && debugLeaderboard.length > 0 && (
         <Card className="mt-6 border-yellow-300 bg-yellow-50">
@@ -1980,6 +2002,27 @@ function PlayoffPicksContent() {
           </CardContent>
         </Card>
       )}
+
+      {/* Overall Playoff Standings - default visible */}
+      <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-blue-900">
+            <Trophy className="h-6 w-6 text-blue-600" />
+            Playoff Standings
+          </CardTitle>
+          <CardDescription className="text-blue-700">
+            Live totals across all playoff rounds based on completed games
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SeasonLeaderboard 
+            poolId={poolId}
+            season={poolSeason}
+            currentWeek={currentRound}
+            currentSeasonType={3}
+          />
+        </CardContent>
+      </Card>
         </div>
       </div>
     </div>
