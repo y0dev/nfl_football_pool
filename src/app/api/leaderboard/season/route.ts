@@ -41,6 +41,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Parse current week and season type
+    const currentWeekNum = currentWeek ? parseInt(currentWeek) : null;
+    const currentSeasonTypeNum = currentSeasonType ? parseInt(currentSeasonType) : null;
+
     // Get games for the season up to the current week and season type
     let gamesQuery = supabase
       .from('games')
@@ -49,10 +53,7 @@ export async function GET(request: NextRequest) {
       .order('week', { ascending: true });
 
     // If current week and season type are provided, filter games up to that point
-    if (currentWeek && currentSeasonType) {
-      const currentWeekNum = parseInt(currentWeek);
-      const currentSeasonTypeNum = parseInt(currentSeasonType);
-      
+    if (currentWeekNum !== null && currentSeasonTypeNum !== null) {
       // Filter games up to the current week within the current season type
       gamesQuery = gamesQuery
         .lte('week', currentWeekNum)
@@ -71,6 +72,29 @@ export async function GET(request: NextRequest) {
 
     // Get unique weeks from games, grouped by season type
     const availableWeeks = [...new Set(games.map(g => g.week))];
+    
+    // For playoff games, get playoff confidence points for all participants
+    const isPlayoffSeasonType = currentSeasonTypeNum === 3;
+    const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
+    
+    if (isPlayoffSeasonType) {
+      for (const participant of participants) {
+        const { data: playoffPoints, error: playoffError } = await supabase
+          .from('playoff_confidence_points')
+          .select('team_name, confidence_points')
+          .eq('pool_id', poolId)
+          .eq('season', parseInt(season))
+          .eq('participant_id', participant.id);
+        
+        if (!playoffError && playoffPoints && playoffPoints.length > 0) {
+          const pointsMap: Record<string, number> = {};
+          playoffPoints.forEach(item => {
+            pointsMap[item.team_name] = item.confidence_points;
+          });
+          playoffConfidencePointsMap.set(participant.id, pointsMap);
+        }
+      }
+    }
 
     // Build season leaderboard by calculating scores from picks for each week
     const seasonLeaderboard = await Promise.all(
@@ -83,17 +107,24 @@ export async function GET(request: NextRequest) {
         // Calculate scores for each available week
         for (const week of availableWeeks) {
           try {
-            // Get picks for this participant for this week
-            const { data: picks, error: picksError } = await supabase
+            // Get picks for this participant for this week, filtered by season_type
+            let picksQuery = supabase
               .from('picks')
               .select(`
                 predicted_winner,
                 confidence_points,
-                games!inner(winner, home_team, away_team)
+                games!inner(winner, home_team, away_team, season_type)
               `)
               .eq('pool_id', poolId)
               .eq('participant_id', participant.id)
               .eq('games.week', week);
+            
+            // Only filter by season_type if it's provided
+            if (currentSeasonTypeNum !== null) {
+              picksQuery = picksQuery.eq('games.season_type', currentSeasonTypeNum);
+            }
+            
+            const { data: picks, error: picksError } = await picksQuery;
 
             if (!picksError && picks && picks.length > 0) {
               // Calculate week score
@@ -102,8 +133,18 @@ export async function GET(request: NextRequest) {
 
               picks.forEach((pick: any) => {
                 const game = pick.games;
+                // Only count games that have finished (have winners)
                 if (game.winner && pick.predicted_winner === game.winner) {
-                  weekScore += pick.confidence_points;
+                  // For playoff games, use playoff confidence points
+                  if (isPlayoffSeasonType) {
+                    const participantPlayoffPoints = playoffConfidencePointsMap.get(participant.id);
+                    if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+                      weekScore += participantPlayoffPoints[pick.predicted_winner];
+                    }
+                  } else {
+                    // For regular season, use confidence points from picks table
+                    weekScore += pick.confidence_points || 0;
+                  }
                   correctPicks++;
                 }
               });

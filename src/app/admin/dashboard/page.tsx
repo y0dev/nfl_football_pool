@@ -586,6 +586,26 @@ function AdminDashboardContent() {
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
+                <Trophy className="h-5 w-5" />
+                Playoff Management
+              </CardTitle>
+              <CardDescription>
+                Manage playoff teams and games
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/admin/playoffs')}
+                className="w-full"
+              >
+                Manage Playoffs
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Calendar className="h-5 w-5" />
                 NFL Sync
               </CardTitle>

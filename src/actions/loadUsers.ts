@@ -24,9 +24,61 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
           throw error;
         }
 
-        // Filter out participants who have already submitted
+        // For playoffs (seasonType === 3), also filter out users who haven't submitted confidence points
+        let filteredParticipants = allParticipants || [];
+        
+        if (seasonType === 3) {
+          // Get pool season
+          const { data: pool } = await supabase
+            .from('pools')
+            .select('season')
+            .eq('id', poolId)
+            .single();
+          
+          if (pool) {
+            // Get all playoff teams count
+            const { data: teams } = await supabase
+              .from('playoff_teams')
+              .select('id')
+              .eq('season', pool.season);
+            
+            const teamsCount = teams?.length || 0;
+            
+            if (teamsCount > 0) {
+              // Get participants who have submitted confidence points (all teams)
+              const { data: confidenceSubmissions } = await supabase
+                .from('playoff_confidence_points')
+                .select('participant_id')
+                .eq('pool_id', poolId)
+                .eq('season', pool.season);
+              
+              // Count submissions per participant
+              const participantSubmissionCounts = new Map<string, number>();
+              confidenceSubmissions?.forEach(sub => {
+                const count = participantSubmissionCounts.get(sub.participant_id) || 0;
+                participantSubmissionCounts.set(sub.participant_id, count + 1);
+              });
+              
+              // Only include participants who have submitted confidence points for all teams
+              filteredParticipants = filteredParticipants.filter(participant => {
+                const submissionCount = participantSubmissionCounts.get(participant.id) || 0;
+                return submissionCount === teamsCount;
+              });
+              
+              console.log('loadUsers - filtered by confidence points:', {
+                poolId,
+                season: pool.season,
+                teamsCount,
+                totalParticipants: allParticipants?.length || 0,
+                withConfidencePoints: filteredParticipants.length
+              });
+            }
+          }
+        }
+
+        // Filter out participants who have already submitted picks for this week
         const submittedIdsSet = new Set(submittedParticipantIds);
-        const availableParticipants = allParticipants?.filter(participant => !submittedIdsSet.has(participant.id)) || [];
+        const availableParticipants = filteredParticipants.filter(participant => !submittedIdsSet.has(participant.id));
         
         console.log('loadUsers - filtered participants:', {
           poolId,

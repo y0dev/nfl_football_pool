@@ -55,15 +55,7 @@ export async function POST(request: NextRequest) {
       console.log('Existing picks:', existingPicks);
     }
 
-    if (existingPicks && existingPicks.length > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Picks already submitted for this week' },
-        { status: 400 }
-      );
-    }
-
     // Check if games are locked
-    
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('id, status, kickoff_time, week, season, season_type')
@@ -79,12 +71,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine if this is a playoff week from the already fetched games
+    const isPlayoff = games && games.length > 0 && games[0].season_type === 3;
+
     const now = new Date();
     
     // Week is locked if:
     // 1. First game is more than DAYS_BEFORE_GAME days away (too early to submit)
     // 2. First game has already started
     // 3. First game status is not 'scheduled' (finished, in progress, etc.)
+    // For playoff games, we're more lenient with the status check
     const firstGame = games?.[0];
     let weekIsLocked = false;
     let daysToKickoff = 0;
@@ -97,10 +93,21 @@ export async function POST(request: NextRequest) {
       // Week is locked if:
       // - More than DAYS_BEFORE_GAME days before kickoff (too early to submit)
       // - Game has already started (past kickoff time)
-      // - Game status is not 'scheduled' (finished, in progress, etc.)
-      weekIsLocked = daysToKickoff > DAYS_BEFORE_GAME || 
-                     firstGameKickoff <= now || 
-                     firstGame.status.toLowerCase() !== 'scheduled';
+      // - For non-playoff games: Game status is not 'scheduled' (finished, in progress, etc.)
+      // - For playoff games: Only lock if game is finished or in progress (status is 'final' or 'in')
+      const gameStatus = firstGame.status.toLowerCase();
+      const gameHasStarted = firstGameKickoff <= now;
+      const gameIsFinished = gameStatus === 'final' || gameStatus === 'post';
+      
+      if (isPlayoff) {
+        // For playoff games, only lock if game has finished
+        weekIsLocked = gameIsFinished;
+      } else {
+        // For regular season, use the standard lock rules
+        weekIsLocked = daysToKickoff > DAYS_BEFORE_GAME || 
+                       gameHasStarted || 
+                       gameStatus !== 'scheduled';
+      }
       
       debugLog('Week lock check:', {
         firstGameId: firstGame.id,
@@ -109,16 +116,20 @@ export async function POST(request: NextRequest) {
         daysToKickoff: daysToKickoff.toFixed(2),
         daysBeforeGame: DAYS_BEFORE_GAME,
         weekIsLocked,
+        isPlayoff,
         gameStatus: firstGame.status,
-        lockReason: daysToKickoff > DAYS_BEFORE_GAME ? 'Too early to submit' : 
-                   firstGameKickoff <= now ? 'Game started' : 
-                   firstGame.status.toLowerCase() !== 'scheduled' ? 'Game not scheduled' : 'Unknown'
+        lockReason: isPlayoff ? (gameIsFinished ? 'Game finished' : 'Allowed') :
+                   daysToKickoff > DAYS_BEFORE_GAME ? 'Too early to submit' : 
+                   gameHasStarted ? 'Game started' : 
+                   gameStatus !== 'scheduled' ? 'Game not scheduled' : 'Unknown'
       });
     }
 
     if (weekIsLocked) {
       let errorMessage = 'Week is locked - ';
-      if (daysToKickoff > DAYS_BEFORE_GAME) {
+      if (isPlayoff) {
+        errorMessage += 'games have already finished';
+      } else if (daysToKickoff > DAYS_BEFORE_GAME) {
         errorMessage += `picks can only be submitted within ${DAYS_BEFORE_GAME} days of the first game (currently ${daysToKickoff.toFixed(1)} days away)`;
       } else if (firstGameKickoff && firstGameKickoff <= now) {
         errorMessage += 'games have already started';
@@ -132,25 +143,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate confidence points
-    const confidencePoints = picks.map(pick => pick.confidence_points);
-    
-    const uniquePoints = new Set(confidencePoints);
-    if (uniquePoints.size !== confidencePoints.length) {
-      return NextResponse.json(
-        { success: false, error: 'Confidence points must be unique' },
-        { status: 400 }
-      );
+    // Check if picks already exist - for playoff games, allow updates
+    if (existingPicks && existingPicks.length > 0) {
+      if (!isPlayoff) {
+        // For regular season, don't allow resubmission
+        return NextResponse.json(
+          { success: false, error: 'Picks already submitted for this week' },
+          { status: 400 }
+        );
+      } else {
+        // For playoff games, delete existing picks and reinsert (update)
+        const { error: deleteError } = await supabase
+          .from('picks')
+          .delete()
+          .eq('participant_id', firstPick.participant_id)
+          .eq('pool_id', firstPick.pool_id)
+          .in('game_id', gameIds);
+        
+        if (deleteError) {
+          console.error('Error deleting existing playoff picks:', deleteError);
+          return NextResponse.json(
+            { success: false, error: 'Failed to update existing picks' },
+            { status: 500 }
+          );
+        }
+        
+        debugLog('Deleted existing playoff picks, will insert new ones');
+      }
     }
 
-    const sortedPoints = confidencePoints.sort((a, b) => a - b);
-    const expectedPoints = Array.from({ length: picks.length }, (_, i) => i + 1);
-    
-    if (JSON.stringify(sortedPoints) !== JSON.stringify(expectedPoints)) {
-      return NextResponse.json(
-        { success: false, error: 'Confidence points must be sequential from 1 to number of games' },
-        { status: 400 }
-      );
+    // Validate confidence points (skip for playoff games as they use playoff_confidence_points table)
+    if (!isPlayoff) {
+      const confidencePoints = picks.map(pick => pick.confidence_points);
+      
+      const uniquePoints = new Set(confidencePoints);
+      if (uniquePoints.size !== confidencePoints.length) {
+        return NextResponse.json(
+          { success: false, error: 'Confidence points must be unique' },
+          { status: 400 }
+        );
+      }
+
+      const sortedPoints = confidencePoints.sort((a, b) => a - b);
+      const expectedPoints = Array.from({ length: picks.length }, (_, i) => i + 1);
+      
+      if (JSON.stringify(sortedPoints) !== JSON.stringify(expectedPoints)) {
+        return NextResponse.json(
+          { success: false, error: 'Confidence points must be sequential from 1 to number of games' },
+          { status: 400 }
+        );
+      }
     }
 
     // Prepare picks for database insertion with additional metadata
@@ -191,9 +233,19 @@ export async function POST(request: NextRequest) {
         console.error('Error loading full games for Monday night identification:', fullGamesError);
       }
 
-      // Import the Monday night utility to identify the correct game
-      const { getMondayNightGame } = await import('@/lib/monday-night-utils');
-      const mondayNightGame = getMondayNightGame(fullGames || []);
+      // For Super Bowl (season_type === 3, week === 4), use the Super Bowl game itself
+      // For regular season, use the Monday night game
+      let tieBreakerGameId: string | null = null;
+      
+      if (seasonType === 3 && week === 4) {
+        // Super Bowl: use the Super Bowl game (should be the only game)
+        tieBreakerGameId = fullGames && fullGames.length > 0 ? fullGames[0].id : null;
+      } else {
+        // Regular season: use Monday night game
+        const { getMondayNightGame } = await import('@/lib/monday-night-utils');
+        const mondayNightGame = getMondayNightGame(fullGames || []);
+        tieBreakerGameId = mondayNightGame?.id || null;
+      }
       
       const { error: tieBreakerError } = await supabase
         .from('tie_breakers')
@@ -204,7 +256,7 @@ export async function POST(request: NextRequest) {
           season: season,
           season_type: seasonType,
           answer: mondayNightScore,
-          game_id: mondayNightGame?.id || null
+          game_id: tieBreakerGameId
         }, {
           onConflict: 'participant_id,pool_id,week,season,season_type'
         });
