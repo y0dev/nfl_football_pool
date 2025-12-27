@@ -24,7 +24,9 @@ import {
   Calendar,
   ArrowLeft,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { debugLog, NFL_TEAMS } from '@/lib/utils';
 
@@ -85,6 +87,12 @@ function PlayoffManagementContent() {
   const [selectedRound, setSelectedRound] = useState<number>(1);
   const [teamSeeds, setTeamSeeds] = useState<Record<string, number>>({});
   const [fetchingGameIds, setFetchingGameIds] = useState(false);
+  
+  // Result dialog state
+  const [resultDialogOpen, setResultDialogOpen] = useState(false);
+  const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
+  const [resultDialogTitle, setResultDialogTitle] = useState('');
+  const [resultDialogDescription, setResultDialogDescription] = useState('');
 
   useEffect(() => {
     if (season) {
@@ -290,26 +298,41 @@ function PlayoffManagementContent() {
           }
         }
       }
-      
+      debugLog('PLAYOFFS: ESPN Game IDs:', espnGameIds);
       debugLog(`Fetched ${espnGameIds.length} game IDs from ESPN for round ${round}`);
 
-      // Get expected number of games for this round
-      const expectedGameCount = ROUND_GAME_COUNTS[round];
+      // Get existing games for this round
       const roundGames = getGamesByRound(round);
-      const existingGameCount = roundGames.length;
       
-      // Calculate how many games we need to create
-      const gamesNeeded = expectedGameCount - existingGameCount;
+      // Create a set of existing game IDs and team matchups for quick lookup
+      const existingGameIds = new Set(roundGames.filter(g => g.id).map(g => g.id));
+      const existingMatchups = new Set(
+        roundGames.map(g => {
+          // Create a normalized matchup key (team1 vs team2, sorted alphabetically to handle home/away order)
+          const teams = [g.away_team, g.home_team].sort().join('|');
+          return teams;
+        })
+      );
 
-      if (gamesNeeded <= 0) {
-        debugLog(`Round ${round} already has ${existingGameCount} games (expected ${expectedGameCount})`);
-        return;
-      }
-
-      // Create games using the fetched ESPN IDs (use actual team names if available, otherwise TBD)
+      // Find ESPN games that don't already exist
       const gamesToCreate: PlayoffGame[] = [];
-      for (let i = 0; i < gamesNeeded && i < espnGameIds.length; i++) {
-        const espnGame = espnGameIds[i];
+      for (const espnGame of espnGameIds) {
+        // Check if game already exists by ID
+        if (espnGame.id && existingGameIds.has(espnGame.id)) {
+          debugLog(`Game with ID ${espnGame.id} already exists, skipping`);
+          continue;
+        }
+
+        // Check if game already exists by team matchup (if teams are available)
+        if (espnGame.away_team && espnGame.home_team) {
+          const matchupKey = [espnGame.away_team, espnGame.home_team].sort().join('|');
+          if (existingMatchups.has(matchupKey)) {
+            debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists, skipping`);
+            continue;
+          }
+        }
+
+        // This game doesn't exist yet, add it to create list
         gamesToCreate.push({
           season,
           week: round,
@@ -320,35 +343,43 @@ function PlayoffManagementContent() {
           status: 'scheduled'
         });
       }
-
-      // If we have fewer ESPN IDs than needed, create remaining games with generated IDs
-      // Generate a unique ID for games without ESPN IDs using a timestamp-based format
-      for (let i = espnGameIds.length; i < gamesNeeded; i++) {
-        // Generate a default kickoff time if not provided
-        const defaultDates: Record<number, string> = {
-          1: `${playoffYear}-01-11T18:00:00Z`,
-          2: `${playoffYear}-01-18T18:00:00Z`,
-          3: `${playoffYear}-01-25T18:00:00Z`,
-          4: `${playoffYear}-02-08T18:00:00Z`
-        };
-        
-        // Generate a unique ID for TBD games: season_3_week_TBD_timestamp
+      
+      // If we still need more games (e.g., ESPN doesn't have all games yet), create TBD placeholders
+      const expectedGameCount = ROUND_GAME_COUNTS[round];
+      const totalAfterCreate = roundGames.length + gamesToCreate.length;
+      const stillNeeded = expectedGameCount - totalAfterCreate;
+      
+      if (stillNeeded > 0) {
+        debugLog(`Creating ${stillNeeded} additional TBD placeholder game(s) to reach expected count of ${expectedGameCount}`);
+        // Generate a unique ID for TBD games
         const timestamp = Date.now();
-        const generatedId = `${season}_3_${round}_TBD_${timestamp}_${i}`;
-        
-        gamesToCreate.push({
-          season,
-          week: round,
-          away_team: 'TBD',
-          home_team: 'TBD',
-          id: generatedId,
-          kickoff_time: defaultDates[round] || new Date().toISOString(),
-          status: 'scheduled'
-        });
+        for (let i = 0; i < stillNeeded; i++) {
+          const generatedId = `${season}_3_${round}_TBD_${timestamp}_${i}`;
+          
+          // Generate a default kickoff time if not provided
+          const playoffYear = season + 1;
+          const defaultDates: Record<number, string> = {
+            1: `${playoffYear}-01-11T18:00:00Z`,
+            2: `${playoffYear}-01-18T18:00:00Z`,
+            3: `${playoffYear}-01-25T18:00:00Z`,
+            4: `${playoffYear}-02-08T18:00:00Z`
+          };
+          
+          gamesToCreate.push({
+            season,
+            week: round,
+            away_team: 'TBD',
+            home_team: 'TBD',
+            id: generatedId,
+            kickoff_time: defaultDates[round] || new Date().toISOString(),
+            status: 'scheduled'
+          });
+        }
       }
 
       // Save new games to database
       if (gamesToCreate.length > 0) {
+        debugLog('PLAYOFFS: Games to create:', gamesToCreate);
         const saveResponse = await fetch('/api/admin/playoff-games', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -361,30 +392,29 @@ function PlayoffManagementContent() {
         const saveData = await saveResponse.json();
         if (saveData.success) {
           debugLog(`Created ${gamesToCreate.length} new games for round ${round} with TBD placeholders`);
-          toast({
-            title: 'Success',
-            description: `Created ${gamesToCreate.length} game(s) for ${ROUND_NAMES[round]} with TBD placeholders`,
-          });
+          setResultDialogType('success');
+          setResultDialogTitle('Games Created Successfully');
+          setResultDialogDescription(`Successfully created ${gamesToCreate.length} game(s) for ${ROUND_NAMES[round]} with TBD placeholders. The games have been added to the database and can now be updated with actual team matchups and ESPN game IDs.`);
+          setResultDialogOpen(true);
           // Reload games to refresh the state
           await loadGames();
         } else {
           console.error('Error saving games:', saveData.error);
-          toast({
-            title: 'Error',
-            description: `Failed to save games for ${ROUND_NAMES[round]}: ${saveData.error}`,
-            variant: 'destructive',
-          });
+          setResultDialogType('error');
+          setResultDialogTitle('Failed to Save Games');
+          setResultDialogDescription(`An error occurred while trying to save games for ${ROUND_NAMES[round]}. Error: ${saveData.error || 'Unknown error'}. Please check your connection and try again.`);
+          setResultDialogOpen(true);
         }
       } else {
         debugLog(`No games to create for round ${round}`);
       }
+      return;
     } catch (error) {
       console.error(`Error fetching games for round ${round}:`, error);
-      toast({
-        title: 'Error',
-        description: `Failed to fetch games for ${ROUND_NAMES[round]}`,
-        variant: 'destructive',
-      });
+      setResultDialogType('error');
+      setResultDialogTitle('Failed to Fetch Games');
+      setResultDialogDescription(`An error occurred while trying to fetch games for ${ROUND_NAMES[round]}. Error: ${error || 'Unknown error'}. Please check your connection and try again.`);
+      setResultDialogOpen(true);
     }
   };
 
@@ -1357,6 +1387,32 @@ function PlayoffManagementContent() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Dialog (Success/Error) */}
+      <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              {resultDialogType === 'success' ? (
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              ) : (
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              )}
+              <DialogTitle className={resultDialogType === 'success' ? 'text-green-900' : 'text-red-900'}>
+                {resultDialogTitle}
+              </DialogTitle>
+            </div>
+          </DialogHeader>
+          <DialogDescription className="text-base pt-2">
+            {resultDialogDescription}
+          </DialogDescription>
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setResultDialogOpen(false)}>
+              OK
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

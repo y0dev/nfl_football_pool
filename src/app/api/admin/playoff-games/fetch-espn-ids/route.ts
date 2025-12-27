@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       const dates: string[] = [];
       
       switch (weekNum) {
-        case 1: // Wild Card - 2nd weekend of January (Saturday and Sunday)
+        case 1: // Wild Card - 2nd weekend of January (Saturday, Sunday, and Monday)
           {
             // Find first Saturday of January
             const firstDayOfJan = new Date(year, 0, 1); // January is month 0
@@ -29,13 +29,15 @@ export async function POST(request: NextRequest) {
             const daysToFirstSaturday = dayOfWeek === 6 ? 0 : (6 - dayOfWeek);
             const firstSaturday = new Date(year, 0, 1 + daysToFirstSaturday);
             
-            // 2nd weekend is 7 days later (next Saturday and Sunday)
+            // 2nd weekend is 7 days later (next Saturday, Sunday, and Monday)
             const secondSaturday = new Date(firstSaturday);
             secondSaturday.setDate(secondSaturday.getDate() + 7);
             const secondSunday = new Date(secondSaturday);
             secondSunday.setDate(secondSunday.getDate() + 1);
+            const secondMonday = new Date(secondSunday);
+            secondMonday.setDate(secondMonday.getDate() + 1);
             
-            // Include Saturday and Sunday, plus a few days buffer
+            // Include Saturday, Sunday, and Monday, plus a few days buffer
             for (let i = -1; i <= 1; i++) {
               const date = new Date(secondSaturday);
               date.setDate(date.getDate() + i);
@@ -46,6 +48,14 @@ export async function POST(request: NextRequest) {
               date.setDate(date.getDate() + i);
               dates.push(formatDateForESPN(date));
             }
+            // Include Monday and buffer day
+            for (let i = 0; i <= 1; i++) {
+              const date = new Date(secondMonday);
+              date.setDate(date.getDate() + i);
+              dates.push(formatDateForESPN(date));
+            }
+            
+            debugLog('PLAYOFFS: Wild Card Dates:', dates);
           }
           break;
           
@@ -74,6 +84,7 @@ export async function POST(request: NextRequest) {
               date.setDate(date.getDate() + i);
               dates.push(formatDateForESPN(date));
             }
+            debugLog('PLAYOFFS: Divisional Dates:', dates);
           }
           break;
           
@@ -102,6 +113,7 @@ export async function POST(request: NextRequest) {
               date.setDate(date.getDate() + i);
               dates.push(formatDateForESPN(date));
             }
+            debugLog('PLAYOFFS: Conference Championship Dates:', dates);
           }
           break;
           
@@ -127,6 +139,7 @@ export async function POST(request: NextRequest) {
               date.setDate(date.getDate() + i);
               dates.push(formatDateForESPN(date));
             }
+            debugLog('PLAYOFFS: Super Bowl Dates:', dates);
           }
           break;
           
@@ -157,6 +170,9 @@ export async function POST(request: NextRequest) {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
         });
+
+        // Timeout before next request to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         if (response.ok) {
           const data = await response.json();

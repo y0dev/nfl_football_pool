@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog } from '@/lib/utils';
 
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
@@ -122,12 +123,12 @@ export async function POST(request: NextRequest) {
       if (game.id) {
         gameData.id = game.id;
       }
+      debugLog(`PLAYOFFS: Game Data for ${game.week} ${game.away_team} ${game.home_team}:`, gameData);
 
       if (game.kickoff_time) {
         gameData.kickoff_time = game.kickoff_time;
       } else {
         // Generate a default kickoff time if not provided
-        const roundNames = { 1: 'Wild Card', 2: 'Divisional', 3: 'Conference Championship', 4: 'Super Bowl' };
         const defaultDates: Record<number, string> = {
           1: `${season}-01-10T18:00:00Z`,
           2: `${season}-01-17T18:00:00Z`,

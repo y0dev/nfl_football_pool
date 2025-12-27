@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,15 +75,12 @@ function PlayoffPicksContent() {
   const [participantCount, setParticipantCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
   const [upcomingRound, setUpcomingRound] = useState<number>(1);
-  const [debugLeaderboard, setDebugLeaderboard] = useState<Array<{
-    participant_id: string;
+  const [roundWinners, setRoundWinners] = useState<Record<number, {
     participant_name: string;
-    total_points: number;
-    total_correct: number;
-    total_picks: number;
-    rounds_won: number;
-    round_points: Record<number, number>;
-  }>>([]);
+    points: number;
+    correct_picks: number;
+  } | null>>({});
+  const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
 
   const roundNames: Record<number, string> = {
     1: 'Wild Card Round',
@@ -110,6 +107,9 @@ function PlayoffPicksContent() {
   const navigateToPreviousRound = () => {
     if (currentRound > 1) {
       navigateToRound(currentRound - 1);
+    } else if (currentRound === 1) {
+      // If at Wild Card (round 1), navigate to last week of regular season (week 18)
+      router.push(`/pool/${poolId}/picks?week=18&seasonType=2`);
     }
   };
   
@@ -681,8 +681,94 @@ function PlayoffPicksContent() {
     }
   };
 
+  // Load round winners when debug mode is enabled
+  useEffect(() => {
+    const loadRoundWinners = async () => {
+      if (!debugMode || !poolId || !poolSeason) return;
+
+      // Generate dummy data instead of fetching from API
+      try {
+        // Try to get actual participant names to use for dummy data
+        const users = await loadUsers(poolId);
+        const participantNames = users && users.length > 0 
+          ? users.map(u => u.name)
+          : ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'David Brown', 'Emily Davis'];
+        
+        // Generate dummy winners for each round
+        const winnersMap: Record<number, {
+          participant_name: string;
+          points: number;
+          correct_picks: number;
+        }> = {};
+
+        const roundGameCounts = [6, 4, 2, 1]; // Games per round: Wild Card, Divisional, Conference, Super Bowl
+        
+        for (let week = 1; week <= 4; week++) {
+          const gameCount = roundGameCounts[week - 1];
+          const randomIndex = Math.floor(Math.random() * participantNames.length);
+          const winnerName = participantNames[randomIndex];
+          
+          // Generate realistic dummy scores
+          // Points range: 50-150 for Wild Card, 40-120 for Divisional, 30-90 for Conference, 20-70 for Super Bowl
+          const basePoints = [50, 40, 30, 20][week - 1];
+          const pointsRange = [100, 80, 60, 50][week - 1];
+          const points = basePoints + Math.floor(Math.random() * pointsRange);
+          
+          // Correct picks: typically 70-100% of games
+          const correctPicks = Math.max(1, Math.floor(gameCount * (0.7 + Math.random() * 0.3)));
+          
+          winnersMap[week] = {
+            participant_name: winnerName,
+            points: points,
+            correct_picks: correctPicks
+          };
+        }
+
+        setRoundWinners(winnersMap);
+        
+        // In debug mode, show leaderboard for all rounds
+        const showLeaderboardMap: Record<number, boolean> = {};
+        for (let week = 1; week <= 4; week++) {
+          showLeaderboardMap[week] = true;
+        }
+        setShowLeaderboard(showLeaderboardMap);
+      } catch (error) {
+        console.error('Error generating dummy round winners:', error);
+        // Fallback to generic dummy data
+        const winnersMap: Record<number, {
+          participant_name: string;
+          points: number;
+          correct_picks: number;
+        }> = {};
+        
+        const dummyNames = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams'];
+        const roundGameCounts = [6, 4, 2, 1];
+        
+        for (let week = 1; week <= 4; week++) {
+          const gameCount = roundGameCounts[week - 1];
+          const basePoints = [50, 40, 30, 20][week - 1];
+          const pointsRange = [100, 80, 60, 50][week - 1];
+          winnersMap[week] = {
+            participant_name: dummyNames[(week - 1) % dummyNames.length],
+            points: basePoints + Math.floor(Math.random() * pointsRange),
+            correct_picks: Math.max(1, Math.floor(gameCount * (0.7 + Math.random() * 0.3)))
+          };
+        }
+        
+        setRoundWinners(winnersMap);
+        const showLeaderboardMap: Record<number, boolean> = { 1: true, 2: true, 3: true, 4: true };
+        setShowLeaderboard(showLeaderboardMap);
+      }
+    };
+
+    loadRoundWinners();
+  }, [debugMode, poolId, poolSeason]);
+
   const checkAllSubmissions = async () => {
     try {
+      // Skip if debug mode is enabled (we already set showLeaderboard in the debug effect)
+      if (debugMode) return;
+
       // Get all participants
       const users = await loadUsers(poolId);
       if (!users || users.length === 0) return;
@@ -755,6 +841,7 @@ function PlayoffPicksContent() {
 
   const handlePickChange = (gameId: string, winner: string) => {
     if (!selectedUser) return;
+    
 
     setPicks(prevPicks => {
       const updatedPicks = prevPicks.map(pick => {
@@ -806,15 +893,18 @@ function PlayoffPicksContent() {
     }
 
     const allRoundGames = playoffRounds.find(r => r.week === week)?.games || [];
-    // Only include games where teams have been determined (valid games)
-    const roundGames = allRoundGames.filter(game => 
-      game.home_team && game.home_team.trim() !== '' && 
-      game.away_team && game.away_team.trim() !== ''
-    );
+    
+    // Only include games where teams have been determined (valid games) - TBD games are treated as non-existent
+    const roundGames = allRoundGames.filter(game => {
+      const hasHomeTeam = game.home_team && game.home_team.trim() !== '' && game.home_team.trim() !== 'TBD';
+      const hasAwayTeam = game.away_team && game.away_team.trim() !== '' && game.away_team.trim() !== 'TBD';
+      const isPlaceholder = 'isPlaceholder' in game && game.isPlaceholder;
+      return hasHomeTeam && hasAwayTeam && !isPlaceholder;
+    });
     const roundPicks = picks.filter(pick => roundGames.some(g => g.id === pick.game_id));
     
-    // Ensure we have the expected number of games for validation
-    const expectedGames = ROUND_GAME_COUNTS[week] || roundGames.length;
+    // Use only valid games (TBD games are treated as non-existent)
+    // No need to validate against expected count - only validate against actual valid games
 
     // Validate that all games have picks
     const missingPicks = roundGames.filter(game => {
@@ -962,181 +1052,6 @@ function PlayoffPicksContent() {
     };
   };
 
-  // Calculate debug leaderboard - simulate all users submitted and games have winners
-  const calculateDebugLeaderboard = async () => {
-    try {
-      // Get all participants
-      const users = await loadUsers(poolId);
-      if (!users || users.length === 0) return;
-
-      // Get all playoff games for all rounds
-      const allGames: Game[] = [];
-      for (let week = 1; week <= 4; week++) {
-        const response = await fetch(`/api/games/week?week=${week}&seasonType=3&season=${poolSeason}`);
-        const data = await response.json();
-        if (data.success && data.games) {
-          allGames.push(...data.games);
-        }
-      }
-
-      // Get all picks for all participants and rounds
-      const allPicks: Pick[] = [];
-      for (const user of users) {
-        const response = await fetch(`/api/picks?poolId=${poolId}&participantId=${user.id}&seasonType=3`);
-        const data = await response.json();
-        if (data.success && data.picks) {
-          allPicks.push(...data.picks);
-        }
-      }
-
-      // Get playoff confidence points for all participants
-      const confidencePointsMap = new Map<string, Record<string, number>>();
-      for (const user of users) {
-        const cpMap = await getPlayoffConfidencePoints(poolId, poolSeason, user.id);
-        if (cpMap) {
-          confidencePointsMap.set(user.id, cpMap);
-        }
-      }
-
-      // Simulate game winners (use predicted winner from picks, or random if no picks)
-      const simulatedWinners = new Map<string, string>();
-      allGames.forEach(game => {
-        if (game.winner) {
-          simulatedWinners.set(game.id, game.winner);
-        } else {
-          // If no winner, use the most common predicted winner, or random
-          const picksForGame = allPicks.filter(p => p.game_id === game.id);
-          if (picksForGame.length > 0) {
-            const winnerCounts = new Map<string, number>();
-            picksForGame.forEach(pick => {
-              if (pick.predicted_winner) {
-                winnerCounts.set(pick.predicted_winner, (winnerCounts.get(pick.predicted_winner) || 0) + 1);
-              }
-            });
-            const mostCommon = Array.from(winnerCounts.entries()).sort((a, b) => b[1] - a[1])[0];
-            simulatedWinners.set(game.id, mostCommon ? mostCommon[0] : (Math.random() > 0.5 ? game.home_team : game.away_team));
-          } else {
-            simulatedWinners.set(game.id, Math.random() > 0.5 ? game.home_team : game.away_team);
-          }
-        }
-      });
-
-      // Calculate scores for each participant across all rounds
-      const participantTotals = new Map<string, {
-        participant_id: string;
-        participant_name: string;
-        total_points: number;
-        total_correct: number;
-        total_picks: number;
-        rounds_won: number;
-        round_points: Record<number, number>;
-      }>();
-
-      users.forEach(user => {
-        participantTotals.set(user.id, {
-          participant_id: user.id,
-          participant_name: user.name,
-          total_points: 0,
-          total_correct: 0,
-          total_picks: 0,
-          rounds_won: 0,
-          round_points: { 1: 0, 2: 0, 3: 0, 4: 0 }
-        });
-      });
-
-      // Process each round
-      for (let week = 1; week <= 4; week++) {
-        const roundGames = allGames.filter(g => g.week === week);
-        const roundTotals = new Map<string, { points: number; correct: number; picks: number }>();
-
-        users.forEach(user => {
-          roundTotals.set(user.id, { points: 0, correct: 0, picks: 0 });
-        });
-
-        roundGames.forEach(game => {
-          const winner = simulatedWinners.get(game.id);
-          if (!winner) return;
-
-          users.forEach(user => {
-            const userPicks = allPicks.filter(p => p.participant_id === user.id && p.game_id === game.id);
-            const userPick = userPicks.find(p => p.predicted_winner);
-            
-            const roundTotal = roundTotals.get(user.id)!;
-            roundTotal.picks++;
-            
-            if (userPick && userPick.predicted_winner === winner) {
-              roundTotal.correct++;
-              // Use playoff confidence points
-              const cpMap = confidencePointsMap.get(user.id);
-              if (cpMap && cpMap[winner]) {
-                roundTotal.points += cpMap[winner];
-              }
-            }
-          });
-        });
-
-        // Find round winner
-        const roundStandings = Array.from(roundTotals.entries())
-          .map(([userId, totals]) => ({
-            participant_id: userId,
-            participant_name: users.find(u => u.id === userId)?.name || '',
-            ...totals
-          }))
-          .sort((a, b) => b.points - a.points);
-
-        if (roundStandings.length > 0) {
-          const topScore = roundStandings[0].points;
-          const roundWinners = roundStandings.filter(s => s.points === topScore);
-          roundWinners.forEach(winner => {
-            const total = participantTotals.get(winner.participant_id)!;
-            total.rounds_won++;
-          });
-        }
-
-        // Add round totals to overall totals
-        users.forEach(user => {
-          const roundTotal = roundTotals.get(user.id)!;
-          const participantTotal = participantTotals.get(user.id)!;
-          participantTotal.total_points += roundTotal.points;
-          participantTotal.total_correct += roundTotal.correct;
-          participantTotal.total_picks += roundTotal.picks;
-          participantTotal.round_points[week] = roundTotal.points;
-        });
-      }
-
-      // Sort by total points
-      const standings = Array.from(participantTotals.values())
-        .sort((a, b) => {
-          if (b.total_points !== a.total_points) {
-            return b.total_points - a.total_points;
-          }
-          // Tie-breaker: rounds won
-          if (b.rounds_won !== a.rounds_won) {
-            return b.rounds_won - a.rounds_won;
-          }
-          // Tie-breaker: total correct picks
-          return b.total_correct - a.total_correct;
-        });
-
-      setDebugLeaderboard(standings);
-    } catch (error) {
-      console.error('Error calculating debug leaderboard:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to calculate debug leaderboard',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (debugMode && playoffRounds.length > 0) {
-      calculateDebugLeaderboard();
-    } else {
-      setDebugLeaderboard([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debugMode, poolId, poolSeason, playoffRounds.length]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -1221,7 +1136,8 @@ function PlayoffPicksContent() {
     );
   }
 
-  if (!hasConfidencePoints) {
+  // Only show confidence points required card if a user is selected and they haven't submitted confidence points
+  if (selectedUser && !hasConfidencePoints) {
     return (
       <div className="container mx-auto p-4 sm:p-6">
         <div className="mb-6">
@@ -1296,9 +1212,8 @@ function PlayoffPicksContent() {
                     variant="outline"
                     size="sm"
                     onClick={navigateToPreviousRound}
-                    disabled={currentRound === 1}
                     className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentRound === 1 ? "Already at first round" : "Go to previous round"}
+                    title={currentRound === 1 ? "Go to last week of regular season" : "Go to previous round"}
                   >
                     <ChevronLeft className="h-3 w-3" />
                     <span className="hidden xs:inline">Previous Round</span>
@@ -1437,17 +1352,29 @@ function PlayoffPicksContent() {
               </div>
             </div>
 
-            {/* Debug Mode Checkbox - Only visible in development */}
+            {/* Debug Mode Checkboxes - Only visible in development */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="flex items-center gap-2 mt-4 p-3 bg-gray-50 rounded-lg border">
-                <Checkbox
-                  id="debug-mode"
-                  checked={debugMode}
-                  onCheckedChange={(checked) => setDebugMode(checked === true)}
-                />
-                <Label htmlFor="debug-mode" className="text-sm font-medium cursor-pointer">
-                  Debug Mode: Show simulated leaderboard (assumes all users submitted and games have winners)
-                </Label>
+              <div className="flex flex-col gap-3 mt-4 p-3 bg-gray-50 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="debug-mode"
+                    checked={debugMode}
+                    onCheckedChange={(checked) => setDebugMode(checked === true)}
+                  />
+                  <Label htmlFor="debug-mode" className="text-sm font-medium cursor-pointer">
+                    Debug Mode: Show simulated leaderboard (assumes all users submitted and games have winners)
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="show-game-picks"
+                    checked={showGamePicksPanel}
+                    onCheckedChange={(checked) => setShowGamePicksPanel(checked === true)}
+                  />
+                  <Label htmlFor="show-game-picks" className="text-sm font-medium cursor-pointer">
+                    Show Game Picks Panel
+                  </Label>
+                </div>
               </div>
             )}
           </div>
@@ -1470,7 +1397,6 @@ function PlayoffPicksContent() {
             <p><strong>Has Submitted (by round):</strong> {JSON.stringify(hasSubmitted)}</p>
             <p><strong>Show Leaderboard (by round):</strong> {JSON.stringify(showLeaderboard)}</p>
             <p><strong>Debug Mode:</strong> {debugMode ? 'Yes' : 'No'}</p>
-            <p><strong>Debug Leaderboard:</strong> {debugLeaderboard.length > 0 ? `${debugLeaderboard.length} participants` : 'Empty'}</p>
             <p><strong>Super Bowl Total Score:</strong> {superBowlTotalScore !== null ? superBowlTotalScore : 'Not set'}</p>
             <p><strong>Is Loading:</strong> {isLoading ? 'Yes' : 'No'}</p>
             <p><strong>Is Submitting:</strong> {isSubmitting ? 'Yes' : 'No'}</p>
@@ -1678,51 +1604,28 @@ function PlayoffPicksContent() {
               debugLog('Playoff picks page: Round', round.week, 'has', round.games?.length || 0, 'total games');
               debugLog('Playoff picks page: Sample game from round:', round.games?.[0]);
               
-              // Get expected number of games for this round
-              const expectedGames = ROUND_GAME_COUNTS[round.week] || round.games?.length || 0;
-              
-              // Create array with all games (including placeholders for missing games)
-              const allRoundGames: (Game & { isPlaceholder?: boolean })[] = [];
-              const existingGames = round.games || [];
-              
-              // Fill in actual games and create placeholders for missing ones
-              for (let i = 0; i < expectedGames; i++) {
-                if (i < existingGames.length) {
-                  allRoundGames.push(existingGames[i]);
-                } else {
-                  // Create placeholder game
-                  allRoundGames.push({
-                    id: `placeholder-${round.week}-${i}`,
-                    season: poolSeason,
-                    week: round.week,
-                    season_type: 3,
-                    away_team: '',
-                    home_team: '',
-                    status: 'scheduled',
-                    is_playoff: true,
-                    kickoff_time: new Date().toISOString(),
-                    isPlaceholder: true
-                  } as Game & { isPlaceholder: boolean });
-                }
-              }
-              
               // Separate valid games from TBD games
-              const validGames = allRoundGames.filter(game => {
-                const hasHomeTeam = game.home_team && game.home_team.trim() !== '';
-                const hasAwayTeam = game.away_team && game.away_team.trim() !== '';
-                return hasHomeTeam && hasAwayTeam && !('isPlaceholder' in game && game.isPlaceholder);
+              const existingGames = round.games || [];
+              const validGames = existingGames.filter(game => {
+                const hasHomeTeam = game.home_team && game.home_team.trim() !== '' && game.home_team.trim() !== 'TBD';
+                const hasAwayTeam = game.away_team && game.away_team.trim() !== '' && game.away_team.trim() !== 'TBD';
+                const isPlaceholder = 'isPlaceholder' in game && game.isPlaceholder;
+                return hasHomeTeam && hasAwayTeam && !isPlaceholder;
               });
               
-              const tbdGames = allRoundGames.filter(game => {
-                const hasHomeTeam = game.home_team && game.home_team.trim() !== '';
-                const hasAwayTeam = game.away_team && game.away_team.trim() !== '';
-                return (!hasHomeTeam || !hasAwayTeam) || ('isPlaceholder' in game && game.isPlaceholder);
+              const tbdGames = existingGames.filter(game => {
+                const hasHomeTeam = game.home_team && game.home_team.trim() !== '' && game.home_team.trim() !== 'TBD';
+                const hasAwayTeam = game.away_team && game.away_team.trim() !== '' && game.away_team.trim() !== 'TBD';
+                const isPlaceholder = 'isPlaceholder' in game && game.isPlaceholder;
+                return (!hasHomeTeam || !hasAwayTeam) || isPlaceholder;
               });
               
               debugLog('Playoff picks page: Round', round.week, '- Valid games:', validGames.length, 'TBD games:', tbdGames.length);
               
               return (
-                <Card key={round.week}>
+                <React.Fragment key={round.week}>
+                  {showGamePicksPanel && (
+                    <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
@@ -1816,11 +1719,11 @@ function PlayoffPicksContent() {
                         );
                       })}
                       
-                      {/* TBD games (teams not yet determined) */}
+                      {/* TBD games (teams not yet determined) - visible but disabled */}
                       {tbdGames.map((game, index) => {
                         const gameNumber = validGames.length + index + 1;
                         return (
-                          <Card key={game.id || `tbd-${round.week}-${index}`} className="opacity-60 border-dashed">
+                          <Card key={game.id || `tbd-${round.week}-${index}`} className="opacity-60 border-dashed border-2 border-gray-300">
                             <CardHeader>
                               <CardTitle className="flex items-center justify-between">
                                 <span>Game {gameNumber}</span>
@@ -1839,14 +1742,14 @@ function PlayoffPicksContent() {
                                 <Button
                                   variant="outline"
                                   disabled
-                                  className="h-12 text-sm sm:text-base"
+                                  className="h-12 text-sm sm:text-base opacity-50"
                                 >
                                   TBD
                                 </Button>
                                 <Button
                                   variant="outline"
                                   disabled
-                                  className="h-12 text-sm sm:text-base"
+                                  className="h-12 text-sm sm:text-base opacity-50"
                                 >
                                   TBD
                                 </Button>
@@ -1932,109 +1835,91 @@ function PlayoffPicksContent() {
                         )}
                       </div>
                     </CardContent>
-                  
-                    {/* Leaderboard - Show when all participants have submitted */}
-                    {showLeaderboard[round.week] && (
-                      <div className="mt-6">
-                        <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-                          <CardHeader className="text-center">
-                            <CardTitle className="flex items-center justify-center gap-2 text-yellow-900 text-2xl">
-                              <Crown className="h-6 w-6" />
-                              {round.roundName} Final Results
-                            </CardTitle>
-                            <CardDescription className="text-yellow-700 text-lg">
-                              Complete standings for {poolName} - {round.roundName}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <Leaderboard 
-                              poolId={poolId} 
-                              weekNumber={round.week} 
-                              seasonType={3} 
-                              season={poolSeason} 
-                            />
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
-                  </Card>
+                    </Card>
+                  )}
+
+                {/* Round Winner Announcement - Show when debug mode is enabled and winner exists */}
+                {debugMode && roundWinners[round.week] && (
+                    <Card className="mt-6 max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+                      <CardHeader className="text-center">
+                        <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+                          <Crown className="h-10 w-10 text-yellow-600" />
+                        </div>
+                        <CardTitle className="text-yellow-900 text-2xl">{round.roundName} Winner!</CardTitle>
+                        <CardDescription className="text-yellow-700 text-lg">
+                          Congratulations to the {round.roundName} winner!
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="text-center space-y-4">
+                        <div className="bg-white rounded-lg p-6 border border-yellow-200">
+                          <div className="text-3xl font-bold text-yellow-800 mb-2">
+                            {roundWinners[round.week]?.participant_name}
+                          </div>
+                          <div className="text-lg text-yellow-700 mb-4">
+                            {roundWinners[round.week]?.points} points
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {roundWinners[round.week]?.correct_picks} correct picks out of {validGames.length} games
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Leaderboard - Show when all participants have submitted or debug mode is enabled */}
+                {(showLeaderboard[round.week] || (debugMode && roundWinners[round.week])) && (
+                    <Card className="mt-6">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Trophy className="h-5 w-5 text-yellow-600" />
+                          {round.roundName} Final Results
+                        </CardTitle>
+                        <CardDescription>
+                          Complete standings for {poolName} - {round.roundName}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Leaderboard 
+                          poolId={poolId} 
+                          weekNumber={round.week} 
+                          seasonType={3} 
+                          season={poolSeason} 
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
         )}
 
-      {/* Overall Playoff Standings - default visible */}
-      <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-900">
-            <Trophy className="h-6 w-6 text-blue-600" />
-            Playoff Standings
-          </CardTitle>
-          <CardDescription className="text-blue-700">
-            Live totals across all playoff rounds based on completed games
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SeasonLeaderboard 
-            poolId={poolId}
-            season={poolSeason}
-            currentWeek={currentRound}
-            currentSeasonType={3}
-          />
-        </CardContent>
-      </Card>
+      {/* Overall Playoff Standings - toggleable */}
+      <div className="mt-4">
+        <details>
+          <summary className="cursor-pointer text-sm text-blue-800 hover:underline">Show Playoff Standings</summary>
+          <Card className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <Trophy className="h-6 w-6 text-blue-600" />
+                Playoff Standings
+              </CardTitle>
+              <CardDescription className="text-blue-700">
+                Live totals across all playoff rounds based on completed games
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SeasonLeaderboard 
+                poolId={poolId}
+                season={poolSeason}
+                currentWeek={currentRound}
+                currentSeasonType={3}
+              />
+            </CardContent>
+          </Card>
+        </details>
+      </div>
 
-      {/* Debug Leaderboard */}
-      {debugMode && debugLeaderboard.length > 0 && (
-        <Card className="mt-6 border-yellow-300 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-600" />
-              Debug Mode: Simulated Playoff Leaderboard
-            </CardTitle>
-            <CardDescription>
-              This shows what the leaderboard would look like if all users have submitted picks and all games have winners.
-              Confidence points from the beginning of playoffs are used for each round. Winner is determined the same way as a quarter winner.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2 font-semibold">Rank</th>
-                      <th className="text-left p-2 font-semibold">Participant</th>
-                      <th className="text-right p-2 font-semibold">Total Points</th>
-                      <th className="text-right p-2 font-semibold">Correct</th>
-                      <th className="text-right p-2 font-semibold">Rounds Won</th>
-                      <th className="text-right p-2 font-semibold">Round 1</th>
-                      <th className="text-right p-2 font-semibold">Round 2</th>
-                      <th className="text-right p-2 font-semibold">Round 3</th>
-                      <th className="text-right p-2 font-semibold">Round 4</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {debugLeaderboard.map((participant, index) => (
-                      <tr key={participant.participant_id} className={`border-b ${index === 0 ? 'bg-yellow-100 font-semibold' : ''}`}>
-                        <td className="p-2">{index + 1}</td>
-                        <td className="p-2">{participant.participant_name}</td>
-                        <td className="p-2 text-right font-semibold">{participant.total_points}</td>
-                        <td className="p-2 text-right">{participant.total_correct}/{participant.total_picks}</td>
-                        <td className="p-2 text-right">{participant.rounds_won}</td>
-                        <td className="p-2 text-right text-sm text-gray-600">{participant.round_points[1]}</td>
-                        <td className="p-2 text-right text-sm text-gray-600">{participant.round_points[2]}</td>
-                        <td className="p-2 text-right text-sm text-gray-600">{participant.round_points[3]}</td>
-                        <td className="p-2 text-right text-sm text-gray-600">{participant.round_points[4]}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
         </div>
       </div>
     </div>
