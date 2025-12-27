@@ -213,54 +213,65 @@ export function formatTime(date: string | Date) {
   return `${displayHours}:${minutes} ${ampm}`
 }
 
-// List of all NFL teams (as JSON objects) - matches structure in populate-playoff-teams.py
+/**
+ * List of all NFL teams (as JSON objects)
+ * This is used to display team names and abbreviations in the UI
+ * and to validate team names and abbreviations in the database
+ * and to validate team names and abbreviations in the database
+ */
 export const NFL_TEAMS = [
-  { name: 'Arizona Cardinals', abbreviation: 'ARI', conference: 'NFC' },
-  { name: 'Los Angeles Rams', abbreviation: 'LAR', conference: 'NFC' },
-  { name: 'San Francisco 49ers', abbreviation: 'SF', conference: 'NFC' },
-  { name: 'Seattle Seahawks', abbreviation: 'SEA', conference: 'NFC' },
+  { name: 'Arizona Cardinals', abbreviation: 'ARI', conference: 'NFC' , division: 'West' },
+  { name: 'Los Angeles Rams', abbreviation: 'LAR', conference: 'NFC' , division: 'West'},
+  { name: 'San Francisco 49ers', abbreviation: 'SF', conference: 'NFC' , division: 'West'},
+  { name: 'Seattle Seahawks', abbreviation: 'SEA', conference: 'NFC' , division: 'West'},
 
-  { name: 'Atlanta Falcons', abbreviation: 'ATL', conference: 'NFC' },
-  { name: 'Carolina Panthers', abbreviation: 'CAR', conference: 'NFC' },
-  { name: 'New Orleans Saints', abbreviation: 'NO', conference: 'NFC' },
-  { name: 'Tampa Bay Buccaneers', abbreviation: 'TB', conference: 'NFC' },
+  { name: 'Atlanta Falcons', abbreviation: 'ATL', conference: 'NFC' , division: 'South'},
+  { name: 'Carolina Panthers', abbreviation: 'CAR', conference: 'NFC' , division: 'South'},
+  { name: 'New Orleans Saints', abbreviation: 'NO', conference: 'NFC' , division: 'South'},
+  { name: 'Tampa Bay Buccaneers', abbreviation: 'TB', conference: 'NFC' , division: 'South'},
 
-  { name: 'Chicago Bears', abbreviation: 'CHI', conference: 'NFC' },
-  { name: 'Detroit Lions', abbreviation: 'DET', conference: 'NFC' },
-  { name: 'Green Bay Packers', abbreviation: 'GB', conference: 'NFC' },
-  { name: 'Minnesota Vikings', abbreviation: 'MIN', conference: 'NFC' },
+  { name: 'Chicago Bears', abbreviation: 'CHI', conference: 'NFC' , division: 'North'},
+  { name: 'Detroit Lions', abbreviation: 'DET', conference: 'NFC' , division: 'North'},
+  { name: 'Green Bay Packers', abbreviation: 'GB', conference: 'NFC' , division: 'North'},
+  { name: 'Minnesota Vikings', abbreviation: 'MIN', conference: 'NFC' , division: 'North'},
 
-  { name: 'Dallas Cowboys', abbreviation: 'DAL', conference: 'NFC' },
-  { name: 'New York Giants', abbreviation: 'NYG', conference: 'NFC' },
-  { name: 'Philadelphia Eagles', abbreviation: 'PHI', conference: 'NFC' },
-  { name: 'Washington Commanders', abbreviation: 'WSH', conference: 'NFC' },
+  { name: 'Dallas Cowboys', abbreviation: 'DAL', conference: 'NFC' , division: 'East'},
+  { name: 'New York Giants', abbreviation: 'NYG', conference: 'NFC' , division: 'East'},
+  { name: 'Philadelphia Eagles', abbreviation: 'PHI', conference: 'NFC' , division: 'East'},
+  { name: 'Washington Commanders', abbreviation: 'WSH', conference: 'NFC' , division: 'East'},
   
-  { name: 'Baltimore Ravens', abbreviation: 'BAL', conference: 'AFC' },
-  { name: 'Cincinnati Bengals', abbreviation: 'CIN', conference: 'AFC' },
-  { name: 'Cleveland Browns', abbreviation: 'CLE', conference: 'AFC' },
-  { name: 'Pittsburgh Steelers', abbreviation: 'PIT', conference: 'AFC' },
+  { name: 'Baltimore Ravens', abbreviation: 'BAL', conference: 'AFC' , division: 'North'},
+  { name: 'Cincinnati Bengals', abbreviation: 'CIN', conference: 'AFC' , division: 'North'},
+  { name: 'Cleveland Browns', abbreviation: 'CLE', conference: 'AFC' , division: 'North'},
+  { name: 'Pittsburgh Steelers', abbreviation: 'PIT', conference: 'AFC' , division: 'North'},
 
-  { name: 'Buffalo Bills', abbreviation: 'BUF', conference: 'AFC' },
-  { name: 'Miami Dolphins', abbreviation: 'MIA', conference: 'AFC' },   
-  { name: 'New England Patriots', abbreviation: 'NE', conference: 'AFC' },
-  { name: 'New York Jets', abbreviation: 'NYJ', conference: 'AFC' },
+  { name: 'Buffalo Bills', abbreviation: 'BUF', conference: 'AFC' , division: 'East' },
+  { name: 'Miami Dolphins', abbreviation: 'MIA', conference: 'AFC' , division: 'East' },   
+  { name: 'New England Patriots', abbreviation: 'NE', conference: 'AFC' , division: 'East' },
+  { name: 'New York Jets', abbreviation: 'NYJ', conference: 'AFC' , division: 'East' },
 
-  { name: 'Denver Broncos', abbreviation: 'DEN', conference: 'AFC' },
-  { name: 'Kansas City Chiefs', abbreviation: 'KC', conference: 'AFC' },
-  { name: 'Las Vegas Raiders', abbreviation: 'LV', conference: 'AFC' },
-  { name: 'Los Angeles Chargers', abbreviation: 'LAC', conference: 'AFC' },
+  { name: 'Denver Broncos', abbreviation: 'DEN', conference: 'AFC' , division: 'West' },
+  { name: 'Kansas City Chiefs', abbreviation: 'KC', conference: 'AFC' , division: 'West' },
+  { name: 'Las Vegas Raiders', abbreviation: 'LV', conference: 'AFC' , division: 'West' },
+  { name: 'Los Angeles Chargers', abbreviation: 'LAC', conference: 'AFC' , division: 'West' },
 
-  { name: 'Houston Texans', abbreviation: 'HOU', conference: 'AFC' },
-  { name: 'Indianapolis Colts', abbreviation: 'IND', conference: 'AFC' },
-  { name: 'Jacksonville Jaguars', abbreviation: 'JAX', conference: 'AFC' },
-  { name: 'Tennessee Titans', abbreviation: 'TEN', conference: 'AFC' },
+  { name: 'Houston Texans', abbreviation: 'HOU', conference: 'AFC' , division: 'South'},
+  { name: 'Indianapolis Colts', abbreviation: 'IND', conference: 'AFC' , division: 'South'},
+  { name: 'Jacksonville Jaguars', abbreviation: 'JAX', conference: 'AFC' , division: 'South'},
+  { name: 'Tennessee Titans', abbreviation: 'TEN', conference: 'AFC' , division: 'South'},
 ] as const;
 
+/**
+ * Get NFL team name
+ */
 export function getNFLTeamName(abbreviation: string): string {
   const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
   return team?.name || abbreviation;
 }
 
+/**
+ * Get team abbreviation
+ */
 export function getTeamAbbreviation(fullName: string): string {
   const team = NFL_TEAMS.find(t => t.name === fullName);
   if (team) {
@@ -268,6 +279,22 @@ export function getTeamAbbreviation(fullName: string): string {
   }
   // Fallback: generate abbreviation from name
   return fullName.split(' ').map(word => word[0]).join('').toUpperCase();
+}
+
+/**
+ * Get team conference
+ */
+export function getTeamConference(abbreviation: string): string {
+  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
+  return team?.conference || '';
+}
+
+/**
+ * Get team division
+ */
+export function getTeamDivision(abbreviation: string): string {
+  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
+  return team?.conference + ' ' + team?.division || '';
 }
 
 /**
@@ -306,6 +333,19 @@ export function getSeasonTypeName(seasonType: number): string {
     case 2: return 'Regular Season';
     case 3: return 'Postseason';
     default: return 'Unknown';
+  }
+}
+
+/*
+ * Get playoff round name
+ */
+export function getPlayoffRoundName(week: number): string {
+  switch (week) {
+    case 1: return 'Wild Card';
+    case 2: return 'Divisional Round';
+    case 3: return 'Conference Championship';
+    case 4: return 'Super Bowl';
+    default: return `Round ${week}`;
   }
 }
 

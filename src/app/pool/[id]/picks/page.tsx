@@ -109,11 +109,23 @@ function PoolPicksContent() {
 
   // Navigate to a specific week with season transition handling
   const navigateToWeek = (week: number, seasonType: number) => {
+    // If postseason, redirect to playoffs page
+    if (seasonType === 3) {
+      window.location.href = `/pool/${poolId}/playoffs`;
+      return;
+    }
+
     // Handle season transitions
     let targetWeek = week;
     let targetSeasonType = seasonType;
     // const targetSeason = season;
 
+    debugLog('Navigate to week:', {
+      week,
+      seasonType,
+      targetWeek,
+      targetSeasonType
+    });
     // Previous week navigation
     if (week < 1) {
       if (seasonType === 1) { // Preseason
@@ -122,9 +134,6 @@ function PoolPicksContent() {
       } else if (seasonType === 2) { // Regular Season
         targetSeasonType = 1; // Go to Preseason
         targetWeek = 4; // Last week of preseason
-      } else if (seasonType === 3) { // Postseason
-        targetSeasonType = 2; // Go to Regular Season
-        targetWeek = 18; // Last week of regular season
       }
     }
 
@@ -134,10 +143,8 @@ function PoolPicksContent() {
         targetSeasonType = 2; // Go to Regular Season
         targetWeek = 1; // First week of regular season
       } else if (seasonType === 2) { // Regular Season
-        targetSeasonType = 3; // Go to Postseason
-        targetWeek = 1; // First week of postseason
-      } else if (seasonType === 3) { // Postseason
-        // Can't go beyond postseason
+        // Navigate to playoffs page instead of postseason picks
+        window.location.href = `/pool/${poolId}/playoffs`;
         return;
       }
     }
@@ -147,10 +154,9 @@ function PoolPicksContent() {
       targetSeasonType = 2;
       targetWeek = 1;
     } else if (seasonType === 2 && week > 18) { // Regular season max 18 weeks
-      targetSeasonType = 3;
-      targetWeek = 1;
-    } else if (seasonType === 3 && week > 5) { // Postseason max 5 weeks
-      return; // Can't go beyond postseason
+      // Navigate to playoffs page instead of postseason picks
+      window.location.href = `/pool/${poolId}/playoffs`;
+      return;
     }
 
     // Navigate to the new week
@@ -410,6 +416,13 @@ function PoolPicksContent() {
       if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
         weekToUse = parseInt(weekParam);
         seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
+        
+        // Redirect to playoffs page if season type is 3 (playoffs)
+        if (seasonTypeToUse === 3) {
+          window.location.href = `/pool/${poolId}/playoffs`;
+          return;
+        }
+        
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
         

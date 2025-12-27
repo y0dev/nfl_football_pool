@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Trophy, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
@@ -66,6 +68,7 @@ function PlayoffsPageContent() {
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [allConfidencePoints, setAllConfidencePoints] = useState<ConfidencePointData[] | null>(null);
   const [hasSubmission, setHasSubmission] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -86,7 +89,7 @@ function PlayoffsPageContent() {
         setPoolSeason(seasonToUse);
       }
 
-      // Load participants
+      // Load participants (will be filtered by submission status after loadSubmissionStatus)
       const users = await loadUsers(poolId);
       setParticipants(users || []);
 
@@ -97,27 +100,39 @@ function PlayoffsPageContent() {
       if (teamsData.success) {
         const teams = teamsData.teams || [];
         setPlayoffTeams(teams);
-        // Sort teams by conference (AFC first) and then by seed
-        const sorted = [...teams].sort((a, b) => {
-          const conferenceA = (a.conference || '').toUpperCase();
-          const conferenceB = (b.conference || '').toUpperCase();
+        
+        // Create sorted array with placeholders for missing seeds (max 14 teams: 7 per conference)
+        const conferences = ['AFC', 'NFC'];
+        const sorted: PlayoffTeam[] = [];
+        
+        conferences.forEach(conference => {
+          // Get existing teams for this conference
+          const conferenceTeams = teams.filter((t: PlayoffTeam) => (t.conference || '').toUpperCase() === conference);
           
-          // AFC comes before NFC
-          if (conferenceA !== conferenceB) {
-            if (conferenceA === 'AFC') return -1;
-            if (conferenceB === 'AFC') return 1;
-            return conferenceA.localeCompare(conferenceB);
+          // Create array of 7 slots for this conference
+          for (let seed = 1; seed <= 7; seed++) {
+            const existingTeam = conferenceTeams.find((t: PlayoffTeam) => t.seed === seed);
+            if (existingTeam) {
+              sorted.push(existingTeam);
+            } else {
+              // Create placeholder team for missing seed
+              sorted.push({
+                id: `placeholder-${conference}-${seed}`,
+                pool_id: poolId,
+                season: seasonToUse,
+                team_name: '',
+                team_abbreviation: null,
+                conference: conference,
+                seed: seed
+              });
+            }
           }
-          
-          // Within same conference, sort by seed
-          const seedA = a.seed || 999;
-          const seedB = b.seed || 999;
-          return seedA - seedB;
         });
+        
         setSortedPlayoffTeams(sorted);
       }
 
-      // Load submission status
+      // Load submission status (this will also filter participants)
       await loadSubmissionStatus();
 
     } catch (error) {
@@ -141,6 +156,20 @@ function PlayoffsPageContent() {
         setSubmissionStatus(data.submissions || []);
         setAllSubmitted(data.allSubmitted || false);
         setAllConfidencePoints(data.allConfidencePoints || null);
+        
+        // Filter participants to exclude those who have submitted
+        const submittedParticipantIds = new Set(
+          (data.submissions || [])
+            .filter((s: SubmissionStatus) => s.submitted)
+            .map((s: SubmissionStatus) => s.participant_id)
+        );
+        
+        // Reload participants and filter out submitted ones
+        const allUsers = await loadUsers(poolId);
+        const availableUsers = (allUsers || []).filter(
+          user => !submittedParticipantIds.has(user.id)
+        );
+        setParticipants(availableUsers);
       }
     } catch (error) {
       console.error('Error loading submission status:', error);
@@ -197,20 +226,24 @@ function PlayoffsPageContent() {
 
   // Calculate available confidence points for a team (exclude already used ones)
   const getAvailableConfidencePoints = (currentTeamName: string): number[] => {
+    // Only count teams that have actual names (not placeholders)
+    const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
     const usedPoints = Object.entries(confidencePoints)
-      .filter(([teamName]) => teamName !== currentTeamName)
+      .filter(([teamName]) => teamName !== currentTeamName && teamName.trim() !== '')
       .map(([, points]) => points);
     
-    const maxPoints = sortedPlayoffTeams.length;
+    const maxPoints = actualTeams.length;
     return Array.from({ length: maxPoints }, (_, i) => i + 1)
       .filter(points => !usedPoints.includes(points));
   };
 
   const validateConfidencePoints = (): string | null => {
+    // Only validate for teams that actually have names (not placeholders)
+    const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
     const values = Object.values(confidencePoints);
     const uniqueValues = new Set(values);
     
-    if (values.length !== sortedPlayoffTeams.length) {
+    if (values.length !== actualTeams.length) {
       return 'Please assign confidence points to all teams';
     }
 
@@ -219,7 +252,7 @@ function PlayoffsPageContent() {
     }
 
     const sortedValues = [...values].sort((a, b) => a - b);
-    const expectedValues = Array.from({ length: sortedPlayoffTeams.length }, (_, i) => i + 1);
+    const expectedValues = Array.from({ length: actualTeams.length }, (_, i) => i + 1);
     
     if (JSON.stringify(sortedValues) !== JSON.stringify(expectedValues)) {
       return 'Confidence points must be sequential (1, 2, 3, etc.)';
@@ -238,17 +271,20 @@ function PlayoffsPageContent() {
       return;
     }
 
-    const validationError = validateConfidencePoints();
-    if (validationError) {
-      toast({
-        title: 'Validation Error',
-        description: validationError,
-        variant: 'destructive',
-      });
-      return;
+    // Skip validation in debug mode, otherwise validate
+    if (!debugMode) {
+      const validationError = validateConfidencePoints();
+      if (validationError) {
+        toast({
+          title: 'Validation Error',
+          description: validationError,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
-    if (hasSubmission) {
+    if (hasSubmission && !debugMode) {
       toast({
         title: 'Error',
         description: 'You have already submitted confidence points for playoffs',
@@ -260,7 +296,9 @@ function PlayoffsPageContent() {
     setIsSubmitting(true);
 
     try {
-      const submissionData = sortedPlayoffTeams.map(team => ({
+      // Only submit confidence points for teams that actually have names (not placeholders)
+      const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
+      const submissionData = actualTeams.map(team => ({
         participant_id: selectedParticipantId,
         team_name: team.team_name,
         confidence_points: confidencePoints[team.team_name]
@@ -285,8 +323,18 @@ function PlayoffsPageContent() {
           title: 'Success',
           description: 'Playoff confidence points submitted successfully',
         });
-        setHasSubmission(true);
+        
+        // Clear selected participant so they are removed from the list
+        const submittedParticipantId = selectedParticipantId;
+        setSelectedParticipantId('');
+        setConfidencePoints({});
+        setHasSubmission(false);
+        
+        // Reload submission status (which will also update the participants list)
         await loadSubmissionStatus();
+        
+        // Navigate to playoff picks page after successful submission
+        router.push(`/pool/${poolId}/playoff-picks?round=1`);
       } else {
         toast({
           title: 'Error',
@@ -344,7 +392,7 @@ function PlayoffsPageContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/pool/${poolId}/picks?week=1&seasonType=3`)}
+            onClick={() => router.push(`/pool/${poolId}/playoff-picks`)}
             className="flex items-center gap-2"
           >
             <Target className="h-4 w-4" />
@@ -393,25 +441,27 @@ function PlayoffsPageContent() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-semibold">Participant</th>
-                    {sortedPlayoffTeams.map(team => (
-                      <th key={team.id} className="text-center p-2 font-semibold">
-                        <div className="flex flex-col items-center gap-1">
-                          <span>{team.team_name}</span>
-                          {team.seed && (
-                            <Badge variant="outline" className="text-xs">
-                              {team.conference} #{team.seed}
-                            </Badge>
-                          )}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="sticky left-0 bg-white z-20 font-semibold">Participant</TableHead>
+                    {sortedPlayoffTeams
+                      .filter(team => team.team_name && team.team_name.trim() !== '')
+                      .map(team => (
+                        <TableHead key={team.id} className="text-center font-semibold">
+                          <div className="flex flex-col items-center gap-1">
+                            <span>{team.team_name}</span>
+                            {team.seed && (
+                              <Badge variant="outline" className="text-xs">
+                                {team.conference} #{team.seed}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableHead>
+                      ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {participants.map(participant => {
                     const participantPoints = allConfidencePoints.filter(
                       cp => cp.participant_id === participant.id
@@ -422,18 +472,20 @@ function PlayoffsPageContent() {
                     });
 
                     return (
-                      <tr key={participant.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">{participant.name}</td>
-                        {sortedPlayoffTeams.map(team => (
-                          <td key={team.id} className="text-center p-2">
-                            {pointsMap[team.team_name] || '-'}
-                          </td>
-                        ))}
-                      </tr>
+                      <TableRow key={participant.id} className="hover:bg-gray-50">
+                        <TableCell className="sticky left-0 bg-white z-10 font-medium">{participant.name}</TableCell>
+                        {sortedPlayoffTeams
+                          .filter(team => team.team_name && team.team_name.trim() !== '')
+                          .map(team => (
+                            <TableCell key={team.id} className="text-center font-semibold">
+                              {pointsMap[team.team_name] || '-'}
+                            </TableCell>
+                          ))}
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
@@ -475,63 +527,142 @@ function PlayoffsPageContent() {
               )}
             </div>
 
-            {/* Confidence Points Input */}
+            {/* Confidence Points Input - Bracket Style */}
             {selectedParticipantId && !hasSubmission && sortedPlayoffTeams.length > 0 && (
               <>
-                <div className="space-y-4">
-                  {sortedPlayoffTeams.map(team => {
-                    const availablePoints = getAvailableConfidencePoints(team.team_name);
-                    const currentValue = confidencePoints[team.team_name];
-                    
-                    return (
-                      <div key={team.id} className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <Label htmlFor={`team-${team.id}`}>
-                            {team.team_name}
-                            {team.conference && (
-                              <Badge variant="outline" className="ml-2">
-                                {team.conference}
-                              </Badge>
-                            )}
-                            {team.seed && (
-                              <Badge variant="outline" className="ml-2">
-                                Seed {team.seed}
-                              </Badge>
-                            )}
-                          </Label>
-                        </div>
-                        <div className="w-32">
-                          <Select
-                            value={currentValue?.toString() || ''}
-                            onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select points" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availablePoints.length > 0 ? (
-                                availablePoints.map(points => (
-                                  <SelectItem key={points} value={points.toString()}>
-                                    {points} point{points !== 1 ? 's' : ''}
-                                  </SelectItem>
-                                ))
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* AFC Conference */}
+                  <div className="space-y-2">
+                    <div className="text-lg font-bold text-red-600 mb-4 pb-2 border-b-2 border-red-600">
+                      AFC
+                    </div>
+                    {sortedPlayoffTeams
+                      .filter(team => team.conference?.toUpperCase() === 'AFC')
+                      .map(team => {
+                        const isPlaceholder = !team.team_name || team.team_name.trim() === '';
+                        const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
+                        const currentValue = confidencePoints[team.team_name];
+                        
+                        return (
+                          <div key={team.id} className="flex items-center gap-3 py-2 border-b border-gray-200 last:border-b-0">
+                            <div className="w-8 text-center font-semibold text-gray-600">
+                              {team.seed || '-'}
+                            </div>
+                            <div className="flex-1 font-medium">
+                              {isPlaceholder ? (
+                                <span className="text-gray-400 italic">Seed hasn't been determined yet</span>
                               ) : (
-                                <SelectItem value="" disabled>
-                                  No points available
-                                </SelectItem>
+                                team.team_name
                               )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            </div>
+                            <div className="w-32">
+                              {isPlaceholder ? (
+                                <div className="text-sm text-gray-400 italic">N/A</div>
+                              ) : (
+                                <Select
+                                  value={currentValue?.toString() || ''}
+                                  onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Points" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availablePoints.length > 0 ? (
+                                      availablePoints.map(points => (
+                                        <SelectItem key={points} value={points.toString()}>
+                                          {points} point{points !== 1 ? 's' : ''}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="" disabled>
+                                        No points available
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* NFC Conference */}
+                  <div className="space-y-2">
+                    <div className="text-lg font-bold text-blue-600 mb-4 pb-2 border-b-2 border-blue-600">
+                      NFC
+                    </div>
+                    {sortedPlayoffTeams
+                      .filter(team => team.conference?.toUpperCase() === 'NFC')
+                      .map(team => {
+                        const isPlaceholder = !team.team_name || team.team_name.trim() === '';
+                        const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
+                        const currentValue = confidencePoints[team.team_name];
+                        
+                        return (
+                          <div key={team.id} className="flex items-center gap-3 py-2 border-b border-gray-200 last:border-b-0">
+                            <div className="w-8 text-center font-semibold text-gray-600">
+                              {team.seed || '-'}
+                            </div>
+                            <div className="flex-1 font-medium">
+                              {isPlaceholder ? (
+                                <span className="text-gray-400 italic">Seed hasn't been determined yet</span>
+                              ) : (
+                                team.team_name
+                              )}
+                            </div>
+                            <div className="w-32">
+                              {isPlaceholder ? (
+                                <div className="text-sm text-gray-400 italic">N/A</div>
+                              ) : (
+                                <Select
+                                  value={currentValue?.toString() || ''}
+                                  onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Points" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availablePoints.length > 0 ? (
+                                      availablePoints.map(points => (
+                                        <SelectItem key={points} value={points.toString()}>
+                                          {points} point{points !== 1 ? 's' : ''}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="" disabled>
+                                        No points available
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Debug Mode Checkbox */}
+                <div className="flex items-center space-x-2 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <Checkbox
+                    id="debug-mode"
+                    checked={debugMode}
+                    onCheckedChange={(checked) => setDebugMode(checked === true)}
+                  />
+                  <Label
+                    htmlFor="debug-mode"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Debug Mode: Submit to DB and navigate to playoff picks page
+                  </Label>
                 </div>
 
                 <Button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="w-full"
+                  className="w-full mt-6"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Confidence Points'}
                 </Button>

@@ -32,11 +32,21 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     debugLog('Supabase client created successfully');
 
+    const season = searchParams.get('season');
+    const seasonNumber = season ? parseInt(season) : undefined;
+
     const query = supabase
       .from('games')
       .select('*')
-      .eq('week', weekNumber)
-      .eq('season_type', seasonTypeNumber);
+      .eq('week', weekNumber);
+    
+    if (seasonTypeNumber !== undefined && !isNaN(seasonTypeNumber)) {
+      query.eq('season_type', seasonTypeNumber);
+    }
+    
+    if (seasonNumber !== undefined && !isNaN(seasonNumber)) {
+      query.eq('season', seasonNumber);
+    }
 
     // Only filter by season_type if the column exists and value is provided
     // For now, we'll skip this filter to avoid the 500 error

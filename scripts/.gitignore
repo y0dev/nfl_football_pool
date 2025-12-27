@@ -38,3 +38,15 @@ node_modules/
 # HTML files
 *.html
 
+NFL Games JSON files
+*.json
+
+NFL Games HTML files
+*.html
+
+NFL Games CSV files
+*.csv
+
+NFL Games XLSX files
+*.xlsx
+
