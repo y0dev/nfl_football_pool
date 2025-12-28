@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog } from '@/lib/utils';
 
 interface ConfidencePointSubmission {
   participant_id: string;
@@ -78,12 +79,26 @@ export async function GET(
         );
       }
 
+      // Get playoff teams count to check if submission is complete
+      const { data: teams } = await supabase
+        .from('playoff_teams')
+        .select('id')
+        .eq('season', seasonNumber);
+
+      const teamsCount = teams?.length || 0;
+      const submissionCount = (confidencePoints?.length || 0);
+      const hasSubmission = submissionCount > 0;
+      const isCompleteSubmission = submissionCount === teamsCount && teamsCount > 0;
+
       return NextResponse.json({
         success: true,
         confidencePoints: confidencePoints || [],
-        hasSubmission: (confidencePoints?.length || 0) > 0
+        hasSubmission,
+        isCompleteSubmission,
+        submissionCount,
+        totalTeams: teamsCount
       });
-    }
+    } // End of if (participantId)
 
     // Get all submissions
     const { data: allSubmissions, error } = await supabase
@@ -100,10 +115,14 @@ export async function GET(
       );
     }
 
+    debugLog('PLAYOFFS: allSubmissions', allSubmissions);
+
     // Get unique participant IDs who have submitted
     const submittedParticipantIds = new Set(
       (allSubmissions || []).map(s => s.participant_id)
     );
+
+    debugLog('PLAYOFFS: submittedParticipantIds', submittedParticipantIds);
 
     // Get playoff teams count (playoff teams are the same for all pools)
     const { data: teams } = await supabase
@@ -119,7 +138,7 @@ export async function GET(
         s => s.participant_id === participant.id
       );
       const hasFullSubmission = participantSubmissions.length === teamsCount && teamsCount > 0;
-      
+      debugLog('PLAYOFFS: submissionStatus', participant.id, participant.name, hasFullSubmission, participantSubmissions.length, teamsCount);
       return {
         participant_id: participant.id,
         participant_name: participant.name,
@@ -218,6 +237,7 @@ export async function POST(
     }
 
     const teamNames = new Set(playoffTeams.map(t => t.team_name));
+    const teamsCount = teamNames.size;
 
     // Validate that all teams are included and all confidence points are unique
     const submittedTeamNames = new Set(confidence_points.map(cp => cp.team_name));
@@ -262,11 +282,33 @@ export async function POST(
       .eq('pool_id', poolId)
       .eq('season', season);
 
-    if (existingSubmissions && existingSubmissions.length > 0) {
+    const existingCount = existingSubmissions?.length || 0;
+    const isCompleteSubmission = existingCount === teamsCount && teamsCount > 0;
+
+    // If user has a complete submission (all teams), prevent updates
+    if (isCompleteSubmission) {
       return NextResponse.json(
-        { success: false, error: 'Confidence points already submitted for playoffs' },
+        { success: false, error: 'Confidence points already submitted for playoffs. Complete submissions cannot be changed.' },
         { status: 400 }
       );
+    }
+
+    // If user has partial submission, delete existing and insert new complete set
+    if (existingCount > 0) {
+      const { error: deleteError } = await supabase
+        .from('playoff_confidence_points')
+        .delete()
+        .eq('participant_id', participant_id)
+        .eq('pool_id', poolId)
+        .eq('season', season);
+
+      if (deleteError) {
+        console.error('Error deleting existing partial submissions:', deleteError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to update confidence points' },
+          { status: 500 }
+        );
+      }
     }
 
     // Insert confidence points
