@@ -1,4 +1,10 @@
 import nodemailer from 'nodemailer';
+import { 
+  createResponsiveEmailTemplate, 
+  createInfoBox, 
+  createTwoColumnGrid,
+  createParticipantTable 
+} from './email-templates-base';
 
 export interface EmailConfig {
   host: string;
@@ -85,34 +91,38 @@ class EmailService {
 
   // Template for commissioner account creation notification
   async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
-    const subject = 'New Commissioner Account Created - NFL Confidence Pool';
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-          🏈 NFL Confidence Pool - Admin Account Created
-        </h2>
-        
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin-top: 0;">New Commissioner Account Details:</h3>
-          <p><strong>Email:</strong> ${adminEmail}</p>
-          <p><strong>Name:</strong> ${adminName}</p>
-          <p><strong>Created:</strong> ${new Date().toLocaleString()}</p>
-        </div>
-        
-        <div style="background-color: #dbeafe; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0; color: #1e40af;">
-            <strong>Note:</strong> This commissioner account has been created and is now active. 
-                          The commissioner can log in to manage pools and participants.
-          </p>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px;">
-            This is an automated notification from the NFL Confidence Pool system.
-          </p>
-        </div>
-      </div>
+    const subject = 'Welcome! Your Commissioner Account Has Been Created';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const dashboardUrl = `${baseUrl}/admin/dashboard`;
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+      
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        Your commissioner account has been successfully created! You now have full access to manage pools and participants in the NFL Confidence Pool system.
+      </p>
+      
+      ${createInfoBox(`
+        <strong>Account Details:</strong><br>
+        Email: ${adminEmail}<br>
+        Name: ${adminName}<br>
+        Created: ${new Date().toLocaleString()}
+      `, 'info')}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        You can now log in and start creating pools, managing participants, and sending invitations.
+      </p>
     `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Commissioner Account Created',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: dashboardUrl,
+      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+    });
 
     return this.sendEmail({
       to: adminEmail,
@@ -123,43 +133,37 @@ class EmailService {
 
   // Template for pool invitation
   async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string): Promise<boolean> {
-    const subject = `You're Invited to Join ${poolName} - NFL Confidence Pool`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-          🏈 You're Invited to Join ${poolName}
-        </h2>
-        
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin-top: 0;">Welcome to the NFL Confidence Pool!</h3>
-          <p>Hi ${participantName},</p>
-          <p>You've been invited to join <strong>${poolName}</strong> in our NFL Confidence Pool!</p>
-        </div>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${poolLink}" 
-             style="background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-            Join Pool Now
-          </a>
-        </div>
-        
-        <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h4 style="color: #92400e; margin-top: 0;">How it works:</h4>
-          <ul style="color: #92400e; margin: 0; padding-left: 20px;">
-            <li>Pick the winner for each NFL game</li>
-            <li>Assign confidence points (1-16) to each pick</li>
-            <li>Earn points for correct picks × confidence points</li>
-            <li>Compete for the highest score each week!</li>
-          </ul>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px;">
-            If you have any questions, please contact your pool commissioner.
-          </p>
-        </div>
-      </div>
+    const subject = `You're Invited to Join ${poolName}! 🏈`;
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${participantName},
+      </p>
+      
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        You've been invited to join <strong style="color: #1f2937;">${poolName}</strong> in our NFL Confidence Pool!
+      </p>
+      
+      ${createInfoBox(`
+        <strong>How it works:</strong><br>
+        • Pick the winner for each NFL game<br>
+        • Assign confidence points (1-16) to each pick<br>
+        • Earn points for correct picks × confidence points<br>
+        • Compete for the highest score each week!
+      `, 'info')}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Click the button below to join the pool and start making your picks!
+      </p>
     `;
+
+    const html = createResponsiveEmailTemplate({
+      title: `Join ${poolName}`,
+      content,
+      buttonText: 'Join Pool Now',
+      buttonUrl: poolLink,
+      footerText: 'If you have any questions, please contact your pool commissioner.'
+    });
 
     return this.sendEmail({
       to: participantEmail,
@@ -170,38 +174,34 @@ class EmailService {
 
   // Template for pick reminder
   async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string): Promise<boolean> {
-    const subject = `🏈 Week ${weekNumber} Picks Due - ${poolName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-          🏈 Week ${weekNumber} Picks Due
-        </h2>
-        
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin-top: 0;">Time to Make Your Picks!</h3>
-          <p>Hi ${participantName},</p>
-          <p>Don't forget to submit your picks for <strong>${poolName}</strong> - Week ${weekNumber}!</p>
-        </div>
-        
-        <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h4 style="color: #92400e; margin-top: 0;">⏰ Deadline:</h4>
-          <p style="color: #92400e; margin: 0; font-weight: bold;">${deadline}</p>
-        </div>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${poolLink}" 
-             style="background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-            Make Your Picks Now
-          </a>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px;">
-            This is an automated reminder from your NFL Confidence Pool.
-          </p>
-        </div>
-      </div>
+    const subject = `⏰ Week ${weekNumber} Picks Due - ${poolName}`;
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${participantName},
+      </p>
+      
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        Don't forget to submit your picks for <strong style="color: #1f2937;">${poolName}</strong> - Week ${weekNumber}!
+      </p>
+      
+      ${createInfoBox(`
+        <strong>⏰ Deadline:</strong> ${deadline}<br><br>
+        Make sure to submit your picks before the deadline to stay in the competition!
+      `, 'warning')}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Click the button below to make your picks now.
+      </p>
     `;
+
+    const html = createResponsiveEmailTemplate({
+      title: `Week ${weekNumber} Picks Due`,
+      content,
+      buttonText: 'Make Your Picks Now',
+      buttonUrl: poolLink,
+      footerText: 'This is an automated reminder from your NFL Confidence Pool.'
+    });
 
     return this.sendEmail({
       to: participantEmail,
@@ -220,113 +220,182 @@ class EmailService {
     submittedParticipants: Array<{ name: string; email: string }>,
     pendingParticipants: Array<{ name: string; email: string }>,
     totalParticipants: number,
-    submissionDeadline: string
+    submissionDeadline: string,
+    poolId?: string
   ): Promise<boolean> {
     const seasonTypeNames = { 1: 'Preseason', 2: 'Regular Season', 3: 'Postseason' };
     const seasonName = seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Season';
     const submittedCount = submittedParticipants.length;
     const pendingCount = pendingParticipants.length;
     const submissionRate = totalParticipants > 0 ? Math.round((submittedCount / totalParticipants) * 100) : 0;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const poolUrl = poolId ? `${baseUrl}/pool/${poolId}` : `${baseUrl}/pool`;
 
     const subject = `📊 Week ${weekNumber} Submission Summary - ${poolName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-        <h2 style="color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-          📊 Week ${weekNumber} Submission Summary
-        </h2>
-        
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin-top: 0;">Pool: ${poolName}</h3>
-          <p><strong>Week:</strong> ${weekNumber} (${seasonName})</p>
-          <p><strong>Deadline:</strong> ${submissionDeadline}</p>
-          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
-          <div style="background-color: #dcfce7; padding: 20px; border-radius: 8px; border-left: 4px solid #22c55e;">
-            <h4 style="color: #166534; margin-top: 0;">✅ Submitted (${submittedCount})</h4>
-            <p style="color: #166534; font-size: 24px; font-weight: bold; margin: 10px 0;">${submissionRate}%</p>
-            <p style="color: #166534; margin: 0;">${submittedCount} of ${totalParticipants} participants</p>
-          </div>
-          
-          <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-            <h4 style="color: #92400e; margin-top: 0;">⏳ Pending (${pendingCount})</h4>
-            <p style="color: #92400e; font-size: 24px; font-weight: bold; margin: 10px 0;">${100 - submissionRate}%</p>
-            <p style="color: #92400e; margin: 0;">${pendingCount} participants need reminders</p>
-          </div>
-        </div>
-        
-        ${pendingCount > 0 ? `
-        <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
-          <h4 style="color: #991b1b; margin-top: 0;">📧 Participants Needing Reminders</h4>
-          <div style="max-height: 200px; overflow-y: auto;">
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-              <thead>
-                <tr style="background-color: #fee2e2;">
-                  <th style="padding: 8px; text-align: left; border-bottom: 1px solid #fecaca; color: #991b1b;">Name</th>
-                  <th style="padding: 8px; text-align: left; border-bottom: 1px solid #fecaca; color: #991b1b;">Email</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${pendingParticipants.map(participant => `
-                  <tr style="border-bottom: 1px solid #fecaca;">
-                    <td style="padding: 8px; color: #991b1b;">${participant.name}</td>
-                    <td style="padding: 8px; color: #991b1b;">${participant.email}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        ` : `
-        <div style="background-color: #dcfce7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #22c55e;">
-          <h4 style="color: #166534; margin-top: 0;">🎉 All Participants Have Submitted!</h4>
-          <p style="color: #166534; margin: 0;">Great job! All ${totalParticipants} participants have submitted their picks for Week ${weekNumber}.</p>
-        </div>
-        `}
-        
-        ${submittedCount > 0 ? `
-        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
-          <h4 style="color: #0c4a6e; margin-top: 0;">✅ Successfully Submitted</h4>
-          <div style="max-height: 150px; overflow-y: auto;">
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-              <thead>
-                <tr style="background-color: #e0f2fe;">
-                  <th style="padding: 8px; text-align: left; border-bottom: 1px solid #b3e5fc; color: #0c4a6e;">Name</th>
-                  <th style="padding: 8px; text-align: left; border-bottom: 1px solid #b3e5fc; color: #0c4a6e;">Email</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${submittedParticipants.map(participant => `
-                  <tr style="border-bottom: 1px solid #b3e5fc;">
-                    <td style="padding: 8px; color: #0c4a6e;">${participant.name}</td>
-                    <td style="padding: 8px; color: #0c4a6e;">${participant.email}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        ` : ''}
-        
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h4 style="color: #1f2937; margin-top: 0;">📈 Quick Actions</h4>
-          <ul style="color: #374151; margin: 0; padding-left: 20px;">
-            <li>Send reminder emails to pending participants</li>
-            <li>Review submitted picks before the deadline</li>
-            <li>Monitor submission progress as the deadline approaches</li>
-          </ul>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px;">
-            This is an automated summary from your NFL Confidence Pool system.
-            <br />
-            Generated for ${adminName} (${adminEmail})
-          </p>
-        </div>
-      </div>
+    
+    const statsLeft = `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #dcfce7; border-left: 4px solid #22c55e; border-radius: 6px; padding: 16px;">
+        <tr>
+          <td>
+            <p style="margin: 0 0 8px; color: #166534; font-size: 14px; font-weight: 600;">✅ Submitted</p>
+            <p style="margin: 0 0 4px; color: #166534; font-size: 28px; font-weight: 700;">${submissionRate}%</p>
+            <p style="margin: 0; color: #166534; font-size: 13px;">${submittedCount} of ${totalParticipants}</p>
+          </td>
+        </tr>
+      </table>
     `;
+    
+    const statsRight = `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 16px;">
+        <tr>
+          <td>
+            <p style="margin: 0 0 8px; color: #92400e; font-size: 14px; font-weight: 600;">⏳ Pending</p>
+            <p style="margin: 0 0 4px; color: #92400e; font-size: 28px; font-weight: 700;">${100 - submissionRate}%</p>
+            <p style="margin: 0; color: #92400e; font-size: 13px;">${pendingCount} need reminders</p>
+          </td>
+        </tr>
+      </table>
+    `;
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+      
+      ${createInfoBox(`
+        <strong>Pool:</strong> ${poolName}<br>
+        <strong>Week:</strong> ${weekNumber} (${seasonName})<br>
+        <strong>Deadline:</strong> ${submissionDeadline}<br>
+        <strong>Generated:</strong> ${new Date().toLocaleString()}
+      `, 'info')}
+      
+      ${createTwoColumnGrid(statsLeft, statsRight)}
+      
+      ${pendingCount > 0 ? `
+        <p style="margin: 20px 0 10px; color: #374151; font-size: 15px; font-weight: 600;">
+          📧 Participants Needing Reminders:
+        </p>
+        ${createParticipantTable(pendingParticipants)}
+      ` : createInfoBox(`🎉 All ${totalParticipants} participants have submitted their picks for Week ${weekNumber}!`, 'success')}
+      
+      ${submittedCount > 0 && submittedCount <= 10 ? `
+        <p style="margin: 20px 0 10px; color: #374151; font-size: 15px; font-weight: 600;">
+          ✅ Successfully Submitted:
+        </p>
+        ${createParticipantTable(submittedParticipants)}
+      ` : submittedCount > 10 ? `
+        ${createInfoBox(`✅ ${submittedCount} participants have successfully submitted their picks.`, 'success')}
+      ` : ''}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        <strong>Quick Actions:</strong><br>
+        • Send reminder emails to pending participants<br>
+        • Review submitted picks before the deadline<br>
+        • Monitor submission progress as the deadline approaches
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: `Week ${weekNumber} Submission Summary`,
+      content,
+      buttonText: 'View Pool',
+      buttonUrl: poolUrl,
+      footerText: `Generated for ${adminName} (${adminEmail})`
+    });
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject,
+      html
+    });
+  }
+
+  // Template for pool creation notification
+  async sendPoolCreationNotification(adminEmail: string, adminName: string, poolName: string, poolId: string): Promise<boolean> {
+    const subject = `🎉 Your Pool "${poolName}" Has Been Created!`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const poolUrl = `${baseUrl}/pool/${poolId}`;
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+      
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        Great news! Your pool <strong style="color: #1f2937;">"${poolName}"</strong> has been successfully created.
+      </p>
+      
+      ${createInfoBox(`
+        <strong>Pool Details:</strong><br>
+        Name: ${poolName}<br>
+        Created: ${new Date().toLocaleString()}<br><br>
+        You can now start inviting participants and managing your pool!
+      `, 'success')}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Click the button below to view and manage your pool.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Pool Created Successfully',
+      content,
+      buttonText: 'View Pool',
+      buttonUrl: poolUrl,
+      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+    });
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject,
+      html
+    });
+  }
+
+  // Template for urgent reminder to admin (participants without picks <5 hours before game)
+  async sendUrgentReminderToAdmin(
+    adminEmail: string,
+    adminName: string,
+    poolName: string,
+    weekNumber: number,
+    participantsWithoutPicks: Array<{ name: string; email?: string }>,
+    timeUntilGame: string,
+    poolLink: string
+  ): Promise<boolean> {
+    const subject = `🚨 URGENT: ${participantsWithoutPicks.length} Participant(s) Haven't Submitted Picks - ${poolName}`;
+    
+    const participantsList = createParticipantTable(participantsWithoutPicks);
+    
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+      
+      ${createInfoBox(`
+        <strong>⏰ URGENT REMINDER</strong><br><br>
+        Games for Week ${weekNumber} start in <strong>${timeUntilGame}</strong>!<br>
+        <strong>${participantsWithoutPicks.length}</strong> participant(s) in <strong>${poolName}</strong> haven't submitted their picks yet.
+      `, 'error')}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        <strong>Participants who need to submit picks:</strong>
+      </p>
+      
+      ${participantsList}
+      
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Please reach out to these participants immediately to ensure they submit their picks before the deadline.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Urgent Pick Reminder',
+      content,
+      buttonText: 'View Pool',
+      buttonUrl: poolLink,
+      footerText: `This is an automated urgent reminder for Week ${weekNumber} in ${poolName}.`,
+      accentColor: '#ef4444'
+    });
 
     return this.sendEmail({
       to: adminEmail,

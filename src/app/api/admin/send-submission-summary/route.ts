@@ -121,7 +121,8 @@ export async function POST(request: NextRequest) {
       submittedParticipants,
       pendingParticipants,
       participants.length,
-      submissionDeadline
+      submissionDeadline,
+      poolId
     );
 
     if (!emailSent) {

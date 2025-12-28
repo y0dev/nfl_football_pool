@@ -1,3 +1,5 @@
+'use server';
+
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
@@ -22,6 +24,31 @@ export async function createPool(poolData: {
       .single();
 
     if (error) throw error;
+
+    // Send email notification to pool creator (dynamically imported to avoid client bundle)
+    try {
+      // Get admin info
+      const { data: admin } = await supabase
+        .from('admins')
+        .select('full_name, email')
+        .eq('email', poolData.created_by)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (admin && admin.email) {
+        const { emailService } = await import('@/lib/email');
+        await emailService.sendPoolCreationNotification(
+          admin.email,
+          admin.full_name || poolData.created_by,
+          poolData.name,
+          data.id
+        );
+      }
+    } catch (emailError) {
+      console.error('Error sending pool creation email:', emailError);
+      // Don't fail pool creation if email fails
+    }
+
     return data;
   } catch (error) {
     console.error('Error creating pool:', error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { emailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -80,6 +81,24 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to join pool' },
         { status: 500 }
       );
+    }
+
+    // Send welcome email to participant
+    try {
+      if (newParticipant.email) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const poolLink = `${baseUrl}/pool/${poolId}/picks`;
+        
+        await emailService.sendPoolInvitation(
+          newParticipant.email,
+          newParticipant.name,
+          pool.name,
+          poolLink
+        );
+      }
+    } catch (emailError) {
+      console.error('Error sending welcome email:', emailError);
+      // Don't fail join if email fails
     }
 
     return NextResponse.json({

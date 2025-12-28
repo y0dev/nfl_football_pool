@@ -428,6 +428,33 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
       // Don't throw error for logging failure
     }
 
+    // Send welcome email to participant if email is provided (dynamically imported to avoid client bundle)
+    if (email && participant.email) {
+      try {
+        const { emailService } = await import('@/lib/email');
+        const { data: poolData } = await supabase
+          .from('pools')
+          .select('name')
+          .eq('id', poolId)
+          .single();
+
+        if (poolData) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const poolLink = `${baseUrl}/pool/${poolId}/picks`;
+          
+          await emailService.sendPoolInvitation(
+            participant.email,
+            participant.name,
+            poolData.name,
+            poolLink
+          );
+        }
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't fail participant addition if email fails
+      }
+    }
+
     return participant;
   } catch (error) {
     console.error('Failed to add participant to pool:', error);
