@@ -168,6 +168,7 @@ function PlayoffsPageContent() {
         
         // Reload participants and filter out submitted ones
         const allUsers = await loadUsers(poolId);
+        debugLog('PLAYOFFS: allUsers', allUsers);
         const availableUsers = (allUsers || []).filter(
           user => !submittedParticipantIds.has(user.id)
         );

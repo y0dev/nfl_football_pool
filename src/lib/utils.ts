@@ -448,3 +448,338 @@ export const debugIf = (condition: boolean, ...args: unknown[]) => {
     console.log(...args);
   }
 }; 
+
+export const isDummyData = () => {
+  return process.env.DUMMY_DATA === 'true' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true';
+};
+
+// Create dummy data for development 
+// Dummy pool
+export const DUMMY_POOL = {
+  id: 'dummy-pool-id-12345',
+  name: 'NFL Fantasy Pool 2025',
+  description: 'A fun NFL fantasy football pool for the 2025 season',
+  season: DEFAULT_POOL_SEASON,
+  is_active: true,
+  created_by: 'dummy-admin-id',
+  created_at: new Date().toISOString(),
+  tie_breaker_method: 'total_points',
+  tie_breaker_question: 'What will be the total points scored in the Super Bowl?',
+  tie_breaker_answer: 45,
+  require_access_code: false,
+  access_code: null,
+  logo_url: null,
+  participant_count: 4, // Matches DUMMY_PARTICIPANTS length
+};
+
+
+// Dummy participants 
+export const DUMMY_PARTICIPANTS = [
+  { id: '1', name: 'Participant 1', email: 'participant1@example.com' },
+  { id: '2', name: 'Participant 2', email: 'participant2@example.com' },
+  { id: '3', name: 'Participant 3', email: 'participant3@example.com' },
+  { id: '4', name: 'Participant 4', email: 'participant4@example.com' }
+];
+
+// Dummy Playoff Teams - 7 AFC teams and 7 NFC teams (14 total)
+export const DUMMY_PLAYOFF_TEAMS = (() => {
+  const afcTeams = NFL_TEAMS.filter(team => team.conference === 'AFC').slice(0, 7);
+  const nfcTeams = NFL_TEAMS.filter(team => team.conference === 'NFC').slice(0, 7);
+  
+  const playoffTeams = [
+    // AFC Teams (seeds 1-7)
+    ...afcTeams.map((team, index) => ({
+      team_name: team.name,
+      team_abbreviation: team.abbreviation,
+      conference: team.conference,
+      seed: index + 1,
+    })),
+    // NFC Teams (seeds 1-7)
+    ...nfcTeams.map((team, index) => ({
+      team_name: team.name,
+      team_abbreviation: team.abbreviation,
+      conference: team.conference,
+      seed: index + 1,
+    })),
+  ];
+  
+  return playoffTeams;
+})();
+
+// Dummy Playoff Games - Based on NFL playoff bracket structure
+// Week 1 (Wild Card): 6 games - Seeds 1 get byes
+// Week 2 (Divisional): 4 games - Seed 1 plays lowest remaining
+// Week 3 (Conference Championship): 2 games - Highest vs lowest remaining
+// Week 4 (Super Bowl): 1 game - AFC Champion vs NFC Champion
+export const DUMMY_PLAYOFF_GAMES = (() => {
+  const afcTeams = NFL_TEAMS.filter(team => team.conference === 'AFC').slice(0, 7);
+  const nfcTeams = NFL_TEAMS.filter(team => team.conference === 'NFC').slice(0, 7);
+  const season = DEFAULT_POOL_SEASON;
+  const playoffYear = season + 1; // Playoffs occur in the year after the season
+  
+  // Helper to get team by seed (1-indexed) - works with any team array
+  const getTeamBySeed = (teams: Array<{ name: string }>, seed: number) => teams[seed - 1];
+  
+  // Helper to create game object with all required fields
+  const createGame = (week: number, awayTeam: string, homeTeam: string, index: number) => {
+    const defaultDates: Record<number, string> = {
+      1: `${playoffYear}-01-11T18:00:00Z`, // Wild Card Weekend
+      2: `${playoffYear}-01-18T18:00:00Z`, // Divisional Round
+      3: `${playoffYear}-01-25T18:00:00Z`, // Conference Championship
+      4: `${playoffYear}-02-08T18:00:00Z`  // Super Bowl
+    };
+    
+    return {
+      id: `dummy-game-${season}-${week}-${index}`,
+      season: season,
+      season_type: 3, // Postseason
+      week: week,
+      away_team: awayTeam,
+      home_team: homeTeam,
+      kickoff_time: defaultDates[week] || new Date().toISOString(),
+      status: 'scheduled',
+      winner: null,
+      is_playoff: true
+    };
+  };
+  
+  const playoffGames = [
+    // Week 1: Wild Card Round (6 games)
+    // AFC Wild Card: Seeds 1 get bye, so we have 2 vs 7, 3 vs 6, 4 vs 5
+    createGame(1, getTeamBySeed(afcTeams, 7).name, getTeamBySeed(afcTeams, 2).name, 1),
+    createGame(1, getTeamBySeed(afcTeams, 6).name, getTeamBySeed(afcTeams, 3).name, 2),
+    createGame(1, getTeamBySeed(afcTeams, 5).name, getTeamBySeed(afcTeams, 4).name, 3),
+    // NFC Wild Card: Seeds 1 get bye, so we have 2 vs 7, 3 vs 6, 4 vs 5
+    createGame(1, getTeamBySeed(nfcTeams, 7).name, getTeamBySeed(nfcTeams, 2).name, 4),
+    createGame(1, getTeamBySeed(nfcTeams, 6).name, getTeamBySeed(nfcTeams, 3).name, 5),
+    createGame(1, getTeamBySeed(nfcTeams, 5).name, getTeamBySeed(nfcTeams, 4).name, 6),
+    
+    // Week 2: Divisional Round (4 games)
+    // Seed 1 plays lowest remaining seed (for dummy data, assume seed 5 wins wild card)
+    // AFC Divisional: 1 vs 5 (lowest remaining), 2 vs 3 (next highest matchups)
+    createGame(2, getTeamBySeed(afcTeams, 5).name, getTeamBySeed(afcTeams, 1).name, 1),
+    createGame(2, getTeamBySeed(afcTeams, 3).name, getTeamBySeed(afcTeams, 2).name, 2),
+    // NFC Divisional: 1 vs 5, 2 vs 3
+    createGame(2, getTeamBySeed(nfcTeams, 5).name, getTeamBySeed(nfcTeams, 1).name, 3),
+    createGame(2, getTeamBySeed(nfcTeams, 3).name, getTeamBySeed(nfcTeams, 2).name, 4),
+    
+    // Week 3: Conference Championship (2 games)
+    // Highest remaining seed vs lowest remaining seed
+    // AFC Championship: Assume seed 1 and seed 2 advance
+    createGame(3, getTeamBySeed(afcTeams, 2).name, getTeamBySeed(afcTeams, 1).name, 1),
+    // NFC Championship: Assume seed 1 and seed 2 advance
+    createGame(3, getTeamBySeed(nfcTeams, 2).name, getTeamBySeed(nfcTeams, 1).name, 2),
+    
+    // Week 4: Super Bowl (1 game)
+    // AFC Champion vs NFC Champion
+    // For dummy data, use seed 1 from each conference
+    createGame(4, getTeamBySeed(afcTeams, 1).name, getTeamBySeed(nfcTeams, 1).name, 1),
+  ];
+  
+  return playoffGames;
+})();
+
+// Dummy Playoff Confidence Points - 14 confidence points (7 AFC confidence points and 7 NFC confidence points)
+export const DUMMY_PLAYOFF_CONFIDENCE_POINTS = (() => {
+  const afcConfidencePoints = NFL_TEAMS.filter(team => team.conference === 'AFC').slice(0, 7);
+  const nfcConfidencePoints = NFL_TEAMS.filter(team => team.conference === 'NFC').slice(0, 7);
+  
+  const playoffConfidencePoints = [
+    // AFC Confidence Points (seeds 1-7)
+    ...afcConfidencePoints.map((confidencePoint, index) => ({
+      confidence_point_name: confidencePoint.name,
+      confidence_point_abbreviation: confidencePoint.abbreviation,
+      confidence_point_conference: confidencePoint.conference,
+      confidence_point_seed: index + 1,
+    })),
+    // NFC Confidence Points (seeds 1-7)
+    ...nfcConfidencePoints.map((confidencePoint, index) => ({
+      confidence_point_name: confidencePoint.name,
+      confidence_point_abbreviation: confidencePoint.abbreviation,
+      confidence_point_conference: confidencePoint.conference,
+      confidence_point_seed: index + 1,
+    })),
+  ];
+  return playoffConfidencePoints;
+})();
+
+// Dummy Playoff Confidence Points Submissions
+export const DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS = [
+  { participant_id: '1', participant_name: 'Participant 1', submission_count: 14, total_teams: 14, submitted: true },
+  { participant_id: '2', participant_name: 'Participant 2', submission_count: 13, total_teams: 14, submitted: false },
+  { participant_id: '3', participant_name: 'Participant 3', submission_count: 14, total_teams: 14, submitted: true },
+  { participant_id: '4', participant_name: 'Participant 4', submission_count: 14, total_teams: 14, submitted: true },
+];
+
+// Dummy Regular Season Games - Sample week with 16 games
+export const DUMMY_GAMES = (() => {
+  const season = DEFAULT_POOL_SEASON;
+  const week = 1;
+  const games: Array<{
+    id: string;
+    season: number;
+    season_type: number;
+    week: number;
+    away_team: string;
+    home_team: string;
+    kickoff_time: string;
+    status: string;
+    winner: string | null;
+    is_playoff: boolean;
+  }> = [];
+  
+  // Create 16 games (typical NFL week)
+  const allTeams = [...NFL_TEAMS];
+  for (let i = 0; i < 16; i++) {
+    const awayIndex = i * 2;
+    const homeIndex = (i * 2) + 1;
+    
+    if (awayIndex < allTeams.length && homeIndex < allTeams.length) {
+      const kickoffDate = new Date(season, 8, week * 7 + i % 3, 13 + (i % 4), 0); // Spread games across days
+      games.push({
+        id: `dummy-game-${season}-${week}-${i}`,
+        season: season,
+        season_type: 2, // Regular season
+        week: week,
+        away_team: allTeams[awayIndex].name,
+        home_team: allTeams[homeIndex].name,
+        kickoff_time: kickoffDate.toISOString(),
+        status: i < 12 ? 'final' : 'scheduled', // First 12 games are final
+        winner: i < 12 ? (i % 2 === 0 ? allTeams[homeIndex].name : allTeams[awayIndex].name) : null,
+        is_playoff: false
+      });
+    }
+  }
+  
+  return games;
+})();
+
+// Helper function to create dummy leaderboard based on games and participants
+const createDummyLeaderboard = (
+  participants: typeof DUMMY_PARTICIPANTS,
+  games: Array<{ 
+    id: string; 
+    away_team: string; 
+    home_team: string; 
+    winner: string | null; 
+    status: string;
+    week?: number;
+    season_type?: number;
+  }>,
+  isPlayoff: boolean = false
+) => {
+  // Get week and season type from first game if available, otherwise use defaults
+  const defaultWeek = games.length > 0 && games[0].week ? games[0].week : 1;
+  const defaultSeasonType = isPlayoff ? 3 : 2;
+  
+  return participants.map((participant, participantIndex) => {
+    const gamePoints: { [gameId: string]: number } = {};
+    const picks: any[] = [];
+    let totalPoints = 0;
+    let correctPicks = 0;
+    let totalPicks = 0;
+
+    // Create a shuffled array of unique confidence points for this participant
+    // Each participant gets unique confidence points for each game
+    const maxConfidencePoints = isPlayoff ? 14 : 16;
+    const confidencePointsArray: number[] = [];
+    
+    // Generate array of confidence points (1 to maxConfidencePoints)
+    for (let i = 1; i <= maxConfidencePoints; i++) {
+      confidencePointsArray.push(i);
+    }
+    
+    // Shuffle the array to randomize assignment per participant
+    // Use participant index as a seed to make it deterministic but varied per participant
+    for (let i = confidencePointsArray.length - 1; i > 0; i--) {
+      // Use participant index to create different shuffle patterns
+      const j = Math.floor(((participantIndex * 7 + i * 3) % (i + 1)) + 0);
+      [confidencePointsArray[i], confidencePointsArray[j]] = [confidencePointsArray[j], confidencePointsArray[i]];
+    }
+    
+    // If we have more games than confidence points, cycle through the array
+    let confidencePointIndex = 0;
+
+    games.forEach((game, gameIndex) => {
+      const gameId = game.id;
+      // Vary picks by participant to create realistic leaderboard
+      // Participant index determines their "skill level" for simulation
+      const pickCorrect = (participantIndex + gameIndex) % 3 !== 0; // Roughly 67% correct
+      const predictedWinner = pickCorrect && game.winner 
+        ? game.winner 
+        : (game.winner === game.home_team ? game.away_team : game.home_team);
+      
+      // Get unique confidence point for this game
+      const confidencePoints = confidencePointsArray[confidencePointIndex % confidencePointsArray.length];
+      confidencePointIndex++;
+
+      totalPicks++;
+      
+      let points = 0;
+      if (game.status === 'final' || game.status === 'post') {
+        if (game.winner && predictedWinner === game.winner) {
+          points = confidencePoints;
+          correctPicks++;
+        }
+      }
+
+      gamePoints[gameId] = points;
+      totalPoints += points;
+
+      picks.push({
+        id: `dummy-pick-${participant.id}-${gameId}`,
+        participant_id: participant.id,
+        participant_name: participant.name,
+        game_id: gameId,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        predicted_winner: predictedWinner,
+        confidence_points: confidencePoints,
+        week: game.week || defaultWeek,
+        season_type: game.season_type || defaultSeasonType,
+        game_status: game.status,
+        game_winner: game.winner,
+        home_score: game.winner === game.home_team ? Math.floor(Math.random() * 20) + 20 : Math.floor(Math.random() * 15) + 15,
+        away_score: game.winner === game.away_team ? Math.floor(Math.random() * 20) + 20 : Math.floor(Math.random() * 15) + 15
+      });
+    });
+
+    return {
+      participant_id: participant.id,
+      participant_name: participant.name,
+      total_points: totalPoints,
+      correct_picks: correctPicks,
+      total_picks: totalPicks,
+      game_points: gamePoints,
+      picks: picks
+    };
+  }).sort((a, b) => b.total_points - a.total_points); // Sort by total points descending
+};
+
+// Dummy Leaderboard for Regular Season
+export const DUMMY_LEADERBOARD_REGULAR = createDummyLeaderboard(DUMMY_PARTICIPANTS, DUMMY_GAMES, false);
+
+// Dummy Leaderboard for Playoffs (defaults to week 1 - Wild Card)
+export const getDummyLeaderboardPlayoffs = (week: number = 1) => {
+  // Filter playoff games for the specified week
+  const weekGames = DUMMY_PLAYOFF_GAMES.filter(g => g.week === week);
+  
+  // For rounds with few games (1-2), make all games final
+  // For rounds with more games (3+), make at least 80% final
+  const minFinalGames = Math.max(1, Math.ceil(weekGames.length * 0.8));
+  
+  // Add winners to games for simulation (simulate some games as final)
+  const gamesWithWinners = weekGames.map((game, index) => ({
+    ...game,
+    status: index < minFinalGames ? 'final' : 'scheduled',
+    winner: index < minFinalGames 
+      ? (index % 2 === 0 ? game.home_team : game.away_team)
+      : null
+  }));
+  debugLog('Games with winners:', gamesWithWinners);
+  debugLog(`Week ${week}: ${minFinalGames} out of ${weekGames.length} games marked as final`);
+  return createDummyLeaderboard(DUMMY_PARTICIPANTS, gamesWithWinners, true);
+};
+
+// Default dummy leaderboard for playoffs (week 1)
+export const DUMMY_LEADERBOARD_PLAYOFFS = getDummyLeaderboardPlayoffs(1);

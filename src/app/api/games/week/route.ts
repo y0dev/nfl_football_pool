@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
+    
 
     debugLog('Games API called with:', { week, seasonType });
 
@@ -28,6 +29,15 @@ export async function GET(request: NextRequest) {
     }
 
     debugLog('Parsed parameters:', { weekNumber, seasonTypeNumber });
+
+    // Return dummy playoff games if in dummy data mode and season type is postseason (3)
+    if (isDummyData() && seasonTypeNumber === 3) {
+      const filteredGames = DUMMY_PLAYOFF_GAMES.filter(game => game.week === weekNumber);
+      return NextResponse.json({
+        success: true,
+        games: filteredGames
+      });
+    }
 
     const supabase = getSupabaseServiceClient();
     debugLog('Supabase client created successfully');

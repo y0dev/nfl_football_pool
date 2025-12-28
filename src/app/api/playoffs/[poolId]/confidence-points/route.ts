@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_CONFIDENCE_POINTS, DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS, isDummyData } from '@/lib/utils';
 
 interface ConfidencePointSubmission {
   participant_id: string;
@@ -13,6 +13,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ poolId: string }> }
 ) {
+
+  if (isDummyData()) {
+    const { searchParams } = new URL(request.url);
+    const participantId = searchParams.get('participantId');
+    const hasSubmission = participantId ? DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS.some(s => s.participant_id === participantId) : false;
+    const isCompleteSubmission = hasSubmission && DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS.every(s => s.submitted);
+    const submissionCount = hasSubmission ? DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS.filter(s => s.participant_id === participantId).length : 0;
+    const totalTeams = DUMMY_PLAYOFF_CONFIDENCE_POINTS.length;
+    
+    return NextResponse.json({
+      success: true,
+      confidencePoints: DUMMY_PLAYOFF_CONFIDENCE_POINTS || [],
+      hasSubmission,
+      isCompleteSubmission,
+      submissionCount,
+      totalTeams
+    });
+  }
+
   try {
     const { poolId } = await params;
     const { searchParams } = new URL(request.url);
@@ -188,6 +207,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ poolId: string }> }
 ) {
+  if (isDummyData()) {
+    return NextResponse.json({
+      success: true,
+      message: 'Playoff confidence points submitted successfully'
+    });
+  }
+
   try {
     const { poolId } = await params;
     const body: {

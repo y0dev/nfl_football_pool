@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { DUMMY_POOL, isDummyData } from '@/lib/utils';
 
 // GET - Get public pool details with stats (no authentication required)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (isDummyData()) {
+    return NextResponse.json({
+      success: true,
+      pool: DUMMY_POOL
+    });
+  }
+  
   try {
     const { id: poolId } = await params;
     const { searchParams } = new URL(request.url);

@@ -1690,10 +1690,10 @@ function PoolPicksContent() {
               
               <div className="flex flex-col lg:flex-row items-center gap-4">
                 {currentWeek === 1 && currentSeasonType === 2 && (
-                  <div className="text-sm text-gray-600 text-center lg:text-right">
-                    <p>Welcome to the pool!</p>
-                    <p>Make your picks below to participate.</p>
-                  </div>
+                <div className="text-sm text-gray-600 text-center lg:text-right">
+                  <p>Welcome to the pool!</p>
+                  <p>Make your picks below to participate.</p>
+                </div>
                 )}
                 <div className="flex flex-wrap justify-center gap-2 max-w-full px-2">
                   <Button

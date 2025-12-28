@@ -1,7 +1,19 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
+import { debugLog, DUMMY_PARTICIPANTS, isDummyData } from '@/lib/utils';
 
+/**
+ * Load users for a pool and week
+ * @param poolId - The ID of the pool
+ * @param week - The week of the season
+ * @param seasonType - The type of season (1: regular season, 3: playoffs)
+ * @returns An array of users
+ * note: this is a client side function that is used to load users for a pool and week
+ */
 export async function loadUsers(poolId?: string, week?: number, seasonType: number = 2) {
+  if (isDummyData()) {
+    return DUMMY_PARTICIPANTS;
+  }
   try {
     const supabase = getSupabaseServiceClient();
     

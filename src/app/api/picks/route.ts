@@ -71,13 +71,13 @@ export async function GET(request: NextRequest) {
     // Note: We can't filter by games.week or games.season_type directly unless includeGames is true
     // If filtering by week/seasonType without includeGames, we'll filter in post-processing
     if (week && includeGames) {
-      query = query.eq('games.week', parseInt(week));
+        query = query.eq('games.week', parseInt(week));
     }
     if (process.env.NODE_ENV === 'development') {
       console.log('Picks API - Query:', query);
     }
     if (seasonType && includeGames) {
-      query = query.eq('games.season_type', parseInt(seasonType));
+        query = query.eq('games.season_type', parseInt(seasonType));
     }
 
     // Order by confidence points for consistent ordering

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { 
+  debugLog, 
+  DUMMY_PARTICIPANTS, 
+  DUMMY_GAMES,
+  DUMMY_PLAYOFF_GAMES,
+  DUMMY_LEADERBOARD_REGULAR,
+  getDummyLeaderboardPlayoffs,
+  isDummyData 
+} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 export async function GET(request: NextRequest) {
@@ -10,6 +18,33 @@ export async function GET(request: NextRequest) {
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
     const season = searchParams.get('season');
+    debugLog('Leaderboard API request:', { poolId, week, seasonType, season });
+
+    if (isDummyData()) {
+      if (seasonType === '3') {
+        // Playoff leaderboard - filter games by week and generate leaderboard
+        const weekNumber = week ? parseInt(week) : 1;
+        const weekGames = DUMMY_PLAYOFF_GAMES.filter(g => g.week === weekNumber);
+        const playoffLeaderboard = getDummyLeaderboardPlayoffs(weekNumber);
+        
+        debugLog('Playoff leaderboard:', playoffLeaderboard);
+        return NextResponse.json({
+          success: true,
+          leaderboard: playoffLeaderboard,
+          participants: DUMMY_PARTICIPANTS,
+          games: weekGames
+        });
+      } else {
+        // Regular season leaderboard
+        debugLog('Regular season leaderboard:', DUMMY_LEADERBOARD_REGULAR);
+        return NextResponse.json({
+          success: true,
+          leaderboard: DUMMY_LEADERBOARD_REGULAR,
+          participants: DUMMY_PARTICIPANTS,
+          games: DUMMY_GAMES
+        });
+      }
+    }
     debugLog('Leaderboard API request:', {
       poolId,
       week,

@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
-import { debugLog, DAYS_BEFORE_GAME } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, isDummyData } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
+    
+    if (isDummyData()) {
+      return NextResponse.json({
+        success: true,
+        message: 'Picks submitted successfully'
+      });
+    }
+
     const { picks, mondayNightScore }: { picks: Pick[], mondayNightScore?: number | null } = await request.json();
     if (process.env.NODE_ENV === 'development') {
       console.log('Picks:', picks);
