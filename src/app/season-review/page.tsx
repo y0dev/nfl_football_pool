@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ArrowLeft,
   Trophy,
@@ -125,24 +124,13 @@ function SeasonReviewContent() {
       // Load season winner
       const seasonResponse = await fetch(`/api/admin/winners/season?poolId=${pool.id}&season=${pool.season}`);
       const seasonResult = await seasonResponse.json();
-      
-      // Load weekly stats
-      const statsResponse = await fetch(`/api/admin/weekly-stats?poolId=${pool.id}&season=${pool.season}`);
-      const statsResult = await statsResponse.json();
 
       if (weeklyResult.success) {
-        console.log('weeklyResult', weeklyResult);
         setWeeklyWinners(weeklyResult.weeklyWinners || []);
       }
       
       if (seasonResult.success) {
-        console.log('seasonResult', seasonResult);
         setSeasonWinner(seasonResult.seasonWinner);
-      }
-      
-      if (statsResult.success) {
-        console.log('statsResult', statsResult);
-        setWeeklyStats(statsResult.weeklyStats || []);
       }
       
     } catch (error) {
@@ -203,7 +191,7 @@ function SeasonReviewContent() {
               Select Pool to Review
             </CardTitle>
             <CardDescription>
-              Choose a pool to view detailed weekly breakdown and statistics
+              Choose a pool to view season winners and statistics
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -256,119 +244,7 @@ function SeasonReviewContent() {
                 </div>
               </div>
             ) : (
-              <Tabs defaultValue="weekly" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="weekly">Weekly Breakdown</TabsTrigger>
-                  <TabsTrigger value="season">Season Summary</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="weekly" className="space-y-6">
-                  {/* Weekly Winners */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5" />
-                        Weekly Winners
-                      </CardTitle>
-                      <CardDescription>
-                        Winners for each week of the {selectedPool.season} season
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {weeklyWinners.length > 0 ? (
-                        <div className="grid gap-4">
-                          {weeklyWinners.map((winner) => (
-                            <div key={winner.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={getWeekPeriodColor(winner.week)}>
-                                    {getWeekPeriod(winner.week)}
-                                  </Badge>
-                                  <span className="font-medium">Week {winner.week}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Crown className="h-4 w-4 text-yellow-600" />
-                                  <span className="font-semibold">{winner.winner_name}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-4 text-sm text-gray-600">
-                                <div className="flex items-center gap-1">
-                                  <Target className="h-4 w-4" />
-                                  <span>
-                                    {winner.winner_correct_picks}/
-                                    {weeklyStats.find(s => s.week === winner.week)?.total_games || '?'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Star className="h-4 w-4" />
-                                  <span>{winner.winner_points} pts</span>
-                                </div>
-                                {winner.tie_breaker_used && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Tie Breaker
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          No weekly winners data available
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Weekly Statistics */}
-                  {weeklyStats.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <BarChart3 className="h-5 w-5" />
-                          Weekly Statistics
-                        </CardTitle>
-                        <CardDescription>
-                          Performance metrics for each week
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid gap-4">
-                          {weeklyStats.map((stats) => (
-                            <div key={stats.week} className="grid grid-cols-2 md:grid-cols-6 gap-4 p-4 border rounded-lg">
-                              <div className="text-center">
-                                <div className="font-semibold">Week {stats.week}</div>
-                                <div className="text-xs text-muted-foreground">Period</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="font-semibold">{stats.total_participants}</div>
-                                <div className="text-xs text-muted-foreground">Participants</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="font-semibold">{stats.total_games}</div>
-                                <div className="text-xs text-muted-foreground">Games</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="font-semibold">{stats.average_points.toFixed(1)}</div>
-                                <div className="text-xs text-muted-foreground">Avg Points</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-green-600">{stats.highest_score}</div>
-                                <div className="text-xs text-muted-foreground">High Score</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-red-600">{stats.lowest_score}</div>
-                                <div className="text-xs text-muted-foreground">Low Score</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="season" className="space-y-6">
+              <div className="space-y-6">
                   {/* Season Winner */}
                   {seasonWinner && (
                     <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
@@ -435,15 +311,70 @@ function SeasonReviewContent() {
                         </div>
                         <div className="text-center p-4 bg-orange-50 rounded-lg">
                           <div className="text-2xl font-bold text-orange-600">
-                            {weeklyStats.reduce((sum, stats) => sum + stats.total_games, 0)}
+                            {weeklyWinners.length > 0 ? weeklyWinners.length * 16 : 0}
                           </div>
-                          <div className="text-sm text-orange-700">Total Games</div>
+                          <div className="text-sm text-orange-700">Estimated Games</div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                </TabsContent>
-              </Tabs>
+
+                  {/* Weekly Winners */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Weekly Winners
+                      </CardTitle>
+                      <CardDescription>
+                        Winners for each week of the {selectedPool.season} season
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {weeklyWinners.length > 0 ? (
+                        <div className="grid gap-4">
+                          {weeklyWinners.map((winner) => (
+                            <div key={winner.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-gray-50">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={getWeekPeriodColor(winner.week)}>
+                                    {getWeekPeriod(winner.week)}
+                                  </Badge>
+                                  <span className="font-medium">Week {winner.week}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Crown className="h-4 w-4 text-yellow-600" />
+                                  <span className="font-semibold">{winner.winner_name}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-gray-600">
+                                <div className="flex items-center gap-1">
+                                  <Target className="h-4 w-4" />
+                                  <span>
+                                    {winner.winner_correct_picks} correct
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-4 w-4" />
+                                  <span>{winner.winner_points} pts</span>
+                                </div>
+                                {winner.tie_breaker_used && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Tie Breaker
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No weekly winners data available
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+              </div>
             )}
           </div>
         )}

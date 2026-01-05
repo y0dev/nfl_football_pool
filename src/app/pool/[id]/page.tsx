@@ -18,6 +18,7 @@ import { EnhancedEmailManagement } from '@/components/admin/enhanced-email-manag
 import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { PoolSettings } from '@/components/admin/pool-settings';
+import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
@@ -51,8 +52,6 @@ function PoolDetailsContent() {
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
   const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE); // Default to regular season
   const [isSaving, setIsSaving] = useState(false);
-  const [teamRecords, setTeamRecords] = useState<any[]>([]);
-  const [loadingTeamRecords, setLoadingTeamRecords] = useState(false);
   const { toast } = useToast();
 
   // Form state for editing
@@ -72,11 +71,6 @@ function PoolDetailsContent() {
     loadCurrentWeekData();
   }, [poolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (pool?.season) {
-      loadTeamRecords(pool.season);
-    }
-  }, [pool?.season]);
 
 
   const loadPoolData = async () => {
@@ -127,23 +121,6 @@ function PoolDetailsContent() {
     }
   };
 
-  const loadTeamRecords = async (season: number) => {
-    try {
-      setLoadingTeamRecords(true);
-      const response = await fetch(`/api/admin/team-records?season=${season}`);
-      const result = await response.json();
-      
-      if (result.success) {
-        setTeamRecords(result.records || []);
-      } else {
-        console.error('Error loading team records:', result.error);
-      }
-    } catch (error) {
-      console.error('Error loading team records:', error);
-    } finally {
-      setLoadingTeamRecords(false);
-    }
-  };
 
   const handleSave = async () => {
     try {
@@ -471,74 +448,37 @@ function PoolDetailsContent() {
         </div>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
-          {/* Team Records */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Team Records - {pool.season} Season
+                <Trophy className="h-5 w-5" />
+                Pool Overview
               </CardTitle>
               <CardDescription>
-                Current NFL team standings and statistics
+                General information about {pool.name}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingTeamRecords ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Pool Name</p>
+                  <p className="font-semibold">{pool.name}</p>
                 </div>
-              ) : teamRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2 font-semibold">Team</th>
-                        <th className="text-center p-2 font-semibold">W-L-T</th>
-                        <th className="text-center p-2 font-semibold">Win %</th>
-                        <th className="text-center p-2 font-semibold">PF</th>
-                        <th className="text-center p-2 font-semibold">PA</th>
-                        <th className="text-center p-2 font-semibold">Diff</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teamRecords.map((record: any) => (
-                        <tr key={record.id} className="border-b hover:bg-gray-50">
-                          <td className="p-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{record.team?.name || record.team?.abbreviation || 'Unknown'}</span>
-                              {record.team?.conference && (
-                                <Badge variant="outline" className="text-xs">
-                                  {record.team.conference}
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-center p-2">
-                            <span className="font-medium">
-                              {record.wins}-{record.losses}
-                              {record.ties > 0 && `-${record.ties}`}
-                            </span>
-                          </td>
-                          <td className="text-center p-2">{record.win_percentage}</td>
-                          <td className="text-center p-2">{record.points_for}</td>
-                          <td className="text-center p-2">{record.points_against}</td>
-                          <td className="text-center p-2">
-                            <span className={record.point_differential >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {record.point_differential >= 0 ? '+' : ''}{record.point_differential}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Season</p>
+                  <p className="font-semibold">{pool.season}</p>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No team records available for {pool.season} season</p>
-                  <p className="text-sm mt-2">Team records will be updated automatically when games are synced.</p>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status</p>
+                  <Badge variant={pool.is_active ? "default" : "secondary"}>
+                    {pool.is_active ? "Active" : "Inactive"}
+                  </Badge>
                 </div>
-              )}
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Created By</p>
+                  <p className="font-semibold">{pool.created_by}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -571,19 +511,29 @@ function PoolDetailsContent() {
         </TabsContent>
 
         <TabsContent value="playoffs" className="space-y-6 mt-6">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold mb-4">Playoff Confidence Points</h3>
-            <p className="text-muted-foreground mb-6">
-              Set confidence points for playoff teams at the beginning of playoffs
-            </p>
-            <Button 
-              onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
-              className="flex items-center gap-2"
-            >
-              <Trophy className="h-4 w-4" />
-              Manage Playoff Confidence Points
-            </Button>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Playoff Confidence Points
+              </CardTitle>
+              <CardDescription>
+                Manage playoff confidence points and view participant submission status
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
+                  className="flex items-center gap-2"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Manage Playoff Confidence Points
+                </Button>
+              </div>
+              <PlayoffParticipantsList poolId={pool.id} poolSeason={pool.season} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="season-review" className="space-y-6 mt-6">
