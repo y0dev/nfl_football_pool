@@ -10,6 +10,7 @@ import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, Chevron
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
@@ -83,6 +84,9 @@ function PlayoffPicksContent() {
   } | null>>({});
   const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
   const [leaderboardData, setLeaderboardData] = useState<Record<number, any[]>>({});
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [usersWithConfidencePointsCount, setUsersWithConfidencePointsCount] = useState(0);
+  const [usersNeedingConfidencePoints, setUsersNeedingConfidencePoints] = useState(0);
 
   const roundNames: Record<number, string> = {
     1: 'Wild Card Round',
@@ -245,10 +249,46 @@ function PlayoffPicksContent() {
         return;
       }
 
+      // Get playoff teams count to check confidence points submissions
+      const { data: playoffTeams } = await supabase
+        .from('playoff_teams')
+        .select('id')
+        .eq('season', poolSeason);
+      
+      const teamsCount = playoffTeams?.length || 0;
+
+      // Get participants who have submitted confidence points
+      const { data: confidenceSubmissions } = await supabase
+        .from('playoff_confidence_points')
+        .select('participant_id')
+        .eq('pool_id', poolId)
+        .eq('season', poolSeason);
+
+      // Count confidence point submissions per participant
+      const participantConfidenceCounts = new Map<string, number>();
+      confidenceSubmissions?.forEach(sub => {
+        const count = participantConfidenceCounts.get(sub.participant_id) || 0;
+        participantConfidenceCounts.set(sub.participant_id, count + 1);
+      });
+
+      // Separate participants into those with and without confidence points
+      const participantsWithConfidencePoints = allParticipants.filter(p => {
+        const submissionCount = participantConfidenceCounts.get(p.id) || 0;
+        return submissionCount === teamsCount && teamsCount > 0;
+      });
+
+      const participantsNeedingConfidencePoints = allParticipants.filter(p => {
+        const submissionCount = participantConfidenceCounts.get(p.id) || 0;
+        return submissionCount !== teamsCount || teamsCount === 0;
+      });
+
+      setUsersWithConfidencePointsCount(participantsWithConfidencePoints.length);
+      setUsersNeedingConfidencePoints(participantsNeedingConfidencePoints.length);
+
       // Check how many participants have submitted picks for all games in current round
-      // (regardless of whether they have confidence points)
+      // Only count participants who have submitted confidence points
       let submitted = 0;
-      for (const participant of allParticipants) {
+      for (const participant of participantsWithConfidencePoints) {
         try {
           const response = await fetch(`/api/picks?poolId=${poolId}&participantId=${participant.id}&seasonType=3`);
           const data = await response.json();
@@ -966,10 +1006,9 @@ function PlayoffPicksContent() {
       debugLog('Playoff picks page: Submit response:', data);
 
       if (data.success) {
-        toast({
-          title: 'Success',
-          description: `${roundNames[week]} picks submitted successfully`,
-        });
+        // Show success dialog
+        setShowSuccessDialog(true);
+        
         setHasSubmitted(prev => ({ ...prev, [week]: true }));
         await loadRoundScores();
         await loadPicks(); // Reload picks to get updated state
@@ -1109,6 +1148,8 @@ function PlayoffPicksContent() {
           weekNumber={currentRound}
           seasonType={3}
           onUserSelected={handleUserSelected}
+          usersNeedingConfidencePoints={usersNeedingConfidencePoints}
+          poolSeason={poolSeason}
         />
       </div>
     );
@@ -1870,8 +1911,44 @@ function PlayoffPicksContent() {
                   );
                 })()}
 
-                  {/* Leaderboard - Show when all participants have submitted, debug mode is enabled, or game picks panel is hidden */}
-                {(showLeaderboard[round.week] || (debugMode && roundWinners[round.week]) || (!showGamePicksPanel && round.week === currentRound)) && (
+                  {/* Message when all users with confidence points have submitted but others need to submit confidence points */}
+                  {round.week === currentRound && 
+                   submittedCount >= usersWithConfidencePointsCount && 
+                   usersWithConfidencePointsCount > 0 && 
+                   usersNeedingConfidencePoints > 0 && (
+                    <Card className="mt-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-orange-900">
+                          <Target className="h-5 w-5" />
+                          Waiting for Confidence Points Submissions
+                        </CardTitle>
+                        <CardDescription className="text-orange-700">
+                          All participants who have submitted confidence points have also submitted their picks for this round.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <p className="text-sm text-orange-800">
+                            There are still {usersNeedingConfidencePoints} participant{usersNeedingConfidencePoints !== 1 ? 's' : ''} who need to submit their playoff confidence points before they can make picks.
+                          </p>
+                          <Button
+                            onClick={() => router.push(`/pool/${poolId}/playoffs`)}
+                            className="w-full"
+                            variant="outline"
+                          >
+                            <Target className="h-4 w-4 mr-2" />
+                            Go to Confidence Points Page
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Leaderboard - Show when all participants with confidence points have submitted, debug mode is enabled, or game picks panel is hidden */}
+                {((submittedCount >= usersWithConfidencePointsCount && usersWithConfidencePointsCount > 0 && usersNeedingConfidencePoints === 0) || 
+                  showLeaderboard[round.week] || 
+                  (debugMode && roundWinners[round.week]) || 
+                  (!showGamePicksPanel && round.week === currentRound)) && (
                     <Card className="mt-6">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -1929,6 +2006,26 @@ function PlayoffPicksContent() {
 
         </div>
       </div>
+
+      {/* Success Dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-green-500" />
+              Picks Submitted Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Your picks for {roundNames[currentRound]} have been submitted. Best of luck!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowSuccessDialog(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

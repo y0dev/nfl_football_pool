@@ -388,64 +388,78 @@ function PlayoffManagementContent() {
           const existingGame = roundGames.find(g => g.id === espnGame.id);
           
           if (existingGame) {
-            // Check if teams match (ESPN is source of truth)
-            const teamsMatch = espnGame.away_team && espnGame.home_team &&
-              ((existingGame.away_team === espnGame.away_team && existingGame.home_team === espnGame.home_team) ||
-               (existingGame.away_team === espnGame.home_team && existingGame.home_team === espnGame.away_team));
-            
             const hasTbd = existingGame.away_team === 'TBD' || existingGame.home_team === 'TBD';
-            const teamsDontMatch = espnGame.away_team && espnGame.home_team &&
-              !teamsMatch && !hasTbd &&
-              (existingGame.away_team !== espnGame.away_team || existingGame.home_team !== espnGame.home_team) &&
-              (existingGame.away_team !== espnGame.home_team || existingGame.home_team !== espnGame.away_team);
             
-            // Update if teams don't match (ESPN is correct) or if there's a TBD
-            if (hasTbd || teamsDontMatch) {
-              if (teamsDontMatch) {
-                debugLog(`Updating game ${espnGame.id}: DB has ${existingGame.away_team} @ ${existingGame.home_team}, ESPN has ${espnGame.away_team} @ ${espnGame.home_team}`);
-              } else {
-                debugLog(`Updating existing TBD game ${espnGame.id} with teams: ${espnGame.away_team} @ ${espnGame.home_team}`);
+            // If ESPN has teams, check if they match the existing game
+            if (espnGame.away_team && espnGame.home_team) {
+              // Check if teams match (considering home/away swap)
+              const teamsMatch = 
+                (existingGame.away_team === espnGame.away_team && existingGame.home_team === espnGame.home_team) ||
+                (existingGame.away_team === espnGame.home_team && existingGame.home_team === espnGame.away_team);
+              
+              // If teams don't match OR there's a TBD, update with ESPN data (ESPN is source of truth)
+              if (!teamsMatch || hasTbd) {
+                if (!teamsMatch && !hasTbd) {
+                  debugLog(`Updating game ${espnGame.id}: DB has ${existingGame.away_team} @ ${existingGame.home_team}, ESPN has ${espnGame.away_team} @ ${espnGame.home_team}`);
+                } else if (hasTbd) {
+                  debugLog(`Updating existing TBD game ${espnGame.id} with teams: ${espnGame.away_team} @ ${espnGame.home_team}`);
+                }
+                
+                gamesToCreate.push({
+                  season,
+                  week: round,
+                  away_team: espnGame.away_team,
+                  home_team: espnGame.home_team,
+                  id: espnGame.id, // Keep the ESPN ID
+                  kickoff_time: espnGame.kickoff_time || existingGame.kickoff_time,
+                  status: existingGame.status || 'scheduled'
+                });
+                updatedGames.add(espnGame.id);
+                continue;
               }
               
-              gamesToCreate.push({
-                season,
-                week: round,
-                away_team: espnGame.away_team || existingGame.away_team || 'TBD',
-                home_team: espnGame.home_team || existingGame.home_team || 'TBD',
-                id: espnGame.id, // Keep the ESPN ID
-                kickoff_time: espnGame.kickoff_time || existingGame.kickoff_time,
-                status: existingGame.status || 'scheduled'
-              });
-              updatedGames.add(espnGame.id);
-              continue;
-            }
-            
-            // Teams match and no TBD, skip
-            if (teamsMatch && !hasTbd) {
+              // Teams match and no TBD, skip
               debugLog(`Game with ID ${espnGame.id} already exists with matching teams, skipping`);
               continue;
+            } else if (hasTbd) {
+              // ESPN doesn't have teams but DB has TBD - update kickoff time if available
+              if (espnGame.kickoff_time && espnGame.kickoff_time !== existingGame.kickoff_time) {
+                gamesToCreate.push({
+                  season,
+                  week: round,
+                  away_team: existingGame.away_team || 'TBD',
+                  home_team: existingGame.home_team || 'TBD',
+                  id: espnGame.id,
+                  kickoff_time: espnGame.kickoff_time,
+                  status: existingGame.status || 'scheduled'
+                });
+                updatedGames.add(espnGame.id);
+                continue;
+              }
             }
           }
         }
 
-        // Check if game already exists by team matchup (if teams are available)
-        if (espnGame.away_team && espnGame.home_team) {
+        // Check if game already exists by team matchup (if teams are available and we haven't already processed it)
+        if (espnGame.away_team && espnGame.home_team && !updatedGames.has(espnGame.id || '')) {
           const matchupKey = [espnGame.away_team, espnGame.home_team].sort().join('|');
           if (existingMatchups.has(matchupKey)) {
-            // Check if this matchup already has the correct ID
-            const existingGame = roundGames.find(g => {
+            // Find all games with this matchup
+            const existingGamesWithMatchup = roundGames.filter(g => {
               const gameMatchup = [g.away_team, g.home_team].sort().join('|');
               return gameMatchup === matchupKey;
             });
             
-            // If the existing game already has this ESPN ID, skip
-            if (existingGame && existingGame.id === espnGame.id) {
-              debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists with matching ID, skipping`);
+            // Check if any of these games already has this ESPN ID
+            const gameWithMatchingId = existingGamesWithMatchup.find(g => g.id === espnGame.id);
+            if (gameWithMatchingId) {
+              debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists with matching ID ${espnGame.id}, skipping`);
               continue;
             }
             
-            // Otherwise, we might want to update the ID, but for now skip to avoid duplicates
-            debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists, skipping`);
+            // If we have multiple games with same teams but different IDs, skip to avoid duplicates
+            // (The ID-based update above should have handled any mismatches)
+            debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists with different ID(s), skipping`);
             continue;
           }
         }
@@ -964,7 +978,22 @@ function PlayoffManagementContent() {
     return games.filter(g => g.week === round);
   };
 
-  const availableTeams = NFL_TEAMS.filter(t => t.conference === selectedConference);
+  // Get available teams for the selected conference, excluding teams already assigned
+  // Always include the current team being edited (if any) so it can be kept or changed
+  const getAvailableTeams = () => {
+    const assignedTeamNames = new Set(
+      teams
+        .filter(t => t.id !== editingTeam?.id) // Exclude current team being edited
+        .map(t => t.team_name)
+    );
+    
+    return NFL_TEAMS.filter(t => 
+      t.conference === selectedConference && 
+      (!assignedTeamNames.has(t.name) || t.name === editingTeam?.team_name) // Include if not assigned OR if it's the current team
+    );
+  };
+  
+  const availableTeams = getAvailableTeams();
 
   // Show loading while checking access
   if (checkingAccess || loading) {
@@ -1514,13 +1543,21 @@ function PlayoffManagementContent() {
               </div>
               <div>
                 <Label>Seed (1-7)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={editingTeam.seed}
-                  onChange={(e) => setEditingTeam({ ...editingTeam, seed: parseInt(e.target.value) || 1 })}
-                />
+                <Select
+                  value={editingTeam.seed.toString()}
+                  onValueChange={(value) => setEditingTeam({ ...editingTeam, seed: parseInt(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7].map((seedNum) => (
+                      <SelectItem key={seedNum} value={seedNum.toString()}>
+                        {seedNum}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Team</Label>
@@ -1734,7 +1771,7 @@ function PlayoffManagementContent() {
 
       {/* Confirmation Dialog for Game Fetching */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent className="max-w-2xl w-[calc(100vw-1rem)] sm:w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="max-w-4xl w-[calc(100vw-1rem)] sm:w-full lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader className="px-0">
             <DialogTitle className="text-lg sm:text-xl">Review Games Before Saving</DialogTitle>
             <DialogDescription className="text-sm sm:text-base">

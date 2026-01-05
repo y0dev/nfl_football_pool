@@ -85,13 +85,19 @@ export async function POST(request: NextRequest) {
     // Get existing teams
     const { data: existingTeams } = await supabase
       .from('playoff_teams')
-      .select('id, conference, seed')
+      .select('id, conference, seed, team_name')
       .eq('season', season);
 
-    const existingMap = new Map();
+    // Create maps for lookup
+    const existingByKey = new Map(); // conference_seed -> team id
+    const existingById = new Map(); // team id -> team object
+    const existingByTeamName = new Map(); // team_name -> team object (for same season)
+    
     (existingTeams || []).forEach(team => {
       const key = `${team.conference}_${team.seed}`;
-      existingMap.set(key, team.id);
+      existingByKey.set(key, team.id);
+      existingById.set(team.id, team);
+      existingByTeamName.set(team.team_name, team);
     });
 
     const toInsert = [];
@@ -107,9 +113,17 @@ export async function POST(request: NextRequest) {
         seed: parseInt(team.seed)
       };
 
-      if (existingMap.has(key)) {
-        toUpdate.push({ id: existingMap.get(key), ...teamData });
+      // Check if this team already exists by team_name (for updates)
+      const existingTeamByName = existingByTeamName.get(team.team_name);
+      
+      if (existingTeamByName) {
+        // Team exists - update it (even if seed/conference changed)
+        toUpdate.push({ id: existingTeamByName.id, ...teamData });
+      } else if (existingByKey.has(key)) {
+        // Seed/conference combination exists but different team - update it
+        toUpdate.push({ id: existingByKey.get(key), ...teamData });
       } else {
+        // New team
         toInsert.push(teamData);
       }
     }

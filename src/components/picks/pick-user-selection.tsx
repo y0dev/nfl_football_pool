@@ -9,15 +9,19 @@ import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog } from '@/lib/utils';
+import { Target } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface PickUserSelectionProps {
   poolId: string;
   weekNumber?: number;
   seasonType?: number;
   onUserSelected: (userId: string, userName: string) => void;
+  usersNeedingConfidencePoints?: number;
+  poolSeason?: number;
 }
 
-export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelected }: PickUserSelectionProps) {
+export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelected, usersNeedingConfidencePoints, poolSeason }: PickUserSelectionProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -26,6 +30,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
   const [isMounted, setIsMounted] = useState(false);
   
   const { toast } = useToast();
+  const router = useRouter();
 
   // Handle SSR - only run on client side
   useEffect(() => {
@@ -155,6 +160,43 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
   }
 
   if (users.length === 0) {
+    // For playoffs, check if there are users who need to submit confidence points
+    const isPlayoffs = seasonType === 3;
+    const hasUsersNeedingConfidencePoints = usersNeedingConfidencePoints !== undefined && usersNeedingConfidencePoints > 0;
+    
+    if (isPlayoffs && hasUsersNeedingConfidencePoints) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Confidence Points Required</CardTitle>
+            <CardDescription>
+              Participants need to submit confidence points before making picks
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-gray-500">
+                There {usersNeedingConfidencePoints === 1 ? 'is' : 'are'} still {usersNeedingConfidencePoints} participant{usersNeedingConfidencePoints !== 1 ? 's' : ''} who need{usersNeedingConfidencePoints === 1 ? 's' : ''} to submit {usersNeedingConfidencePoints === 1 ? 'their' : 'their'} playoff confidence points before {usersNeedingConfidencePoints === 1 ? 'they can' : 'they can'} make picks.
+              </p>
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <p className="text-sm text-orange-800 mb-3">
+                  <strong>Action Required:</strong> Participants must submit their playoff confidence points before they can make picks for playoff rounds.
+                </p>
+                <Button
+                  onClick={() => router.push(`/pool/${poolId}/playoffs`)}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <Target className="h-4 w-4 mr-2" />
+                  Go to Confidence Points Page
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    
     return (
       <Card>
         <CardHeader>
