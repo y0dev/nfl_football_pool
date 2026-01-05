@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
     for (const dateStr of dates) {
       try {
         const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dateStr}`;
+        debugLog(`Fetching ESPN data for date ${dateStr}:`, url);
         const response = await fetch(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -186,17 +187,17 @@ export async function POST(request: NextRequest) {
               // Extract game ID and kickoff time (team names are optional for TBD games)
               const gameId = competition.id || event.id;
               const kickoffTime = competition.date || event.date;
-              
+              debugLog(`PLAYOFFS: Game ID: ${gameId}, Kickoff Time: ${kickoffTime}`);
               if (gameId && kickoffTime) {
                 // Try to extract team names if available
                 const competitors = competition.competitors || [];
                 let awayTeam: string | undefined;
                 let homeTeam: string | undefined;
-                
+                debugLog(`PLAYOFFS: Competitors: ${competitors}`);
                 if (competitors.length === 2) {
                   const awayTeamObj = competitors.find((c: any) => c.homeAway === 'away');
                   const homeTeamObj = competitors.find((c: any) => c.homeAway === 'home');
-                  
+                  debugLog(`PLAYOFFS: Away Team: ${awayTeamObj?.team?.displayName}, Home Team: ${homeTeamObj?.team?.displayName}`);
                   if (awayTeamObj?.team?.displayName && homeTeamObj?.team?.displayName) {
                     awayTeam = awayTeamObj.team.displayName;
                     homeTeam = homeTeamObj.team.displayName;

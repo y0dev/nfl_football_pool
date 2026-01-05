@@ -111,8 +111,29 @@ export const CURRENT_NFL_SEASON = 2025;
 export const DEFAULT_SEASON = 2025;
 export const DEFAULT_SEASON_TYPE = 2; // 1=Preseason, 2=Regular Season, 3=Postseason
 
+/**
+ * Calculate the NFL season year based on current date.
+ * The NFL season year changes after the second week of February.
+ * So if we're in January or early February (before Feb 14), we're still in the previous year's season.
+ * 
+ * @returns The NFL season year (e.g., if it's January 2025, returns 2024)
+ */
+export function getNFLSeasonYear(): number {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-12
+  const day = now.getDate();
+  
+  // If we're before February 14th, we're still in the previous year's season
+  if (month < 2 || (month === 2 && day < 14)) {
+    return currentYear - 1;
+  }
+  
+  return currentYear;
+}
+
 // Pool Configuration
-export const DEFAULT_POOL_SEASON = 2025;
+export const DEFAULT_POOL_SEASON = getNFLSeasonYear();
 export const DEFAULT_POOL_IS_ACTIVE = true;
 export const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
 
@@ -782,4 +803,4 @@ export const getDummyLeaderboardPlayoffs = (week: number = 1) => {
 };
 
 // Default dummy leaderboard for playoffs (week 1)
-export const DUMMY_LEADERBOARD_PLAYOFFS = getDummyLeaderboardPlayoffs(1);
+// export const DUMMY_LEADERBOARD_PLAYOFFS = getDummyLeaderboardPlayoffs(1);

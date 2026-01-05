@@ -5,6 +5,7 @@ import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
   if (isDummyData()) {
+    debugLog('Using dummy data for playoff games');
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week'); // Round (1-4)
     
@@ -21,7 +22,9 @@ export async function GET(request: NextRequest) {
       games: games
     });
   }
-  
+
+  debugLog('Using real data for playoff games');
+  // Admin routes should always use real data from database, not dummy data
   try {
     const { searchParams } = new URL(request.url);
     const season = searchParams.get('season');

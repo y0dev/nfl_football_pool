@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     debugLog('Leaderboard API request:', { poolId, week, seasonType, season });
 
     if (isDummyData()) {
+      debugLog('Using dummy data');
       if (seasonType === '3') {
         // Playoff leaderboard - filter games by week and generate leaderboard
         const weekNumber = week ? parseInt(week) : 1;
