@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle, Crown } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle, Crown, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -85,6 +85,9 @@ function PlayoffPicksContent() {
   const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
   const [leaderboardData, setLeaderboardData] = useState<Record<number, any[]>>({});
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [pendingRound, setPendingRound] = useState<number | null>(null);
+  const [userConfirmed, setUserConfirmed] = useState(false);
   const [usersWithConfidencePointsCount, setUsersWithConfidencePointsCount] = useState(0);
   const [usersNeedingConfidencePoints, setUsersNeedingConfidencePoints] = useState(0);
 
@@ -960,13 +963,37 @@ function PlayoffPicksContent() {
       }
     }
 
+    // Show confirmation dialog instead of submitting directly
+    setPendingRound(week);
+    setUserConfirmed(false); // Reset confirmation checkbox
+    setShowConfirmationDialog(true);
+  };
+
+  const confirmSubmitRound = async () => {
+    if (!selectedUser || pendingRound === null) {
+      return;
+    }
+
+    const week = pendingRound;
+    setShowConfirmationDialog(false);
     setIsSubmitting(true);
 
     try {
+      const allRoundGames = playoffRounds.find(r => r.week === week)?.games || [];
+      
+      // Only include games where teams have been determined (valid games) - TBD games are treated as non-existent
+      const roundGames = allRoundGames.filter(game => {
+        const hasHomeTeam = game.home_team && game.home_team.trim() !== '' && game.home_team.trim() !== 'TBD';
+        const hasAwayTeam = game.away_team && game.away_team.trim() !== '' && game.away_team.trim() !== 'TBD';
+        const isPlaceholder = 'isPlaceholder' in game && game.isPlaceholder;
+        return hasHomeTeam && hasAwayTeam && !isPlaceholder;
+      });
+      const roundPicks = picks.filter(pick => roundGames.some(g => g.id === pick.game_id));
+
       // Prepare picks with all required fields
       const picksToSubmit = roundPicks
-        .filter(pick => pick.predicted_winner && pick.predicted_winner.trim() !== '')
-        .map(pick => ({
+        .filter((pick: Pick) => pick.predicted_winner && pick.predicted_winner.trim() !== '')
+        .map((pick: Pick) => ({
           participant_id: selectedUser.id,
           pool_id: poolId,
           game_id: pick.game_id,
@@ -983,7 +1010,7 @@ function PlayoffPicksContent() {
     
     // Save picks to localStorage before submission as backup
     if (selectedUser) {
-      const storedPicks: StoredPick[] = picksToSubmit.map(pick => ({
+      const storedPicks: StoredPick[] = picksToSubmit.map((pick: any) => ({
         ...pick,
         timestamp: Date.now()
       }));
@@ -1057,6 +1084,7 @@ function PlayoffPicksContent() {
       });
     } finally {
       setIsSubmitting(false);
+      setPendingRound(null);
     }
   };
 
@@ -2006,6 +2034,130 @@ function PlayoffPicksContent() {
 
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm Your Picks
+            </DialogTitle>
+            <DialogDescription>
+              Please review your {pendingRound ? roundNames[pendingRound] : 'playoff'} picks before submitting. Once submitted, picks cannot be changed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* User Confirmation */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <User className="h-5 w-5 text-blue-600" />
+                <span className="font-semibold text-blue-900">Submitting as:</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                {selectedUser?.name}
+              </div>
+              <div className="mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    id="confirm-identity"
+                    checked={userConfirmed}
+                    onCheckedChange={(checked) => setUserConfirmed(checked === true)}
+                  />
+                  <span className="text-sm text-blue-800">
+                    I confirm that I am <strong>{selectedUser?.name}</strong> and these are my picks
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Picks Summary */}
+            {pendingRound && (() => {
+              const allRoundGames = playoffRounds.find(r => r.week === pendingRound)?.games || [];
+              const roundGames = allRoundGames.filter(game => {
+                const hasHomeTeam = game.home_team && game.home_team.trim() !== '' && game.home_team.trim() !== 'TBD';
+                const hasAwayTeam = game.away_team && game.away_team.trim() !== '' && game.away_team.trim() !== 'TBD';
+                const isPlaceholder = 'isPlaceholder' in game && game.isPlaceholder;
+                return hasHomeTeam && hasAwayTeam && !isPlaceholder;
+              });
+              const roundPicks = picks.filter(pick => roundGames.some(g => g.id === pick.game_id));
+
+              return (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Your Picks:</h4>
+                  <div className="space-y-2">
+                    {roundGames.map((game, index) => {
+                      const pick = roundPicks.find(p => p.game_id === game.id);
+                      return (
+                        <div key={game.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium">
+                              Game {index + 1}: {pick?.predicted_winner || 'Not selected'}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {game.away_team} @ {game.home_team}
+                            </div>
+                          </div>
+                          {pick?.predicted_winner && (
+                            <Badge variant="outline" className="ml-2">
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Super Bowl Total Score */}
+            {pendingRound === 4 && superBowlTotalScore !== null && (
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Super Bowl Total Score:</h4>
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-blue-900">
+                        Total Points Prediction
+                      </div>
+                      <div className="text-sm text-blue-700">
+                        Used for tie-breaking in Super Bowl
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      {superBowlTotalScore} points
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">
+                <strong>Important:</strong> After submission, you cannot change your picks. 
+                Make sure all selections are correct before confirming.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => {
+              setShowConfirmationDialog(false);
+              setUserConfirmed(false);
+            }} disabled={isSubmitting}>
+              Review Picks
+            </Button>
+            <Button 
+              onClick={confirmSubmitRound}
+              disabled={!userConfirmed || isSubmitting}
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Picks'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
