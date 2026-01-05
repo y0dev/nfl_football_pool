@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Trophy } from 'lucide-react';
 import { Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugError, debugLog, getTeamAbbreviation, PERIOD_WEEKS } from '@/lib/utils';
+import { debugError, debugLog, getTeamAbbreviation, PERIOD_WEEKS, isDummyData } from '@/lib/utils';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 
 interface LeaderboardProps {
@@ -27,6 +27,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   // Function to load Monday night scores for tie-breaker weeks
   const loadMondayNightScores = async (poolId: string, weekNumber: number, season: number) => {
     debugLog('loadMondayNightScores called with:', { poolId, weekNumber, season, PERIOD_WEEKS });
+    if (isDummyData()) {
+      return new Map();
+    }
     
     if (!PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number])) {
       debugLog('Not a tie-breaker week, skipping Monday night scores');

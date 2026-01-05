@@ -79,8 +79,10 @@ function PlayoffPicksContent() {
     participant_name: string;
     points: number;
     correct_picks: number;
+    total_picks?: number;
   } | null>>({});
   const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
+  const [leaderboardData, setLeaderboardData] = useState<Record<number, any[]>>({});
 
   const roundNames: Record<number, string> = {
     1: 'Wild Card Round',
@@ -681,88 +683,64 @@ function PlayoffPicksContent() {
     }
   };
 
-  // Load round winners when debug mode is enabled
+  // Load leaderboard data and extract winners when debug mode is enabled or game picks panel is hidden
   useEffect(() => {
-    const loadRoundWinners = async () => {
-      if (!debugMode || !poolId || !poolSeason) return;
+    const loadLeaderboardData = async () => {
+      if ((!debugMode && showGamePicksPanel) || !poolId || !poolSeason) return;
 
-      // Generate dummy data instead of fetching from API
       try {
-        // Try to get actual participant names to use for dummy data
-        const users = await loadUsers(poolId);
-        const participantNames = users && users.length > 0 
-          ? users.map(u => u.name)
-          : ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'David Brown', 'Emily Davis'];
-        
-        // Generate dummy winners for each round
         const winnersMap: Record<number, {
           participant_name: string;
           points: number;
           correct_picks: number;
+          total_picks: number;
         }> = {};
-
-        const roundGameCounts = [6, 4, 2, 1]; // Games per round: Wild Card, Divisional, Conference, Super Bowl
+        const leaderboardMap: Record<number, any[]> = {};
         
+        // Load leaderboard data for each round
         for (let week = 1; week <= 4; week++) {
-          const gameCount = roundGameCounts[week - 1];
-          const randomIndex = Math.floor(Math.random() * participantNames.length);
-          const winnerName = participantNames[randomIndex];
-          
-          // Generate realistic dummy scores
-          // Points range: 50-150 for Wild Card, 40-120 for Divisional, 30-90 for Conference, 20-70 for Super Bowl
-          const basePoints = [50, 40, 30, 20][week - 1];
-          const pointsRange = [100, 80, 60, 50][week - 1];
-          const points = basePoints + Math.floor(Math.random() * pointsRange);
-          
-          // Correct picks: typically 70-100% of games
-          const correctPicks = Math.max(1, Math.floor(gameCount * (0.7 + Math.random() * 0.3)));
-          
-          winnersMap[week] = {
-            participant_name: winnerName,
-            points: points,
-            correct_picks: correctPicks
-          };
+          try {
+            const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=3&season=${poolSeason}`);
+            const data = await response.json();
+            
+            if (data.success && data.leaderboard && data.leaderboard.length > 0) {
+              // Store leaderboard data
+              leaderboardMap[week] = data.leaderboard;
+              
+              // Extract winner (first place) from leaderboard
+              const winner = data.leaderboard[0];
+              if (winner) {
+                winnersMap[week] = {
+                  participant_name: winner.participant_name || 'Unknown',
+                  points: winner.total_points || 0,
+                  correct_picks: winner.correct_picks || 0,
+                  total_picks: winner.total_picks || 0
+                };
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading leaderboard for week ${week}:`, error);
+          }
         }
-
+        
+        setLeaderboardData(leaderboardMap);
         setRoundWinners(winnersMap);
         
-        // In debug mode, show leaderboard for all rounds
-        const showLeaderboardMap: Record<number, boolean> = {};
-        for (let week = 1; week <= 4; week++) {
-          showLeaderboardMap[week] = true;
+        // In debug mode or when panel is hidden, show leaderboard for all rounds
+        if (debugMode || !showGamePicksPanel) {
+          const showLeaderboardMap: Record<number, boolean> = {};
+          for (let week = 1; week <= 4; week++) {
+            showLeaderboardMap[week] = true;
+          }
+          setShowLeaderboard(showLeaderboardMap);
         }
-        setShowLeaderboard(showLeaderboardMap);
       } catch (error) {
-        console.error('Error generating dummy round winners:', error);
-        // Fallback to generic dummy data
-        const winnersMap: Record<number, {
-          participant_name: string;
-          points: number;
-          correct_picks: number;
-        }> = {};
-        
-        const dummyNames = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams'];
-        const roundGameCounts = [6, 4, 2, 1];
-        
-        for (let week = 1; week <= 4; week++) {
-          const gameCount = roundGameCounts[week - 1];
-          const basePoints = [50, 40, 30, 20][week - 1];
-          const pointsRange = [100, 80, 60, 50][week - 1];
-          winnersMap[week] = {
-            participant_name: dummyNames[(week - 1) % dummyNames.length],
-            points: basePoints + Math.floor(Math.random() * pointsRange),
-            correct_picks: Math.max(1, Math.floor(gameCount * (0.7 + Math.random() * 0.3)))
-          };
-        }
-        
-        setRoundWinners(winnersMap);
-        const showLeaderboardMap: Record<number, boolean> = { 1: true, 2: true, 3: true, 4: true };
-        setShowLeaderboard(showLeaderboardMap);
+        console.error('Error loading leaderboard data:', error);
       }
     };
 
-    loadRoundWinners();
-  }, [debugMode, poolId, poolSeason]);
+    loadLeaderboardData();
+  }, [debugMode, showGamePicksPanel, poolId, poolSeason]);
 
   const checkAllSubmissions = async () => {
     try {
@@ -1330,17 +1308,6 @@ function PlayoffPicksContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => router.push(`/pool/${poolId}/picks?week=18&seasonType=2`)}
-                    className="flex items-center gap-2 min-w-fit px-3 py-2"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    <span className="hidden md:inline">Regular Season</span>
-                    <span className="md:hidden">Regular</span>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
                     onClick={() => router.push(`/pool/${poolId}/playoffs`)}
                     className="flex items-center gap-2 min-w-fit px-3 py-2"
                   >
@@ -1369,10 +1336,34 @@ function PlayoffPicksContent() {
                   <Checkbox
                     id="show-game-picks"
                     checked={showGamePicksPanel}
-                    onCheckedChange={(checked) => setShowGamePicksPanel(checked === true)}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setShowGamePicksPanel(isChecked);
+                      
+                      // When unchecked, automatically show leaderboard with calculated winners
+                      if (!isChecked) {
+                        // Enable leaderboard for current round
+                        setShowLeaderboard(prev => ({
+                          ...prev,
+                          [currentRound]: true
+                        }));
+                        
+                        // Enable debug mode to calculate and show winners in leaderboard
+                        // This will trigger the useEffect to load leaderboard data
+                        setDebugMode(true);
+                      } else {
+                        // When checked again, optionally disable debug mode if needed
+                        // For now, keep debug mode as-is to maintain consistency
+                      }
+                    }}
                   />
                   <Label htmlFor="show-game-picks" className="text-sm font-medium cursor-pointer">
                     Show Game Picks Panel
+                    {!showGamePicksPanel && (
+                      <span className="text-gray-500 ml-1 text-xs">
+                        (Hiding panel shows leaderboard with calculated winners)
+                      </span>
+                    )}
                   </Label>
                 </div>
               </div>
@@ -1838,8 +1829,20 @@ function PlayoffPicksContent() {
                     </Card>
                   )}
 
-                {/* Round Winner Announcement - Show when debug mode is enabled and winner exists */}
-                {debugMode && roundWinners[round.week] && (
+                {/* Round Winner Announcement - Show when debug mode is enabled or game picks panel is hidden and winner exists */}
+                {(() => {
+                  // Get winner from leaderboard data if available, otherwise use roundWinners state
+                  const leaderboardForRound = leaderboardData[round.week];
+                  const winner = leaderboardForRound && leaderboardForRound.length > 0 
+                    ? {
+                        participant_name: leaderboardForRound[0].participant_name,
+                        points: leaderboardForRound[0].total_points,
+                        correct_picks: leaderboardForRound[0].correct_picks,
+                        total_picks: leaderboardForRound[0].total_picks
+                      }
+                    : roundWinners[round.week];
+                  
+                  return ((debugMode || !showGamePicksPanel) && winner) && (
                     <Card className="mt-6 max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
                       <CardHeader className="text-center">
                         <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -1853,21 +1856,22 @@ function PlayoffPicksContent() {
                       <CardContent className="text-center space-y-4">
                         <div className="bg-white rounded-lg p-6 border border-yellow-200">
                           <div className="text-3xl font-bold text-yellow-800 mb-2">
-                            {roundWinners[round.week]?.participant_name}
+                            {winner.participant_name}
                           </div>
                           <div className="text-lg text-yellow-700 mb-4">
-                            {roundWinners[round.week]?.points} points
+                            {winner.points} points
                           </div>
                           <div className="text-sm text-gray-600">
-                            {roundWinners[round.week]?.correct_picks} correct picks out of {validGames.length} games
+                            {winner.correct_picks} correct picks out of {winner.total_picks || validGames.length} games
                           </div>
                         </div>
                       </CardContent>
                     </Card>
-                  )}
+                  );
+                })()}
 
-                  {/* Leaderboard - Show when all participants have submitted or debug mode is enabled */}
-                {(showLeaderboard[round.week] || (debugMode && roundWinners[round.week])) && (
+                  {/* Leaderboard - Show when all participants have submitted, debug mode is enabled, or game picks panel is hidden */}
+                {(showLeaderboard[round.week] || (debugMode && roundWinners[round.week]) || (!showGamePicksPanel && round.week === currentRound)) && (
                     <Card className="mt-6">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -1875,7 +1879,10 @@ function PlayoffPicksContent() {
                           {round.roundName} Final Results
                         </CardTitle>
                         <CardDescription>
-                          Complete standings for {poolName} - {round.roundName}
+                          {!showGamePicksPanel && round.week === currentRound 
+                            ? `Leaderboard preview for ${poolName} - ${round.roundName}. Winners are calculated for display purposes.`
+                            : `Complete standings for ${poolName} - ${round.roundName}`
+                          }
                         </CardDescription>
                       </CardHeader>
                       <CardContent>

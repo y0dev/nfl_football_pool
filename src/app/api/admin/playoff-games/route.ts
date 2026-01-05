@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
 
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
+  if (isDummyData()) {
+    const { searchParams } = new URL(request.url);
+    const week = searchParams.get('week'); // Round (1-4)
+    
+    let games = DUMMY_PLAYOFF_GAMES;
+    
+    // Filter by week if provided
+    if (week) {
+      const weekNumber = parseInt(week);
+      games = games.filter(game => game.week === weekNumber);
+    }
+    
+    return NextResponse.json({
+      success: true,
+      games: games
+    });
+  }
+  
   try {
     const { searchParams } = new URL(request.url);
     const season = searchParams.get('season');

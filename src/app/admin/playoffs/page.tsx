@@ -26,7 +26,8 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Shield
 } from 'lucide-react';
 import { debugLog, NFL_TEAMS } from '@/lib/utils';
 
@@ -67,11 +68,13 @@ const ROUND_GAME_COUNTS: Record<number, number> = {
 function PlayoffManagementContent() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, verifyAdminStatus } = useAuth();
 
   const [season, setSeason] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'teams' | 'games'>('teams');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
   // Teams state
   const [teams, setTeams] = useState<PlayoffTeam[]>([]);
@@ -94,12 +97,49 @@ function PlayoffManagementContent() {
   const [resultDialogTitle, setResultDialogTitle] = useState('');
   const [resultDialogDescription, setResultDialogDescription] = useState('');
 
+  // Check if user is a super admin (not a commissioner)
   useEffect(() => {
-    if (season) {
+    const checkAccess = async () => {
+      if (!user) {
+        setCheckingAccess(false);
+        return;
+      }
+
+      try {
+        // Only super admins can access this page (not commissioners)
+        const superAdminStatus = await verifyAdminStatus(true);
+        setIsSuperAdmin(superAdminStatus);
+        
+        if (!superAdminStatus) {
+          // User is not a super admin (might be a commissioner), redirect to dashboard
+          toast({
+            title: 'Access Denied',
+            description: 'This page is only accessible to system administrators.',
+            variant: 'destructive',
+          });
+          router.push('/admin/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        router.push('/admin/dashboard');
+      } finally {
+        setCheckingAccess(false);
+      }
+    };
+
+    if (user) {
+      checkAccess();
+    } else {
+      setCheckingAccess(false);
+    }
+  }, [user, verifyAdminStatus, router, toast]);
+
+  useEffect(() => {
+    if (season && isSuperAdmin && !checkingAccess) {
       loadTeams();
       loadGames();
     }
-  }, [season]);
+  }, [season, isSuperAdmin, checkingAccess]);
 
   useEffect(() => {
     if (teams.length > 0) {
@@ -794,6 +834,38 @@ function PlayoffManagementContent() {
 
   const availableTeams = NFL_TEAMS.filter(t => t.conference === selectedConference);
 
+  // Show loading while checking access
+  if (checkingAccess || loading) {
+    return (
+      <div className="container mx-auto p-4 sm:p-6 max-w-7xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Verifying access...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if user is not a super admin
+  if (!isSuperAdmin) {
+    return (
+      <div className="container mx-auto p-4 sm:p-6 max-w-7xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Shield className="h-16 w-16 mx-auto mb-4 text-red-500" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+            <p className="text-gray-600 mb-4">This page is only accessible to system administrators.</p>
+            <Button onClick={() => router.push('/admin/dashboard')}>
+              Go to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4 sm:p-6 max-w-7xl">
       {/* Header */}
@@ -807,22 +879,22 @@ function PlayoffManagementContent() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-              <Trophy className="h-8 w-8" />
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-2">
+              <Trophy className="h-6 w-6 sm:h-8 sm:w-8" />
               Playoff Management
             </h1>
-            <p className="text-gray-600 mt-1">Manage playoff teams and games</p>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage playoff teams and games</p>
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor="season-select">Season:</Label>
+            <Label htmlFor="season-select" className="text-sm whitespace-nowrap">Season:</Label>
             <Input
               id="season-select"
               type="number"
               value={season}
               onChange={(e) => setSeason(parseInt(e.target.value) || new Date().getFullYear())}
-              className="w-24"
+              className="w-20 sm:w-24"
             />
             <Button variant="outline" size="sm" onClick={() => { loadTeams(); loadGames(); }}>
               <RefreshCw className="h-4 w-4" />
@@ -852,22 +924,24 @@ function PlayoffManagementContent() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Playoff Teams</CardTitle>
-                <Button onClick={() => openTeamDialog()}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle>Playoff Teams</CardTitle>
+                  <CardDescription>
+                    Manage playoff team seeds and conferences
+                  </CardDescription>
+                </div>
+                <Button onClick={() => openTeamDialog()} className="w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Team
                 </Button>
               </div>
-              <CardDescription>
-                Manage playoff team seeds and conferences
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* AFC Teams */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -879,7 +953,8 @@ function PlayoffManagementContent() {
                         {getTeamsByConference('AFC').length} / 7 teams
                       </Badge>
                     </div>
-                    <Table>
+                    <div className="overflow-x-auto">
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Seed</TableHead>
@@ -941,6 +1016,7 @@ function PlayoffManagementContent() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </div>
 
                   {/* NFC Teams */}
@@ -954,7 +1030,8 @@ function PlayoffManagementContent() {
                         {getTeamsByConference('NFC').length} / 7 teams
                       </Badge>
                     </div>
-                    <Table>
+                    <div className="overflow-x-auto">
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Seed</TableHead>
@@ -1016,6 +1093,7 @@ function PlayoffManagementContent() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1029,11 +1107,16 @@ function PlayoffManagementContent() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Playoff Games</CardTitle>
-                <div className="flex gap-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Playoff Games</CardTitle>
+                </div>
+                <CardDescription>
+                  Manage playoff game matchups by round
+                </CardDescription>
+                <div className="flex flex-wrap gap-2">
                   {fetchingGameIds && (
-                    <Button variant="outline" disabled>
+                    <Button variant="outline" disabled className="w-full sm:w-auto">
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Fetching IDs...
                     </Button>
@@ -1042,19 +1125,18 @@ function PlayoffManagementContent() {
                     onClick={handleFetchAllGameIds}
                     disabled={fetchingGameIds}
                     variant="outline"
+                    className="flex-1 sm:flex-initial"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${fetchingGameIds ? 'animate-spin' : ''}`} />
-                    Fetch Missing Game IDs
+                    <span className="hidden sm:inline">Fetch Missing Game IDs</span>
+                    <span className="sm:hidden">Fetch IDs</span>
                   </Button>
-                  <Button onClick={() => openGameDialog()}>
+                  <Button onClick={() => openGameDialog()} className="flex-1 sm:flex-initial">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Game
                   </Button>
                 </div>
               </div>
-              <CardDescription>
-                Manage playoff game matchups by round
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -1063,10 +1145,10 @@ function PlayoffManagementContent() {
                   const expectedGames = ROUND_GAME_COUNTS[round];
                   const hasCorrectCount = roundGames.length === expectedGames;
                   return (
-                    <div key={round} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-4">
+                    <div key={round} className="border rounded-lg p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold">{ROUND_NAMES[round]} (Week {round})</h3>
+                          <h3 className="text-base sm:text-lg font-bold">{ROUND_NAMES[round]} <span className="text-sm font-normal">(Week {round})</span></h3>
                           {!hasCorrectCount && (
                             <div title={`Expected ${expectedGames} game(s)`}>
                               <AlertCircle className="h-4 w-4 text-yellow-500" />
@@ -1083,71 +1165,153 @@ function PlayoffManagementContent() {
                         </div>
                       </div>
                       {roundGames.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Game ID</TableHead>
-                              <TableHead>Home Team</TableHead>
-                              <TableHead>Away Team</TableHead>
-                              <TableHead>Kickoff</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Winner</TableHead>
-                              <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
+                        <>
+                          {/* Card Layout for Mobile */}
+                          <div className="md:hidden space-y-3">
                             {roundGames.map((game) => (
-                              <TableRow key={game.id}>
-                                <TableCell>
-                                  <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                    {game.id || 'No ID'}
-                                  </code>
-                                </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  {teamSeeds[game.home_team] && (
-                                    <Badge variant="outline" className="text-xs">#{teamSeeds[game.home_team]}</Badge>
-                                  )}
-                                  {game.home_team}
-                                </div>
-                              </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    {teamSeeds[game.away_team] && (
-                                      <Badge variant="outline" className="text-xs">#{teamSeeds[game.away_team]}</Badge>
+                              <Card key={game.id} className="p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <code className="text-xs bg-gray-100 px-2 py-1 rounded break-all">
+                                          {game.id || 'No ID'}
+                                        </code>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-600">Away:</span>
+                                          {teamSeeds[game.away_team] && (
+                                            <Badge variant="outline" className="text-xs shrink-0">#{teamSeeds[game.away_team]}</Badge>
+                                          )}
+                                          <span className="font-medium">{game.away_team}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-600">Home:</span>
+                                          {teamSeeds[game.home_team] && (
+                                            <Badge variant="outline" className="text-xs shrink-0">#{teamSeeds[game.home_team]}</Badge>
+                                          )}
+                                          <span className="font-medium">{game.home_team}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => { setSelectedRound(round); openGameDialog(game); }}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteGame(game)}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                                    <div>
+                                      <span className="text-xs text-gray-500">Kickoff</span>
+                                      <p className="text-sm font-medium">
+                                        {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-xs text-gray-500">Status</span>
+                                      <div className="mt-1">
+                                        <Badge variant={game.status === 'final' ? 'default' : 'secondary'}>
+                                          {game.status || 'scheduled'}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    {game.winner && (
+                                      <div className="col-span-2">
+                                        <span className="text-xs text-gray-500">Winner</span>
+                                        <p className="text-sm font-medium">{game.winner}</p>
+                                      </div>
                                     )}
-                                    {game.away_team}
+                                  </div>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+
+                          {/* Table Layout for Desktop */}
+                          <div className="hidden md:block overflow-x-auto">
+                            <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="min-w-[120px]">Game ID</TableHead>
+                                <TableHead className="min-w-[140px]">Home Team</TableHead>
+                                <TableHead className="min-w-[140px]">Away Team</TableHead>
+                                <TableHead className="min-w-[160px]">Kickoff</TableHead>
+                                <TableHead className="min-w-[100px]">Status</TableHead>
+                                <TableHead className="min-w-[120px]">Winner</TableHead>
+                                <TableHead className="text-right min-w-[100px]">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {roundGames.map((game) => (
+                                <TableRow key={game.id}>
+                                  <TableCell className="min-w-[120px]">
+                                    <code className="text-xs bg-gray-100 px-2 py-1 rounded break-all">
+                                      {game.id || 'No ID'}
+                                    </code>
+                                  </TableCell>
+                                <TableCell className="min-w-[140px]">
+                                  <div className="flex items-center gap-2">
+                                    {teamSeeds[game.home_team] && (
+                                      <Badge variant="outline" className="text-xs shrink-0">#{teamSeeds[game.home_team]}</Badge>
+                                    )}
+                                    <span className="truncate">{game.home_team}</span>
                                   </div>
                                 </TableCell>
-                                <TableCell>
-                                  {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={game.status === 'final' ? 'default' : 'secondary'}>
-                                    {game.status || 'scheduled'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>{game.winner || '-'}</TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => { setSelectedRound(round); openGameDialog(game); }}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteGame(game)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                                  <TableCell className="min-w-[140px]">
+                                    <div className="flex items-center gap-2">
+                                      {teamSeeds[game.away_team] && (
+                                        <Badge variant="outline" className="text-xs shrink-0">#{teamSeeds[game.away_team]}</Badge>
+                                      )}
+                                      <span className="truncate">{game.away_team}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="min-w-[160px] whitespace-nowrap">
+                                    {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={game.status === 'final' ? 'default' : 'secondary'}>
+                                      {game.status || 'scheduled'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="min-w-[120px]">
+                                    <span className="truncate block">{game.winner || '-'}</span>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => { setSelectedRound(round); openGameDialog(game); }}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteGame(game)}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          </div>
+                        </>
                       ) : (
                         <p className="text-gray-500 text-center py-4">No games scheduled for this round</p>
                       )}
@@ -1169,7 +1333,7 @@ function PlayoffManagementContent() {
 
       {/* Team Dialog */}
       <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
           <DialogHeader>
             <DialogTitle>{editingTeam?.id ? 'Edit' : 'Add'} Playoff Team</DialogTitle>
             <DialogDescription>
@@ -1249,7 +1413,7 @@ function PlayoffManagementContent() {
 
       {/* Game Dialog */}
       <Dialog open={gameDialogOpen} onOpenChange={setGameDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingGame?.id ? 'Edit' : 'Add'} Playoff Game</DialogTitle>
               <DialogDescription>
@@ -1392,7 +1556,7 @@ function PlayoffManagementContent() {
 
       {/* Result Dialog (Success/Error) */}
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
           <DialogHeader>
             <div className="flex items-center gap-3">
               {resultDialogType === 'success' ? (

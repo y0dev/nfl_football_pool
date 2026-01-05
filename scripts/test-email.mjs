@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 async function testEmail() {
-  console.log('Testing Hostinger email configuration...\n');
+  console.log('Testing email configuration...\n');
 
   // Check if environment variables are set
   const requiredVars = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
@@ -12,8 +12,8 @@ async function testEmail() {
   
   if (missingVars.length > 0) {
     console.error('❌ Missing environment variables:', missingVars.join(', '));
-    console.log('\nPlease create a .env.local file with your Hostinger email settings.');
-    console.log('See docs/hostinger-email-setup.md for instructions.');
+    console.log('\nPlease create a .env.local file with your email settings.');
+    console.log('See docs/titan-email-setup.md or docs/hostinger-email-setup.md for instructions.');
     return;
   }
 
@@ -22,7 +22,7 @@ async function testEmail() {
   console.log(`Port: ${process.env.SMTP_PORT}`);
   console.log(`User: ${process.env.SMTP_USER}`);
   console.log(`From: ${process.env.SMTP_FROM}\n`);
-
+  console.log(`To: ${process.env.SMTP_TO_EMAIL}\n`);
   // Create transporter
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -46,7 +46,7 @@ async function testEmail() {
     
     const testEmail = {
       from: process.env.SMTP_FROM,
-      to: process.env.SMTP_USER, // Send to yourself for testing
+      to: process.env.SMTP_TO_EMAIL, // Send to yourself for testing
       subject: 'NFL Football Pool - Email Test',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -56,10 +56,10 @@ async function testEmail() {
           
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="color: #1f2937; margin-top: 0;">Email Configuration Test</h3>
-            <p>This is a test email to verify your Hostinger email configuration is working correctly.</p>
+            <p>This is a test email to verify your email configuration is working correctly.</p>
             <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
             <p><strong>From:</strong> ${process.env.SMTP_FROM}</p>
-            <p><strong>To:</strong> ${process.env.SMTP_USER}</p>
+            <p><strong>To:</strong> ${process.env.SMTP_TO_EMAIL}</p>
           </div>
           
           <div style="background-color: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -83,7 +83,7 @@ This is a test email to verify your Hostinger email configuration is working cor
 
 Sent at: ${new Date().toLocaleString()}
 From: ${process.env.SMTP_FROM}
-To: ${process.env.SMTP_USER}
+To: ${process.env.SMTP_TO_EMAIL}
 
 ✅ Success!
 
@@ -98,7 +98,7 @@ This is an automated test email from your NFL Football Pool system.
     console.log(`Message ID: ${info.messageId}`);
     console.log(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
     
-    console.log('\n🎉 Your Hostinger email is configured correctly!');
+    console.log('\n🎉 Your email is configured correctly!');
     console.log('You can now use your application to send pool invitations, reminders, and notifications.');
 
   } catch (error) {
@@ -120,7 +120,7 @@ This is an automated test email from your NFL Football Pool system.
       console.log('- Your hosting provider\'s SMTP server status');
     }
     
-    console.log('\nFor more help, see docs/hostinger-email-setup.md');
+    console.log('\nFor more help, see docs/titan-email-setup.md or docs/hostinger-email-setup.md');
   }
 }
 

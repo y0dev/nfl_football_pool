@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Users, Trophy, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, debugLog } from '@/lib/utils';
 
 interface PlayoffTeam {
   id: string;
@@ -68,6 +68,7 @@ function PlayoffsPageContent() {
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [allConfidencePoints, setAllConfidencePoints] = useState<ConfidencePointData[] | null>(null);
   const [hasSubmission, setHasSubmission] = useState(false);
+  const [isCompleteSubmission, setIsCompleteSubmission] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
@@ -153,6 +154,7 @@ function PlayoffsPageContent() {
       const data = await response.json();
       
       if (data.success) {
+        debugLog('PLAYOFFS: loadSubmissionStatus', data);
         setSubmissionStatus(data.submissions || []);
         setAllSubmitted(data.allSubmitted || false);
         setAllConfidencePoints(data.allConfidencePoints || null);
@@ -166,6 +168,7 @@ function PlayoffsPageContent() {
         
         // Reload participants and filter out submitted ones
         const allUsers = await loadUsers(poolId);
+        debugLog('PLAYOFFS: allUsers', allUsers);
         const availableUsers = (allUsers || []).filter(
           user => !submittedParticipantIds.has(user.id)
         );
@@ -182,6 +185,7 @@ function PlayoffsPageContent() {
 
     if (!participantId) {
       setHasSubmission(false);
+      setIsCompleteSubmission(false);
       return;
     }
 
@@ -192,7 +196,9 @@ function PlayoffsPageContent() {
       const data = await response.json();
 
       if (data.success) {
+        debugLog('PLAYOFFS: handleParticipantChange', data);
         setHasSubmission(data.hasSubmission || false);
+        setIsCompleteSubmission(data.isCompleteSubmission || false);
         if (data.confidencePoints && data.confidencePoints.length > 0) {
           const pointsMap: Record<string, number> = {};
           data.confidencePoints.forEach((cp: ConfidencePointData) => {
@@ -207,9 +213,19 @@ function PlayoffsPageContent() {
   };
 
   const handleConfidencePointChange = (teamName: string, value: string) => {
+    // Handle clear action
+    if (value === 'CLEAR') {
+      setConfidencePoints(prev => {
+        const updated = { ...prev };
+        delete updated[teamName];
+        return updated;
+      });
+      return;
+    }
+    
     const numValue = parseInt(value);
     if (isNaN(numValue) || numValue < 1) {
-      // If empty or invalid, remove the confidence point
+      // If invalid, remove the confidence point
       setConfidencePoints(prev => {
         const updated = { ...prev };
         delete updated[teamName];
@@ -284,10 +300,10 @@ function PlayoffsPageContent() {
       }
     }
 
-    if (hasSubmission && !debugMode) {
+    if (isCompleteSubmission && !debugMode) {
       toast({
         title: 'Error',
-        description: 'You have already submitted confidence points for playoffs',
+        description: 'You have already submitted all confidence points for playoffs. Complete submissions cannot be changed.',
         variant: 'destructive',
       });
       return;
@@ -329,6 +345,7 @@ function PlayoffsPageContent() {
         setSelectedParticipantId('');
         setConfidencePoints({});
         setHasSubmission(false);
+        setIsCompleteSubmission(false);
         
         // Reload submission status (which will also update the participants list)
         await loadSubmissionStatus();
@@ -510,7 +527,6 @@ function PlayoffsPageContent() {
                 value={selectedParticipantId}
                 onChange={(e) => handleParticipantChange(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-md mt-1"
-                disabled={hasSubmission}
               >
                 <option value="">Select a participant...</option>
                 {participants.map(participant => (
@@ -519,16 +535,19 @@ function PlayoffsPageContent() {
                   </option>
                 ))}
               </select>
-              {hasSubmission && (
-                <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+              {hasSubmission && selectedParticipantId && (
+                <p className={`text-sm mt-1 flex items-center gap-1 ${isCompleteSubmission ? 'text-green-600' : 'text-orange-600'}`}>
                   <CheckCircle2 className="h-4 w-4" />
-                  Already submitted
+                  {isCompleteSubmission 
+                    ? `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has already submitted all confidence points`
+                    : `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has a partial submission. You can complete or update it.`
+                  }
                 </p>
               )}
             </div>
 
             {/* Confidence Points Input - Bracket Style */}
-            {selectedParticipantId && !hasSubmission && sortedPlayoffTeams.length > 0 && (
+            {selectedParticipantId && !isCompleteSubmission && sortedPlayoffTeams.length > 0 && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* AFC Conference */}
@@ -567,6 +586,11 @@ function PlayoffsPageContent() {
                                     <SelectValue placeholder="Points" />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    {currentValue && (
+                                      <SelectItem value="CLEAR" className="text-red-600">
+                                        Clear
+                                      </SelectItem>
+                                    )}
                                     {availablePoints.length > 0 ? (
                                       availablePoints.map(points => (
                                         <SelectItem key={points} value={points.toString()}>
@@ -574,7 +598,7 @@ function PlayoffsPageContent() {
                                         </SelectItem>
                                       ))
                                     ) : (
-                                      <SelectItem value="" disabled>
+                                      <SelectItem value="NONE" disabled>
                                         No points available
                                       </SelectItem>
                                     )}
@@ -623,6 +647,11 @@ function PlayoffsPageContent() {
                                     <SelectValue placeholder="Points" />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    {currentValue && (
+                                      <SelectItem value="CLEAR" className="text-red-600">
+                                        Clear
+                                      </SelectItem>
+                                    )}
                                     {availablePoints.length > 0 ? (
                                       availablePoints.map(points => (
                                         <SelectItem key={points} value={points.toString()}>
@@ -630,7 +659,7 @@ function PlayoffsPageContent() {
                                         </SelectItem>
                                       ))
                                     ) : (
-                                      <SelectItem value="" disabled>
+                                      <SelectItem value="NONE" disabled>
                                         No points available
                                       </SelectItem>
                                     )}
@@ -671,7 +700,7 @@ function PlayoffsPageContent() {
               </>
             )}
 
-            {selectedParticipantId && hasSubmission && (
+            {selectedParticipantId && isCompleteSubmission && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-green-800 font-medium">
                   You have already submitted your playoff confidence points. 

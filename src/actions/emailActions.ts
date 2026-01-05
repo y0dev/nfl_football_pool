@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
+import { emailService } from '@/lib/email';
 
 export interface SendPickRemindersParams {
   poolId: string;
@@ -65,18 +66,48 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
       };
     }
 
-    // Get participants who haven't submitted picks yet
-    const { data: participants, error: participantsError } = await supabase
+    // Get all active participants in the pool
+    const { data: allParticipants, error: allParticipantsError } = await supabase
       .from('participants')
-      .select(`
-        id,
-        name,
-        email,
-        picks!inner(id)
-      `)
+      .select('id, name, email')
       .eq('pool_id', params.poolId)
-      .eq('is_active', true)
-      .is('picks.id', null);
+      .eq('is_active', true);
+
+    if (allParticipantsError) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        total: 0,
+        message: 'Failed to fetch participants'
+      };
+    }
+
+    if (!allParticipants || allParticipants.length === 0) {
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        total: 0,
+        message: 'No participants found in this pool'
+      };
+    }
+
+    // Get participants who have submitted picks for this week
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
+      .select('participant_id')
+      .eq('pool_id', params.poolId)
+      .eq('week', params.weekNumber);
+
+    if (picksError) {
+      console.error('Error fetching picks:', picksError);
+    }
+
+    const participantsWithPicks = new Set(picksData?.map(p => p.participant_id) || []);
+    
+    // Filter to get participants without picks
+    const participants = allParticipants.filter(p => !participantsWithPicks.has(p.id));
 
     if (participantsError) {
       return {
@@ -121,20 +152,37 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const poolUrl = `${baseUrl}/pool/${params.poolId}/picks?week=${params.weekNumber}`;
 
-    // Prepare email reminders
-    const reminders: PickReminderData[] = participants.map(participant => ({
-      participantName: participant.name,
-      participantEmail: participant.email,
-      poolName: pool.name,
-      weekNumber: params.weekNumber,
-      deadline,
-      gamesCount,
-      poolUrl,
-      adminName: admin.full_name || 'Pool Commissioner'
-    }));
+    // Send email reminders
+    let sentCount = 0;
+    let failedCount = 0;
 
-    // For now, just log the reminders since email service is not configured
-    console.log(`📧 Would send ${reminders.length} pick reminders:`, reminders);
+    for (const participant of participants) {
+      if (!participant.email) {
+        console.warn(`Skipping participant ${participant.name} - no email address`);
+        failedCount++;
+        continue;
+      }
+
+      try {
+        const emailSent = await emailService.sendPickReminder(
+          participant.email,
+          participant.name,
+          pool.name,
+          params.weekNumber,
+          poolUrl,
+          deadline
+        );
+
+        if (emailSent) {
+          sentCount++;
+        } else {
+          failedCount++;
+        }
+      } catch (error) {
+        console.error(`Error sending reminder to ${participant.email}:`, error);
+        failedCount++;
+      }
+    }
 
     // Log the email campaign
     await supabase
@@ -147,17 +195,20 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
         details: { 
           pool_id: params.poolId,
           week_number: params.weekNumber,
-          reminders_count: reminders.length,
-          message: 'Prepared pick reminders (email service not configured)'
+          reminders_count: participants.length,
+          sent_count: sentCount,
+          failed_count: failedCount
         }
       });
 
     return {
-      success: true,
-      sent: 0,
-      failed: reminders.length,
-      total: reminders.length,
-      message: `Email service not configured. ${reminders.length} reminders prepared but not sent.`
+      success: sentCount > 0,
+      sent: sentCount,
+      failed: failedCount,
+      total: participants.length,
+      message: sentCount > 0 
+        ? `Successfully sent ${sentCount} reminder(s). ${failedCount > 0 ? `${failedCount} failed.` : ''}`
+        : `Failed to send reminders. ${failedCount > 0 ? 'Email service may not be configured.' : ''}`
     };
 
   } catch (error) {
@@ -176,27 +227,130 @@ export async function getParticipantsWithoutPicks(poolId: string, weekNumber: nu
   try {
     const supabase = getSupabaseClient();
     
-    const { data: participants, error } = await supabase
+    // Get all active participants
+    const { data: allParticipants, error: allError } = await supabase
       .from('participants')
-      .select(`
-        id,
-        name,
-        email,
-        picks!inner(id)
-      `)
+      .select('id, name, email')
       .eq('pool_id', poolId)
-      .eq('is_active', true)
-      .is('picks.id', null);
+      .eq('is_active', true);
 
-    if (error) {
-      console.error('Error fetching participants without picks:', error);
+    if (allError || !allParticipants) {
+      console.error('Error fetching participants:', allError);
       return [];
     }
 
-    return participants || [];
+    // Get participants who have submitted picks
+    const { data: picksData, error: picksError } = await supabase
+      .from('picks')
+      .select('participant_id')
+      .eq('pool_id', poolId)
+      .eq('week', weekNumber);
+
+    if (picksError) {
+      console.error('Error fetching picks:', picksError);
+    }
+
+    const participantsWithPicks = new Set(picksData?.map(p => p.participant_id) || []);
+    
+    // Return participants without picks
+    return allParticipants.filter(p => !participantsWithPicks.has(p.id));
   } catch (error) {
     console.error('Error getting participants without picks:', error);
     return [];
+  }
+}
+
+/**
+ * Check for participants without picks when games start in less than 5 hours
+ * and send urgent reminder to pool admin
+ */
+export async function checkAndSendUrgentReminders(): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const now = new Date();
+    const fiveHoursFromNow = new Date(now.getTime() + 5 * 60 * 60 * 1000);
+
+    // Get upcoming games starting within 5 hours
+    const { data: upcomingGames, error: gamesError } = await supabase
+      .from('games')
+      .select('id, week, season_type, kickoff_time, home_team, away_team')
+      .gte('kickoff_time', now.toISOString())
+      .lte('kickoff_time', fiveHoursFromNow.toISOString())
+      .order('kickoff_time', { ascending: true });
+
+    if (gamesError || !upcomingGames || upcomingGames.length === 0) {
+      return; // No games starting soon
+    }
+
+    // Group games by week
+    const gamesByWeek = new Map<number, typeof upcomingGames>();
+    for (const game of upcomingGames) {
+      if (!gamesByWeek.has(game.week)) {
+        gamesByWeek.set(game.week, []);
+      }
+      gamesByWeek.get(game.week)!.push(game);
+    }
+
+    // Get all active pools
+    const { data: pools, error: poolsError } = await supabase
+      .from('pools')
+      .select('id, name, created_by')
+      .eq('is_active', true);
+
+    if (poolsError || !pools) {
+      return;
+    }
+
+    // For each week with upcoming games, check each pool
+    for (const [weekNumber, games] of gamesByWeek.entries()) {
+      const earliestGame = games[0];
+      const timeUntilGame = Math.floor((new Date(earliestGame.kickoff_time).getTime() - now.getTime()) / (60 * 1000));
+      const hoursUntil = Math.floor(timeUntilGame / 60);
+      const minutesUntil = timeUntilGame % 60;
+      const timeString = hoursUntil > 0 
+        ? `${hoursUntil} hour${hoursUntil > 1 ? 's' : ''} and ${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}`
+        : `${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}`;
+
+      for (const pool of pools) {
+        // Get pool admin
+        const { data: admin, error: adminError } = await supabase
+          .from('admins')
+          .select('id, email, full_name')
+          .eq('email', pool.created_by)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (adminError || !admin || !admin.email) {
+          continue;
+        }
+
+        // Get participants without picks
+        const participantsWithoutPicks = await getParticipantsWithoutPicks(pool.id, weekNumber);
+
+        if (participantsWithoutPicks.length > 0) {
+          // Send urgent reminder to admin
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const poolLink = `${baseUrl}/pool/${pool.id}/picks?week=${weekNumber}`;
+
+          try {
+            await emailService.sendUrgentReminderToAdmin(
+              admin.email,
+              admin.full_name || 'Pool Commissioner',
+              pool.name,
+              weekNumber,
+              participantsWithoutPicks.map(p => ({ name: p.name, email: p.email || undefined })),
+              timeString,
+              poolLink
+            );
+            console.log(`Sent urgent reminder to admin for pool ${pool.name}, week ${weekNumber}`);
+          } catch (error) {
+            console.error(`Error sending urgent reminder for pool ${pool.name}:`, error);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in checkAndSendUrgentReminders:', error);
   }
 }
 
