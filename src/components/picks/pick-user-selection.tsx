@@ -9,8 +9,9 @@ import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog } from '@/lib/utils';
-import { Target } from 'lucide-react';
+import { Target, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Leaderboard } from '@/components/leaderboard/leaderboard';
 
 interface PickUserSelectionProps {
   poolId: string;
@@ -197,32 +198,54 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
       );
     }
     
+    // If all participants have submitted and we have a valid week, show the leaderboard
+    if (currentWeek) {
+      const weekLabel = isPlayoffs ? `Round ${currentWeek}` : `Week ${currentWeek}`;
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-600" />
+              All Participants Submitted
+            </CardTitle>
+            <CardDescription>
+              All participants have submitted their picks for {weekLabel}. View the leaderboard below.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Leaderboard 
+              poolId={poolId} 
+              weekNumber={currentWeek} 
+              seasonType={seasonType || 2} 
+              season={poolSeason} 
+            />
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    // No participants in pool
     return (
       <Card>
         <CardHeader>
           <CardTitle>No Participants Available</CardTitle>
           <CardDescription>
-            {currentWeek ? `No participants found for Week ${currentWeek}` : 'No participants found in this pool'}
+            No participants found in this pool
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-center space-y-2">
             <p className="text-gray-500">
-              {currentWeek ? 
-                'All participants have already submitted their picks for this week!' :
-                'No participants have been added to this pool yet.'
-              }
+              No participants have been added to this pool yet.
             </p>
-            {!currentWeek && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Commissioner Action Required:</strong> The pool commissioner needs to add participants to this pool before picks can be made.
-                </p>
-                <p className="text-sm text-blue-700 mt-2">
-                  Please contact the pool commissioner or use the commissioner dashboard to add participants.
-                </p>
-              </div>
-            )}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Commissioner Action Required:</strong> The pool commissioner needs to add participants to this pool before picks can be made.
+              </p>
+              <p className="text-sm text-blue-700 mt-2">
+                Please contact the pool commissioner or use the commissioner dashboard to add participants.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

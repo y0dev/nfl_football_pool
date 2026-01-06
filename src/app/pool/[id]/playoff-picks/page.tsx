@@ -48,6 +48,10 @@ function PlayoffPicksContent() {
   
   // Validate round is 1-4, default to 1 if invalid or missing
   const currentRound = (selectedRound && selectedRound >= 1 && selectedRound <= 4) ? selectedRound : 1;
+  
+  // Get season from URL parameter (optional, will use pool season if not provided)
+  const seasonParam = searchParams?.get('season');
+  const urlSeason = seasonParam ? parseInt(seasonParam, 10) : null;
 
   const [poolName, setPoolName] = useState<string>('');
   const [poolSeason, setPoolSeason] = useState<number>(2025);
@@ -82,6 +86,9 @@ function PlayoffPicksContent() {
     correct_picks: number;
     total_picks?: number;
   } | null>>({});
+  const [roundEnded, setRoundEnded] = useState<Record<number, boolean>>({});
+  const [roundHasPicks, setRoundHasPicks] = useState<Record<number, boolean>>({});
+  const [showWinnerOnCommand, setShowWinnerOnCommand] = useState<boolean>(false);
   const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
   const [leaderboardData, setLeaderboardData] = useState<Record<number, any[]>>({});
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -104,6 +111,169 @@ function PlayoffPicksContent() {
     3: 2, // Conference Championship
     4: 1  // Super Bowl
   };
+
+  // Pool Info Box Component
+  const renderPoolInfoBox = () => (
+    <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
+      <div className="space-y-4">
+        {/* Pool Header Row */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-center gap-2">
+            <Users className="h-5 w-5 text-gray-500" />
+            <span className="font-semibold text-xl">{poolName}</span>
+          </div>
+          
+          {/* Round Navigation - Centered horizontal layout */}
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={navigateToPreviousRound}
+              className="flex items-center gap-1 px-3 py-2 h-9"
+              title={currentRound === 1 ? "Go to previous season's Super Bowl" : "Go to previous round"}
+            >
+              <ChevronLeft className="h-3 w-3" />
+              <span className="hidden xs:inline">Previous Round</span>
+              <span className="xs:hidden">Prev</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={navigateToCurrentRound}
+              className="flex items-center gap-1 px-3 py-2 h-9"
+              title="Go to current/upcoming round"
+            >
+              <Calendar className="h-3 w-3" />
+              <span className="hidden xs:inline">Current Round</span>
+              <span className="xs:hidden">Current</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={navigateToNextRound}
+              disabled={currentRound >= 4}
+              className="flex items-center gap-1 px-3 py-2 h-9"
+              title={currentRound >= 4 ? "Already at last round" : "Go to next round"}
+            >
+              <span className="hidden xs:inline">Next Round</span>
+              <span className="xs:hidden">Next</span>
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Round Info Row */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-gray-500" />
+            <Badge variant="outline" className="px-3 py-1">{roundNames[currentRound]}</Badge>
+          </div>
+          <span className="text-sm text-gray-600">
+            {games.filter(g => g.week === currentRound).length} games
+          </span>
+          <Badge variant="secondary" className="text-xs px-2 py-1">
+            Postseason
+          </Badge>
+        </div>
+        
+        {/* Last Updated Timestamp */}
+        <div className="text-center">
+          <span className="text-xs text-gray-500">
+            Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : new Date().toLocaleTimeString()}
+          </span>
+        </div>
+        
+        {/* Confidence Points Navigation */}
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/pool/${poolId}/playoffs`)}
+            className="flex items-center gap-2"
+          >
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline">Confidence Points</span>
+            <span className="sm:hidden">Points</span>
+          </Button>
+        </div>
+
+        {/* Debug Mode Checkboxes - Only visible in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="flex flex-col gap-3 mt-4 p-3 bg-gray-50 rounded-lg border">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="debug-mode-pool-info"
+                checked={debugMode}
+                onCheckedChange={(checked) => setDebugMode(checked === true)}
+              />
+              <Label htmlFor="debug-mode-pool-info" className="text-sm font-medium cursor-pointer">
+                Debug Mode: Show simulated leaderboard (assumes all users submitted and games have winners)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="show-game-picks-pool-info"
+                checked={showGamePicksPanel}
+                onCheckedChange={(checked) => {
+                  const isChecked = checked === true;
+                  setShowGamePicksPanel(isChecked);
+                  
+                  // When unchecked, automatically show leaderboard with calculated winners
+                  if (!isChecked) {
+                    // Enable leaderboard for current round
+                    setShowLeaderboard(prev => ({
+                      ...prev,
+                      [currentRound]: true
+                    }));
+                    
+                    // Enable debug mode to calculate and show winners in leaderboard
+                    // This will trigger the useEffect to load leaderboard data
+                    setDebugMode(true);
+                  } else {
+                    // When checked again, optionally disable debug mode if needed
+                    // For now, keep debug mode as-is to maintain consistency
+                  }
+                }}
+              />
+              <Label htmlFor="show-game-picks-pool-info" className="text-sm font-medium cursor-pointer">
+                Show Game Picks Panel
+                {!showGamePicksPanel && (
+                  <span className="text-gray-500 ml-1 text-xs">
+                    (Hiding panel shows leaderboard with calculated winners)
+                  </span>
+                )}
+              </Label>
+            </div>
+            {/* Show Winner On Command - Current Round */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="show-winner-pool-info"
+                checked={showWinnerOnCommand}
+                onCheckedChange={(checked) => {
+                  setShowWinnerOnCommand(checked === true);
+                }}
+              />
+              <Label htmlFor="show-winner-pool-info" className="text-sm font-medium cursor-pointer">
+                Show {roundNames[currentRound]} Winner
+              </Label>
+            </div>
+            {selectedUser && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={generateRandomPicks}
+                className="w-full bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100"
+              >
+                🎲 Generate Random Picks for {roundNames[currentRound]}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
   
   // Navigate to a specific round
   const navigateToRound = (round: number) => {
@@ -117,8 +287,9 @@ function PlayoffPicksContent() {
     if (currentRound > 1) {
       navigateToRound(currentRound - 1);
     } else if (currentRound === 1) {
-      // If at Wild Card (round 1), navigate to last week of regular season (week 18)
-      router.push(`/pool/${poolId}/picks?week=18&seasonType=2`);
+      // If at Wild Card (round 1), navigate to previous season's Super Bowl (round 4)
+      const previousSeason = poolSeason - 1;
+      router.push(`/pool/${poolId}/playoff-picks?round=4&season=${previousSeason}`);
     }
   };
   
@@ -154,7 +325,76 @@ function PlayoffPicksContent() {
       return;
     }
     loadData();
-  }, [poolId, currentRound, roundParam, router]);
+  }, [poolId, currentRound, roundParam, urlSeason, router]);
+
+  // Check round status when games change
+  useEffect(() => {
+    if (games.length > 0 && poolId && poolSeason) {
+      checkRoundStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [games, poolId, poolSeason, urlSeason]);
+
+  // Load winner when "Show Winner" checkbox is toggled for current round
+  useEffect(() => {
+    const loadWinnerForCurrentRound = async () => {
+      if (!poolId || !poolSeason || !showWinnerOnCommand) return;
+
+      try {
+        // Try to get winner from existing leaderboard data first
+        if (leaderboardData[currentRound] && leaderboardData[currentRound].length > 0) {
+          const winner = leaderboardData[currentRound][0];
+          setRoundWinners(prev => ({
+            ...prev,
+            [currentRound]: {
+              participant_name: winner.participant_name || 'Unknown',
+              points: winner.total_points || 0,
+              correct_picks: winner.correct_picks || 0,
+              total_picks: winner.total_picks || 0
+            }
+          }));
+          debugLog(`Winner loaded from leaderboardData for round ${currentRound}:`, winner);
+          return;
+        }
+
+        // If not in leaderboard data, fetch it
+        debugLog(`Fetching winner for round ${currentRound}...`);
+        const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${currentRound}&seasonType=3&season=${poolSeason}`);
+        const data = await response.json();
+        
+        if (data.success && data.leaderboard && data.leaderboard.length > 0) {
+          const winner = data.leaderboard[0];
+          setRoundWinners(prev => ({
+            ...prev,
+            [currentRound]: {
+              participant_name: winner.participant_name || 'Unknown',
+              points: winner.total_points || 0,
+              correct_picks: winner.correct_picks || 0,
+              total_picks: winner.total_picks || 0
+            }
+          }));
+          
+          // Also update leaderboard data
+          setLeaderboardData(prev => ({
+            ...prev,
+            [currentRound]: data.leaderboard
+          }));
+          debugLog(`Winner loaded and set for round ${currentRound}:`, winner);
+        } else {
+          debugLog(`No leaderboard data found for round ${currentRound}`);
+        }
+      } catch (error) {
+        console.error(`Error loading winner for round ${currentRound}:`, error);
+        debugLog(`Error loading winner for round ${currentRound}:`, error);
+      }
+    };
+
+    // Load winner when checkbox is checked
+    if (showWinnerOnCommand) {
+      loadWinnerForCurrentRound();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showWinnerOnCommand, poolId, poolSeason, currentRound]);
 
   useEffect(() => {
     if (selectedUser && games.length > 0 && poolSeason) {
@@ -322,7 +562,7 @@ function PlayoffPicksContent() {
   // Load participant stats for current round
   useEffect(() => {
     loadParticipantStats();
-  }, [poolId, currentRound, games, poolSeason]);
+  }, [poolId, currentRound, games, poolSeason, urlSeason]);
 
   const loadData = async () => {
     try {
@@ -332,15 +572,18 @@ function PlayoffPicksContent() {
       const poolResponse = await fetch(`/api/pools/${poolId}`);
       const poolData = await poolResponse.json();
       
+      // Use season from URL if provided, otherwise use pool's season
+      const seasonToUse = urlSeason || poolData.pool?.season || 2025;
+      
       if (poolData.success) {
         setPoolName(poolData.pool.name);
-        setPoolSeason(poolData.pool.season);
+        setPoolSeason(seasonToUse);
         
         // Set participant count from pool data (all participants in pool)
         setParticipantCount(poolData.pool.participant_count || 0);
         
         // Load playoff teams to get seed mapping
-        const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${poolData.pool.season}`);
+        const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${seasonToUse}`);
         const teamsData = await teamsResponse.json();
         
         if (teamsData.success && teamsData.teams) {
@@ -357,9 +600,9 @@ function PlayoffPicksContent() {
       const gamesByRound: PlayoffRound[] = [];
       const weekToLoad = currentRound; // Round number maps directly to week number
       
-      const response = await fetch(`/api/games/week?week=${weekToLoad}&seasonType=3&season=${poolData.pool?.season || 2025}`);
+      const response = await fetch(`/api/games/week?week=${weekToLoad}&seasonType=3&season=${seasonToUse}`);
       const data = await response.json();
-      debugLog('Playoff picks page: Loading games for week:', weekToLoad, 'season type:', 3, 'season:', poolData.pool.season);
+      debugLog('Playoff picks page: Loading games for week:', weekToLoad, 'season type:', 3, 'season:', seasonToUse);
       debugLog('Playoff picks page: Data:', data);
       
       if (data.success && data.games) {
@@ -784,6 +1027,74 @@ function PlayoffPicksContent() {
 
     loadLeaderboardData();
   }, [debugMode, showGamePicksPanel, poolId, poolSeason]);
+
+  // Check if round has ended and load winner
+  const checkRoundStatus = async () => {
+    if (games.length === 0) return;
+    
+    const roundStatusMap: Record<number, boolean> = {};
+    const roundHasPicksMap: Record<number, boolean> = {};
+    const winnersMap: Record<number, {
+      participant_name: string;
+      points: number;
+      correct_picks: number;
+      total_picks?: number;
+    } | null> = {};
+    
+    // Check each round
+    for (let round = 1; round <= 4; round++) {
+      const roundGames = games.filter(g => g.week === round);
+      if (roundGames.length === 0) continue;
+      
+      // Check if all games are properly finished (including tie games)
+      const allGamesEnded = roundGames.every(game => {
+        const status = game.status?.toLowerCase();
+        const hasWinner = game.winner && game.winner.trim() !== '';
+        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        
+        // For tie games, check if scores are equal and game is finished
+        const isTieGame = game.home_score !== null && game.away_score !== null && 
+                         game.home_score === game.away_score;
+        
+        const gameEnded = isFinished && (hasWinner || isTieGame);
+        
+        return gameEnded;
+      });
+      
+      roundStatusMap[round] = allGamesEnded;
+      
+      if (allGamesEnded) {
+        try {
+          // Try to get winner from leaderboard
+          const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${round}&seasonType=3&season=${poolSeason}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.leaderboard && result.leaderboard.length > 0) {
+              const winner = result.leaderboard[0]; // First place
+              winnersMap[round] = {
+                participant_name: winner.participant_name,
+                points: winner.total_points,
+                correct_picks: winner.correct_picks,
+                total_picks: winner.total_picks
+              };
+              roundHasPicksMap[round] = true;
+            } else {
+              roundHasPicksMap[round] = false;
+              winnersMap[round] = null;
+            }
+          }
+        } catch (error) {
+          console.error(`Error loading winner for round ${round}:`, error);
+          roundHasPicksMap[round] = false;
+          winnersMap[round] = null;
+        }
+      }
+    }
+    
+    setRoundEnded(roundStatusMap);
+    setRoundHasPicks(roundHasPicksMap);
+    setRoundWinners(prev => ({ ...prev, ...winnersMap }));
+  };
 
   const checkAllSubmissions = async () => {
     try {
@@ -1233,29 +1544,33 @@ function PlayoffPicksContent() {
 
   if (!selectedUser) {
     return (
-      <div className="container mx-auto p-4 sm:p-6">
-        <div className="mb-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/pool/${poolId}/playoffs`)}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Playoff Confidence Points
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold">{poolName} - Playoff Picks</h1>
-          <p className="text-gray-600">Season {poolSeason || '...'}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="container mx-auto p-4 md:p-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+                </div>
+              </div>
+            </div>
+            
+            {/* Pool Info */}
+            {renderPoolInfoBox()}
+          </div>
+          
+          <PickUserSelection
+            key={`${poolId}-${currentRound}-${userListKey}`}
+            poolId={poolId}
+            weekNumber={currentRound}
+            seasonType={3}
+            onUserSelected={handleUserSelected}
+            usersNeedingConfidencePoints={usersNeedingConfidencePoints}
+            poolSeason={poolSeason}
+          />
         </div>
-        <PickUserSelection
-          key={`${poolId}-${currentRound}-${userListKey}`}
-          poolId={poolId}
-          weekNumber={currentRound}
-          seasonType={3}
-          onUserSelected={handleUserSelected}
-          usersNeedingConfidencePoints={usersNeedingConfidencePoints}
-          poolSeason={poolSeason}
-        />
       </div>
     );
   }
@@ -1263,39 +1578,43 @@ function PlayoffPicksContent() {
   // Only show confidence points required card if a user is selected and they haven't submitted confidence points
   if (selectedUser && !hasConfidencePoints) {
     return (
-      <div className="container mx-auto p-4 sm:p-6">
-        <div className="mb-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/pool/${poolId}/playoffs`)}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Playoff Confidence Points
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold">{poolName} - Playoff Picks</h1>
-          <p className="text-gray-600">Season {poolSeason || '...'}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="container mx-auto p-4 md:p-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
+                </div>
+              </div>
+            </div>
+            
+            {/* Pool Info */}
+            {renderPoolInfoBox()}
+          </div>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Confidence Points Required
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 mb-4">
+                You must submit your playoff confidence points before you can make playoff picks.
+              </p>
+              <Button
+                onClick={() => router.push(`/pool/${poolId}/playoffs`)}
+                className="w-full"
+              >
+                Go to Playoffs Page
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Confidence Points Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">
-              You must submit your playoff confidence points before you can make playoff picks.
-            </p>
-            <Button
-              onClick={() => router.push(`/pool/${poolId}/playoffs`)}
-              className="w-full"
-            >
-              Go to Playoffs Page
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -1316,28 +1635,22 @@ function PlayoffPicksContent() {
           
           {/* Pool Info */}
           <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-500" />
-                  <span className="font-semibold text-lg">{poolName}</span>
+            <div className="space-y-4">
+              {/* Pool Header Row */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-center gap-2">
+                  <Users className="h-5 w-5 text-gray-500" />
+                  <span className="font-semibold text-xl">{poolName}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <Badge variant="outline">{roundNames[currentRound]}</Badge>
-                  <span className="text-sm text-gray-500">
-                    {games.filter(g => g.week === currentRound).length} games
-                  </span>
-                </div>
-
-                {/* Round Navigation */}
-                <div className="flex items-center justify-center gap-2 mt-2">
+                
+                {/* Round Navigation - Centered horizontal layout */}
+                <div className="flex items-center justify-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={navigateToPreviousRound}
                     className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentRound === 1 ? "Go to last week of regular season" : "Go to previous round"}
+                    title={currentRound === 1 ? "Go to previous season's Super Bowl" : "Go to previous round"}
                   >
                     <ChevronLeft className="h-3 w-3" />
                     <span className="hidden xs:inline">Previous Round</span>
@@ -1345,14 +1658,10 @@ function PlayoffPicksContent() {
                   </Button>
                   
                   <Button
-                    variant={currentRound === upcomingRound ? "default" : "outline"}
+                    variant="outline"
                     size="sm"
                     onClick={navigateToCurrentRound}
-                    className={`flex items-center gap-1 px-3 py-2 h-9 ${
-                      currentRound === upcomingRound 
-                        ? "bg-blue-600 text-white hover:bg-blue-700" 
-                        : ""
-                    }`}
+                    className="flex items-center gap-1 px-3 py-2 h-9"
                     title="Go to current/upcoming round"
                   >
                     <Calendar className="h-3 w-3" />
@@ -1364,57 +1673,36 @@ function PlayoffPicksContent() {
                     variant="outline"
                     size="sm"
                     onClick={navigateToNextRound}
-                    disabled={currentRound === 4}
+                    disabled={currentRound >= 4}
                     className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentRound === 4 ? "Already at last round" : "Go to next round"}
+                    title={currentRound >= 4 ? "Already at last round" : "Go to next round"}
                   >
                     <span className="hidden xs:inline">Next Round</span>
                     <span className="xs:hidden">Next</span>
                     <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
-
-                {/* Round Selector Buttons */}
-                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                  <Button
-                    variant={currentRound === 1 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => navigateToRound(1)}
-                    className="text-xs"
-                  >
-                    Wild Card
-                  </Button>
-                  <Button
-                    variant={currentRound === 2 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => navigateToRound(2)}
-                    className="text-xs"
-                  >
-                    Divisional
-                  </Button>
-                  <Button
-                    variant={currentRound === 3 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => navigateToRound(3)}
-                    className="text-xs"
-                  >
-                    Conference
-                  </Button>
-                  <Button
-                    variant={currentRound === 4 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => navigateToRound(4)}
-                    className="text-xs"
-                  >
-                    Super Bowl
-                  </Button>
+              </div>
+              
+              {/* Round Info Row */}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <Badge variant="outline" className="px-3 py-1">{roundNames[currentRound]}</Badge>
                 </div>
-
-                {lastUpdated && (
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    Last updated: {lastUpdated.toLocaleTimeString()}
-                  </div>
-                )}
+                <span className="text-sm text-gray-600">
+                  {games.filter(g => g.week === currentRound).length} games
+                </span>
+                <Badge variant="secondary" className="text-xs px-2 py-1">
+                  Postseason
+                </Badge>
+              </div>
+              
+              {/* Last Updated Timestamp */}
+              <div className="text-center">
+                <span className="text-xs text-gray-500">
+                  Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : new Date().toLocaleTimeString()}
+                </span>
               </div>
               
               <div className="flex flex-col lg:flex-row items-center gap-4">
@@ -1468,6 +1756,9 @@ function PlayoffPicksContent() {
             {/* Debug Mode Checkboxes - Only visible in development */}
             {process.env.NODE_ENV === 'development' && (
               <div className="flex flex-col gap-3 mt-4 p-3 bg-gray-50 rounded-lg border">
+                <div className="text-xs font-semibold text-gray-700 mb-1">
+                  🛠️ Development Tools
+                </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="debug-mode"
@@ -1511,6 +1802,21 @@ function PlayoffPicksContent() {
                       </span>
                     )}
                   </Label>
+                </div>
+                {/* Show Winner On Command - Current Round */}
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="show-winner"
+                      checked={showWinnerOnCommand}
+                      onCheckedChange={(checked) => {
+                        setShowWinnerOnCommand(checked === true);
+                      }}
+                    />
+                    <Label htmlFor="show-winner" className="text-sm font-medium cursor-pointer">
+                      Show {roundNames[currentRound]} Winner
+                    </Label>
+                  </div>
                 </div>
                 {selectedUser && (
                   <Button
@@ -1985,7 +2291,7 @@ function PlayoffPicksContent() {
                     </Card>
                   )}
 
-                {/* Round Winner Announcement - Show when debug mode is enabled or game picks panel is hidden and winner exists */}
+                {/* Round Winner Announcement - Show when round has ended and winner exists, or debug mode/show on command */}
                 {(() => {
                   // Get winner from leaderboard data if available, otherwise use roundWinners state
                   const leaderboardForRound = leaderboardData[round.week];
@@ -1998,7 +2304,51 @@ function PlayoffPicksContent() {
                       }
                     : roundWinners[round.week];
                   
-                  return ((debugMode || !showGamePicksPanel) && winner) && (
+                  const roundIsEnded = roundEnded[round.week] || false;
+                  const roundHasPicksForRound = roundHasPicks[round.week] || false;
+                  // Only show on command for current round
+                  const showOnCommand = process.env.NODE_ENV === 'development' && showWinnerOnCommand && round.week === currentRound;
+                  
+                  // Show winner if:
+                  // 1. Round has ended and has picks (normal flow) - requires winner
+                  // 2. Debug mode is enabled - requires winner
+                  // 3. Game picks panel is hidden - requires winner
+                  // 4. Show on command checkbox is checked for current round (development only) - can show loading state
+                  const shouldShowWinner = (
+                    (roundIsEnded && roundHasPicksForRound && winner) ||
+                    (debugMode && winner) ||
+                    (!showGamePicksPanel && winner) ||
+                    showOnCommand
+                  );
+                  
+                  // If showOnCommand is true but no winner yet, show loading state
+                  const isLoadingWinner = showOnCommand && !winner;
+                  
+                  // Show loading state if checkbox is checked but winner is not loaded yet
+                  if (isLoadingWinner) {
+                    return (
+                      <Card className="mt-6 max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+                        <CardHeader className="text-center">
+                          <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+                            <Crown className="h-10 w-10 text-yellow-600 animate-pulse" />
+                          </div>
+                          <CardTitle className="text-yellow-900 text-2xl">{round.roundName} Winner</CardTitle>
+                          <CardDescription className="text-yellow-700 text-lg">
+                            Loading winner data...
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-center space-y-4">
+                          <div className="bg-white rounded-lg p-6 border border-yellow-200">
+                            <div className="text-sm text-gray-600">
+                              Fetching leaderboard data...
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
+                  return shouldShowWinner && winner && (
                     <Card className="mt-6 max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
                       <CardHeader className="text-center">
                         <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -2006,7 +2356,10 @@ function PlayoffPicksContent() {
                         </div>
                         <CardTitle className="text-yellow-900 text-2xl">{round.roundName} Winner!</CardTitle>
                         <CardDescription className="text-yellow-700 text-lg">
-                          Congratulations to the {round.roundName} winner!
+                          {roundIsEnded && roundHasPicksForRound
+                            ? `Congratulations to the ${round.roundName} winner!`
+                            : 'Winner preview (games may not be complete)'
+                          }
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="text-center space-y-4">
