@@ -29,7 +29,7 @@ import {
   AlertTriangle,
   Shield
 } from 'lucide-react';
-import { debugLog, NFL_TEAMS } from '@/lib/utils';
+import { debugLog, NFL_TEAMS, getNFLSeasonYear } from '@/lib/utils';
 
 interface PlayoffTeam {
   id?: string;
@@ -70,7 +70,7 @@ function PlayoffManagementContent() {
   const { toast } = useToast();
   const { user, verifyAdminStatus } = useAuth();
 
-  const [season, setSeason] = useState<number>(new Date().getFullYear());
+  const [season, setSeason] = useState<number>(getNFLSeasonYear());
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'teams' | 'games'>('teams');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -96,6 +96,12 @@ function PlayoffManagementContent() {
   const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
   const [resultDialogTitle, setResultDialogTitle] = useState('');
   const [resultDialogDescription, setResultDialogDescription] = useState('');
+  
+  // Confirmation dialog state for game fetching
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingGames, setPendingGames] = useState<PlayoffGame[]>([]);
+  const [pendingRound, setPendingRound] = useState<number | null>(null);
+  const [fetchingRoundGames, setFetchingRoundGames] = useState<number | null>(null);
 
   // Check if user is a super admin (not a commissioner)
   useEffect(() => {
@@ -310,12 +316,13 @@ function PlayoffManagementContent() {
 
   const fetchGamesForRound = async (round: number) => {
     try {
-      debugLog(`Fetching game IDs for round ${round} (${ROUND_NAMES[round]}) from ESPN`);
+      setFetchingRoundGames(round);
+      debugLog(`Fetching complete game data for round ${round} (${ROUND_NAMES[round]}) from ESPN`);
       
       // Calculate playoff year: 2025 season games are in Jan/Feb 2026
       const playoffYear = season + 1;
       
-      // Use the server-side API route to fetch ESPN game IDs (avoids CORS issues)
+      // Use the server-side API route to fetch ESPN game data (avoids CORS issues)
       const response = await fetch('/api/admin/playoff-games/fetch-espn-ids', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -325,12 +332,22 @@ function PlayoffManagementContent() {
       const data = await response.json();
       debugLog('PLAYOFFS: Response:', response);
       debugLog('PLAYOFFS: Data:', data);
-      // Extract IDs, kickoff times, and team names (if available) from the ESPN games
-      const espnGameIds: Array<{ id: string; kickoff_time: string; away_team?: string; home_team?: string }> = [];
-      if (data.success && data.games && data.games.length > 0) {
+      
+      if (!data.success || !data.games) {
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch game data from ESPN',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Extract complete game data: id, kickoff_time, away_team, home_team
+      const espnGames: Array<{ id: string; kickoff_time: string; away_team?: string; home_team?: string }> = [];
+      if (data.games.length > 0) {
         for (const game of data.games) {
           if (game.id && game.kickoff_time) {
-            espnGameIds.push({
+            espnGames.push({
               id: game.id,
               kickoff_time: game.kickoff_time,
               ...(game.away_team && game.home_team ? { away_team: game.away_team, home_team: game.home_team } : {})
@@ -338,8 +355,8 @@ function PlayoffManagementContent() {
           }
         }
       }
-      debugLog('PLAYOFFS: ESPN Game IDs:', espnGameIds);
-      debugLog(`Fetched ${espnGameIds.length} game IDs from ESPN for round ${round}`);
+      debugLog('PLAYOFFS: ESPN Games with full data:', espnGames);
+      debugLog(`Fetched ${espnGames.length} games with complete data from ESPN for round ${round}`);
 
       // Get existing games for this round
       const roundGames = getGamesByRound(round);
@@ -354,25 +371,127 @@ function PlayoffManagementContent() {
         })
       );
 
-      // Find ESPN games that don't already exist
+      // Find existing games with TBD teams that can be updated
+      const gamesWithTbdTeams = roundGames.filter(g => 
+        g.away_team === 'TBD' || g.home_team === 'TBD'
+      );
+      debugLog(`Found ${gamesWithTbdTeams.length} existing game(s) with TBD teams for round ${round}`);
+
+      // Find ESPN games that don't already exist OR can update existing games with mismatched teams
       const gamesToCreate: PlayoffGame[] = [];
-      for (const espnGame of espnGameIds) {
+      const matchedTbdGames = new Set<string>(); // Track which TBD games we've matched
+      const updatedGames = new Set<string>(); // Track which games we've updated due to team mismatch
+      
+      for (const espnGame of espnGames) {
         // Check if game already exists by ID
         if (espnGame.id && existingGameIds.has(espnGame.id)) {
-          debugLog(`Game with ID ${espnGame.id} already exists, skipping`);
-          continue;
+          const existingGame = roundGames.find(g => g.id === espnGame.id);
+          
+          if (existingGame) {
+            const hasTbd = existingGame.away_team === 'TBD' || existingGame.home_team === 'TBD';
+            
+            // If ESPN has teams, check if they match the existing game
+            if (espnGame.away_team && espnGame.home_team) {
+              // Check if teams match (considering home/away swap)
+              const teamsMatch = 
+                (existingGame.away_team === espnGame.away_team && existingGame.home_team === espnGame.home_team) ||
+                (existingGame.away_team === espnGame.home_team && existingGame.home_team === espnGame.away_team);
+              
+              // If teams don't match OR there's a TBD, update with ESPN data (ESPN is source of truth)
+              if (!teamsMatch || hasTbd) {
+                if (!teamsMatch && !hasTbd) {
+                  debugLog(`Updating game ${espnGame.id}: DB has ${existingGame.away_team} @ ${existingGame.home_team}, ESPN has ${espnGame.away_team} @ ${espnGame.home_team}`);
+                } else if (hasTbd) {
+                  debugLog(`Updating existing TBD game ${espnGame.id} with teams: ${espnGame.away_team} @ ${espnGame.home_team}`);
+                }
+                
+                gamesToCreate.push({
+                  season,
+                  week: round,
+                  away_team: espnGame.away_team,
+                  home_team: espnGame.home_team,
+                  id: espnGame.id, // Keep the ESPN ID
+                  kickoff_time: espnGame.kickoff_time || existingGame.kickoff_time,
+                  status: existingGame.status || 'scheduled'
+                });
+                updatedGames.add(espnGame.id);
+                continue;
+              }
+              
+              // Teams match and no TBD, skip
+              debugLog(`Game with ID ${espnGame.id} already exists with matching teams, skipping`);
+              continue;
+            } else if (hasTbd) {
+              // ESPN doesn't have teams but DB has TBD - update kickoff time if available
+              if (espnGame.kickoff_time && espnGame.kickoff_time !== existingGame.kickoff_time) {
+                gamesToCreate.push({
+                  season,
+                  week: round,
+                  away_team: existingGame.away_team || 'TBD',
+                  home_team: existingGame.home_team || 'TBD',
+                  id: espnGame.id,
+                  kickoff_time: espnGame.kickoff_time,
+                  status: existingGame.status || 'scheduled'
+                });
+                updatedGames.add(espnGame.id);
+                continue;
+              }
+            }
+          }
         }
 
-        // Check if game already exists by team matchup (if teams are available)
-        if (espnGame.away_team && espnGame.home_team) {
+        // Check if game already exists by team matchup (if teams are available and we haven't already processed it)
+        if (espnGame.away_team && espnGame.home_team && !updatedGames.has(espnGame.id || '')) {
           const matchupKey = [espnGame.away_team, espnGame.home_team].sort().join('|');
           if (existingMatchups.has(matchupKey)) {
-            debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists, skipping`);
+            // Find all games with this matchup
+            const existingGamesWithMatchup = roundGames.filter(g => {
+              const gameMatchup = [g.away_team, g.home_team].sort().join('|');
+              return gameMatchup === matchupKey;
+            });
+            
+            // Check if any of these games already has this ESPN ID
+            const gameWithMatchingId = existingGamesWithMatchup.find(g => g.id === espnGame.id);
+            if (gameWithMatchingId) {
+              debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists with matching ID ${espnGame.id}, skipping`);
+              continue;
+            }
+            
+            // If we have multiple games with same teams but different IDs, skip to avoid duplicates
+            // (The ID-based update above should have handled any mismatches)
+            debugLog(`Game ${espnGame.away_team} @ ${espnGame.home_team} already exists with different ID(s), skipping`);
             continue;
           }
         }
 
-        // This game doesn't exist yet, add it to create list
+        // Check if we can update an existing TBD game (that hasn't been matched yet)
+        if (espnGame.away_team && espnGame.home_team && gamesWithTbdTeams.length > 0) {
+          // Find a TBD game that hasn't been matched yet and doesn't have an ESPN ID
+          const tbdGameToUpdate = gamesWithTbdTeams.find(g => 
+            !matchedTbdGames.has(g.id || '') &&
+            !updatedGames.has(g.id || '') &&
+            (g.away_team === 'TBD' || g.home_team === 'TBD') &&
+            (!g.id || !espnGame.id || g.id !== espnGame.id) // Don't match if IDs conflict
+          );
+
+          if (tbdGameToUpdate) {
+            // Update the existing TBD game with ESPN data
+            debugLog(`Updating existing TBD game ${tbdGameToUpdate.id} with teams: ${espnGame.away_team} @ ${espnGame.home_team}`);
+            gamesToCreate.push({
+              season,
+              week: round,
+              away_team: espnGame.away_team,
+              home_team: espnGame.home_team,
+              id: tbdGameToUpdate.id || espnGame.id, // Keep existing ID if available, otherwise use ESPN ID
+              kickoff_time: espnGame.kickoff_time || tbdGameToUpdate.kickoff_time,
+              status: tbdGameToUpdate.status || 'scheduled'
+            });
+            matchedTbdGames.add(tbdGameToUpdate.id || '');
+            continue;
+          }
+        }
+
+        // This game doesn't exist yet and doesn't match any existing game, add it to create list with complete data
         gamesToCreate.push({
           season,
           week: round,
@@ -393,17 +512,16 @@ function PlayoffManagementContent() {
         debugLog(`Creating ${stillNeeded} additional TBD placeholder game(s) to reach expected count of ${expectedGameCount}`);
         // Generate a unique ID for TBD games
         const timestamp = Date.now();
+        const playoffYear = season + 1;
+        const defaultDates: Record<number, string> = {
+          1: `${playoffYear}-01-11T18:00:00Z`,
+          2: `${playoffYear}-01-18T18:00:00Z`,
+          3: `${playoffYear}-01-25T18:00:00Z`,
+          4: `${playoffYear}-02-08T18:00:00Z`
+        };
+        
         for (let i = 0; i < stillNeeded; i++) {
           const generatedId = `${season}_3_${round}_TBD_${timestamp}_${i}`;
-          
-          // Generate a default kickoff time if not provided
-          const playoffYear = season + 1;
-          const defaultDates: Record<number, string> = {
-            1: `${playoffYear}-01-11T18:00:00Z`,
-            2: `${playoffYear}-01-18T18:00:00Z`,
-            3: `${playoffYear}-01-25T18:00:00Z`,
-            4: `${playoffYear}-02-08T18:00:00Z`
-          };
           
           gamesToCreate.push({
             season,
@@ -417,44 +535,71 @@ function PlayoffManagementContent() {
         }
       }
 
-      // Save new games to database
+      // Show confirmation dialog instead of saving immediately
       if (gamesToCreate.length > 0) {
-        debugLog('PLAYOFFS: Games to create:', gamesToCreate);
-        const saveResponse = await fetch('/api/admin/playoff-games', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            season,
-            games: gamesToCreate
-          })
-        });
-
-        const saveData = await saveResponse.json();
-        if (saveData.success) {
-          debugLog(`Created ${gamesToCreate.length} new games for round ${round} with TBD placeholders`);
-          setResultDialogType('success');
-          setResultDialogTitle('Games Created Successfully');
-          setResultDialogDescription(`Successfully created ${gamesToCreate.length} game(s) for ${ROUND_NAMES[round]} with TBD placeholders. The games have been added to the database and can now be updated with actual team matchups and ESPN game IDs.`);
-          setResultDialogOpen(true);
-          // Reload games to refresh the state
-          await loadGames();
-        } else {
-          console.error('Error saving games:', saveData.error);
-          setResultDialogType('error');
-          setResultDialogTitle('Failed to Save Games');
-          setResultDialogDescription(`An error occurred while trying to save games for ${ROUND_NAMES[round]}. Error: ${saveData.error || 'Unknown error'}. Please check your connection and try again.`);
-          setResultDialogOpen(true);
-        }
+        setPendingGames(gamesToCreate);
+        setPendingRound(round);
+        setConfirmDialogOpen(true);
       } else {
-        debugLog(`No games to create for round ${round}`);
+        toast({
+          title: 'Info',
+          description: `No new games to create for ${ROUND_NAMES[round]}. All games already exist.`,
+        });
       }
-      return;
     } catch (error) {
       console.error(`Error fetching games for round ${round}:`, error);
-      setResultDialogType('error');
-      setResultDialogTitle('Failed to Fetch Games');
-      setResultDialogDescription(`An error occurred while trying to fetch games for ${ROUND_NAMES[round]}. Error: ${error || 'Unknown error'}. Please check your connection and try again.`);
-      setResultDialogOpen(true);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch games for ${ROUND_NAMES[round]}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setFetchingRoundGames(null);
+    }
+  };
+
+  // Save pending games to database after confirmation
+  const confirmSaveGames = async () => {
+    if (!pendingRound || pendingGames.length === 0) return;
+
+    try {
+      debugLog('PLAYOFFS: Saving confirmed games:', pendingGames);
+      const saveResponse = await fetch('/api/admin/playoff-games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          season,
+          games: pendingGames
+        })
+      });
+
+      const saveData = await saveResponse.json();
+      if (saveData.success) {
+        debugLog(`Created ${pendingGames.length} new games for round ${pendingRound}`);
+        toast({
+          title: 'Success',
+          description: `Successfully created ${pendingGames.length} game(s) for ${ROUND_NAMES[pendingRound]}.`,
+        });
+        setConfirmDialogOpen(false);
+        setPendingGames([]);
+        setPendingRound(null);
+        // Reload games to refresh the state
+        await loadGames();
+      } else {
+        console.error('Error saving games:', saveData.error);
+        toast({
+          title: 'Error',
+          description: `Failed to save games: ${saveData.error || 'Unknown error'}`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving games:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to save games: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -462,11 +607,12 @@ function PlayoffManagementContent() {
     // Check all expected playoff games - ensure all games in all rounds have IDs
     const gamesNeedingIds: PlayoffGame[] = [];
     
+    debugLog(`Fetching all game IDs for season ${season}`);
+
     // Check each round (1-4) for expected number of games
     for (const round of [1, 2, 3, 4]) {
       const expectedGameCount = ROUND_GAME_COUNTS[round];
       const roundGames = getGamesByRound(round);
-      
       // Check if we have the expected number of games
       if (roundGames.length < expectedGameCount) {
         // Missing some games entirely - fetch from ESPN and create them
@@ -832,7 +978,22 @@ function PlayoffManagementContent() {
     return games.filter(g => g.week === round);
   };
 
-  const availableTeams = NFL_TEAMS.filter(t => t.conference === selectedConference);
+  // Get available teams for the selected conference, excluding teams already assigned
+  // Always include the current team being edited (if any) so it can be kept or changed
+  const getAvailableTeams = () => {
+    const assignedTeamNames = new Set(
+      teams
+        .filter(t => t.id !== editingTeam?.id) // Exclude current team being edited
+        .map(t => t.team_name)
+    );
+    
+    return NFL_TEAMS.filter(t => 
+      t.conference === selectedConference && 
+      (!assignedTeamNames.has(t.name) || t.name === editingTeam?.team_name) // Include if not assigned OR if it's the current team
+    );
+  };
+  
+  const availableTeams = getAvailableTeams();
 
   // Show loading while checking access
   if (checkingAccess || loading) {
@@ -893,7 +1054,7 @@ function PlayoffManagementContent() {
               id="season-select"
               type="number"
               value={season}
-              onChange={(e) => setSeason(parseInt(e.target.value) || new Date().getFullYear())}
+              onChange={(e) => setSeason(parseInt(e.target.value) || getNFLSeasonYear())}
               className="w-20 sm:w-24"
             />
             <Button variant="outline" size="sm" onClick={() => { loadTeams(); loadGames(); }}>
@@ -1162,6 +1323,26 @@ function PlayoffManagementContent() {
                           >
                             {roundGames.length} / {expectedGames} games
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchGamesForRound(round)}
+                            disabled={fetchingRoundGames === round}
+                            className="ml-2"
+                          >
+                            {fetchingRoundGames === round ? (
+                              <>
+                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                <span className="hidden sm:inline">Fetching...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                <span className="hidden sm:inline">Fetch Games</span>
+                                <span className="sm:hidden">Fetch</span>
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
                       {roundGames.length > 0 ? (
@@ -1362,13 +1543,21 @@ function PlayoffManagementContent() {
               </div>
               <div>
                 <Label>Seed (1-7)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={editingTeam.seed}
-                  onChange={(e) => setEditingTeam({ ...editingTeam, seed: parseInt(e.target.value) || 1 })}
-                />
+                <Select
+                  value={editingTeam.seed.toString()}
+                  onValueChange={(value) => setEditingTeam({ ...editingTeam, seed: parseInt(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7].map((seedNum) => (
+                      <SelectItem key={seedNum} value={seedNum.toString()}>
+                        {seedNum}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Team</Label>
@@ -1575,6 +1764,130 @@ function PlayoffManagementContent() {
           <div className="flex justify-end pt-4">
             <Button onClick={() => setResultDialogOpen(false)}>
               OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for Game Fetching */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="max-w-4xl w-[calc(100vw-1rem)] sm:w-full lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="px-0">
+            <DialogTitle className="text-lg sm:text-xl">Review Games Before Saving</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Please review the {pendingGames.length} game(s) that will be created for {pendingRound ? ROUND_NAMES[pendingRound] : 'this round'}.
+              Click "Confirm & Save" to add them to the database, or "Cancel" to discard.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {pendingGames.length > 0 && (
+              <>
+                {/* Mobile Card Layout */}
+                <div className="md:hidden space-y-3">
+                  {pendingGames.map((game, index) => (
+                    <Card key={game.id || `pending-${index}`} className="p-3 sm:p-4">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded break-all flex-1 min-w-0">
+                            {game.id || 'No ID'}
+                          </code>
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {game.status || 'scheduled'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1.5 pt-1">
+                          <div>
+                            <span className="text-xs text-gray-500">Away:</span>
+                            <p className={`text-sm font-medium ${game.away_team === 'TBD' ? 'text-gray-400 italic' : ''}`}>
+                              {game.away_team || 'TBD'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500">Home:</span>
+                            <p className={`text-sm font-medium ${game.home_team === 'TBD' ? 'text-gray-400 italic' : ''}`}>
+                              {game.home_team || 'TBD'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500">Kickoff:</span>
+                            <p className="text-sm">
+                              {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Desktop Table Layout */}
+                <div className="hidden md:block border rounded-lg overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[120px]">Game ID</TableHead>
+                        <TableHead className="min-w-[140px]">Away Team</TableHead>
+                        <TableHead className="min-w-[140px]">Home Team</TableHead>
+                        <TableHead className="min-w-[180px]">Kickoff Time</TableHead>
+                        <TableHead className="min-w-[100px]">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingGames.map((game, index) => (
+                        <TableRow key={game.id || `pending-${index}`}>
+                          <TableCell>
+                            <code className="text-xs bg-gray-100 px-2 py-1 rounded break-all">
+                              {game.id || 'No ID'}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <span className={game.away_team === 'TBD' ? 'text-gray-400 italic' : ''}>
+                              {game.away_team || 'TBD'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={game.home_team === 'TBD' ? 'text-gray-400 italic' : ''}>
+                              {game.home_team || 'TBD'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm">
+                            {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{game.status || 'scheduled'}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-blue-800">
+                <strong>Note:</strong> Games with "TBD" teams are placeholders that will need to be updated once the actual matchups are determined.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t px-0">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setConfirmDialogOpen(false);
+                setPendingGames([]);
+                setPendingRound(null);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={confirmSaveGames} className="w-full sm:w-auto">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirm & Save
             </Button>
           </div>
         </DialogContent>

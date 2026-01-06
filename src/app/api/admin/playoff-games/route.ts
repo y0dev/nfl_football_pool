@@ -5,6 +5,7 @@ import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
   if (isDummyData()) {
+    debugLog('Using dummy data for playoff games');
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week'); // Round (1-4)
     
@@ -21,7 +22,9 @@ export async function GET(request: NextRequest) {
       games: games
     });
   }
-  
+
+  debugLog('Using real data for playoff games');
+  // Admin routes should always use real data from database, not dummy data
   try {
     const { searchParams } = new URL(request.url);
     const season = searchParams.get('season');
@@ -158,12 +161,18 @@ export async function POST(request: NextRequest) {
 
       // Check if game ID already exists in database
       if (game.id && existingIds.has(game.id)) {
-        // Game with this ID already exists - update it (especially kickoff_time and teams if TBD)
+        // Game with this ID already exists - update it (especially kickoff_time and teams if TBD or mismatched)
         const existingGame = existingGamesById.get(game.id);
         const hasTbdTeams = existingGame && 
           (existingGame.away_team === 'TBD' || existingGame.home_team === 'TBD');
         const hasNewTeams = game.away_team && game.away_team !== 'TBD' && 
                            game.home_team && game.home_team !== 'TBD';
+        
+        // Check if teams don't match (ESPN is source of truth)
+        const teamsMatch = existingGame && hasNewTeams &&
+          ((existingGame.away_team === game.away_team && existingGame.home_team === game.home_team) ||
+           (existingGame.away_team === game.home_team && existingGame.home_team === game.away_team));
+        const teamsDontMatch = existingGame && hasNewTeams && !teamsMatch && !hasTbdTeams;
         
         // Prepare update data
         const updateData: any = {
@@ -174,10 +183,15 @@ export async function POST(request: NextRequest) {
           winner: gameData.winner
         };
         
-        // If existing game has TBD teams and we have actual team names from ESPN, update them
-        if (hasTbdTeams && hasNewTeams) {
+        // Update teams if:
+        // 1. Existing game has TBD teams and we have actual team names from ESPN, OR
+        // 2. Teams don't match (ESPN is correct and should override DB)
+        if ((hasTbdTeams && hasNewTeams) || teamsDontMatch) {
           updateData.away_team = gameData.away_team;
           updateData.home_team = gameData.home_team;
+          if (teamsDontMatch) {
+            debugLog(`Updating game ${game.id}: DB teams (${existingGame.away_team} @ ${existingGame.home_team}) don't match ESPN teams (${game.away_team} @ ${game.home_team}), using ESPN data`);
+          }
         }
         
         toUpdate.push(updateData);
@@ -209,8 +223,9 @@ export async function POST(request: NextRequest) {
       
       // Only include fields that should be updated
       if (updateData.kickoff_time) updatePayload.kickoff_time = updateData.kickoff_time;
-      if (updateData.away_team) updatePayload.away_team = updateData.away_team;
-      if (updateData.home_team) updatePayload.home_team = updateData.home_team;
+      // Always include teams if they're in updateData (they're explicitly set when we want to update them)
+      if ('away_team' in updateData) updatePayload.away_team = updateData.away_team;
+      if ('home_team' in updateData) updatePayload.home_team = updateData.home_team;
       if (updateData.status) updatePayload.status = updateData.status;
       if (updateData.winner !== undefined) updatePayload.winner = updateData.winner;
       if (updateData.is_playoff !== undefined) updatePayload.is_playoff = updateData.is_playoff;

@@ -62,7 +62,10 @@ export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPick
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    const url = `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
+    // For postseason (seasonType === 3), use playoff-picks route
+    const url = selectedSeasonType === 3 
+      ? `${baseUrl}/pool/${poolId}/playoff-picks?round=${selectedWeek}`
+      : `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
     setTestUrl(url);
   }, [poolId, selectedWeek, selectedSeasonType]);
 

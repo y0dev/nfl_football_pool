@@ -27,6 +27,10 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
   // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    // For postseason (seasonType === 3), use playoff-picks route
+    if (currentSeasonType === 3) {
+      return `${baseUrl}/pool/${poolId}/playoff-picks?round=${currentWeek}`;
+    }
     return `${baseUrl}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
   };
 
@@ -53,12 +57,15 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
   // Share link (mobile-friendly)
   const shareLink = async () => {
     const link = generateParticipantLink();
-    const text = `Join ${poolName} - Week ${currentWeek} NFL Confidence Pool: ${link}`;
+    const weekLabel = currentSeasonType === 3 
+      ? `Round ${currentWeek}` 
+      : `Week ${currentWeek}`;
+    const text = `Join ${poolName} - ${weekLabel} NFL Confidence Pool: ${link}`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${poolName} - Week ${currentWeek}`,
+          title: `${poolName} - ${weekLabel}`,
           text: text,
           url: link,
         });
@@ -110,10 +117,12 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">Week</Label>
+            <Label className="text-sm font-medium">
+              {currentSeasonType === 3 ? 'Round' : 'Week'}
+            </Label>
             <div className="mt-1">
               <Badge variant="outline" className="text-sm">
-                Week {currentWeek}
+                {currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`}
               </Badge>
             </div>
           </div>
@@ -180,8 +189,9 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
               variant="outline"
               size="sm"
               onClick={() => {
-                const subject = `${poolName} - Week ${currentWeek} NFL Pool`;
-                const body = `Join our NFL Confidence Pool for Week ${currentWeek}!\n\nClick this link to participate: ${participantLink}`;
+                const weekLabel = currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`;
+                const subject = `${poolName} - ${weekLabel} NFL Pool`;
+                const body = `Join our NFL Confidence Pool for ${weekLabel}!\n\nClick this link to participate: ${participantLink}`;
                 window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
               }}
             >
