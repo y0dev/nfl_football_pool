@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Users, Trophy, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
-import { createPageUrl, debugLog } from '@/lib/utils';
+import { createPageUrl, debugLog, getTeamAbbreviation } from '@/lib/utils';
 
 interface PlayoffTeam {
   id: string;
@@ -70,6 +70,7 @@ function PlayoffsPageContent() {
   const [hasSubmission, setHasSubmission] = useState(false);
   const [isCompleteSubmission, setIsCompleteSubmission] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [allParticipantsForDisplay, setAllParticipantsForDisplay] = useState<Participant[]>([]);
 
   useEffect(() => {
     loadData();
@@ -93,6 +94,8 @@ function PlayoffsPageContent() {
       // Load participants (will be filtered by submission status after loadSubmissionStatus)
       const users = await loadUsers(poolId);
       setParticipants(users || []);
+      // Keep a copy of all participants for display purposes
+      setAllParticipantsForDisplay(users || []);
 
       // Load playoff teams
       const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${seasonToUse}`);
@@ -169,6 +172,9 @@ function PlayoffsPageContent() {
         // Reload participants and filter out submitted ones
         const allUsers = await loadUsers(poolId);
         debugLog('PLAYOFFS: allUsers', allUsers);
+        // Keep all participants for display
+        setAllParticipantsForDisplay(allUsers || []);
+        // Filter participants for the submission form (exclude those who have submitted)
         const availableUsers = (allUsers || []).filter(
           user => !submittedParticipantIds.has(user.id)
         );
@@ -275,6 +281,40 @@ function PlayoffsPageContent() {
     }
 
     return null;
+  };
+
+  // Generate random confidence points for all teams (debug only)
+  const generateRandomConfidencePoints = () => {
+    if (!selectedParticipantId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a participant first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
+    const teamCount = actualTeams.length;
+    
+    // Generate array of sequential numbers (1 to teamCount) and shuffle
+    const points = Array.from({ length: teamCount }, (_, i) => i + 1);
+    for (let i = points.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [points[i], points[j]] = [points[j], points[i]];
+    }
+    
+    // Assign shuffled points to teams
+    const randomPoints: Record<string, number> = {};
+    actualTeams.forEach((team, index) => {
+      randomPoints[team.team_name] = points[index];
+    });
+    
+    setConfidencePoints(randomPoints);
+    toast({
+      title: 'Random Points Generated',
+      description: `Random confidence points assigned to all ${teamCount} teams`,
+    });
   };
 
   const handleSubmit = async () => {
@@ -457,53 +497,202 @@ function PlayoffsPageContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 bg-white z-20 font-semibold">Participant</TableHead>
-                    {sortedPlayoffTeams
-                      .filter(team => team.team_name && team.team_name.trim() !== '')
-                      .map(team => (
-                        <TableHead key={team.id} className="text-center font-semibold">
-                          <div className="flex flex-col items-center gap-1">
-                            <span>{team.team_name}</span>
-                            {team.seed && (
-                              <Badge variant="outline" className="text-xs">
-                                {team.conference} #{team.seed}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableHead>
-                      ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {participants.map(participant => {
-                    const participantPoints = allConfidencePoints.filter(
-                      cp => cp.participant_id === participant.id
-                    );
-                    const pointsMap: Record<string, number> = {};
-                    participantPoints.forEach(cp => {
-                      pointsMap[cp.team_name] = cp.confidence_points;
+            {/* Table View - Separated by Conference */}
+            <div className="space-y-6">
+              {(() => {
+                // Extract unique participants from submissionStatus or allConfidencePoints
+                const participantMap = new Map<string, { id: string; name: string }>();
+                
+                // First, try to get from submissionStatus
+                submissionStatus.forEach(status => {
+                  if (!participantMap.has(status.participant_id)) {
+                    participantMap.set(status.participant_id, {
+                      id: status.participant_id,
+                      name: status.participant_name
                     });
+                  }
+                });
+                
+                // Also check allConfidencePoints for any missing participants
+                allConfidencePoints.forEach(cp => {
+                  if (!participantMap.has(cp.participant_id)) {
+                    const participantName = (cp.participants as any)?.name || 'Unknown';
+                    participantMap.set(cp.participant_id, {
+                      id: cp.participant_id,
+                      name: participantName
+                    });
+                  }
+                });
+                
+                // Fallback to allParticipantsForDisplay if available
+                if (participantMap.size === 0 && allParticipantsForDisplay.length > 0) {
+                  allParticipantsForDisplay.forEach(p => {
+                    participantMap.set(p.id, p);
+                  });
+                }
+                
+                const participantsList = Array.from(participantMap.values());
+                const afcTeams = sortedPlayoffTeams.filter(
+                  team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'AFC'
+                );
+                const nfcTeams = sortedPlayoffTeams.filter(
+                  team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'NFC'
+                );
 
-                    return (
-                      <TableRow key={participant.id} className="hover:bg-gray-50">
-                        <TableCell className="sticky left-0 bg-white z-10 font-medium">{participant.name}</TableCell>
-                        {sortedPlayoffTeams
-                          .filter(team => team.team_name && team.team_name.trim() !== '')
-                          .map(team => (
-                            <TableCell key={team.id} className="text-center font-semibold">
-                              {pointsMap[team.team_name] || '-'}
-                            </TableCell>
-                          ))}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                return (
+                  <>
+                    {/* AFC Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b-2 border-red-300">
+                        <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                        <h3 className="text-base sm:text-lg font-bold text-red-600">AFC</h3>
+                      </div>
+                      <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                        <table className="w-full caption-bottom text-sm border-collapse min-w-full">
+                          <thead>
+                            <tr className="bg-gray-50 border-b">
+                              <th className="sticky left-0 bg-gray-50 z-30 font-semibold min-w-[120px] sm:min-w-[150px] border-r text-xs sm:text-sm shadow-[2px_0_4px_rgba(0,0,0,0.1)] h-10 px-2 text-left align-middle">
+                                Participant
+                              </th>
+                              {afcTeams.map(team => (
+                                <th key={team.id} className="text-center font-semibold min-w-[90px] sm:min-w-[110px] px-1 sm:px-2 h-10 align-middle">
+                                  <div className="flex flex-col items-center gap-1 sm:gap-1.5">
+                                    <span className="text-xs font-medium leading-tight">
+                                      <span className="sm:hidden">{getTeamAbbreviation(team.team_name)}</span>
+                                      <span className="hidden sm:inline">{team.team_name}</span>
+                                    </span>
+                                    {team.seed && (
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-xs border-red-300 text-red-700 w-12 flex items-center justify-center"
+                                      >
+                                        AFC #{team.seed}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {participantsList.map((participant, index) => {
+                              const participantPoints = allConfidencePoints.filter(
+                                cp => cp.participant_id === participant.id
+                              );
+                              const pointsMap: Record<string, number> = {};
+                              participantPoints.forEach(cp => {
+                                pointsMap[cp.team_name] = cp.confidence_points;
+                              });
+
+                              const rowBgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
+                              return (
+                                <tr 
+                                  key={participant.id} 
+                                  className={`border-b transition-colors hover:bg-gray-50 ${rowBgColor}`}
+                                >
+                                  <td className={`sticky left-0 ${rowBgColor} z-20 font-medium border-r text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none shadow-[2px_0_4px_rgba(0,0,0,0.1)] p-2 align-middle`}>
+                                    {participant.name}
+                                  </td>
+                                  {afcTeams.map(team => {
+                                    const points = pointsMap[team.team_name];
+                                    return (
+                                      <td key={team.id} className="text-center px-1 sm:px-2 py-2 sm:py-3 align-middle">
+                                        <div className="flex flex-col items-center justify-center gap-0.5">
+                                          <span className={`text-lg sm:text-xl font-bold ${
+                                            points ? 'text-blue-600' : 'text-gray-400'
+                                          }`}>
+                                            {points || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* NFC Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-300">
+                        <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                        <h3 className="text-base sm:text-lg font-bold text-blue-600">NFC</h3>
+                      </div>
+                      <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                        <table className="w-full caption-bottom text-sm border-collapse min-w-full">
+                          <thead>
+                            <tr className="bg-gray-50 border-b">
+                              <th className="sticky left-0 bg-gray-50 z-30 font-semibold min-w-[120px] sm:min-w-[150px] border-r text-xs sm:text-sm shadow-[2px_0_4px_rgba(0,0,0,0.1)] h-10 px-2 text-left align-middle">
+                                Participant
+                              </th>
+                              {nfcTeams.map(team => (
+                                <th key={team.id} className="text-center font-semibold min-w-[90px] sm:min-w-[110px] px-1 sm:px-2 h-10 align-middle">
+                                  <div className="flex flex-col items-center gap-1 sm:gap-1.5">
+                                    <span className="text-xs font-medium leading-tight">
+                                      <span className="sm:hidden">{getTeamAbbreviation(team.team_name)}</span>
+                                      <span className="hidden sm:inline">{team.team_name}</span>
+                                    </span>
+                                    {team.seed && (
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-xs border-blue-300 text-blue-700 w-12 flex items-center justify-center"
+                                      >
+                                        NFC #{team.seed}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {participantsList.map((participant, index) => {
+                              const participantPoints = allConfidencePoints.filter(
+                                cp => cp.participant_id === participant.id
+                              );
+                              const pointsMap: Record<string, number> = {};
+                              participantPoints.forEach(cp => {
+                                pointsMap[cp.team_name] = cp.confidence_points;
+                              });
+
+                              const rowBgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
+                              return (
+                                <tr 
+                                  key={participant.id} 
+                                  className={`border-b transition-colors hover:bg-gray-50 ${rowBgColor}`}
+                                >
+                                  <td className={`sticky left-0 ${rowBgColor} z-20 font-medium border-r text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none shadow-[2px_0_4px_rgba(0,0,0,0.1)] p-2 align-middle`}>
+                                    {participant.name}
+                                  </td>
+                                  {nfcTeams.map(team => {
+                                    const points = pointsMap[team.team_name];
+                                    return (
+                                      <td key={team.id} className="text-center px-1 sm:px-2 py-2 sm:py-3 align-middle">
+                                        <div className="flex flex-col items-center justify-center gap-0.5">
+                                          <span className={`text-lg sm:text-xl font-bold ${
+                                            points ? 'text-blue-600' : 'text-gray-400'
+                                          }`}>
+                                            {points || '-'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
+
           </CardContent>
         </Card>
       )}
@@ -675,18 +864,28 @@ function PlayoffsPageContent() {
                       
                 {/* Debug Mode Checkbox - Only visible in development */}
                 {process.env.NODE_ENV === 'development' && (
-                  <div className="flex items-center space-x-2 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <Checkbox
-                      id="debug-mode"
-                      checked={debugMode}
-                      onCheckedChange={(checked) => setDebugMode(checked === true)}
-                    />
-                    <Label
-                      htmlFor="debug-mode"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  <div className="space-y-3 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="debug-mode"
+                        checked={debugMode}
+                        onCheckedChange={(checked) => setDebugMode(checked === true)}
+                      />
+                      <Label
+                        htmlFor="debug-mode"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        Debug Mode: Submit to DB and navigate to playoff picks page
+                      </Label>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={generateRandomConfidencePoints}
+                      className="w-full bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100"
                     >
-                      Debug Mode: Submit to DB and navigate to playoff picks page
-                    </Label>
+                      🎲 Generate Random Confidence Points
+                    </Button>
                   </div>
                 )}
 

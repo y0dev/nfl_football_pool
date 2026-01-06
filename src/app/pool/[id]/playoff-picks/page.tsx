@@ -903,6 +903,83 @@ function PlayoffPicksContent() {
     });
   };
 
+  // Generate random picks for all games in current round (debug only)
+  const generateRandomPicks = () => {
+    if (!selectedUser) {
+      toast({
+        title: 'Error',
+        description: 'Please select a user first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const currentRoundGames = games.filter(g => 
+      g.week === currentRound && 
+      g.home_team && g.home_team.trim() !== '' && 
+      g.away_team && g.away_team.trim() !== ''
+    );
+
+    if (currentRoundGames.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'No games available for the current round',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const randomPicks: Pick[] = currentRoundGames.map(game => {
+      // Randomly pick home or away team
+      const winner = Math.random() < 0.5 ? game.away_team : game.home_team;
+      return {
+        participant_id: selectedUser.id,
+        pool_id: poolId,
+        game_id: game.id,
+        predicted_winner: winner,
+        confidence_points: 0 // Will be calculated from playoff confidence points
+      };
+    });
+
+    setPicks(prevPicks => {
+      const picksMap = new Map(prevPicks.map(p => [p.game_id, p]));
+      randomPicks.forEach(pick => {
+        picksMap.set(pick.game_id, pick);
+      });
+      return Array.from(picksMap.values());
+    });
+
+    setHasUnsavedChanges(true);
+    
+    // Save to localStorage
+    const storedPicks: StoredPick[] = randomPicks.map(pick => ({
+      ...pick,
+      timestamp: Date.now()
+    }));
+    pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentRound);
+    setLastSaved(new Date());
+
+    // For Super Bowl, also generate random total score
+    if (currentRound === 4) {
+      const randomScore = Math.floor(Math.random() * 81) + 20; // Random score between 20-100
+      setSuperBowlTotalScore(randomScore);
+      try {
+        const storageKey = `playoff_picks_superbowl_${selectedUser.id}_${poolId}`;
+        localStorage.setItem(storageKey, JSON.stringify({
+          score: randomScore,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.error('Error saving Super Bowl score to localStorage:', error);
+      }
+    }
+
+    toast({
+      title: 'Random Picks Generated',
+      description: `Random picks assigned to all ${currentRoundGames.length} games in ${roundNames[currentRound]}`,
+    });
+  };
+
   const handleSubmitRound = async (week: number) => {
     if (!selectedUser) {
       toast({
@@ -1435,6 +1512,16 @@ function PlayoffPicksContent() {
                     )}
                   </Label>
                 </div>
+                {selectedUser && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generateRandomPicks}
+                    className="w-full bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100"
+                  >
+                    🎲 Generate Random Picks for {roundNames[currentRound]}
+                  </Button>
+                )}
               </div>
             )}
           </div>
