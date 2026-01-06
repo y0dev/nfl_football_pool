@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Users, CheckCircle2, XCircle, Target } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
+import { PlayoffParticipantEditDialog } from './playoff-participant-edit-dialog';
 
 interface PlayoffParticipantsListProps {
   poolId: string;
@@ -22,6 +23,8 @@ interface ParticipantStatus {
 export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipantsListProps) {
   const [participants, setParticipants] = useState<ParticipantStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedParticipant, setSelectedParticipant] = useState<ParticipantStatus | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     loadParticipantStatus();
@@ -159,7 +162,11 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
             {participants.map((participant) => (
               <div
                 key={participant.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border rounded-lg hover:bg-gray-50"
+                onClick={() => {
+                  setSelectedParticipant(participant);
+                  setDialogOpen(true);
+                }}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0">
@@ -189,6 +196,21 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      {selectedParticipant && (
+        <PlayoffParticipantEditDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          participantId={selectedParticipant.id}
+          participantName={selectedParticipant.name}
+          poolId={poolId}
+          poolSeason={poolSeason}
+          onUpdate={() => {
+            loadParticipantStatus();
+          }}
+        />
+      )}
     </div>
   );
 }
