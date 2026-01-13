@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle, Crown, User } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, Target, CheckCircle2, ChevronLeft, ChevronRight, Users, Share2, Eye, EyeOff, BarChart3, Clock, AlertTriangle, Crown, User, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -88,6 +88,7 @@ function PlayoffPicksContent() {
   } | null>>({});
   const [roundEnded, setRoundEnded] = useState<Record<number, boolean>>({});
   const [roundHasPicks, setRoundHasPicks] = useState<Record<number, boolean>>({});
+  const [roundStatusChecked, setRoundStatusChecked] = useState(false);
   const [showWinnerOnCommand, setShowWinnerOnCommand] = useState<boolean>(false);
   const [showGamePicksPanel, setShowGamePicksPanel] = useState(true);
   const [leaderboardData, setLeaderboardData] = useState<Record<number, any[]>>({});
@@ -138,10 +139,14 @@ function PlayoffPicksContent() {
             </Button>
             
             <Button
-              variant="outline"
+              variant={currentRound === upcomingRound ? "default" : "outline"}
               size="sm"
               onClick={navigateToCurrentRound}
-              className="flex items-center gap-1 px-3 py-2 h-9"
+              className={`flex items-center gap-1 px-3 py-2 h-9 ${
+                currentRound === upcomingRound 
+                  ? "bg-blue-600 text-white hover:bg-blue-700" 
+                  : ""
+              }`}
               title="Go to current/upcoming round"
             >
               <Calendar className="h-3 w-3" />
@@ -1030,7 +1035,10 @@ function PlayoffPicksContent() {
 
   // Check if round has ended and load winner
   const checkRoundStatus = async () => {
-    if (games.length === 0) return;
+    if (games.length === 0) {
+      setRoundStatusChecked(true);
+      return;
+    }
     
     const roundStatusMap: Record<number, boolean> = {};
     const roundHasPicksMap: Record<number, boolean> = {};
@@ -1065,12 +1073,21 @@ function PlayoffPicksContent() {
       
       if (allGamesEnded) {
         try {
-          // Try to get winner from leaderboard
+          debugLog(`Checking winner for round ${round}:`, {
+            poolId,
+            week: round,
+            seasonType: 3,
+            season: poolSeason
+          });
+          
+          // Calculate from leaderboard (similar to picks page)
           const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${round}&seasonType=3&season=${poolSeason}`);
           if (response.ok) {
             const result = await response.json();
+            debugLog(`Leaderboard result for round ${round}:`, result);
             if (result.success && result.leaderboard && result.leaderboard.length > 0) {
               const winner = result.leaderboard[0]; // First place
+              debugLog(`Winner for round ${round}:`, winner);
               winnersMap[round] = {
                 participant_name: winner.participant_name,
                 points: winner.total_points,
@@ -1082,6 +1099,10 @@ function PlayoffPicksContent() {
               roundHasPicksMap[round] = false;
               winnersMap[round] = null;
             }
+          } else {
+            console.error(`Failed to fetch leaderboard for round ${round}:`, response.status);
+            roundHasPicksMap[round] = false;
+            winnersMap[round] = null;
           }
         } catch (error) {
           console.error(`Error loading winner for round ${round}:`, error);
@@ -1094,6 +1115,7 @@ function PlayoffPicksContent() {
     setRoundEnded(roundStatusMap);
     setRoundHasPicks(roundHasPicksMap);
     setRoundWinners(prev => ({ ...prev, ...winnersMap }));
+    setRoundStatusChecked(true);
   };
 
   const checkAllSubmissions = async () => {
@@ -1531,12 +1553,19 @@ function PlayoffPicksContent() {
     return () => clearInterval(timer);
   }, [games, currentRound]);
 
-  if (isLoading) {
+  // Show loading until all data is ready (including round status check)
+  if (isLoading || !roundStatusChecked) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Trophy className="h-6 w-6 text-blue-400 animate-pulse" />
+            </div>
+          </div>
+          <p className="text-lg font-semibold text-gray-700 mb-2">Loading Playoff Picks</p>
+          <p className="text-sm text-gray-500">Please wait while we load the data...</p>
         </div>
       </div>
     );
@@ -1658,10 +1687,14 @@ function PlayoffPicksContent() {
                   </Button>
                   
                   <Button
-                    variant="outline"
+                    variant={currentRound === upcomingRound ? "default" : "outline"}
                     size="sm"
                     onClick={navigateToCurrentRound}
-                    className="flex items-center gap-1 px-3 py-2 h-9"
+                    className={`flex items-center gap-1 px-3 py-2 h-9 ${
+                      currentRound === upcomingRound 
+                        ? "bg-blue-600 text-white hover:bg-blue-700" 
+                        : ""
+                    }`}
                     title="Go to current/upcoming round"
                   >
                     <Calendar className="h-3 w-3" />
@@ -1860,6 +1893,55 @@ function PlayoffPicksContent() {
 
         {/* Main Content */}
         <div className="space-y-6">
+          {/* Submission Count - Always visible */}
+          <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-green-900">
+                <Users className="h-5 w-5" />
+                Pool Statistics - {roundNames[currentRound]}
+              </CardTitle>
+              <CardDescription className="text-green-700">
+                Current participation and submission status for {roundNames[currentRound]}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{usersWithConfidencePointsCount || participantCount}</div>
+                  <div className="text-sm text-green-700">Eligible Participants</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{submittedCount}</div>
+                  <div className="text-sm text-blue-700">Submitted Picks</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">{(usersWithConfidencePointsCount || participantCount) - submittedCount}</div>
+                  <div className="text-sm text-orange-700">Pending</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {(usersWithConfidencePointsCount || participantCount) > 0 ? Math.round((submittedCount / (usersWithConfidencePointsCount || participantCount)) * 100) : 0}%
+                  </div>
+                  <div className="text-sm text-purple-700">Completion Rate</div>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-white rounded-lg border">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Submission Progress:</span>
+                  <span className="font-medium">
+                    {submittedCount} of {usersWithConfidencePointsCount || participantCount} participants
+                  </span>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(usersWithConfidencePointsCount || participantCount) > 0 ? (submittedCount / (usersWithConfidencePointsCount || participantCount)) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Quick Stats */}
           {showQuickStats && (
             <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
@@ -2077,6 +2159,60 @@ function PlayoffPicksContent() {
               
               return (
                 <React.Fragment key={round.week}>
+                  {/* Round Winner Announcement - Show before game picks panel when round has ended */}
+                  {(() => {
+                    // Only show for current round
+                    if (round.week !== currentRound) return null;
+                    
+                    // Don't render until round status has been checked
+                    if (!roundStatusChecked) return null;
+                    
+                    // Get winner from leaderboard data if available, otherwise use roundWinners state
+                    const leaderboardForRound = leaderboardData[round.week];
+                    const winner = leaderboardForRound && leaderboardForRound.length > 0 
+                      ? {
+                          participant_name: leaderboardForRound[0].participant_name,
+                          points: leaderboardForRound[0].total_points,
+                          correct_picks: leaderboardForRound[0].correct_picks,
+                          total_picks: leaderboardForRound[0].total_picks
+                        }
+                      : roundWinners[round.week];
+                    
+                    const roundIsEnded = roundEnded[round.week] === true;
+                    const roundHasPicksForRound = roundHasPicks[round.week] || false;
+                    
+                    // Show winner when round has ended and winner exists
+                    if (roundIsEnded && winner) {
+                      return (
+                        <Card className="mb-6 max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
+                          <CardHeader className="text-center">
+                            <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+                              <Crown className="h-10 w-10 text-yellow-600" />
+                            </div>
+                            <CardTitle className="text-yellow-900 text-2xl">{round.roundName} Winner!</CardTitle>
+                            <CardDescription className="text-yellow-700 text-lg">
+                              Congratulations to the {round.roundName} winner!
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="text-center space-y-4">
+                            <div className="bg-white rounded-lg p-6 border border-yellow-200">
+                              <div className="text-3xl font-bold text-yellow-800 mb-2">
+                                {winner.participant_name}
+                              </div>
+                              <div className="text-lg text-yellow-700 mb-4">
+                                {winner.points} points
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {winner.correct_picks} correct picks out of {winner.total_picks || validGames.length} games
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
                   {showGamePicksPanel && (
                     <Card>
                   <CardHeader>
@@ -2293,6 +2429,12 @@ function PlayoffPicksContent() {
 
                 {/* Round Winner Announcement - Show when round has ended and winner exists, or debug mode/show on command */}
                 {(() => {
+                  // Only show on command for current round
+                  const showOnCommand = process.env.NODE_ENV === 'development' && showWinnerOnCommand && round.week === currentRound;
+                  
+                  // Don't render until round status has been checked (unless in debug mode or showing on command)
+                  if (!roundStatusChecked && !debugMode && !showOnCommand && showGamePicksPanel) return null;
+                  
                   // Get winner from leaderboard data if available, otherwise use roundWinners state
                   const leaderboardForRound = leaderboardData[round.week];
                   const winner = leaderboardForRound && leaderboardForRound.length > 0 
@@ -2304,10 +2446,8 @@ function PlayoffPicksContent() {
                       }
                     : roundWinners[round.week];
                   
-                  const roundIsEnded = roundEnded[round.week] || false;
+                  const roundIsEnded = roundEnded[round.week] === true;
                   const roundHasPicksForRound = roundHasPicks[round.week] || false;
-                  // Only show on command for current round
-                  const showOnCommand = process.env.NODE_ENV === 'development' && showWinnerOnCommand && round.week === currentRound;
                   
                   // Show winner if:
                   // 1. Round has ended and has picks (normal flow) - requires winner

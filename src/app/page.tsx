@@ -143,6 +143,25 @@ function LandingPage() {
     return `${game.away_score} - ${game.home_score}`;
   };
 
+  const getWeekTitle = () => {
+    if (currentSeasonType === 3) {
+      // Playoff rounds
+      const roundNames: Record<number, string> = {
+        1: 'Wild Card Round',
+        2: 'Divisional Round',
+        3: 'Conference Championships',
+        4: 'Super Bowl',
+      };
+      return roundNames[currentWeek] || `Playoff Round ${currentWeek}`;
+    } else if (currentSeasonType === 1) {
+      // Preseason
+      return `Preseason Week ${currentWeek}`;
+    } else {
+      // Regular Season
+      return `Week ${currentWeek}`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900">
       {/* Navigation Bar */}
@@ -259,7 +278,7 @@ function LandingPage() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <Trophy className="h-6 w-6 text-white" />
-            <h3 className="text-2xl font-bold text-white">Week {currentWeek} Games</h3>
+            <h3 className="text-2xl font-bold text-white">{getWeekTitle()} Games</h3>
           </div>
           
           {isLoadingGames ? (
