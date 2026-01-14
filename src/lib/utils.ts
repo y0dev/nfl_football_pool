@@ -371,6 +371,31 @@ export function getPlayoffRoundName(week: number): string {
 }
 
 /**
+ * Get week/round title based on season type
+ * @param week - The week number (1-4 for playoffs, 1-4 for preseason, 1-18 for regular season)
+ * @param seasonType - The season type (1=Preseason, 2=Regular Season, 3=Postseason/Playoffs)
+ * @returns A formatted string representing the week/round title
+ */
+export function getWeekTitle(week: number, seasonType: number): string {
+  if (seasonType === 3) {
+    // Playoff rounds
+    const roundNames: Record<number, string> = {
+      1: 'Wild Card Round',
+      2: 'Divisional Round',
+      3: 'Conference Championships',
+      4: 'Super Bowl',
+    };
+    return roundNames[week] || `Playoff Round ${week}`;
+  } else if (seasonType === 1) {
+    // Preseason
+    return `Preseason Week ${week}`;
+  } else {
+    // Regular Season
+    return `Week ${week}`;
+  }
+}
+
+/**
  * Calculate week number from date (simple date-based calculation)
  * This is a fallback when database functions are not available
  */

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, Trophy, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
 import { createPageUrl, debugLog, getTeamAbbreviation } from '@/lib/utils';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 interface PlayoffTeam {
   id: string;
@@ -391,7 +392,7 @@ function PlayoffsPageContent() {
         await loadSubmissionStatus();
         
         // Navigate to playoff picks page after successful submission
-        router.push(`/pool/${poolId}/playoff-picks?round=1`);
+        router.push(`/pool/${poolId}/picks?week=1&seasonType=3`);
       } else {
         toast({
           title: 'Error',
@@ -440,20 +441,21 @@ function PlayoffsPageContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/pool/${poolId}/picks?week=18&seasonType=2`)}
+            onClick={async () => {
+              try {
+                const upcomingWeek = await getUpcomingWeek();
+                // Navigate to current week based on season type
+                router.push(`/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`);
+              } catch (error) {
+                console.error('Error getting current week:', error);
+                // Fallback to week 1 regular season
+                router.push(`/pool/${poolId}/picks?week=1&seasonType=2`);
+              }
+            }}
             className="flex items-center gap-2"
           >
             <Calendar className="h-4 w-4" />
-            View Regular Season
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/pool/${poolId}/playoff-picks`)}
-            className="flex items-center gap-2"
-          >
-            <Target className="h-4 w-4" />
-            View Playoff Picks
+            Go to Current Week
           </Button>
         </div>
 

@@ -23,7 +23,7 @@ import { Game, SelectedUser } from '@/types/game';
 //
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS } from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 
 // Helper functions for period calculations
 function getPeriodName(week: number): string {
@@ -93,6 +93,9 @@ function PoolPicksContent() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // Helper function to get week/round title based on season type
+  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+
   // Helper function to get current user's submission status
   // const getCurrentUserSubmissionStatus = () => {
   //   if (!selectedUser) return false;
@@ -107,56 +110,96 @@ function PoolPicksContent() {
   //   return submittedUsers.length > 0 ? submittedUsers[0] : null;
   // };
 
-  // Navigate to a specific week with season transition handling
-  const navigateToWeek = (week: number, seasonType: number) => {
-    // If postseason, redirect to playoffs page
-    if (seasonType === 3) {
-      window.location.href = `/pool/${poolId}/playoffs`;
-      return;
+  // Check if all participants have submitted playoff confidence points
+  const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
+    if (!poolId) return false;
+    
+    // Use provided season or fetch it from pool
+    let seasonToUse = season || poolSeason;
+    
+    if (!seasonToUse) {
+      try {
+        // Fetch pool season if not available
+        const response = await fetch(`/api/pools/${poolId}`);
+        const data = await response.json();
+        if (data.success && data.pool?.season) {
+          seasonToUse = data.pool.season;
+        } else {
+          return false;
+        }
+      } catch (error) {
+        console.error('Error fetching pool season:', error);
+        return false;
+      }
     }
+    
+    try {
+      const response = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonToUse}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.allSubmitted || false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking playoff confidence points submission:', error);
+      return false;
+    }
+  };
 
-    // Handle season transitions
+  // Navigate to a specific week with season transition handling
+  const navigateToWeek = async (week: number, seasonType: number) => {
     let targetWeek = week;
     let targetSeasonType = seasonType;
-    // const targetSeason = season;
+    const maxWeeks = getMaxWeeksForSeason(seasonType);
 
     debugLog('Navigate to week:', {
       week,
       seasonType,
       targetWeek,
-      targetSeasonType
+      targetSeasonType,
+      maxWeeks
     });
-    // Previous week navigation
+
+    // Handle season transitions at boundaries
+    // Previous week navigation - go to previous season type at week 1
     if (week < 1) {
-      if (seasonType === 1) { // Preseason
-        // Can't go before preseason
+      if (seasonType === 1) { // Preseason week 1 - can't go before
         return;
-      } else if (seasonType === 2) { // Regular Season
-        targetSeasonType = 1; // Go to Preseason
-        targetWeek = 4; // Last week of preseason
+      } else if (seasonType === 2) { // Regular Season week 1 -> Preseason week 4
+        targetSeasonType = 1;
+        targetWeek = getMaxWeeksForSeason(1); // 4
+      } else if (seasonType === 3) { // Playoffs week 1 -> Regular Season week 18
+        targetSeasonType = 2;
+        targetWeek = getMaxWeeksForSeason(2); // 18
       }
     }
-
-    // Next week navigation
-    if (week > 18) {
-      if (seasonType === 1) { // Preseason
-        targetSeasonType = 2; // Go to Regular Season
-        targetWeek = 1; // First week of regular season
-      } else if (seasonType === 2) { // Regular Season
-        // Navigate to playoffs page instead of postseason picks
+    // Next week navigation - go to next season type at max week
+    else if (week > maxWeeks) {
+      if (seasonType === 1) { // Preseason week 4 -> Regular Season week 1
+        targetSeasonType = 2;
+        targetWeek = 1;
+      } else if (seasonType === 2) { // Regular Season week 18 -> Playoffs week 1
+        const allSubmitted = await checkPlayoffConfidencePointsSubmission();
+        if (!allSubmitted) {
+          // Redirect to confidence points page if not all participants have submitted
+          window.location.href = `/pool/${poolId}/playoffs`;
+          return;
+        }
+        targetSeasonType = 3;
+        targetWeek = 1;
+      } else if (seasonType === 3) { // Super Bowl week 4 - can't go after
+        return;
+      }
+    }
+    // Within valid range, but check for playoff confidence points if going to playoffs
+    else if (targetSeasonType === 3) {
+      const allSubmitted = await checkPlayoffConfidencePointsSubmission();
+      if (!allSubmitted) {
+        // Redirect to confidence points page if not all participants have submitted
         window.location.href = `/pool/${poolId}/playoffs`;
         return;
       }
-    }
-
-    // Handle week boundaries within season types
-    if (seasonType === 1 && week > 4) { // Preseason max 4 weeks
-      targetSeasonType = 2;
-      targetWeek = 1;
-    } else if (seasonType === 2 && week > 18) { // Regular season max 18 weeks
-      // Navigate to playoffs page instead of postseason picks
-      window.location.href = `/pool/${poolId}/playoffs`;
-      return;
     }
 
     // Navigate to the new week
@@ -168,10 +211,19 @@ function PoolPicksContent() {
   const navigateToCurrentWeek = async () => {
     try {
       const upcomingWeek = await getUpcomingWeek();
-      // If current week is a playoff week, navigate to playoff-picks page
+      // If current week is a playoff week, navigate to picks page with playoff seasonType
       if (upcomingWeek.seasonType === 3) {
+        // Check if confidence points are submitted first
+        const allSubmitted = await checkPlayoffConfidencePointsSubmission();
+        if (!allSubmitted) {
+          // Redirect to confidence points page if not all participants have submitted
+          window.location.href = `/pool/${poolId}/playoffs`;
+          return;
+        }
+        // All have submitted, navigate to playoff round on picks page
         // For playoffs, week number maps directly to round number (week 1 = round 1, etc.)
-        window.location.href = `/pool/${poolId}/playoff-picks?round=${upcomingWeek.week}`;
+        const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=3`;
+        window.location.href = newUrl;
         return;
       }
       const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`;
@@ -300,7 +352,14 @@ function PoolPicksContent() {
                   const addResult = await addWinnerResponse.json();
                   debugLog('Winner added to database:', addResult);
                 } else {
-                  console.error('Failed to add winner to database:', addWinnerResponse.statusText);
+                  const errorData = await addWinnerResponse.json().catch(() => ({}));
+                  console.error('Failed to add winner to database:', {
+                    status: addWinnerResponse.status,
+                    statusText: addWinnerResponse.statusText,
+                    error: errorData.error || 'Unknown error',
+                    details: errorData.details || '',
+                    code: errorData.code || ''
+                  });
                 }
               } catch (error) {
                 console.error('Error adding winner to database:', error);
@@ -423,10 +482,23 @@ function PoolPicksContent() {
         weekToUse = parseInt(weekParam);
         seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
         
-        // Redirect to playoffs page if season type is 3 (playoffs)
+        // Validate week bounds for each season type
+        if (seasonTypeToUse === 1 && (weekToUse < 1 || weekToUse > 4)) {
+          // Invalid preseason week, default to week 1
+          weekToUse = 1;
+        } else if (seasonTypeToUse === 2 && (weekToUse < 1 || weekToUse > 18)) {
+          // Invalid regular season week, default to week 1
+          weekToUse = 1;
+        } else if (seasonTypeToUse === 3 && (weekToUse < 1 || weekToUse > 4)) {
+          // Invalid playoff round, default to round 1
+          weekToUse = 1;
+        }
+        
+        // For playoffs (seasonType === 3), check if confidence points are submitted
         if (seasonTypeToUse === 3) {
-          window.location.href = `/pool/${poolId}/playoffs`;
-          return;
+          // We need to load pool season first, then check confidence points
+          // This check will happen after pool data is loaded (see below)
+          // For now, continue loading - we'll check after pool season is available
         }
         
         setCurrentWeek(weekToUse);
@@ -490,8 +562,27 @@ function PoolPicksContent() {
                 return;
               }
               
+            const seasonValue = pool.season || DEFAULT_POOL_SEASON;
             setPoolName(pool.name);
-            setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
+            setPoolSeason(seasonValue);
+            
+            // For playoffs (seasonType === 3), check if confidence points are submitted
+            if (seasonTypeToUse === 3) {
+              try {
+                const confidenceResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonValue}`);
+                const confidenceData = await confidenceResponse.json();
+                
+                if (confidenceData.success && !confidenceData.allSubmitted) {
+                  // Not all participants have submitted confidence points, redirect to confidence points page
+                  window.location.href = `/pool/${poolId}/playoffs`;
+                  return;
+                }
+                // All have submitted (or no participants), continue loading the picks page
+              } catch (error) {
+                console.error('Error checking playoff confidence points:', error);
+                // Continue loading if there's an error
+              }
+            }
             
             // Set participant stats from the API response
             setParticipantCount(pool.participant_count || 0);
@@ -1173,10 +1264,13 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
-                      disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                      onClick={() => { navigateToWeek(currentWeek - 1, currentSeasonType); }}
+                      disabled={currentSeasonType === 1 && currentWeek <= 1} // Only disabled at preseason week 1
                       className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                      title={
+                        currentSeasonType === 1 && currentWeek <= 1 ? "Already at earliest preseason week" :
+                        "Go to previous week/round"
+                      }
                     >
                       <ChevronLeft className="h-3 w-3" />
                       <span className="hidden xs:inline">Previous Week</span>
@@ -1198,10 +1292,13 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
-                      disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                      onClick={() => { navigateToWeek(currentWeek + 1, currentSeasonType); }}
+                      disabled={currentSeasonType === 3 && currentWeek >= 4} // Only disabled at Super Bowl (playoffs week 4)
                       className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                      title={
+                        currentSeasonType === 3 && currentWeek >= 4 ? "Already at latest playoff round (Super Bowl)" :
+                        "Go to next week/round"
+                      }
                     >
                       <span className="hidden xs:inline">Next Week</span>
                       <span className="xs:hidden">Next</span>
@@ -1214,12 +1311,13 @@ function PoolPicksContent() {
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline" className="px-3 py-1">Week {currentWeek}</Badge>
+                    <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
                   </div>
                   <span className="text-sm text-gray-600">
                       {games.length} games
                     </span>
-                    {(() => {
+                  {(() => {
+                      
                         const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
                         const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
                         return (
@@ -1319,10 +1417,19 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
-                      disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                      onClick={() => { navigateToWeek(currentWeek - 1, currentSeasonType); }}
+                      disabled={
+                        (currentSeasonType === 1 && currentWeek <= 1) || // Preseason: can't go before week 1
+                        (currentSeasonType === 2 && currentWeek <= 1) || // Regular: can't go before week 1
+                        (currentSeasonType === 3 && currentWeek <= 1)    // Playoffs: can't go before round 1
+                      }
                       className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                      title={
+                        (currentSeasonType === 1 && currentWeek <= 1) ? "Already at earliest preseason week" :
+                        (currentSeasonType === 2 && currentWeek <= 1) ? "Already at earliest regular season week" :
+                        (currentSeasonType === 3 && currentWeek <= 1) ? "Already at earliest playoff round" :
+                        "Go to previous week/round"
+                      }
                     >
                       <ChevronLeft className="h-3 w-3" />
                       <span className="hidden xs:inline">Previous Week</span>
@@ -1344,10 +1451,19 @@ function PoolPicksContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
-                      disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                      onClick={() => { navigateToWeek(currentWeek + 1, currentSeasonType); }}
+                      disabled={
+                        (currentSeasonType === 1 && currentWeek >= 4) || // Preseason: max week 4
+                        (currentSeasonType === 2 && currentWeek >= 18) || // Regular: max week 18
+                        (currentSeasonType === 3 && currentWeek >= 4)     // Playoffs: max round 4
+                      }
                       className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                      title={
+                        (currentSeasonType === 1 && currentWeek >= 4) ? "Already at latest preseason week" :
+                        (currentSeasonType === 2 && currentWeek >= 18) ? "Already at latest regular season week" :
+                        (currentSeasonType === 3 && currentWeek >= 4) ? "Already at latest playoff round" :
+                        "Go to next week/round"
+                      }
                     >
                       <span className="hidden xs:inline">Next Week</span>
                       <span className="xs:hidden">Next</span>
@@ -1360,7 +1476,7 @@ function PoolPicksContent() {
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-500" />
-                      <Badge variant="outline" className="px-3 py-1">Week {currentWeek}</Badge>
+                      <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
                     </div>
                     <span className="text-sm text-gray-600">
                       {games.length} games
@@ -1418,10 +1534,10 @@ function PoolPicksContent() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-yellow-600" />
-                  Week {currentWeek} Final Results
+                  {getWeekTitle()} Final Results
                 </CardTitle>
                 <CardDescription>
-                  Complete standings for {poolName} - Week {currentWeek}
+                  Complete standings for {poolName} - {getWeekTitle()}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1446,6 +1562,7 @@ function PoolPicksContent() {
                 poolId={poolId}
                 season={poolSeason}
                 currentWeek={currentWeek}
+                seasonType={currentSeasonType}
               />
             </CardContent>
           </Card>
@@ -1621,7 +1738,7 @@ function PoolPicksContent() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline">Week {currentWeek}</Badge>
+                    <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
                     <span className="text-sm text-gray-500">
                       {games.length} games
                     </span>
@@ -1642,9 +1759,9 @@ function PoolPicksContent() {
                     variant="outline"
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
-                    disabled={currentWeek <= 1 && currentSeasonType <= 1}
+                    disabled={currentSeasonType === 1 && currentWeek <= 1} // Only disabled at preseason week 1
                     className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentWeek <= 1 && currentSeasonType <= 1 ? "Already at earliest week" : "Go to previous week"}
+                    title={currentSeasonType === 1 && currentWeek <= 1 ? "Already at earliest preseason week" : "Go to previous week/round"}
                   >
                     <ChevronLeft className="h-3 w-3" />
                     <span className="hidden xs:inline">Previous Week</span>
@@ -1671,9 +1788,9 @@ function PoolPicksContent() {
                     variant="outline"
                     size="sm"
                     onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
-                    disabled={currentWeek >= 18 && currentSeasonType >= 3}
+                    disabled={currentSeasonType === 3 && currentWeek >= 4} // Only disabled at Super Bowl (playoffs week 4)
                     className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentWeek >= 18 && currentSeasonType >= 3 ? "Already at latest week" : "Go to next week"}
+                    title={currentSeasonType === 3 && currentWeek >= 4 ? "Already at latest playoff round (Super Bowl)" : "Go to next week/round"}
                   >
                     <span className="hidden xs:inline">Next Week</span>
                     <span className="xs:hidden">Next</span>
@@ -1728,7 +1845,18 @@ function PoolPicksContent() {
                   >
                     <Users className="h-4 w-4" />
                     <span className="hidden md:inline">Stats</span>
-                  </Button>
+                    </Button>
+                  {currentSeasonType === 3 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/pool/${poolId}/playoffs`)}
+                      className="flex items-center gap-2 min-w-fit px-3 py-2"
+                    >
+                      <Target className="h-4 w-4" />
+                      <span className="hidden md:inline">Confidence Points</span>
+                    </Button>
+                  )}
 
                   {weekEnded && (
                     <Button

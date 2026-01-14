@@ -9,7 +9,7 @@ import { Search, Users, Trophy, Calendar, ArrowRight, Shield } from 'lucide-reac
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil } from '@/lib/utils';
 
 interface Game {
   id: string;
@@ -143,24 +143,7 @@ function LandingPage() {
     return `${game.away_score} - ${game.home_score}`;
   };
 
-  const getWeekTitle = () => {
-    if (currentSeasonType === 3) {
-      // Playoff rounds
-      const roundNames: Record<number, string> = {
-        1: 'Wild Card Round',
-        2: 'Divisional Round',
-        3: 'Conference Championships',
-        4: 'Super Bowl',
-      };
-      return roundNames[currentWeek] || `Playoff Round ${currentWeek}`;
-    } else if (currentSeasonType === 1) {
-      // Preseason
-      return `Preseason Week ${currentWeek}`;
-    } else {
-      // Regular Season
-      return `Week ${currentWeek}`;
-    }
-  };
+  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900">

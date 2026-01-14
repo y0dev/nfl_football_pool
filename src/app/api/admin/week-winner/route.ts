@@ -91,7 +91,20 @@ export async function POST(request: NextRequest) {
       .eq('week', parseInt(week))
       .eq('season', parseInt(season))
       .eq('season_type', parseInt(seasonType))
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors when no row exists
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "no rows returned" which is expected when no winner exists
+      console.error('Error checking for existing winner:', checkError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Failed to check for existing winner',
+          details: checkError.message 
+        },
+        { status: 500 }
+      );
+    }
 
     if (existingWinner) {
       return NextResponse.json({
@@ -123,9 +136,71 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
+      // Check if this is a duplicate key error (code 23505)
+      // This can happen if the unique constraint doesn't include season_type
+      // In that case, try to update the existing record instead
+      if (insertError.code === '23505') {
+        console.log('Duplicate key error detected, attempting to update existing winner...');
+        
+        // Try to update the existing record
+        const { data: updatedWinner, error: updateError } = await supabase
+          .from('weekly_winners')
+          .update({
+            season_type: parseInt(seasonType),
+            winner_participant_id: winnerParticipantId || null,
+            winner_name: winnerName,
+            winner_points: parseInt(winnerPoints),
+            winner_correct_picks: parseInt(winnerCorrectPicks),
+            total_participants: parseInt(totalParticipants || '0'),
+            tie_breaker_used: false,
+            tie_breaker_question: null,
+            tie_breaker_answer: null,
+            winner_tie_breaker_answer: null,
+            tie_breaker_difference: null
+          })
+          .eq('pool_id', poolId)
+          .eq('week', parseInt(week))
+          .eq('season', parseInt(season))
+          .select()
+          .single();
+        
+        if (updateError) {
+          console.error('Error updating weekly winner:', updateError);
+          return NextResponse.json(
+            { 
+              success: false,
+              error: 'Failed to update weekly winner',
+              details: updateError.message,
+              code: updateError.code
+            },
+            { status: 500 }
+          );
+        }
+        
+        return NextResponse.json({
+          success: true,
+          message: 'Weekly winner updated successfully',
+          winner: updatedWinner
+        });
+      }
+      
       console.error('Error inserting weekly winner:', insertError);
+      console.error('Insert data:', {
+        pool_id: poolId,
+        week: parseInt(week),
+        season: parseInt(season),
+        season_type: parseInt(seasonType),
+        winner_name: winnerName,
+        winner_points: parseInt(winnerPoints),
+        winner_correct_picks: parseInt(winnerCorrectPicks)
+      });
       return NextResponse.json(
-        { error: 'Failed to insert weekly winner' },
+        { 
+          success: false,
+          error: 'Failed to insert weekly winner',
+          details: insertError.message,
+          code: insertError.code
+        },
         { status: 500 }
       );
     }
@@ -138,8 +213,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in week-winner POST API:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        success: false,
+        error: 'Internal server error',
+        details: errorMessage
+      },
       { status: 500 }
     );
   }

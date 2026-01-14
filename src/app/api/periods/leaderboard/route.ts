@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog } from '@/lib/utils';
+import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 interface ParticipantData {
   participant_id: string;
@@ -36,11 +37,14 @@ export async function GET(request: NextRequest) {
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
     const periodName = searchParams.get('periodName');
+    const seasonTypeParam = searchParams.get('seasonType');
+    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
     
     debugLog('Period leaderboard API request:', {
       poolId,
       season,
-      periodName
+      periodName,
+      seasonType
     });
     
     if (!poolId || !season || !periodName) {
@@ -85,16 +89,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all picks for the tie-breaker weeks - use same approach as weekly leaderboard
-    const gameIds = await getGameIdsForWeeks(supabase, periodWeeks, parseInt(season));
+    const gameIds = await getGameIdsForWeeks(supabase, periodWeeks, parseInt(season), seasonType);
     debugLog('Period Leaderboard - Game IDs for weeks:', gameIds);
     debugLog('Period Leaderboard - Number of games:', gameIds.length);
     
     // Also get all games to ensure we have the complete list
+    // Use seasonType from parameter (3 for playoffs, 2 for regular season, 1 for preseason)
     const { data: allGames, error: allGamesError } = await supabase
       .from('games')
       .select('id')
       .eq('season', parseInt(season))
-      .eq('season_type', 2)
+      .eq('season_type', seasonType)
       .in('week', periodWeeks);
       
     let finalGameIds = gameIds;
@@ -239,7 +244,7 @@ export async function GET(request: NextRequest) {
       .from('games')
       .select('*')
       .eq('season', parseInt(season))
-      .eq('season_type', 2)
+      .eq('season_type', seasonType)
       .in('week', periodWeeks);
 
     debugLog('Period Leaderboard - Games data:', gamesData);
@@ -296,6 +301,21 @@ export async function GET(request: NextRequest) {
 
     debugLog('Period Leaderboard - Participants map:', participants);
     debugLog('Period Leaderboard - Participant totals:', participantTotals);
+    
+    // For playoff games (seasonType === 3), load playoff confidence points for all participants
+    const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
+    if (seasonType === 3) {
+      debugLog('Loading playoff confidence points for all participants...');
+      for (const participant of participants) {
+        const pointsMap = await getPlayoffConfidencePoints(poolId, parseInt(season), participant.id);
+        if (pointsMap) {
+          playoffConfidencePointsMap.set(participant.id, pointsMap);
+          debugLog(`Loaded playoff confidence points for ${participant.name}:`, pointsMap);
+        } else {
+          debugLog(`No playoff confidence points found for ${participant.name}`);
+        }
+      }
+    }
     
     // Group picks by participant and week
     const participantWeekPicks = new Map<string, Map<number, Array<PickData>>>();
@@ -365,7 +385,21 @@ export async function GET(request: NextRequest) {
         weekPicksData.forEach((pick: PickData) => {
           const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
           if (isCorrect) {
-            weekPoints += pick.confidence_points;
+            // For playoff games (seasonType === 3), use confidence points from playoff_confidence_points table
+            // For regular season, use confidence points from picks table
+            let pointsToAdd = pick.confidence_points || 0;
+            if (seasonType === 3) {
+              const participantPlayoffPoints = playoffConfidencePointsMap.get(participantId);
+              if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+                pointsToAdd = participantPlayoffPoints[pick.predicted_winner];
+                debugLog(`  Using playoff confidence points for ${pick.predicted_winner}: ${pointsToAdd}`);
+              } else {
+                // If no playoff confidence points found, use 0 (shouldn't happen if properly set up)
+                pointsToAdd = 0;
+                debugLog(`  WARNING: No playoff confidence points found for ${pick.predicted_winner} for participant ${participant.name}`);
+              }
+            }
+            weekPoints += pointsToAdd;
             weekCorrectPicks++;
           }
         });
@@ -583,17 +617,20 @@ function getPeriodWeeks(periodName: string): number[] {
       return [10, 11, 12, 13, 14];
     case 'Period 4':
       return [15, 16, 17, 18];
+    case 'Playoffs':
+      // Playoffs include all 4 rounds (weeks 1-4 in postseason)
+      return [1, 2, 3, 4];
     default:
       return [];
   }
 }
 
-async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseServiceClient>, weeks: number[], season: number): Promise<string[]> {
+async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseServiceClient>, weeks: number[], season: number, seasonType: number = 2): Promise<string[]> {
   const { data: games, error } = await supabase
     .from('games')
     .select('id')
     .eq('season', season)
-    .eq('season_type', 2)
+    .eq('season_type', seasonType)
     .in('week', weeks);
 
   if (error) {
