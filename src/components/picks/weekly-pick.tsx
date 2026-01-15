@@ -504,7 +504,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
     // Check Monday night score for period weeks and Super Bowl
     const isPeriodWeek = PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]);
-    const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+    const isSuperBowl = (seasonType === SUPER_BOWL_SEASON_TYPE) && currentWeek === 4;
     if ((isPeriodWeek || isSuperBowl) && (mondayNightScore === null || mondayNightScore === undefined)) {
       errors.push('Please enter your Monday night game score prediction for tie-breaking purposes');
     }

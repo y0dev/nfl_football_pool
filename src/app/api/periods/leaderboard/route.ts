@@ -105,12 +105,12 @@ export async function GET(request: NextRequest) {
     let finalGameIds = gameIds;
     if (!allGamesError && allGames) {
       const allGameIds = allGames.map(game => game.id);
-      debugLog('Period Leaderboard - All game IDs from direct query:', allGameIds);
-      debugLog('Period Leaderboard - All games count:', allGameIds.length);
+      // debugLog('Period Leaderboard - All game IDs from direct query:', allGameIds);
+      // debugLog('Period Leaderboard - All games count:', allGameIds.length);
       
       // Use the larger set of game IDs
       finalGameIds = allGameIds.length > gameIds.length ? allGameIds : gameIds;
-      debugLog('Period Leaderboard - Using game IDs:', finalGameIds);
+      // debugLog('Period Leaderboard - Using game IDs:', finalGameIds);
     }
     
     // Get picks for all participants in this pool for these games
@@ -126,9 +126,9 @@ export async function GET(request: NextRequest) {
       .eq('pool_id', poolId)
       .in('game_id', finalGameIds);
 
-    debugLog('Period Leaderboard - Picks data:', picksData);
-    debugLog('Period Leaderboard - Picks error:', picksError);
-    debugLog('Period Leaderboard - Number of picks:', picksData?.length || 0);
+    // debugLog('Period Leaderboard - Picks data:', picksData);
+    // debugLog('Period Leaderboard - Picks error:', picksError);
+    // debugLog('Period Leaderboard - Number of picks:', picksData?.length || 0);
     
     // Debug: Check picks per participant
     if (picksData) {
@@ -141,21 +141,22 @@ export async function GET(request: NextRequest) {
       
       // Calculate expected picks per participant
       const expectedPicksPerParticipant = finalGameIds.length;
-      debugLog(`Period Leaderboard - Expected picks per participant: ${expectedPicksPerParticipant} (${finalGameIds.length} games)`);
+      // Display expected picks per participant in debug log
+      // debugLog(`Period Leaderboard - Expected picks per participant: ${expectedPicksPerParticipant} (${finalGameIds.length} games)`);
       
       // Check if any participant is missing picks
       const missingPicksParticipants: string[] = [];
       participants.forEach(participant => {
         const actualPicks = picksPerParticipant.get(participant.id) || 0;
         if (actualPicks < expectedPicksPerParticipant) {
-          debugLog(`WARNING: ${participant.name} has only ${actualPicks} picks, expected ${expectedPicksPerParticipant}`);
+          // debugLog(`WARNING: ${participant.name} has only ${actualPicks} picks, expected ${expectedPicksPerParticipant}`);
           missingPicksParticipants.push(participant.id);
         }
       });
       
       // If we have missing picks, try to fetch them individually
       if (missingPicksParticipants.length > 0) {
-        debugLog(`Attempting to fetch missing picks for ${missingPicksParticipants.length} participants`);
+        // debugLog(`Attempting to fetch missing picks for ${missingPicksParticipants.length} participants`);
         
         for (const participantId of missingPicksParticipants) {
           const { data: additionalPicks, error: additionalError } = await supabase
@@ -227,7 +228,7 @@ export async function GET(request: NextRequest) {
             const count = finalPicksPerParticipant.get(pick.participant_id) || 0;
             finalPicksPerParticipant.set(pick.participant_id, count + 1);
           });
-          debugLog('Period Leaderboard - Final picks per participant:', Array.from(finalPicksPerParticipant.entries()));
+          // debugLog('Period Leaderboard - Final picks per participant:', Array.from(finalPicksPerParticipant.entries()));
         }
       }
     }
@@ -247,7 +248,8 @@ export async function GET(request: NextRequest) {
       .eq('season_type', seasonType)
       .in('week', periodWeeks);
 
-    debugLog('Period Leaderboard - Games data:', gamesData);
+    // Display games data in debug log
+    // debugLog('Period Leaderboard - Games data:', gamesData);
     debugLog('Period Leaderboard - Games error:', gamesError);
     debugLog('Period Leaderboard - Number of games:', gamesData?.length || 0);
     
@@ -299,8 +301,8 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    debugLog('Period Leaderboard - Participants map:', participants);
-    debugLog('Period Leaderboard - Participant totals:', participantTotals);
+    // debugLog('Period Leaderboard - Participants map:', participants);
+    // debugLog('Period Leaderboard - Participant totals:', participantTotals);
     
     // For playoff games (seasonType === 3), load playoff confidence points for all participants
     const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
@@ -330,7 +332,7 @@ export async function GET(request: NextRequest) {
       // Create a unique key for this pick to avoid duplicates
       const pickKey = `${pick.participant_id}-${pick.game_id}`;
       if (processedPicks.has(pickKey)) {
-        debugLog(`Skipping duplicate pick: ${pickKey}`);
+        // debugLog(`Skipping duplicate pick: ${pickKey}`);
         return;
       }
       processedPicks.add(pickKey);
@@ -578,9 +580,9 @@ export async function GET(request: NextRequest) {
       created_at: new Date().toISOString()
     } : null;
 
-    debugLog('Calculated leaderboard:', leaderboard);
-    debugLog('Calculated weekly winners:', weeklyWinners);
-    debugLog('Calculated period winner:', periodWinner);
+    // debugLog('Calculated leaderboard:', leaderboard);
+    // debugLog('Calculated weekly winners:', weeklyWinners);
+    // debugLog('Calculated period winner:', periodWinner);
 
     return NextResponse.json({
       success: true,
@@ -674,8 +676,8 @@ async function applyTopThreeTieBreakerLogicForPeriod(
     // Check if we need to apply Monday night tie-breaker for top 3
     const topThree = entries.slice(0, 3);
     const fourthPlace = entries[3];
-    debugLog('Top three:', topThree);
-    debugLog('Fourth place:', fourthPlace);
+    // debugLog('Top three:', topThree);
+    // debugLog('Fourth place:', fourthPlace);
     
     // Check for ties within the top 3 and ties for 3rd place with any participants below
     const topThreeScores = topThree.map(entry => entry.total_points);

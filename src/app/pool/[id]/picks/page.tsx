@@ -26,27 +26,30 @@ import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 
 // Helper functions for period calculations
-function getPeriodName(week: number): string {
-  if (week <= 4) return 'Period 1';
-  if (week <= 9) return 'Period 2';
-  if (week <= 14) return 'Period 3';
-  if (week <= 18) return 'Period 4';
+function getPeriodName(seasonType: number, week: number): string {
+  if (seasonType === 2 && week <= 4) return 'Period 1';
+  if (seasonType === 2 && week <= 9) return 'Period 2';
+  if (seasonType === 2 && week <= 14) return 'Period 3';
+  if (seasonType === 2 && week <= 18) return 'Period 4';
+  if (seasonType === 3 && week <= 4) return 'Playoffs';
   return 'Unknown Period';
 }
 
-function getPeriodNumber(week: number): number {
-  if (week <= 4) return 1;
-  if (week <= 9) return 2;
-  if (week <= 14) return 3;
-  if (week <= 18) return 4;
+function getPeriodNumber(seasonType: number, week: number): number {
+  if (seasonType === 2 && week <= 4) return 1;
+  if (seasonType === 2 && week <= 9) return 2;
+  if (seasonType === 2 && week <= 14) return 3;
+  if (seasonType === 2 && week <= 18) return 4;
+  if (seasonType === 3 && week <= 4) return 5;
   return 0;
 }
 
-function getPeriodWeeks(week: number): number[] {
-  if (week <= 4) return [1, 2, 3, 4];
-  if (week <= 9) return [5, 6, 7, 8, 9];
-  if (week <= 14) return [10, 11, 12, 13, 14];
-  if (week <= 18) return [15, 16, 17, 18];
+function getPeriodWeeks(seasonType: number, week: number): number[] {
+  if (seasonType === 1 && week <= 4) return [1, 2, 3, 4];
+  if (seasonType === 1 && week <= 9) return [5, 6, 7, 8, 9];
+  if (seasonType === 1 && week <= 14) return [10, 11, 12, 13, 14];
+  if (seasonType === 1 && week <= 18) return [15, 16, 17, 18];
+  if (seasonType === 3 && week <= 4) return [1, 2, 3, 4];
   return [];
 }
 
@@ -168,10 +171,10 @@ function PoolPicksContent() {
         return;
       } else if (seasonType === 2) { // Regular Season week 1 -> Preseason week 4
         targetSeasonType = 1;
-        targetWeek = getMaxWeeksForSeason(1); // 4
+        targetWeek = getMaxWeeksForSeason(1); // 18
       } else if (seasonType === 3) { // Playoffs week 1 -> Regular Season week 18
         targetSeasonType = 2;
-        targetWeek = getMaxWeeksForSeason(2); // 18
+        targetWeek = getMaxWeeksForSeason(2); // 4
       }
     }
     // Next week navigation - go to next season type at max week
@@ -1419,15 +1422,11 @@ function PoolPicksContent() {
                       size="sm"
                       onClick={() => { navigateToWeek(currentWeek - 1, currentSeasonType); }}
                       disabled={
-                        (currentSeasonType === 1 && currentWeek <= 1) || // Preseason: can't go before week 1
-                        (currentSeasonType === 2 && currentWeek <= 1) || // Regular: can't go before week 1
-                        (currentSeasonType === 3 && currentWeek <= 1)    // Playoffs: can't go before round 1
+                        (currentSeasonType === 1 && currentWeek <= 1)  // Preseason: can't go before week 1
                       }
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={
                         (currentSeasonType === 1 && currentWeek <= 1) ? "Already at earliest preseason week" :
-                        (currentSeasonType === 2 && currentWeek <= 1) ? "Already at earliest regular season week" :
-                        (currentSeasonType === 3 && currentWeek <= 1) ? "Already at earliest playoff round" :
                         "Go to previous week/round"
                       }
                     >
@@ -1452,15 +1451,9 @@ function PoolPicksContent() {
                       variant="outline"
                       size="sm"
                       onClick={() => { navigateToWeek(currentWeek + 1, currentSeasonType); }}
-                      disabled={
-                        (currentSeasonType === 1 && currentWeek >= 4) || // Preseason: max week 4
-                        (currentSeasonType === 2 && currentWeek >= 18) || // Regular: max week 18
-                        (currentSeasonType === 3 && currentWeek >= 4)     // Playoffs: max round 4
-                      }
+                      disabled={currentSeasonType === 3 && currentWeek >= 4}     // Playoffs: max round 4
                       className="flex items-center gap-1 px-3 py-2 h-9"
                       title={
-                        (currentSeasonType === 1 && currentWeek >= 4) ? "Already at latest preseason week" :
-                        (currentSeasonType === 2 && currentWeek >= 18) ? "Already at latest regular season week" :
                         (currentSeasonType === 3 && currentWeek >= 4) ? "Already at latest playoff round" :
                         "Go to next week/round"
                       }
@@ -1602,21 +1595,21 @@ function PoolPicksContent() {
                   Quarter Leaderboard
                 </CardTitle>
                 <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a tie-breaker week! View the complete quarter standings and winners.
+                  {getWeekTitle()} is a tie-breaker week! View the complete quarter standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentWeek)}`}
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType,currentWeek)}?seasonType=${currentSeasonType}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View {getPeriodName(currentWeek).replace('Period', 'Quarter')} Leaderboard
+                    View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
                   </Link>
                   <div className="text-sm text-purple-600 flex items-center gap-2">
                     <Info className="h-4 w-4" />
-                    Quarter includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
+                    {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} includes weeks: {getPeriodWeeks(currentSeasonType,currentWeek).join(', ')}
                   </div>
                 </div>
               </CardContent>
@@ -2183,22 +2176,25 @@ function PoolPicksContent() {
                   <Crown className="h-6 w-6 text-purple-600" />
                   Quarter Leaderboard
                 </CardTitle>
-                <CardDescription className="text-purple-700">
-                  Week {currentWeek} is a tie-breaker week! View the complete quarter standings and winners.
+                  <CardDescription className="text-purple-700">
+                    {currentSeasonType === 3
+                      ? 'Super Bowl'
+                      : `Week ${currentWeek}`
+                    } is a tie-breaker week! View the complete {currentSeasonType === 2 ? 'quarter' : 'playoffs'} standings and winners.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentWeek)}`}
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType,currentWeek)}?seasonType=${currentSeasonType}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View {getPeriodName(currentWeek).replace('Period', 'Quarter')} Leaderboard
+                    View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
                   </Link>
                   <div className="text-sm text-purple-600 flex items-center gap-2">
                     <Info className="h-4 w-4" />
-                    Quarter includes weeks: {getPeriodWeeks(currentWeek).join(', ')}
+                    {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} includes weeks: {getPeriodWeeks(currentSeasonType,currentWeek).join(', ')}
                   </div>
                 </div>
               </CardContent>

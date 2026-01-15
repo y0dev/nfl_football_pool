@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
         // Prepare update data
         const updateData: any = {
           id: game.id,
-          kickoff_time: gameData.kickoff_time,
+          kickoff_time: new Date(gameData.kickoff_time).toISOString(),
           status: gameData.status,
           is_playoff: gameData.is_playoff,
           winner: gameData.winner

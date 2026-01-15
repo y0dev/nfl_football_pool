@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +58,7 @@ interface PeriodInfo {
 }
 
 export default function PeriodLeaderboardPage() {
+  const searchParams = useSearchParams();
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -65,6 +66,7 @@ export default function PeriodLeaderboardPage() {
   const poolId = params.poolId as string;
   const season = params.season as string;
   const periodNumber = parseInt(params.periodName as string);
+  const seasonType = parseInt(searchParams.get('seasonType') ?? '2', 10);
   
   // Convert period number to period name
   const getPeriodNameFromNumber = (num: number): string => {
@@ -73,6 +75,7 @@ export default function PeriodLeaderboardPage() {
       case 2: return 'Period 2';
       case 3: return 'Period 3';
       case 4: return 'Period 4';
+      case 5: return 'Playoffs';
       default: return 'Unknown Period';
     }
   };
@@ -131,7 +134,7 @@ export default function PeriodLeaderboardPage() {
     try {
       // Fetch period data and pool name in parallel
       const [periodResponse, poolResponse] = await Promise.all([
-        fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}`),
+        fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&seasonType=${seasonType}&periodName=${encodeURIComponent(periodName)}`),
         fetch(`/api/pools/${poolId}`)
       ]);
       
@@ -669,10 +672,15 @@ export default function PeriodLeaderboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Quarter Leaderboard
+                {periodName === 'Playoffs' ? 'Playoffs' : 'Quarter'} Leaderboard
               </CardTitle>
               <CardDescription>
-                {periodInfo && `Weeks ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`}
+              {periodInfo &&
+                (periodName === 'Playoffs'
+                  ? `Playoff Rounds: ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
+                  : `Weeks ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
+                )
+              }
               </CardDescription>
             </CardHeader>
             <CardContent className="p-3 sm:p-6">
