@@ -36,7 +36,8 @@ export function MondayNightScoreInput({
 
   // Check if this is a period week where tie breakers are used
   const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
-  const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+  // Super Bowl is week 4 in playoffs (seasonType 3)
+  const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE && weekNumber === 4;
   const shouldShowInput = isPeriodWeek || isSuperBowl;
   
   // Get Monday night game info
@@ -67,25 +68,24 @@ export function MondayNightScoreInput({
     return null;
   }
 
+  // Determine title and description based on context
+  const isSuperBowlContext = isSuperBowl;
+  const title = isSuperBowlContext ? 'Super Bowl Score' : 'Monday Night Game Score';
+  const description = isSuperBowlContext 
+    ? 'Enter your prediction for the total points scored in the Super Bowl. This will be used as a tie-breaker if needed.'
+    : mondayNightGameInfo 
+      ? <>Enter your prediction for the total points scored in Monday night&apos;s game: <strong>{mondayNightGameInfo.displayText}</strong>. This will be used as a tie-breaker if needed.</>
+      : <>Enter your prediction for the total points scored in Monday night&apos;s game. This will be used as a tie-breaker if needed.</>;
+
   return (
     <Card className="border-blue-200 bg-blue-50">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Target className="h-5 w-5 text-blue-600" />
-          Monday Night Game Score
+          {title}
         </CardTitle>
         <CardDescription>
-          {mondayNightGameInfo ? (
-            <>
-              Enter your prediction for the total points scored in Monday night&apos;s game: <strong>{mondayNightGameInfo.displayText}</strong>.
-              This will be used as a tie-breaker if needed.
-            </>
-          ) : (
-            <>
-              Enter your prediction for the total points scored in Monday night&apos;s game.
-              This will be used as a tie-breaker if needed.
-            </>
-          )}
+          {description}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -131,7 +131,11 @@ export function MondayNightScoreInput({
           
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Clock className="h-4 w-4" />
-            <span>Used for tie-breaking in tie-breaker weeks ({PERIOD_WEEKS.join(', ')}) and Super Bowl (playoffs)</span>
+            <span>
+              {isSuperBowlContext 
+                ? 'Used for tie-breaking in the Super Bowl (playoffs)'
+                : `Used for tie-breaking in tie-breaker weeks (${PERIOD_WEEKS.join(', ')})`}
+            </span>
           </div>
           
           {score !== null && isValid && (

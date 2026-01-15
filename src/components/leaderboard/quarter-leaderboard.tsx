@@ -17,27 +17,33 @@ interface QuarterLeaderboardProps {
   poolId: string;
   season: number;
   currentWeek: number;
+  seasonType?: number; // 1=Preseason, 2=Regular Season, 3=Postseason/Playoffs
 }
 
-export function QuarterLeaderboard({ poolId, season, currentWeek }: QuarterLeaderboardProps) {
+export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2 }: QuarterLeaderboardProps) {
   const [entries, setEntries] = useState<QuarterEntry[]>([]);
   const [periodLabel, setPeriodLabel] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const periodName = useMemo(() => {
+    // If postseason, use "Playoffs" for all rounds
+    if (seasonType === 3) {
+      return 'Playoffs';
+    }
+    // Regular season quarters
     if (currentWeek <= 4) return 'Period 1';
     if (currentWeek <= 9) return 'Period 2';
     if (currentWeek <= 14) return 'Period 3';
     return 'Period 4';
-  }, [currentWeek]);
+  }, [currentWeek, seasonType]);
 
   useEffect(() => {
     const load = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}`);
+        const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}&seasonType=${seasonType}`);
         if (!res.ok) throw new Error(`Failed to load quarter leaderboard: ${res.status}`);
         const data = await res.json();
         const lb = (data?.data?.leaderboard || []) as any[];
@@ -49,8 +55,25 @@ export function QuarterLeaderboard({ poolId, season, currentWeek }: QuarterLeade
           weeks_won: e.weeks_won,
         })));
         const weeks = data?.data?.periodInfo?.weeks || [];
-        const label = periodName.replace('Period', 'Quarter');
-        setPeriodLabel(weeks.length > 0 ? `${label} (Weeks ${weeks[0]}-${weeks[weeks.length - 1]})` : label);
+        // If postseason, use "Playoffs" label, otherwise use "Quarter"
+        const label = seasonType === 3 ? 'Playoffs' : periodName.replace('Period', 'Quarter');
+        if (seasonType === 3) {
+          // For playoffs, show rounds instead of weeks
+          const roundNames: Record<number, string> = {
+            1: 'Wild Card Round',
+            2: 'Divisional Round',
+            3: 'Conference Championships',
+            4: 'Super Bowl',
+          };
+          if (weeks.length > 0) {
+            const roundLabels = weeks.map((w: number) => roundNames[w] || `Round ${w}`).join(', ');
+            setPeriodLabel(`Playoffs (${roundLabels})`);
+          } else {
+            setPeriodLabel('Playoffs');
+          }
+        } else {
+          setPeriodLabel(weeks.length > 0 ? `${label} (Weeks ${weeks[0]}-${weeks[weeks.length - 1]})` : label);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load quarter leaderboard');
       } finally {
@@ -58,7 +81,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek }: QuarterLeade
       }
     };
     if (poolId && season) load();
-  }, [poolId, season, periodName]);
+  }, [poolId, season, periodName, seasonType]);
 
   if (isLoading) {
     return (

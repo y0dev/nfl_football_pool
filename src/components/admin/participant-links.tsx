@@ -27,10 +27,7 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
   // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    // For postseason (seasonType === 3), use playoff-picks route
-    if (currentSeasonType === 3) {
-      return `${baseUrl}/pool/${poolId}/playoff-picks?round=${currentWeek}`;
-    }
+    // All season types use the picks route
     return `${baseUrl}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
   };
 

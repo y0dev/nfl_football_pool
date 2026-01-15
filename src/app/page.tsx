@@ -9,7 +9,7 @@ import { Search, Users, Trophy, Calendar, ArrowRight, Shield } from 'lucide-reac
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil } from '@/lib/utils';
 
 interface Game {
   id: string;
@@ -143,6 +143,8 @@ function LandingPage() {
     return `${game.away_score} - ${game.home_score}`;
   };
 
+  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900">
       {/* Navigation Bar */}
@@ -259,7 +261,7 @@ function LandingPage() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <Trophy className="h-6 w-6 text-white" />
-            <h3 className="text-2xl font-bold text-white">Week {currentWeek} Games</h3>
+            <h3 className="text-2xl font-bold text-white">{getWeekTitle()} Games</h3>
           </div>
           
           {isLoadingGames ? (

@@ -16,6 +16,7 @@ import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle, X } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
 import { debugLog, DAYS_BEFORE_GAME, getShortTeamName, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,9 +55,14 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
+  const [poolSeason, setPoolSeason] = useState<number | null>(null);
+  const [playoffConfidencePoints, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
   
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
+  
+  // Determine if we're in playoff mode
+  const isPlayoffMode = seasonType === 3;
 
   // Load current week and games (only if not prevented)
   useEffect(() => {
@@ -178,6 +184,49 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [propSelectedUser, selectedUser]);
 
+  // Load pool season for playoff mode
+  useEffect(() => {
+    const loadPoolSeason = async () => {
+      if (isPlayoffMode && !poolSeason) {
+        try {
+          const response = await fetch(`/api/pools/${poolId}`);
+          const data = await response.json();
+          if (data.success && data.pool?.season) {
+            setPoolSeason(data.pool.season);
+            debugLog('WeeklyPick: Loaded pool season for playoff mode:', data.pool.season);
+          }
+        } catch (error) {
+          console.error('Error loading pool season:', error);
+        }
+      }
+    };
+    loadPoolSeason();
+  }, [isPlayoffMode, poolId, poolSeason]);
+
+  // Load playoff confidence points when user is selected (playoff mode only)
+  useEffect(() => {
+    const loadPlayoffConfidencePoints = async () => {
+      if (isPlayoffMode && selectedUser && poolSeason) {
+        try {
+          const pointsMap = await getPlayoffConfidencePoints(poolId, poolSeason, selectedUser.id);
+          if (pointsMap) {
+            setPlayoffConfidencePoints(pointsMap);
+            debugLog('WeeklyPick: Loaded playoff confidence points:', pointsMap);
+          } else {
+            setPlayoffConfidencePoints({});
+            debugLog('WeeklyPick: No playoff confidence points found for user');
+          }
+        } catch (error) {
+          console.error('Error loading playoff confidence points:', error);
+          setPlayoffConfidencePoints({});
+        }
+      } else if (!isPlayoffMode) {
+        setPlayoffConfidencePoints({});
+      }
+    };
+    loadPlayoffConfidencePoints();
+  }, [isPlayoffMode, selectedUser, poolId, poolSeason]);
+
   // Load saved picks from localStorage when user is selected
   useEffect(() => {
     if (selectedUser && games.length > 0) {
@@ -212,7 +261,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setHasUnsavedChanges(false);
         setLastSaved(new Date(savedPicks[0]?.timestamp || Date.now()));
         
-        const validPicks = savedPicks.filter(sp => sp.predicted_winner && sp.confidence_points > 0);
+        // For playoff mode, confidence_points can be 0, just need predicted_winner
+        const validPicks = isPlayoffMode
+          ? savedPicks.filter(sp => sp.predicted_winner && sp.predicted_winner.trim() !== '')
+          : savedPicks.filter(sp => sp.predicted_winner && sp.confidence_points > 0);
         if (validPicks.length > 0) {
           toast({
             title: 'Picks Restored',
@@ -325,8 +377,36 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Handle pick changes
   const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
-    // Check if confidence point is already used
-    if (field === 'confidence_points' && typeof value === 'number') {
+    // For playoff mode, when selecting a winner, automatically set confidence points from playoff_confidence_points
+    if (isPlayoffMode && field === 'predicted_winner' && typeof value === 'string') {
+      const confidencePoints = playoffConfidencePoints[value] || 0;
+      const updatedPicks = picks.map(pick => 
+        pick.game_id === gameId 
+          ? { ...pick, predicted_winner: value, confidence_points: confidencePoints }
+          : pick
+      );
+      
+      setPicks(updatedPicks);
+      setHasUnsavedChanges(true);
+      
+      // Immediately save to localStorage
+      if (selectedUser) {
+        const storedPicks: StoredPick[] = updatedPicks
+          .filter(pick => pick.predicted_winner && pick.predicted_winner.trim() !== '')
+          .map(pick => ({
+            ...pick,
+            timestamp: Date.now()
+          }));
+        
+        pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+        setLastSaved(new Date());
+        debugLog('WeeklyPick: Saved playoff pick with confidence points:', { team: value, points: confidencePoints });
+      }
+      return;
+    }
+    
+    // Check if confidence point is already used (regular season only)
+    if (field === 'confidence_points' && typeof value === 'number' && !isPlayoffMode) {
       const existingPick = picks.find(p => p.confidence_points === value && p.game_id !== gameId);
       if (existingPick) {
         // Show confirmation dialog for override
@@ -388,7 +468,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const validatePicks = (): string[] => {
     const errors: string[] = [];
     const usedConfidencePoints = new Set<number>();
-    const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+    // For playoff mode, confidence_points can be 0 or any value (from playoff_confidence_points table)
+    const validPicks = isPlayoffMode
+      ? picks.filter(pick => pick.predicted_winner && pick.predicted_winner.trim() !== '')
+      : picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
 
     // Check if participant_id is set
     if (!selectedUser?.id || picks.some(pick => !pick.participant_id || pick.participant_id !== selectedUser.id)) {
@@ -400,25 +483,28 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       errors.push('Please make a pick for all games');
     }
 
-    validPicks.forEach(pick => {
-      if (usedConfidencePoints.has(pick.confidence_points)) {
-        errors.push(`Confidence point ${pick.confidence_points} is used multiple times`);
-      }
-      usedConfidencePoints.add(pick.confidence_points);
-    });
+    // For regular season only: validate confidence points uniqueness and sequentiality
+    if (!isPlayoffMode) {
+      validPicks.forEach(pick => {
+        if (usedConfidencePoints.has(pick.confidence_points)) {
+          errors.push(`Confidence point ${pick.confidence_points} is used multiple times`);
+        }
+        usedConfidencePoints.add(pick.confidence_points);
+      });
 
-    // Check for sequential confidence points
-    const confidencePoints = Array.from(usedConfidencePoints).sort((a, b) => a - b);
-    for (let i = 0; i < confidencePoints.length; i++) {
-      if (confidencePoints[i] !== i + 1) {
-        errors.push('Confidence points must be sequential (1, 2, 3, etc.)');
-        break;
+      // Check for sequential confidence points
+      const confidencePoints = Array.from(usedConfidencePoints).sort((a, b) => a - b);
+      for (let i = 0; i < confidencePoints.length; i++) {
+        if (confidencePoints[i] !== i + 1) {
+          errors.push('Confidence points must be sequential (1, 2, 3, etc.)');
+          break;
+        }
       }
     }
 
     // Check Monday night score for period weeks and Super Bowl
     const isPeriodWeek = PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]);
-    const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
+    const isSuperBowl = (seasonType === SUPER_BOWL_SEASON_TYPE) && currentWeek === 4;
     if ((isPeriodWeek || isSuperBowl) && (mondayNightScore === null || mondayNightScore === undefined)) {
       errors.push('Please enter your Monday night game score prediction for tie-breaking purposes');
     }
@@ -453,7 +539,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         participant_id: selectedUser!.id
       }));
       
-      const validPicks = picksWithParticipantId.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
+      // For playoff mode, confidence_points can be 0 (from playoff_confidence_points table)
+      // For regular season, confidence_points must be > 0
+      const validPicks = picksWithParticipantId.filter(pick => 
+        pick.predicted_winner && (isPlayoffMode ? true : pick.confidence_points > 0)
+      );
       
       debugLog('WeeklyPick: Submitting picks with game IDs:', validPicks.map(p => ({ game_id: p.game_id, predicted_winner: p.predicted_winner, confidence_points: p.confidence_points })));
       debugLog('WeeklyPick: Current games in state:', games.map(g => ({ id: g.id, home_team: g.home_team, away_team: g.away_team })));
@@ -645,8 +735,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         </div>
       )}
 
-      {/* Confidence Points Summary */}
-      {(() => {
+      {/* Confidence Points Summary - Only show for regular season */}
+      {!isPlayoffMode && (() => {
         const usedPoints = picks
           .filter(p => p.confidence_points > 0)
           .map(p => p.confidence_points);
@@ -682,6 +772,20 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           </div>
         );
       })()}
+      
+      {/* Playoff mode info */}
+      {isPlayoffMode && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <h3 className="font-semibold text-purple-900">Playoff Mode</h3>
+              <p className="text-sm text-purple-700">
+                Confidence points are input at the beginning of the playoffs. You can no longer them after the start of the first playoff game.  
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Games grid */}
       <div className="grid gap-4">
@@ -754,80 +858,96 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                   </Button>
                 </div>
 
-                {/* Confidence points */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium">
-                      Confidence Points
-                    </label>
-                    {usedConfidencePoints.length > 0 && (
-                      <span className="text-xs text-gray-500">
-                        {usedConfidencePoints.length} used
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={pick?.confidence_points?.toString() || ''}
-                      onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
-                      disabled={isLocked}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select confidence points" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
-                          availableConfidencePoints.map(points => (
-                            <SelectItem key={points} value={points.toString()}>
-                              {points} point{points !== 1 ? 's' : ''}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>
-                            No confidence points available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    
-                    {/* Clear Confidence Button */}
-                    {pick?.confidence_points && pick.confidence_points > 0 && !isLocked && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
-                        className="shrink-0 px-3 hover:bg-red-50 hover:border-red-200 hover:text-red-700"
-                        title="Clear confidence points - makes this value available for other games"
+                {/* Confidence points - Only show for regular season */}
+                {!isPlayoffMode && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium">
+                        Confidence Points
+                      </label>
+                      {usedConfidencePoints.length > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {usedConfidencePoints.length} used
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Select
+                        value={pick?.confidence_points?.toString() || ''}
+                        onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
+                        disabled={isLocked}
                       >
-                        <X className="h-4 w-4" /> 
-                      </Button>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select confidence points" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
+                            availableConfidencePoints.map(points => (
+                              <SelectItem key={points} value={points.toString()}>
+                                {points} point{points !== 1 ? 's' : ''}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>
+                              No confidence points available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      
+                      {/* Clear Confidence Button */}
+                      {pick?.confidence_points && pick.confidence_points > 0 && !isLocked && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
+                          className="shrink-0 px-3 hover:bg-red-50 hover:border-red-200 hover:text-red-700"
+                          title="Clear confidence points - makes this value available for other games"
+                        >
+                          <X className="h-4 w-4" /> 
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Show used confidence points */}
+                    {usedConfidencePoints.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-xs text-gray-500 mb-1">Used by other games:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {usedConfidencePoints.sort((a, b) => a - b).map(points => (
+                            <Badge key={points} variant="outline" className="text-xs bg-gray-100">
+                              {points}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Show message when no confidence points are assigned */}
+                    {!pick?.confidence_points && (
+                      <div className="mt-2">
+                        <div className="text-xs text-gray-500 italic">
+                          No confidence points assigned - select a value above
+                        </div>
+                      </div>
                     )}
                   </div>
-                  
-                  {/* Show used confidence points */}
-                  {usedConfidencePoints.length > 0 && (
-                    <div className="mt-2">
-                      <div className="text-xs text-gray-500 mb-1">Used by other games:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {usedConfidencePoints.sort((a, b) => a - b).map(points => (
-                          <Badge key={points} variant="outline" className="text-xs bg-gray-100">
-                            {points}
-                          </Badge>
-                        ))}
-                      </div>
+                )}
+                
+                {/* Show confidence points for playoff mode (read-only display) */}
+                {isPlayoffMode && pick?.predicted_winner && (
+                  <div className="mt-2">
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Confidence Points:</span>{' '}
+                      {pick.confidence_points > 0 ? (
+                        <Badge variant="secondary">{pick.confidence_points} points</Badge>
+                      ) : (
+                        <span className="text-gray-400 italic">No points assigned to this team</span>
+                      )}
                     </div>
-                  )}
-                  
-                  {/* Show message when no confidence points are assigned */}
-                  {!pick?.confidence_points && (
-                    <div className="mt-2">
-                      <div className="text-xs text-gray-500 italic">
-                        No confidence points assigned - select a value above
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -843,7 +963,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           participantId={selectedUser.id}
           initialScore={mondayNightScore || undefined}
           onScoreChange={setMondayNightScore}
-          isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || seasonType === SUPER_BOWL_SEASON_TYPE}
+          isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || (seasonType === SUPER_BOWL_SEASON_TYPE && currentWeek === 4)}
           games={games}
         />
       )}

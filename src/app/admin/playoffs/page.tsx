@@ -992,6 +992,13 @@ function PlayoffManagementContent() {
       (!assignedTeamNames.has(t.name) || t.name === editingTeam?.team_name) // Include if not assigned OR if it's the current team
     );
   };
+
+  const toLocalDateTimeInput = (utcString: string) => {
+    const date = new Date(utcString);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+  
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
   
   const availableTeams = getAvailableTeams();
 
@@ -1689,8 +1696,8 @@ function PlayoffManagementContent() {
                 <Label>Kickoff Time</Label>
                 <Input
                   type="datetime-local"
-                  value={editingGame.kickoff_time ? new Date(editingGame.kickoff_time).toISOString().slice(0, 16) : ''}
-                  onChange={(e) => setEditingGame({ ...editingGame, kickoff_time: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                  value={editingGame.kickoff_time ? toLocalDateTimeInput(editingGame.kickoff_time) : ''}
+                  onChange={(e) => setEditingGame({ ...editingGame, kickoff_time: e.target.value})}
                 />
               </div>
               <div>

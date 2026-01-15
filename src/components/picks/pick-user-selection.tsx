@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog } from '@/lib/utils';
+import { debugLog, getWeekTitle } from '@/lib/utils';
 import { Target, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
@@ -130,7 +130,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Select User</CardTitle>
+          <CardTitle>Select Your Name</CardTitle>
           <CardDescription>Loading...</CardDescription>
         </CardHeader>
         <CardContent>
@@ -147,7 +147,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Select User</CardTitle>
+          <CardTitle>Select Your Name</CardTitle>
           <CardDescription>Loading users...</CardDescription>
         </CardHeader>
         <CardContent>
@@ -273,9 +273,9 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Select User</CardTitle>
+        <CardTitle>Select Your Name</CardTitle>
         <CardDescription>
-          {`Choose your name to make your picks for Week ${currentWeek}`}
+          {`Choose your name to make your picks for ${getWeekTitle(currentWeek, seasonType || 2)}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

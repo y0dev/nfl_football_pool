@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog } from '@/lib/utils';
+import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 interface ParticipantData {
   participant_id: string;
@@ -36,11 +37,14 @@ export async function GET(request: NextRequest) {
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
     const periodName = searchParams.get('periodName');
+    const seasonTypeParam = searchParams.get('seasonType');
+    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
     
     debugLog('Period leaderboard API request:', {
       poolId,
       season,
-      periodName
+      periodName,
+      seasonType
     });
     
     if (!poolId || !season || !periodName) {
@@ -85,27 +89,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all picks for the tie-breaker weeks - use same approach as weekly leaderboard
-    const gameIds = await getGameIdsForWeeks(supabase, periodWeeks, parseInt(season));
+    const gameIds = await getGameIdsForWeeks(supabase, periodWeeks, parseInt(season), seasonType);
     debugLog('Period Leaderboard - Game IDs for weeks:', gameIds);
     debugLog('Period Leaderboard - Number of games:', gameIds.length);
     
     // Also get all games to ensure we have the complete list
+    // Use seasonType from parameter (3 for playoffs, 2 for regular season, 1 for preseason)
     const { data: allGames, error: allGamesError } = await supabase
       .from('games')
       .select('id')
       .eq('season', parseInt(season))
-      .eq('season_type', 2)
+      .eq('season_type', seasonType)
       .in('week', periodWeeks);
       
     let finalGameIds = gameIds;
     if (!allGamesError && allGames) {
       const allGameIds = allGames.map(game => game.id);
-      debugLog('Period Leaderboard - All game IDs from direct query:', allGameIds);
-      debugLog('Period Leaderboard - All games count:', allGameIds.length);
+      // debugLog('Period Leaderboard - All game IDs from direct query:', allGameIds);
+      // debugLog('Period Leaderboard - All games count:', allGameIds.length);
       
       // Use the larger set of game IDs
       finalGameIds = allGameIds.length > gameIds.length ? allGameIds : gameIds;
-      debugLog('Period Leaderboard - Using game IDs:', finalGameIds);
+      // debugLog('Period Leaderboard - Using game IDs:', finalGameIds);
     }
     
     // Get picks for all participants in this pool for these games
@@ -121,9 +126,9 @@ export async function GET(request: NextRequest) {
       .eq('pool_id', poolId)
       .in('game_id', finalGameIds);
 
-    debugLog('Period Leaderboard - Picks data:', picksData);
-    debugLog('Period Leaderboard - Picks error:', picksError);
-    debugLog('Period Leaderboard - Number of picks:', picksData?.length || 0);
+    // debugLog('Period Leaderboard - Picks data:', picksData);
+    // debugLog('Period Leaderboard - Picks error:', picksError);
+    // debugLog('Period Leaderboard - Number of picks:', picksData?.length || 0);
     
     // Debug: Check picks per participant
     if (picksData) {
@@ -136,21 +141,22 @@ export async function GET(request: NextRequest) {
       
       // Calculate expected picks per participant
       const expectedPicksPerParticipant = finalGameIds.length;
-      debugLog(`Period Leaderboard - Expected picks per participant: ${expectedPicksPerParticipant} (${finalGameIds.length} games)`);
+      // Display expected picks per participant in debug log
+      // debugLog(`Period Leaderboard - Expected picks per participant: ${expectedPicksPerParticipant} (${finalGameIds.length} games)`);
       
       // Check if any participant is missing picks
       const missingPicksParticipants: string[] = [];
       participants.forEach(participant => {
         const actualPicks = picksPerParticipant.get(participant.id) || 0;
         if (actualPicks < expectedPicksPerParticipant) {
-          debugLog(`WARNING: ${participant.name} has only ${actualPicks} picks, expected ${expectedPicksPerParticipant}`);
+          // debugLog(`WARNING: ${participant.name} has only ${actualPicks} picks, expected ${expectedPicksPerParticipant}`);
           missingPicksParticipants.push(participant.id);
         }
       });
       
       // If we have missing picks, try to fetch them individually
       if (missingPicksParticipants.length > 0) {
-        debugLog(`Attempting to fetch missing picks for ${missingPicksParticipants.length} participants`);
+        // debugLog(`Attempting to fetch missing picks for ${missingPicksParticipants.length} participants`);
         
         for (const participantId of missingPicksParticipants) {
           const { data: additionalPicks, error: additionalError } = await supabase
@@ -222,7 +228,7 @@ export async function GET(request: NextRequest) {
             const count = finalPicksPerParticipant.get(pick.participant_id) || 0;
             finalPicksPerParticipant.set(pick.participant_id, count + 1);
           });
-          debugLog('Period Leaderboard - Final picks per participant:', Array.from(finalPicksPerParticipant.entries()));
+          // debugLog('Period Leaderboard - Final picks per participant:', Array.from(finalPicksPerParticipant.entries()));
         }
       }
     }
@@ -239,10 +245,11 @@ export async function GET(request: NextRequest) {
       .from('games')
       .select('*')
       .eq('season', parseInt(season))
-      .eq('season_type', 2)
+      .eq('season_type', seasonType)
       .in('week', periodWeeks);
 
-    debugLog('Period Leaderboard - Games data:', gamesData);
+    // Display games data in debug log
+    // debugLog('Period Leaderboard - Games data:', gamesData);
     debugLog('Period Leaderboard - Games error:', gamesError);
     debugLog('Period Leaderboard - Number of games:', gamesData?.length || 0);
     
@@ -294,8 +301,23 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    debugLog('Period Leaderboard - Participants map:', participants);
-    debugLog('Period Leaderboard - Participant totals:', participantTotals);
+    // debugLog('Period Leaderboard - Participants map:', participants);
+    // debugLog('Period Leaderboard - Participant totals:', participantTotals);
+    
+    // For playoff games (seasonType === 3), load playoff confidence points for all participants
+    const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
+    if (seasonType === 3) {
+      debugLog('Loading playoff confidence points for all participants...');
+      for (const participant of participants) {
+        const pointsMap = await getPlayoffConfidencePoints(poolId, parseInt(season), participant.id);
+        if (pointsMap) {
+          playoffConfidencePointsMap.set(participant.id, pointsMap);
+          debugLog(`Loaded playoff confidence points for ${participant.name}:`, pointsMap);
+        } else {
+          debugLog(`No playoff confidence points found for ${participant.name}`);
+        }
+      }
+    }
     
     // Group picks by participant and week
     const participantWeekPicks = new Map<string, Map<number, Array<PickData>>>();
@@ -310,7 +332,7 @@ export async function GET(request: NextRequest) {
       // Create a unique key for this pick to avoid duplicates
       const pickKey = `${pick.participant_id}-${pick.game_id}`;
       if (processedPicks.has(pickKey)) {
-        debugLog(`Skipping duplicate pick: ${pickKey}`);
+        // debugLog(`Skipping duplicate pick: ${pickKey}`);
         return;
       }
       processedPicks.add(pickKey);
@@ -365,7 +387,21 @@ export async function GET(request: NextRequest) {
         weekPicksData.forEach((pick: PickData) => {
           const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
           if (isCorrect) {
-            weekPoints += pick.confidence_points;
+            // For playoff games (seasonType === 3), use confidence points from playoff_confidence_points table
+            // For regular season, use confidence points from picks table
+            let pointsToAdd = pick.confidence_points || 0;
+            if (seasonType === 3) {
+              const participantPlayoffPoints = playoffConfidencePointsMap.get(participantId);
+              if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+                pointsToAdd = participantPlayoffPoints[pick.predicted_winner];
+                debugLog(`  Using playoff confidence points for ${pick.predicted_winner}: ${pointsToAdd}`);
+              } else {
+                // If no playoff confidence points found, use 0 (shouldn't happen if properly set up)
+                pointsToAdd = 0;
+                debugLog(`  WARNING: No playoff confidence points found for ${pick.predicted_winner} for participant ${participant.name}`);
+              }
+            }
+            weekPoints += pointsToAdd;
             weekCorrectPicks++;
           }
         });
@@ -544,9 +580,9 @@ export async function GET(request: NextRequest) {
       created_at: new Date().toISOString()
     } : null;
 
-    debugLog('Calculated leaderboard:', leaderboard);
-    debugLog('Calculated weekly winners:', weeklyWinners);
-    debugLog('Calculated period winner:', periodWinner);
+    // debugLog('Calculated leaderboard:', leaderboard);
+    // debugLog('Calculated weekly winners:', weeklyWinners);
+    // debugLog('Calculated period winner:', periodWinner);
 
     return NextResponse.json({
       success: true,
@@ -583,17 +619,20 @@ function getPeriodWeeks(periodName: string): number[] {
       return [10, 11, 12, 13, 14];
     case 'Period 4':
       return [15, 16, 17, 18];
+    case 'Playoffs':
+      // Playoffs include all 4 rounds (weeks 1-4 in postseason)
+      return [1, 2, 3, 4];
     default:
       return [];
   }
 }
 
-async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseServiceClient>, weeks: number[], season: number): Promise<string[]> {
+async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseServiceClient>, weeks: number[], season: number, seasonType: number = 2): Promise<string[]> {
   const { data: games, error } = await supabase
     .from('games')
     .select('id')
     .eq('season', season)
-    .eq('season_type', 2)
+    .eq('season_type', seasonType)
     .in('week', weeks);
 
   if (error) {
@@ -637,8 +676,8 @@ async function applyTopThreeTieBreakerLogicForPeriod(
     // Check if we need to apply Monday night tie-breaker for top 3
     const topThree = entries.slice(0, 3);
     const fourthPlace = entries[3];
-    debugLog('Top three:', topThree);
-    debugLog('Fourth place:', fourthPlace);
+    // debugLog('Top three:', topThree);
+    // debugLog('Fourth place:', fourthPlace);
     
     // Check for ties within the top 3 and ties for 3rd place with any participants below
     const topThreeScores = topThree.map(entry => entry.total_points);
