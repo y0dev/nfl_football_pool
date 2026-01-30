@@ -21,7 +21,6 @@ import {
   Trash2, 
   Save, 
   X, 
-  Calendar,
   ArrowLeft,
   RefreshCw,
   AlertCircle,
@@ -29,7 +28,7 @@ import {
   AlertTriangle,
   Shield
 } from 'lucide-react';
-import { debugLog, NFL_TEAMS, getNFLSeasonYear } from '@/lib/utils';
+import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear } from '@/lib/utils';
 
 interface PlayoffTeam {
   id?: string;
@@ -312,6 +311,32 @@ function PlayoffManagementContent() {
     } finally {
       setFetchingGameIds(false);
     }
+    };
+  
+  const getLastGameOfPreviousWeek = async (round: number, season: number) => {
+    if (round === 1) {
+      // Get the last game of the regular season
+      const lastGameOfRegularSeason = await fetch(`/api/games/week?week=${MAX_WEEKS_REGULAR_SEASON}&seasonType=2`);
+      const data = await lastGameOfRegularSeason.json();
+      if (data.success && data.games && data.games.length > 0) {
+        // Sort the games by kickoff time
+        const sortedGames = data.games.sort((a: any, b: any) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime());
+        debugLog('Last game of regular season:',sortedGames[sortedGames.length - 1].kickoff_time);
+        return sortedGames[sortedGames.length - 1].kickoff_time;
+      } else {
+        return null;
+      }
+    }
+    
+    // Check database for last game of previous week
+    const lastGameOfPreviousWeek = await fetch(`/api/admin/playoff-games?season=${season}&week=${round - 1}`);
+    const data = await lastGameOfPreviousWeek.json();
+    debugLog('Last game of previous playoff round:',data);
+    if (data.success && data.games && data.games.length > 0) {
+      return data.games[data.games.length - 1].kickoff_time;
+    } else {
+      return null;
+    }
   };
 
   const fetchGamesForRound = async (round: number) => {
@@ -321,12 +346,15 @@ function PlayoffManagementContent() {
       
       // Calculate playoff year: 2025 season games are in Jan/Feb 2026
       const playoffYear = season + 1;
+      const lastGameOfPreviousWeek = await getLastGameOfPreviousWeek(round, season);
+
+      debugLog('Last game of previous playoff round:',lastGameOfPreviousWeek);
       
       // Use the server-side API route to fetch ESPN game data (avoids CORS issues)
       const response = await fetch('/api/admin/playoff-games/fetch-espn-ids', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ season: playoffYear, week: round })
+        body: JSON.stringify({ season: playoffYear, week: round, lastGameOfPreviousWeek })
       });
 
       const data = await response.json();
@@ -1411,7 +1439,7 @@ function PlayoffManagementContent() {
                                       <span className="text-xs text-gray-500">Status</span>
                                       <div className="mt-1">
                                         <Badge variant={game.status === 'final' ? 'default' : 'secondary'}>
-                                          {game.status || 'scheduled'}
+                                          {game.status ? game.status.charAt(0).toUpperCase() + game.status.slice(1) : 'Scheduled'}
                                         </Badge>
                                       </div>
                                     </div>
@@ -1470,7 +1498,7 @@ function PlayoffManagementContent() {
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant={game.status === 'final' ? 'default' : 'secondary'}>
-                                      {game.status || 'scheduled'}
+                                      {game.status ? game.status.charAt(0).toUpperCase() + game.status.slice(1) : 'Scheduled'}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="min-w-[120px]">
@@ -1703,7 +1731,7 @@ function PlayoffManagementContent() {
               <div>
                 <Label>Status</Label>
                 <Select
-                  value={editingGame.status || 'scheduled'}
+                  value={editingGame.status ? editingGame.status.charAt(0).toUpperCase() + editingGame.status.slice(1) : 'Scheduled'}
                   onValueChange={(value) => setEditingGame({ ...editingGame, status: value })}
                 >
                   <SelectTrigger>
@@ -1862,7 +1890,7 @@ function PlayoffManagementContent() {
                             {game.kickoff_time ? new Date(game.kickoff_time).toLocaleString() : 'TBD'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{game.status || 'scheduled'}</Badge>
+                            <Badge variant="secondary">{game.status ? game.status.charAt(0).toUpperCase() + game.status.slice(1) : 'Scheduled'}</Badge>
                           </TableCell>
                         </TableRow>
                       ))}
