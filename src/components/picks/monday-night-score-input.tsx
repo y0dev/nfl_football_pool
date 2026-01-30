@@ -19,6 +19,7 @@ interface MondayNightScoreInputProps {
   onScoreChange: (score: number | null) => void;
   isRequired?: boolean;
   games?: Game[];
+  isLocked?: boolean;
 }
 
 export function MondayNightScoreInput({
@@ -29,7 +30,8 @@ export function MondayNightScoreInput({
   initialScore,
   onScoreChange,
   isRequired = false,
-  games = []
+  games = [],
+  isLocked = false
 }: MondayNightScoreInputProps) {
   const [score, setScore] = useState<number | null>(initialScore || null);
   const [isValid, setIsValid] = useState(true);
@@ -121,6 +123,7 @@ export function MondayNightScoreInput({
               value={score || ''}
               onChange={(e) => handleScoreChange(e.target.value)}
               className={`mt-1 ${!isValid ? 'border-red-500 focus:border-red-500' : ''}`}
+              disabled={isLocked}
             />
             {!isValid && (
               <p className="text-sm text-red-600 mt-1">
