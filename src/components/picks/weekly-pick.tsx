@@ -965,6 +965,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           onScoreChange={setMondayNightScore}
           isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || (seasonType === SUPER_BOWL_SEASON_TYPE && currentWeek === 4)}
           games={games}
+          isLocked={!isWeekUnlocked}
         />
       )}
 

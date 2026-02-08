@@ -140,7 +140,7 @@ export const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
 // Game Configuration
 export const MAX_WEEKS_PRESEASON = 4;
 export const MAX_WEEKS_REGULAR_SEASON = 18;
-export const MAX_WEEKS_POSTSEASON = 5;
+export const MAX_WEEKS_POSTSEASON = 4;
 export const DEFAULT_WEEK = 1;
 
 // Confidence Points Configuration
