@@ -480,23 +480,42 @@ function PoolPicksContent() {
       // Use the week and season type from URL parameters
       let weekToUse: number;
       let seasonTypeToUse: number;
-      
-      if (weekParam && !isNaN(parseInt(weekParam)) && parseInt(weekParam) >= 1) {
-        weekToUse = parseInt(weekParam);
-        seasonTypeToUse = seasonTypeParam ? parseInt(seasonTypeParam) : 2; // Default to regular season
-        
-        // Validate week bounds for each season type
-        if (seasonTypeToUse === 1 && (weekToUse < 1 || weekToUse > 4)) {
-          // Invalid preseason week, default to week 1
+      const validSeasonTypes = [1, 2, 3] as const;
+      const parsedSeasonType = seasonTypeParam ? parseInt(seasonTypeParam, 10) : 2;
+      const isSeasonTypeValid = validSeasonTypes.includes(parsedSeasonType as 1 | 2 | 3);
+
+      // If season_type is not one of the 3 (preseason, regular, postseason), default to current week
+      if (!isSeasonTypeValid) {
+        try {
+          const upcomingWeek = await getUpcomingWeek();
+          weekToUse = upcomingWeek.week;
+          seasonTypeToUse = upcomingWeek.seasonType;
+          setCurrentWeek(weekToUse);
+          setCurrentSeasonType(seasonTypeToUse);
+          setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
+          const newUrl = `/pool/${poolId}/picks?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+          router.replace(newUrl, { scroll: false });
+          debugLog('Pool picks page: Invalid season type, using current week - week:', weekToUse, 'season type:', seasonTypeToUse);
+        } catch (error) {
+          console.error('Error getting upcoming week:', error);
           weekToUse = 1;
-        } else if (seasonTypeToUse === 2 && (weekToUse < 1 || weekToUse > 18)) {
-          // Invalid regular season week, default to week 1
-          weekToUse = 1;
-        } else if (seasonTypeToUse === 3 && (weekToUse < 1 || weekToUse > 4)) {
-          // Invalid playoff round, default to round 1
-          weekToUse = 1;
+          seasonTypeToUse = 2;
+          setCurrentWeek(1);
+          setCurrentSeasonType(2);
+          setUpcomingWeek({ week: 1, seasonType: 2 });
         }
-        
+      } else if (weekParam && !isNaN(parseInt(weekParam, 10)) && parseInt(weekParam, 10) >= 1) {
+        weekToUse = parseInt(weekParam, 10);
+        seasonTypeToUse = parsedSeasonType;
+        const maxWeeks = getMaxWeeksForSeason(seasonTypeToUse);
+
+        // If week is greater than max for this season type, go to last week of that season type
+        if (weekToUse > maxWeeks) {
+          weekToUse = maxWeeks;
+          const newUrl = `/pool/${poolId}/picks?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+          router.replace(newUrl, { scroll: false });
+        }
+
         // For playoffs (seasonType === 3), check if confidence points are submitted
         if (seasonTypeToUse === 3) {
           // We need to load pool season first, then check confidence points
@@ -506,16 +525,16 @@ function PoolPicksContent() {
         
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
-        
+
         // Also get the upcoming week for comparison
         try {
           const upcomingWeek = await getUpcomingWeek();
-          setUpcomingWeek({week: upcomingWeek.week, seasonType: upcomingWeek.seasonType});
+          setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
         } catch (error) {
           console.error('Error getting upcoming week:', error);
-          setUpcomingWeek({week: 1, seasonType: 2});
+          setUpcomingWeek({ week: 1, seasonType: 2 });
         }
-        
+
         debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         // Fallback to upcoming week only if no valid week in URL
