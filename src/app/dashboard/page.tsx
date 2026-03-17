@@ -204,7 +204,7 @@ function CommissionerDashboardContent() {
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
       
-      const activities = [];
+      const activities: any[] = [];
       const now = new Date();
       
       // Get pools created by this commissioner

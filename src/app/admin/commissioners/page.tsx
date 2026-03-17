@@ -32,7 +32,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 
 function CommissionersManagementContent() {
-  const { user, verifyAdminStatus } = useAuth();
+  const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);

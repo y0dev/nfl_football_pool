@@ -231,7 +231,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
 
     // Check if this is a playoff week (season_type = 3)
     const firstGame = picks?.[0]?.games;
-    const isPlayoff = firstGame && isPlayoffGame(firstGame.season_type);
+    const isPlayoff = firstGame && isPlayoffGame(firstGame[0]?.season_type);
 
     // For playoff games, load playoff confidence points for all participants
     const playoffConfidencePointsMap = new Map<string, Record<string, number>>();

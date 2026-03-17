@@ -1,9 +1,13 @@
 import { test as base } from '@playwright/test';
 
 // Extend the base test with test data setup
-export const test = base.extend({
+export const test = base.extend<{
+  testData: any;
+  authenticatedPage: any;
+  adminPage: any;
+}>({
   // Setup test data before each test
-  testData: async ({}, use) => {
+  testData: async ({}, use: (value: any) => Promise<void>) => {
     const testData = {
       users: {
         admin: {
@@ -77,7 +81,7 @@ export const test = base.extend({
   },
 
   // Setup authenticated page context
-  authenticatedPage: async ({ page, testData }, use) => {
+  authenticatedPage: async ({ page, testData }: { page: any; testData: any }, use: (value: any) => Promise<void>) => {
     // Login as admin
     await page.goto('/login');
     await page.fill('input[name="email"]', testData.users.admin.email);
@@ -91,7 +95,7 @@ export const test = base.extend({
   },
 
   // Setup admin page context with better error handling
-  adminPage: async ({ page, testData }, use) => {
+  adminPage: async ({ page, testData }: { page: any; testData: any }, use: (value: any) => Promise<void>) => {
     try {
       // Login as admin
       await page.goto('/admin/login');

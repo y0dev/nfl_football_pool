@@ -48,7 +48,6 @@ export function RegisterForm() {
       const user = await createUser({
         name: data.name,
         email: data.email,
-        password: data.password,
         poolId: data.pool_id,
       });
       

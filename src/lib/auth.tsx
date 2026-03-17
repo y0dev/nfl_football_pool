@@ -12,7 +12,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (userData: User) => Promise<void>;
+  signIn: (userOrEmail: User | string, password?: string) => Promise<void>;
   signOut: () => Promise<void>;
   verifyAdminStatus: (requireSuperAdmin?: boolean) => Promise<boolean>;
   isTestAccountBlocked: boolean;
@@ -40,17 +40,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false; // Account is not blocked
   };
 
-  const signIn = async (userData: User) => {
+const signIn = async (userOrEmail: User | string, password?: string) => {
     try {
       setLoading(true);
-      
+
+      let userData: User;
+
+      if (typeof userOrEmail === 'string') {
+        const email = userOrEmail;
+        if (password) {
+          // Do login with supabase
+          const { getSupabaseClient } = await import('./supabase');
+          const supabase = getSupabaseClient();
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (error) throw error;
+          if (!data.user) throw new Error('Login failed');
+
+          // Get user profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+          userData = {
+            id: data.user.id,
+            email: data.user.email!,
+            full_name: profile?.full_name,
+            is_super_admin: profile?.is_super_admin || false,
+          };
+        } else {
+          // For user selection or register, set user with email
+          userData = {
+            id: email, // dummy id
+            email,
+            full_name: '',
+            is_super_admin: false,
+          };
+        }
+      } else {
+        userData = userOrEmail;
+      }
+
       // Check for test account security
       const isBlocked = checkTestAccountSecurity(userData);
       if (isBlocked) {
         console.warn('Test account detected in production, blocking sign in');
         throw new Error('Test accounts are not allowed in production');
       }
-      
+
       // Store all user data including admin status
       const safeUserData = {
         id: userData.id,
@@ -58,9 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         full_name: userData.full_name,
         is_super_admin: userData.is_super_admin
       };
-      
+
       setUser(safeUserData);
-      
+
       // Store in localStorage for persistence (including admin status)
       if (typeof window !== 'undefined') {
         localStorage.setItem('nfl-pool-user', JSON.stringify(safeUserData));

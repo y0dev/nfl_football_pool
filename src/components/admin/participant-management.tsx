@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Participant {
   id: string;
   name: string;
-  email: string | null;
+  email?: string | null;
   created_at: string;
   is_active: boolean;
 }

@@ -8,14 +8,6 @@ const nextConfig: NextConfig = {
     // number of pages that should be kept simultaneously without being disposed
     pagesBufferLength: 2,
   },
-  // Disable ESLint during builds to focus on hydration issues
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // Disable TypeScript checking during builds
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 };
 
 export default nextConfig;

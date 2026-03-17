@@ -665,6 +665,10 @@ export async function calculatePeriodWinners(
         end_week: endWeek,
         winner_participant_id: winner.participant_id,
         winner_name: winner.participant_name,
+        winner_points: winner.period_points,
+        winner_total_picks: 0, // Not calculated here
+        winner_correct_picks: winner.period_correct_picks,
+        winner_weeks_won: winner.weeks_won,
         period_points: winner.period_points,
         period_correct_picks: winner.period_correct_picks,
         weeks_won: winner.weeks_won,
@@ -695,6 +699,10 @@ export async function calculatePeriodWinners(
             end_week: endWeek,
             winner_participant_id: winner.participant_id,
             winner_name: winner.participant_name,
+            winner_points: winner.period_points,
+            winner_total_picks: 0,
+            winner_correct_picks: winner.period_correct_picks,
+            winner_weeks_won: winner.weeks_won,
             period_points: winner.period_points,
             period_correct_picks: winner.period_correct_picks,
             weeks_won: winner.weeks_won,
@@ -721,6 +729,10 @@ export async function calculatePeriodWinners(
             end_week: endWeek,
             winner_participant_id: winner.participant_id,
             winner_name: winner.participant_name,
+            winner_points: winner.period_points,
+            winner_total_picks: 0,
+            winner_correct_picks: winner.period_correct_picks,
+            winner_weeks_won: winner.weeks_won,
             period_points: winner.period_points,
             period_correct_picks: winner.period_correct_picks,
             weeks_won: winner.weeks_won,
@@ -747,6 +759,10 @@ export async function calculatePeriodWinners(
               end_week: endWeek,
               winner_participant_id: winner.participant_id,
               winner_name: winner.participant_name,
+              winner_points: winner.period_points,
+              winner_total_picks: 0,
+              winner_correct_picks: winner.period_correct_picks,
+              winner_weeks_won: winner.weeks_won,
               period_points: winner.period_points,
               period_correct_picks: winner.period_correct_picks,
               weeks_won: winner.weeks_won,
@@ -766,6 +782,10 @@ export async function calculatePeriodWinners(
               end_week: endWeek,
               winner_participant_id: winner.participant_id,
               winner_name: winner.participant_name,
+              winner_points: winner.period_points,
+              winner_total_picks: 0,
+              winner_correct_picks: winner.period_correct_picks,
+              winner_weeks_won: winner.weeks_won,
               period_points: winner.period_points,
               period_correct_picks: winner.period_correct_picks,
               weeks_won: winner.weeks_won,
@@ -992,10 +1012,10 @@ export async function calculateCurrentQuarterStandings(
 
       // Calculate week totals for each participant
       participants.forEach(participant => {
-        const participantPicks = weekPicks.filter(pick => pick.participant_id === participant.id);
+        const participantPicks: any[] = weekPicks.filter(pick => pick.participant_id === participant.id);
         let weekPoints = 0;
         let weekCorrect = 0;
-        let weekPicks = participantPicks.length;
+        let pickCount = participantPicks.length;
 
         participantPicks.forEach(pick => {
           const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
@@ -1008,7 +1028,7 @@ export async function calculateCurrentQuarterStandings(
           }
         });
 
-        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: weekPicks });
+        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: pickCount });
       });
 
       // Find week winner (only for completed weeks)
@@ -1201,10 +1221,10 @@ export async function calculateQuarterWinners(
 
       // Calculate week totals for each participant
       participants.forEach(participant => {
-        const participantPicks = weekPicks.filter(pick => pick.participant_id === participant.id);
+        const participantPicks: any[] = weekPicks.filter(pick => pick.participant_id === participant.id);
         let weekPoints = 0;
         let weekCorrect = 0;
-        let weekPicks = participantPicks.length;
+        let pickCount = participantPicks.length;
 
         participantPicks.forEach(pick => {
           const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
@@ -1214,7 +1234,7 @@ export async function calculateQuarterWinners(
           }
         });
 
-        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: weekPicks });
+        weekTotals.set(participant.id, { points: weekPoints, correct: weekCorrect, picks: pickCount });
       });
 
       // Find week winner
@@ -1281,17 +1301,21 @@ export async function calculateQuarterWinners(
 
     const result: PeriodWinner = {
       pool_id: poolId,
+      season,
       period_name: periodName,
+      start_week: Math.min(...quarterWeeks),
+      end_week: Math.max(...quarterWeeks),
       winner_participant_id: winner.participant_id,
       winner_name: winner.participant_name,
       winner_points: winner.total_points,
-      winner_correct_picks: winner.total_correct,
       winner_total_picks: winner.total_picks,
+      winner_correct_picks: winner.total_correct,
       winner_weeks_won: winner.weeks_won,
-      total_participants: participants.length,
+      period_points: winner.total_points,
+      period_correct_picks: winner.total_correct,
+      weeks_won: winner.weeks_won,
       tie_breaker_used: tiedParticipants.length > 1,
-      tie_breaker_answer: undefined,
-      tie_breaker_difference: undefined
+      total_participants: participants.length
     };
 
     console.log(`${periodName} winner calculated:`, result);

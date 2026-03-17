@@ -238,8 +238,15 @@ async function applySecondaryTieBreakerCascade(
           rankOffset++;
         } else {
           // Recursively apply tie breakers to this group
+          // Convert TieBreakerResult[] back to participant format for secondary tie breakers
+          const participantsForSecondary = group.map(p => ({
+            participant_id: p.participant_id,
+            participant_name: p.participant_name,
+            points: 0, // We don't have the original points here, but secondary tie breakers don't need them
+            correct_picks: 0
+          }));
           const subResults = await applySecondaryTieBreakerCascade(
-            poolId, week, season, group, settings
+            poolId, week, season, participantsForSecondary, settings
           );
           
           // Assign ranks to sub-results
@@ -262,7 +269,9 @@ async function applySecondaryTieBreakerCascade(
 
   // If all methods fail, assign random ranks (shouldn't happen in practice)
   return tiedParticipants.map((p, index) => ({
-    ...p,
+    participant_id: p.participant_id,
+    participant_name: p.participant_name,
+    tie_breaker_value: 0, // Random, so value doesn't matter
     tie_breaker_rank: index + 1
   }));
 }

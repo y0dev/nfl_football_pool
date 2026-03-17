@@ -84,7 +84,7 @@ async function handleFileUpload(request: NextRequest) {
     }
 
     // Parse the data
-    const parsedData = parseExcelData(jsonData, games);
+    const parsedData = parseExcelData(jsonData as any[][], games);
 
     return NextResponse.json({
       success: true,

@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // For non-admins, verify they can only send reminders to their own pools
     if (!admin.is_super_admin) {
-      const userPools = participants.filter(p => p.pools.created_by === session.user.email);
+      const userPools = participants.filter(p => p.pools.some(pool => pool.created_by === session.user.email));
       if (userPools.length !== participants.length) {
         return NextResponse.json(
           { success: false, error: 'Unauthorized - Can only send reminders to your own pools' },
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const reminderPromises = participants.map(async (participant) => {
       try {
         // Send email reminder (this would integrate with your email service)
-        await sendReminderEmail(participant, games, week, seasonType);
+        await sendReminderEmail(participant, games || [], week, seasonType);
         
         // Log the reminder
         await supabase

@@ -287,6 +287,41 @@ export class AdminService {
   }
 
   /**
+   * Get a pool by ID
+   */
+  async getPoolById(poolId: string): Promise<Pool | null> {
+    try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AdminService: Getting pool by ID:', poolId);
+      }
+
+      const { data: pool, error } = await this.supabase
+        .from('pools')
+        .select('*')
+        .eq('id', poolId)
+        .single();
+
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('AdminService: Pool query error:', error);
+        }
+        throw new Error(`Failed to load pool: ${error.message}`);
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AdminService: Pool result:', pool);
+      }
+
+      return pool;
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('AdminService: Error getting pool:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Get all admins (used in dashboard for admin)
    */
   async getAdmins(): Promise<Admin[]> {
