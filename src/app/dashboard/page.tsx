@@ -435,7 +435,7 @@ function CommissionerDashboardContent() {
     {
       label: 'Create Pool',
       icon: Plus,
-      desc: 'Start a new NFL Confidence Pool',
+      desc: 'Start a new Confidence Pool',
       action: () => {
         const event = new CustomEvent('openCreatePoolDialog');
         document.dispatchEvent(event);
@@ -509,7 +509,7 @@ function CommissionerDashboardContent() {
                 <Trophy style={{ width: 14, height: 14, color: text }} />
               </div>
               <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-                NFL Confidence Pool
+                Sunday Huddle
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -555,7 +555,7 @@ function CommissionerDashboardContent() {
             Commissioner <span style={{ color: gold }}>Dashboard</span>
           </h1>
           <p style={{ ...b, fontSize: '0.9rem', color: textMid, marginBottom: '1rem' }}>
-            Manage your NFL Confidence Pools and participants
+            Manage your Sunday Huddles and participants
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{

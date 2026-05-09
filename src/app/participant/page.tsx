@@ -725,7 +725,7 @@ function ParticipantContent() {
                   <ArrowLeft style={{ width: 12, height: 12 }} /> Back
                 </button>
                 <div style={{ width: 1, height: 20, background: border }} />
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>NFL Confidence Pool</span>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Sunday Huddle</span>
               </div>
               {isAdmin && (
                 <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
@@ -821,7 +821,7 @@ function ParticipantContent() {
                 <ArrowLeft style={{ width: 12, height: 12 }} /> Back
               </button>
               <div style={{ width: 1, height: 20, background: border }} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>NFL Confidence Pool</span>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Sunday Huddle</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button

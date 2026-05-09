@@ -537,7 +537,7 @@ export default function PeriodLeaderboardPage() {
                 <ArrowLeft style={{ width: 12, height: 12 }} /> Back
               </button>
               <div style={{ width: 1, height: 20, background: border }} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>NFL Confidence Pool</span>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Sunday Huddle</span>
             </div>
             {tieBreakerInfo && tieBreakerInfo.wasUsed && (
               <button

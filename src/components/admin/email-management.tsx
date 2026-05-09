@@ -265,7 +265,7 @@ export function EmailManagement({ poolId, weekNumber, adminId, poolName }: Email
         <CardContent>
           <div className="border rounded-lg p-4 bg-gray-50">
             <div className="space-y-2 text-sm">
-              <p><strong>Subject:</strong> 🏈 NFL Confidence Pool - Week {weekNumber} Picks Due!</p>
+              <p><strong>Subject:</strong> 🏈 Sunday Huddle - Week {weekNumber} Picks Due!</p>
               <Separator />
               <p><strong>Recipients:</strong> {participantsWithoutPicks.length} participants</p>
               <p><strong>Pool:</strong> {poolName}</p>

@@ -32,7 +32,7 @@ function LoginContent() {
           <Trophy style={{ width: 24, height: 24, color: text }} />
         </div>
         <h1 style={{ ...bc, fontWeight: 900, fontSize: '1.6rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', margin: 0 }}>
-          NFL Confidence Pool
+          Sunday Huddle
         </h1>
         <p style={{ ...b, color: 'oklch(72% 0.015 255)', fontSize: '0.875rem', marginTop: '0.35rem' }}>
           Sign in to access your pools

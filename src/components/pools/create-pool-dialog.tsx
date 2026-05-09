@@ -71,7 +71,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         <DialogHeader>
           <DialogTitle>Create New Confidence Pool</DialogTitle>
           <DialogDescription>
-            Set up a new NFL confidence pool for the current season.
+            Set up a new confidence pool for the current season.
           </DialogDescription>
         </DialogHeader>
         

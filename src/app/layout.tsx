@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Barlow, Barlow_Condensed } from "next/font/google";
+// @ts-ignore
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -15,8 +16,12 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "NFL Confidence Pool",
-  description: "Join the ultimate NFL confidence pool experience",
+  title: {
+    default: "Sunday Huddle",
+    template: "%s | Sunday Huddle",
+  },
+  description:
+    "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
 };
 
 export default function RootLayout({

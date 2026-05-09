@@ -344,7 +344,7 @@ function PoolsManagementContent() {
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Trophy style={{ width: 14, height: 14, color: text }} />
                 </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>NFL Confidence Pool</span>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Sunday Huddle</span>
               </div>
             </div>
             <button
@@ -381,7 +381,7 @@ function PoolsManagementContent() {
                 </span>
               </div>
               <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.5rem' }}>
-                {isSuperAdmin ? 'Manage all NFL Confidence Pools in the system' : 'Manage your NFL Confidence Pools'}
+                {isSuperAdmin ? 'Manage all Confidence Pools in the system' : 'Manage your Confidence Pools'}
               </p>
             </div>
             <button

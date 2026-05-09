@@ -444,7 +444,7 @@ function PlayoffsPageContent() {
                 <ArrowLeft style={{ width: 12, height: 12 }} /> Back
               </button>
               <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-                NFL Confidence Pool
+                Sunday Huddle
               </span>
             </div>
             <button

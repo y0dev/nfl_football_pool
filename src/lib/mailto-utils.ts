@@ -59,7 +59,7 @@ export function createPoolInviteEmail(poolName: string, poolId: string, weekNumb
   
   return {
     subject: `${poolName} - Week ${weekNumber} NFL Pool Invitation`,
-    body: `You're invited to join our NFL Confidence Pool for Week ${weekNumber}!
+    body: `You're invited to join our Sunday Huddle for Week ${weekNumber}!
 
 Pool: ${poolName}
 Current Week: ${weekNumber}
@@ -78,7 +78,7 @@ export function createReminderEmail(poolName: string, weekNumber: number): Mailt
     subject: `${poolName} - Week ${weekNumber} Reminder`,
     body: `Hi there!
 
-This is a friendly reminder that you haven't submitted your picks for Week ${weekNumber} of our NFL Confidence Pool.
+This is a friendly reminder that you haven't submitted your picks for Week ${weekNumber} of our Sunday Huddle.
 
 Please log in and submit your picks before the games start.
 

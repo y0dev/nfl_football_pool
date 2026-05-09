@@ -101,7 +101,7 @@ class EmailService {
       </p>
       
       <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Your commissioner account has been successfully created! You now have full access to manage pools and participants in the NFL Confidence Pool system.
+        Your commissioner account has been successfully created! You now have full access to manage pools and participants in the Sunday Huddle system.
       </p>
       
       ${createInfoBox(`
@@ -121,7 +121,7 @@ class EmailService {
       content,
       buttonText: 'Go to Dashboard',
       buttonUrl: dashboardUrl,
-      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+      footerText: 'This is an automated notification from the Sunday Huddle system.'
     });
 
     return this.sendEmail({
@@ -141,7 +141,7 @@ class EmailService {
       </p>
       
       <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        You've been invited to join <strong style="color: #1f2937;">${poolName}</strong> in our NFL Confidence Pool!
+        You've been invited to join <strong style="color: #1f2937;">${poolName}</strong> in our Sunday Huddle!
       </p>
       
       ${createInfoBox(`
@@ -200,7 +200,7 @@ class EmailService {
       content,
       buttonText: 'Make Your Picks Now',
       buttonUrl: poolLink,
-      footerText: 'This is an automated reminder from your NFL Confidence Pool.'
+      footerText: 'This is an automated reminder from your Sunday Huddle.'
     });
 
     return this.sendEmail({
@@ -342,7 +342,7 @@ class EmailService {
       content,
       buttonText: 'View Pool',
       buttonUrl: poolUrl,
-      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+      footerText: 'This is an automated notification from the Sunday Huddle system.'
     });
 
     return this.sendEmail({

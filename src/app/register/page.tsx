@@ -165,7 +165,7 @@ function AdminRegisterContent() {
           Create Commissioner Account
         </h1>
         <p style={{ ...b, color: textMid, fontSize: '0.875rem', marginTop: '0.35rem' }}>
-          Join the NFL Confidence Pool as a commissioner
+          Join Sunday Huddle as a commissioner
         </p>
       </div>
 

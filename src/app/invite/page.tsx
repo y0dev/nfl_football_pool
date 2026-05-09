@@ -269,7 +269,7 @@ function InviteContent() {
                 <Trophy style={{ width: 14, height: 14, color: text }} />
               </div>
               <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-                NFL Confidence Pool
+                Sunday Huddle
               </span>
             </div>
           </div>
@@ -297,7 +297,7 @@ function InviteContent() {
               </>
             ) : 'Join Pool'}
           </h1>
-          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>You&apos;ve been invited to join this NFL Confidence Pool</p>
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>You&apos;ve been invited to join this confidence pool</p>
         </div>
       </section>
 
@@ -403,7 +403,7 @@ function InviteContent() {
                 </button>
 
                 <p style={{ ...b, fontSize: '0.75rem', color: textDim, textAlign: 'center' }}>
-                  By joining this pool, you agree to participate in the NFL Confidence Pool and follow the pool&apos;s rules.
+                  By joining this pool, you agree to participate in the Sunday Huddle and follow the pool&apos;s rules.
                 </p>
               </div>
             </div>

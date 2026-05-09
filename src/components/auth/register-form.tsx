@@ -69,7 +69,7 @@ export function RegisterForm() {
       <CardHeader className="pb-4 sm:pb-6">
         <CardTitle className="text-xl sm:text-2xl">Create Account</CardTitle>
         <CardDescription className="text-sm sm:text-base">
-          Join the NFL Confidence Pool community
+          Join the Sunday Huddle community
         </CardDescription>
       </CardHeader>
       <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">

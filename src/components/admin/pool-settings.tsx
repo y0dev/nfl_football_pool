@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Lock } from 'lucide-react';
 import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
 
@@ -40,6 +40,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isClosingSeason, setIsClosingSeason] = useState(false);
+  const [closeSeasonResult, setCloseSeasonResult] = useState<{ winner?: string; message?: string } | null>(null);
 
 
   const { toast } = useToast();
@@ -162,6 +164,36 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
 
 
 
+  const handleCloseSeason = async () => {
+    try {
+      setIsClosingSeason(true);
+      setCloseSeasonResult(null);
+      const response = await fetch('/api/admin/close-season', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poolId }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        const winner = result.winnersComputed?.[0] ?? result.winnersAlreadyExist?.[0] ?? null;
+        setCloseSeasonResult({
+          winner: winner ? String(winner) : undefined,
+          message: result.closed?.length > 0
+            ? 'Season closed and locked successfully.'
+            : 'Pool was already closed.',
+        });
+        toast({ title: 'Season Closed', description: 'Pool locked and winner recorded.' });
+      } else {
+        toast({ title: 'Error', description: result.error || 'Failed to close season', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error closing season:', error);
+      toast({ title: 'Error', description: 'Failed to close season', variant: 'destructive' });
+    } finally {
+      setIsClosingSeason(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -183,6 +215,42 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   return (
     <div className="space-y-4">
     
+    {/* Close Season */}
+    <Card className="border-amber-200">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-amber-600">
+          <Lock className="h-5 w-5" />
+          Close Season
+        </CardTitle>
+        <CardDescription>
+          Lock this pool, prevent new picks, and compute the final season winner.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-gray-600 mb-4">
+          Use this when the NFL season is over. The pool will be set to inactive and the
+          season winner will be computed from all scores and saved permanently.
+        </p>
+        {closeSeasonResult && (
+          <div className="mb-4 p-3 rounded border border-amber-200 bg-amber-50 text-sm">
+            <p className="font-semibold text-amber-800">{closeSeasonResult.message}</p>
+            {closeSeasonResult.winner && (
+              <p className="text-amber-700 mt-1">Winner: {closeSeasonResult.winner}</p>
+            )}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          className="border-amber-400 text-amber-700 hover:bg-amber-50"
+          onClick={handleCloseSeason}
+          disabled={isClosingSeason}
+        >
+          <Lock className="h-4 w-4 mr-2" />
+          {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
+        </Button>
+      </CardContent>
+    </Card>
+
     {/* Danger Zone */}
     <Card className="border-red-200">
       <CardHeader>

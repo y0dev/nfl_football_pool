@@ -145,7 +145,7 @@ function AdminLoginContent() {
               Sign In
             </h1>
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.4rem' }}>
-              Manage your NFL Confidence Pool
+              Manage your Confidence Pool
             </p>
           </div>
 

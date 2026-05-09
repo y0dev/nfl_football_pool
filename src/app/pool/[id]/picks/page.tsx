@@ -21,6 +21,7 @@ import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -87,7 +88,7 @@ function PicksNav({ isAdmin, onLogout, router }: { isAdmin: boolean; onLogout: (
             )}
             {isAdmin && <div style={{ width: 1, height: 20, background: border }} />}
             <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-              NFL Confidence Pool
+              Sunday Huddle
             </span>
           </div>
           {isAdmin && (
@@ -1827,6 +1828,7 @@ export default function PoolPicksPage() {
       </div>
     }>
       <PoolPicksContent />
+      <Footer pageName='Pick Selection' />
     </Suspense>
   );
 }

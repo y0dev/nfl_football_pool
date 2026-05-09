@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Target, Users, Calendar, Edit, Shield, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -556,17 +555,6 @@ function OverridePicksContent() {
 
   const selectedPoolData = pools.find(p => p.id === selectedPool);
 
-  console.log('🔍 Current state:', {
-    pools: pools.length,
-    selectedPool,
-    selectedWeek,
-    selectedSeasonType,
-    isLoading,
-    error,
-    picks: picks.length,
-    isLoadingPicks
-  });
-
   if (error) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
@@ -695,7 +683,7 @@ function OverridePicksContent() {
               Choose the pool and week you want to override picks for
             </p>
 
-            <div className="admin-3col-grid">
+            <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
               <div>
                 <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Pool</label>
                 <Select value={selectedPool} onValueChange={setSelectedPool}>
@@ -763,7 +751,7 @@ function OverridePicksContent() {
             {selectedPool && selectedWeek && selectedSeasonType && (
               <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8 }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Selected Configuration</p>
-                <div className="admin-3col-grid">
+                <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
                   <div>
                     <p style={{ ...bc, fontSize: '0.68rem', color: textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pool</p>
                     <p style={{ ...b, fontSize: '0.85rem', color: text, marginTop: '0.2rem' }}>{selectedPoolData?.name}</p>
@@ -874,7 +862,7 @@ function OverridePicksContent() {
                             <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                               Current Picks
                             </p>
-                            <div className="admin-2col-grid">
+                            <div className="admin-2col-grid" style={{ marginBottom: 0 }}>
                               {participantPicks.map(pick => (
                                 <div key={pick.id} style={{ padding: '0.65rem 0.85rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
                                   <p style={{ ...b, fontWeight: 600, fontSize: '0.8rem', color: text }}>{pick.games?.away_team} @ {pick.games?.home_team}</p>
@@ -1053,14 +1041,14 @@ function OverridePicksContent() {
               <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                 Confidence Points
               </Label>
-              <Input
+              <input
                 id="confidencePoints"
                 type="number"
                 min="1"
                 max="16"
                 value={newPickData.confidencePoints}
                 onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
-                style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}
+                style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
               />
             </div>
           </div>
@@ -1129,7 +1117,7 @@ function OverridePicksContent() {
               <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                 Monday Night Score
               </Label>
-              <Input
+              <input
                 id="mondayNightScore"
                 type="number"
                 min="0"
@@ -1137,7 +1125,7 @@ function OverridePicksContent() {
                 placeholder="e.g., 45"
                 value={mondayNightScore}
                 onChange={(e) => setMondayNightScore(e.target.value)}
-                style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}
+                style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
               />
               <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.35rem' }}>
                 Enter the predicted total points scored in the Monday night game.

@@ -112,7 +112,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
       try {
         await navigator.share({
           title: `Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`,
-          text: `Join my NFL Confidence Pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!`,
+          text: `Join my confidence pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!`,
           url: shareUrl,
         });
       } catch (error) {
@@ -134,7 +134,7 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   const handleEmailShare = () => {
     const subject = encodeURIComponent(`Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`);
     const body = encodeURIComponent(
-      `Hi!\n\nI'd like to invite you to join my NFL Confidence Pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
+      `Hi!\n\nI'd like to invite you to join my confidence pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
     );
     const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
     window.open(mailtoUrl);
@@ -147,11 +147,21 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
-          <Share2 className="h-4 w-4 flex-shrink-0" />
-          <span className="hidden sm:inline">Share</span>
-          <span className="sm:hidden">Share</span>
-        </Button>
+        <button
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            padding: '0.35rem 0.75rem',
+            background: 'transparent',
+            border: '1px solid oklch(0.35 0.01 250)',
+            borderRadius: 6,
+            color: 'oklch(0.85 0.01 250)',
+            fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Share2 style={{ width: 14, height: 14, flexShrink: 0 }} />
+          <span>Share</span>
+        </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

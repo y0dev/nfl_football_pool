@@ -57,7 +57,7 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
     const weekLabel = currentSeasonType === 3 
       ? `Round ${currentWeek}` 
       : `Week ${currentWeek}`;
-    const text = `Join ${poolName} - ${weekLabel} NFL Confidence Pool: ${link}`;
+    const text = `Join ${poolName} - ${weekLabel} Sunday Huddle: ${link}`;
     
     if (navigator.share) {
       try {
@@ -188,7 +188,7 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
               onClick={() => {
                 const weekLabel = currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`;
                 const subject = `${poolName} - ${weekLabel} NFL Pool`;
-                const body = `Join our NFL Confidence Pool for ${weekLabel}!\n\nClick this link to participate: ${participantLink}`;
+                const body = `Join our Sunday Huddle for ${weekLabel}!\n\nClick this link to participate: ${participantLink}`;
                 window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
               }}
             >

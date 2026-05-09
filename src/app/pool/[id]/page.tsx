@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -250,7 +249,7 @@ function PoolDetailsContent() {
                   <Shield style={{ width: 14, height: 14, color: text }} />
                 </div>
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', maxWidth: '20ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pool.name}
+                  Sunday Huddle
                 </span>
               </div>
             </div>
@@ -364,24 +363,24 @@ function PoolDetailsContent() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
               {/* Name + Season row */}
-              <div className="admin-2col-grid">
+              <div className="admin-2col-grid" style={{ marginBottom: 0 }}>
                 <div>
                   <Label htmlFor="name" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pool Name</Label>
-                  <Input
+                  <input
                     id="name"
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
                   />
                 </div>
                 <div>
                   <Label htmlFor="season" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Season</Label>
-                  <Input
+                  <input
                     id="season"
                     type="number"
                     value={editForm.season}
                     onChange={(e) => setEditForm({ ...editForm, season: parseInt(e.target.value) })}
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
                   />
                 </div>
               </div>
@@ -423,7 +422,7 @@ function PoolDetailsContent() {
               </div>
 
               {/* Tie Breaker fields */}
-              <div className="admin-3col-grid">
+              <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
                 <div>
                   <Label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Method</Label>
                   <div style={{ marginTop: '0.35rem' }}>
@@ -448,7 +447,7 @@ function PoolDetailsContent() {
                 </div>
                 <div>
                   <Label htmlFor="tie_breaker_question" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Question</Label>
-                  <Input
+                  <input
                     id="tie_breaker_question"
                     value={editForm.tie_breaker_question}
                     onChange={(e) => setEditForm({ ...editForm, tie_breaker_question: e.target.value })}
@@ -463,18 +462,18 @@ function PoolDetailsContent() {
                         ? "Enter your custom tie breaker question"
                         : "e.g., Enter tie breaker question"
                     }
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
                   />
                 </div>
                 <div>
                   <Label htmlFor="tie_breaker_answer" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Answer</Label>
-                  <Input
+                  <input
                     id="tie_breaker_answer"
                     type="number"
                     value={editForm.tie_breaker_answer}
                     onChange={(e) => setEditForm({ ...editForm, tie_breaker_answer: parseInt(e.target.value) })}
                     placeholder="0"
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
                   />
                 </div>
               </div>
@@ -501,7 +500,7 @@ function PoolDetailsContent() {
       {/* TABS */}
       <section style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
         <div className="lp-inner">
-          <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
+          <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
             {TABS.map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
               return (

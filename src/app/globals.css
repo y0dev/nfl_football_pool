@@ -530,53 +530,60 @@ input[type="url"], textarea {
   letter-spacing: 0.05em;
 }
 
-/* ── Admin form field dark styling ──────────────────────────────────────── */
+/* ── Global dark form field styling (all pages use dark OKLCH theme) ─────── */
 
-/* ── 1. Native <input> elements (shadcn Input, datetime, number, etc.) ── */
-.admin-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-.admin-theme textarea {
-  background-color: oklch(20% 0.03 255) !important;
-  border:           1px solid oklch(30% 0.03 255) !important;
-  color:            oklch(95% 0.006 255) !important;
-  border-radius:    6px;
+/* ── 1. Input / textarea — placeholder, focus ring, color ── */
+/* Background intentionally omitted here so inline styles control per-field bg.
+   Admin-scoped block below enforces background for admin pages without inline styles. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea {
+  color:         oklch(95% 0.006 255) !important;
+  border-radius: 6px;
 }
 
-.admin-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
-.admin-theme textarea:focus {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+textarea:focus {
   border-color: oklch(46% 0.14 155) !important;
   outline:      none !important;
   box-shadow:   0 0 0 1px oklch(46% 0.14 155) !important;
 }
 
-.admin-theme input::placeholder,
-.admin-theme textarea::placeholder {
+input::placeholder,
+textarea::placeholder {
   color:   oklch(48% 0.018 255) !important;
   opacity: 1 !important;
 }
 
-/* ── 2. Hide number-input spinners completely ── */
-.admin-theme input[type="number"]::-webkit-inner-spin-button,
-.admin-theme input[type="number"]::-webkit-outer-spin-button {
+/* ── 2. Admin pages also enforce dark background (no inline styles on every field) ── */
+.admin-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-theme textarea {
+  background-color: oklch(20% 0.03 255) !important;
+  border:           1px solid oklch(30% 0.03 255) !important;
+}
+
+/* ── 3. Hide number-input spinners completely ── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none !important;
   display: none !important;
   margin: 0 !important;
 }
-.admin-theme input[type="number"] {
+input[type="number"] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
 }
 
-/* ── 3. datetime-local / date calendar icon ── */
-.admin-theme input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-.admin-theme input[type="date"]::-webkit-calendar-picker-indicator {
+/* ── 4. datetime-local / date calendar icon ── */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7) opacity(0.6);
   cursor: pointer;
 }
 
-/* ── 4. shadcn SelectTrigger — renders as <button role="combobox"> ──
+/* ── 5. shadcn SelectTrigger — renders as <button role="combobox"> ──
    Tailwind v4 + Turbopack does NOT generate flex/height classes from select.tsx,
-   so we must supply the full layout here. */
-.admin-theme button[role="combobox"] {
+   so we supply the full layout here. Applied globally since all pages use dark theme. */
+button[role="combobox"] {
   display:          flex !important;
   align-items:      center !important;
   justify-content:  space-between !important;
@@ -593,15 +600,15 @@ input[type="url"], textarea {
   box-sizing:       border-box !important;
 }
 
-.admin-theme button[role="combobox"]:focus,
-.admin-theme button[role="combobox"][data-state="open"] {
+button[role="combobox"]:focus,
+button[role="combobox"][data-state="open"] {
   border-color: oklch(46% 0.14 155) !important;
   outline:      none !important;
   box-shadow:   0 0 0 1px oklch(46% 0.14 155) !important;
 }
 
-/* Chevron icon inside SelectTrigger — keep it right-aligned and dimmed */
-.admin-theme button[role="combobox"] svg {
+/* Chevron icon inside SelectTrigger */
+button[role="combobox"] svg {
   flex-shrink: 0 !important;
   color:       oklch(50% 0.018 255) !important;
   opacity:     1 !important;
@@ -635,6 +642,10 @@ input[type="url"], textarea {
 }
 
 /* ── End admin form field dark styling ───────────────────────────────────── */
+
+/* ── Scrollbar hiding ──────────────────────────────────────────────────────── */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ── End admin dark theme ─────────────────────────────────────────────────── */
 

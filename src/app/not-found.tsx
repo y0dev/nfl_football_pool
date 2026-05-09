@@ -85,7 +85,7 @@ export default function NotFound() {
                 Looking for a Pool?
               </h3>
               <p className="text-sm text-green-800 mb-3">
-                If you're trying to access a specific NFL Confidence Pool, make sure you have the correct link from the pool commissioner.
+                If you're trying to access a specific Confidence Pool, make sure you have the correct link from the pool commissioner.
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Link href="/" className="flex-1">

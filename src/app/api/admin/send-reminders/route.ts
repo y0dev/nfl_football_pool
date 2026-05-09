@@ -170,7 +170,7 @@ async function sendReminderEmail(participant: any, games: any[], week: number, s
     subject: `Reminder: Submit Your Picks for ${participant.pools.name} - Week ${week}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1f2937;">NFL Confidence Pool Reminder</h2>
+        <h2 style="color: #1f2937;">Sunday Huddle Reminder</h2>
         <p>Hi ${participant.name},</p>
         <p>This is a friendly reminder that you haven't submitted your picks for <strong>${participant.pools.name}</strong> - Week ${week} (${seasonName}).</p>
         
@@ -188,7 +188,7 @@ async function sendReminderEmail(participant: any, games: any[], week: number, s
         
                         <p>If you have any questions, please contact your pool commissioner.</p>
         
-        <p>Best regards,<br>NFL Confidence Pool Team</p>
+        <p>Best regards,<br>Sunday Huddle Team</p>
       </div>
     `
   };

@@ -327,7 +327,7 @@ function LeaderboardContent() {
                   <Trophy style={{ width: 14, height: 14, color: text }} />
                 </div>
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-                  NFL Confidence Pool
+                  Sunday Huddle
                 </span>
               </div>
             </div>
@@ -376,7 +376,7 @@ function LeaderboardContent() {
       {/* TABS */}
       <section style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
         <div className="lp-inner">
-          <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
+          <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
             {TABS.map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
               return (
@@ -458,7 +458,7 @@ function LeaderboardContent() {
                   <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Week & Season Selection</span>
                 </div>
                 <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Select the specific week and season type for the leaderboard</p>
-                <div className="admin-2col-grid">
+                <div className="admin-2col-grid" style={{ marginBottom: 0 }}>
                   <div>
                     <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Season Type</label>
                     <Select value={selectedSeasonType.toString()} onValueChange={(value) => setSelectedSeasonType(parseInt(value))}>
@@ -533,7 +533,7 @@ function LeaderboardContent() {
 
                 {showAdvancedFilters && (
                   <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-                    <div className="admin-3col-grid">
+                    <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
                       <div>
                         <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Sort By</label>
                         <Select value={sortBy} onValueChange={(value: 'points' | 'accuracy' | 'name' | 'correct_picks') => setSortBy(value)}>
@@ -683,7 +683,7 @@ function LeaderboardContent() {
                     </div>
 
                     {/* Stats grid */}
-                    <div className="admin-3col-grid">
+                    <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
                       {[
                         { value: seasonWinner.total_correct_picks, label: 'Correct Picks', color: greenHi },
                         { value: seasonWinner.weeks_won, label: 'Weeks Won', color: gold },

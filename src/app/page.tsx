@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
 import { Search, Users, Trophy, Calendar, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
@@ -185,7 +184,7 @@ function LandingPage() {
                 letterSpacing: '0.07em', color: text, textTransform: 'uppercase',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                NFL Confidence Pool
+                Sunday Huddle
               </span>
             </div>
 
@@ -258,7 +257,7 @@ function LandingPage() {
                 display: 'flex', alignItems: 'center', gap: '0.55rem',
               }}>
                 <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
-                Weekly NFL Confidence Pool
+                Weekly Confidence Pool
               </p>
 
               <h1 style={{
@@ -304,15 +303,19 @@ function LandingPage() {
                   Join The Game
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <Input
+                  <input
                     placeholder="Pool Name"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     style={{
                       background: bg,
                       border: `1px solid ${border}`,
                       color: text,
+                      borderRadius: 6,
+                      padding: '0.5rem 0.75rem',
+                      width: '100%',
+                      boxSizing: 'border-box',
                       ...b, fontSize: '0.88rem',
                     }}
                   />
