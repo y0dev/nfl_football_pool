@@ -82,6 +82,136 @@ input[type="url"], textarea {
   cursor: text;
 }
 
+/* ── Landing page layout ────────────────────────────────────────────────── */
+
+.lp-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .lp-inner {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Hero: stacked on mobile, side-by-side on desktop */
+.lp-hero-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  .lp-hero-row {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 3rem;
+  }
+}
+
+.lp-hero-text {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .lp-hero-text {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+}
+
+.lp-hero-card {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .lp-hero-card {
+    flex: 0 0 380px;
+    width: 380px;
+  }
+}
+
+/* Feature cards: 1-col mobile, 3-col tablet+ */
+.lp-features {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .lp-features {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+}
+
+/* Steps: 2-col mobile, 4-col desktop */
+.lp-steps {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .lp-steps {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+  }
+}
+
+/* Scoreboard */
+.lp-sb-header {
+  display: none;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .lp-sb-header {
+    display: flex;
+  }
+}
+
+.lp-game-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .lp-game-row {
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+.lp-game-status {
+  flex-shrink: 0;
+  min-width: 75px;
+}
+
+@media (min-width: 640px) {
+  .lp-game-status {
+    min-width: 135px;
+  }
+}
+
+.lp-game-score {
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ── End landing page layout ─────────────────────────────────────────────── */
+
 /* NFL Theme Gradients */
 .nfl-gradient {
   background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%);
