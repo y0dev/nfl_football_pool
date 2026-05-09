@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -263,13 +264,8 @@ function AdminLoginContent() {
       </div>
 
       {/* ── FOOTER ── */}
-      <footer style={{ borderTop: `1px solid ${border}`, padding: '1.25rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
-            &copy; {new Date().getFullYear()} NFL Confidence Pool
-          </p>
-        </div>
-      </footer>
+
+      <Footer />
     </div>
   );
 }

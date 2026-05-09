@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -307,11 +308,7 @@ function CreateCommissionerContent() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '1.5rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>&copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ</p>
-        </div>
-      </footer>
+      <Footer pageName="Commissioner HQ" />
     </div>
   );
 }

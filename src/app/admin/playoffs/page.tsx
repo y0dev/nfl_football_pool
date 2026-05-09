@@ -25,6 +25,7 @@ import {
   Shield
 } from 'lucide-react';
 import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -938,17 +939,17 @@ function PlayoffManagementContent() {
                       </div>
 
                       {roundGames.length > 0 ? (
-                        <div style={{ overflowX: 'auto' }}>
-                          <Table>
+                        <div style={{ overflowX: 'auto', width: '100%' }}>
+                          <Table style={{ width: 'max-content', minWidth: '100%' }}>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Game ID</TableHead>
-                                <TableHead>Home Team</TableHead>
-                                <TableHead>Away Team</TableHead>
-                                <TableHead>Kickoff</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Winner</TableHead>
-                                <TableHead style={{ textAlign: 'right' }}>Actions</TableHead>
+                                <TableHead style={{ minWidth: '9rem', whiteSpace: 'nowrap' }}>Game ID</TableHead>
+                                <TableHead style={{ minWidth: '8rem', whiteSpace: 'nowrap' }}>Home Team</TableHead>
+                                <TableHead style={{ minWidth: '8rem', whiteSpace: 'nowrap' }}>Away Team</TableHead>
+                                <TableHead style={{ minWidth: '8rem', whiteSpace: 'nowrap' }}>Kickoff</TableHead>
+                                <TableHead style={{ minWidth: '6rem', whiteSpace: 'nowrap' }}>Status</TableHead>
+                                <TableHead style={{ minWidth: '6rem', whiteSpace: 'nowrap' }}>Winner</TableHead>
+                                <TableHead style={{ textAlign: 'right', minWidth: '6rem', whiteSpace: 'nowrap' }}>Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1025,11 +1026,7 @@ function PlayoffManagementContent() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '1.5rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>&copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ</p>
-        </div>
-      </footer>
+      <Footer pageName="Commissioner HQ" />
 
       {/* ── TEAM DIALOG ── */}
       <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { createPageUrl, getWeekTitle as getWeekTitleUtil } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
 
 interface Game {
   id: string;
@@ -542,17 +543,8 @@ function LandingPage() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{
-        background: bg,
-        borderTop: `1px solid ${border}`,
-        padding: '2rem 0',
-      }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>
-            &copy; {new Date().getFullYear()} NFL Confidence Pool. All rights reserved.
-          </p>
-        </div>
-      </footer>
+
+      <Footer />
     </div>
   );
 }

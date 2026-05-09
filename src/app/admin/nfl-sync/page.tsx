@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { debugLog } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
 
 interface SyncResult {
   success: boolean;
@@ -437,11 +438,7 @@ function NFLSyncContent() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '1.5rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>&copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ</p>
-        </div>
-      </footer>
+      <Footer pageName="Commissioner HQ" />
 
       {/* Sync Results Dialog */}
       <Dialog open={showSyncPopup} onOpenChange={setShowSyncPopup}>

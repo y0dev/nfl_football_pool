@@ -2,11 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3 } from 'lucide-react';
+import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Footer } from '@/components/layout/Footer';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface SeasonReviewData {
   seasonWinner: any;
@@ -82,12 +97,10 @@ export default function SeasonReviewPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading season review...</p>
-          </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading season review…</p>
         </div>
       </div>
     );
@@ -95,15 +108,24 @@ export default function SeasonReviewPage() {
 
   if (error || !data) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Season Review</h1>
-          <p className="text-muted-foreground mb-4">
-            {error || 'No season data available'}
-          </p>
-          <Button onClick={() => router.back()}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '2rem', maxWidth: 400, width: '100%', textAlign: 'center' }}>
+          <Trophy style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+          <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Season Review</h2>
+          <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>{error || 'No season data available'}</p>
+          <button
+            onClick={() => router.back()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+              width: '100%', padding: '0.6rem 1rem',
+              background: green, color: text, border: 'none', borderRadius: 6,
+              ...bc, fontWeight: 700, fontSize: '0.8rem',
+              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} />
             Go Back
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -112,333 +134,377 @@ export default function SeasonReviewPage() {
   const { seasonWinner, quarterlyWinners, weeklyWinners, participantStats, seasonStats } = data;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-        <Button variant="outline" onClick={() => router.back()}>
-          ← Back
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold truncate">
-            {season} Season Review
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.back()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.6rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                NFL Confidence Pool
+              </span>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2rem, 4vw, 3rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Season History
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            {season} Season <span style={{ color: gold }}>Review</span>
           </h1>
-          <p className="text-muted-foreground">
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid, marginTop: '0.75rem' }}>
             Complete season statistics and achievements
           </p>
         </div>
-      </div>
+      </section>
 
-      {/* Season Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">{seasonStats.total_weeks}</p>
-                <p className="text-xs text-muted-foreground">Weeks</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">{seasonStats.total_participants}</p>
-                <p className="text-xs text-muted-foreground">Participants</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">{seasonStats.total_games}</p>
-                <p className="text-xs text-muted-foreground">Games</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">{seasonStats.average_points_per_week}</p>
-                <p className="text-xs text-muted-foreground">Avg Points/Week</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="winners">Winners</TabsTrigger>
-          <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="weekly">Weekly</TabsTrigger>
-        </TabsList>
+      {/* ── CONTENT ── */}
+      <section style={{ background: bg, padding: '2.5rem 0', minHeight: '50vh' }}>
+        <div className="lp-inner">
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          {/* Season Winner */}
-          {seasonWinner && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-600" />
-                  Season Champion
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold">{seasonWinner.winner_name}</h3>
-                    <p className="text-muted-foreground">
-                      {seasonWinner.total_points} points • {seasonWinner.weeks_won} weeks won
+          {/* Season Stats Overview row */}
+          <div className="admin-stats-grid" style={{ marginBottom: '1.5rem' }}>
+            {[
+              { icon: Calendar, label: 'Weeks', value: seasonStats.total_weeks },
+              { icon: Users, label: 'Participants', value: seasonStats.total_participants },
+              { icon: Target, label: 'Games', value: seasonStats.total_games },
+              { icon: BarChart3, label: 'Avg Points/Week', value: seasonStats.average_points_per_week },
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Icon style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
+                <div>
+                  <p style={{ ...bc, fontWeight: 900, fontSize: '1.3rem', color: greenHi, lineHeight: 1 }}>{value}</p>
+                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          <Tabs defaultValue="overview" className="space-y-4">
+            <TabsList style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', width: '100%' }}>
+              {['overview', 'winners', 'participants', 'weekly'].map((tab) => (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  style={{ flex: 1, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase' }}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {/* Overview Tab */}
+            <TabsContent value="overview" className="space-y-4">
+
+              {/* Season Winner */}
+              {seasonWinner && (
+                <div style={{ background: card, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderTop: `3px solid ${gold}`, borderRadius: 10, padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                    <Trophy style={{ width: 18, height: 18, color: gold }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: gold, textTransform: 'uppercase' }}>
+                      Season Champion
                     </p>
-                    {seasonWinner.tie_breaker_used && (
-                      <Badge variant="secondary" className="mt-2">
-                        Won via tie-breaker
-                      </Badge>
-                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Correct Picks</p>
-                    <p className="text-lg font-semibold">
-                      {seasonWinner.total_correct_picks}/{seasonWinner.total_participants * seasonStats.total_weeks}
-                    </p>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, lineHeight: 1.1 }}>{seasonWinner.winner_name}</p>
+                      <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginTop: '0.3rem' }}>
+                        {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
+                      </p>
+                      {seasonWinner.tie_breaker_used && (
+                        <span style={{
+                          display: 'inline-block', marginTop: '0.5rem',
+                          ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em',
+                          padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
+                          background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
+                          border: `1px solid oklch(65% 0.12 290 / 0.35)`,
+                        }}>Won via tie-breaker</span>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>Correct Picks</p>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.3rem', color: greenHi }}>
+                        {seasonWinner.total_correct_picks}/{seasonWinner.total_participants * seasonStats.total_weeks}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
 
-          {/* Quarterly Winners */}
-          {quarterlyWinners.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Medal className="h-5 w-5 text-blue-600" />
-                  Quarterly Champions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {quarterlyWinners.map((quarter) => (
-                    <div key={quarter.period_name} className="text-center p-4 border rounded-lg">
-                      <h4 className="font-semibold text-lg">{quarter.period_name}</h4>
-                      <p className="font-bold text-primary">{quarter.winner_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {quarter.period_points} points
+              {/* Quarterly Champions */}
+              {quarterlyWinners.length > 0 && (
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                    <Medal style={{ width: 16, height: 16, color: amber }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase' }}>
+                      Quarterly Champions
+                    </p>
+                  </div>
+                  <div className="admin-stats-grid">
+                    {quarterlyWinners.map((quarter) => (
+                      <div key={quarter.period_name} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem', textAlign: 'center' }}>
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>{quarter.period_name}</p>
+                        <p style={{ ...bc, fontWeight: 900, fontSize: '1rem', color: greenHi }}>{quarter.winner_name}</p>
+                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>{quarter.period_points} points</p>
+                        {quarter.tie_breaker_used && (
+                          <span style={{
+                            display: 'inline-block', marginTop: '0.4rem',
+                            ...bc, fontWeight: 700, fontSize: '0.58rem', letterSpacing: '0.07em',
+                            padding: '0.12rem 0.35rem', borderRadius: 4, textTransform: 'uppercase',
+                            background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
+                            border: `1px solid oklch(65% 0.12 290 / 0.35)`,
+                          }}>Tie-breaker</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Season Highlights */}
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <Award style={{ width: 16, height: 16, color: greenHi }} />
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase' }}>
+                    Season Highlights
+                  </p>
+                </div>
+                <div className="admin-2col-grid">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {[
+                      { label: 'Highest Weekly Score', value: `${seasonStats.highest_weekly_score} points` },
+                      { label: 'Most Weekly Wins', value: `${seasonStats.most_wins_by_participant} (${seasonStats.most_wins_count} wins)` },
+                      { label: 'Closest Weekly Margin', value: `${seasonStats.closest_weekly_margin} points` },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: `1px solid ${border}` }}>
+                        <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>{label}</span>
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: text }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {[
+                      { label: 'Tie-breakers Used', value: `${seasonStats.tie_breakers_used} weeks` },
+                      { label: 'Lowest Weekly Score', value: `${seasonStats.lowest_weekly_score} points` },
+                      { label: 'Biggest Weekly Blowout', value: `${seasonStats.biggest_weekly_blowout} points` },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: `1px solid ${border}` }}>
+                        <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>{label}</span>
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: text }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Special Awards */}
+              {participantStats.length > 0 && (
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                    <Trophy style={{ width: 16, height: 16, color: purple }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase' }}>
+                      Special Awards
+                    </p>
+                  </div>
+                  <div className="admin-2col-grid">
+                    <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', textAlign: 'center' }}>
+                      <p style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.07em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Most Consistent</p>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: text }}>
+                        {participantStats.reduce((most, current) =>
+                          current.consistency_score < most.consistency_score ? current : most
+                        ).name}
                       </p>
-                      {quarter.tie_breaker_used && (
-                        <Badge variant="outline" className="mt-1 text-xs">
-                          Tie-breaker
-                        </Badge>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                        Consistency Score: {Math.min(...participantStats.map(p => p.consistency_score))}
+                      </p>
+                    </div>
+                    <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', textAlign: 'center' }}>
+                      <p style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.07em', color: amber, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Highest Average</p>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: text }}>
+                        {participantStats.reduce((highest, current) =>
+                          current.average_points_per_week > highest.average_points_per_week ? current : highest
+                        ).name}
+                      </p>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                        {Math.max(...participantStats.map(p => p.average_points_per_week))} pts/week
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Winners Tab */}
+            <TabsContent value="winners" className="space-y-4">
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Winners</p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>All weekly champions for the {season} season</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {weeklyWinners.map((winner) => (
+                    <div
+                      key={winner.week}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        flexWrap: 'wrap', gap: '0.75rem',
+                        padding: '0.85rem 1rem',
+                        background: surface, border: `1px solid ${border}`, borderRadius: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{
+                          ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em',
+                          padding: '0.2rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
+                          background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}`,
+                        }}>Week {winner.week}</span>
+                        <div>
+                          <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{winner.winner_name}</p>
+                          <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                            {winner.winner_points} points &bull; {winner.winner_correct_picks} correct
+                          </p>
+                        </div>
+                      </div>
+                      {winner.tie_breaker_used && (
+                        <span style={{
+                          ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em',
+                          padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
+                          background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
+                          border: `1px solid oklch(65% 0.12 290 / 0.35)`,
+                        }}>Tie-breaker</span>
                       )}
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </TabsContent>
 
-          {/* Season Highlights */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-green-600" />
-                Season Highlights
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    <span className="font-medium">Highest Weekly Score:</span> {seasonStats.highest_weekly_score} points
-                  </p>
-                  <p className="text-sm">
-                    <span className="font-medium">Most Weekly Wins:</span> {seasonStats.most_wins_by_participant} ({seasonStats.most_wins_count} wins)
-                  </p>
-                  <p className="text-sm">
-                    <span className="font-medium">Closest Weekly Margin:</span> {seasonStats.closest_weekly_margin} points
-                  </p>
+            {/* Participants Tab */}
+            <TabsContent value="participants" className="space-y-4">
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Participant Statistics</p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Detailed stats for all participants</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {participantStats.map((participant, index) => (
+                    <div
+                      key={participant.participant_id}
+                      style={{ background: surface, border: `1px solid ${border}`, borderLeft: index < 3 ? `3px solid ${gold}` : `3px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span style={{
+                            ...bc, fontWeight: 800, fontSize: '0.8rem',
+                            width: 28, height: 28, borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: index < 3 ? 'oklch(74% 0.16 72 / 0.15)' : 'oklch(26% 0.03 255)',
+                            color: index < 3 ? gold : textDim,
+                            border: `1px solid ${index < 3 ? 'oklch(74% 0.16 72 / 0.35)' : border}`,
+                            flexShrink: 0,
+                          }}>#{index + 1}</span>
+                          <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text }}>{participant.name}</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <p style={{ ...bc, fontWeight: 900, fontSize: '1.25rem', color: greenHi, lineHeight: 1 }}>{participant.total_points} pts</p>
+                          <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>{participant.weeks_won} weeks won</p>
+                        </div>
+                      </div>
+                      <div className="admin-stats-grid">
+                        {[
+                          { label: 'Best Week', value: `Wk ${participant.best_week.week}: ${participant.best_week.points} pts` },
+                          { label: 'Worst Week', value: `Wk ${participant.worst_week.week}: ${participant.worst_week.points} pts` },
+                          { label: 'Avg Pts/Week', value: String(participant.average_points_per_week) },
+                          { label: 'Consistency', value: String(participant.consistency_score) },
+                        ].map(({ label, value }) => (
+                          <div key={label}>
+                            <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>{label}</p>
+                            <p style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, marginTop: '0.15rem' }}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    <span className="font-medium">Tie-breakers Used:</span> {seasonStats.tie_breakers_used} weeks
-                  </p>
-                  <p className="text-sm">
-                    <span className="font-medium">Lowest Weekly Score:</span> {seasonStats.lowest_weekly_score} points
-                  </p>
-                  <p className="text-sm">
-                    <span className="font-medium">Biggest Weekly Blowout:</span> {seasonStats.biggest_weekly_blowout} points
-                  </p>
+              </div>
+            </TabsContent>
+
+            {/* Weekly Tab */}
+            <TabsContent value="weekly" className="space-y-4">
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Breakdown</p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Week-by-week performance analysis</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {weeklyWinners.map((winner) => (
+                    <div
+                      key={winner.week}
+                      style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '0.88rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {winner.week}</p>
+                        <span style={{
+                          ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.07em',
+                          padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
+                          background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`,
+                        }}>{winner.total_participants} participants</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{winner.winner_name}</p>
+                          <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                            {winner.winner_points} points &bull; {winner.winner_correct_picks} correct picks
+                          </p>
+                        </div>
+                        {winner.tie_breaker_used && (
+                          <span style={{
+                            ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em',
+                            padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
+                            background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
+                            border: `1px solid oklch(65% 0.12 290 / 0.35)`,
+                          }}>Tie-breaker used</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </section>
 
-          {/* Special Awards */}
-          {participantStats.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-purple-600" />
-                  Special Awards
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="text-center p-4 border rounded-lg">
-                    <h4 className="font-semibold text-lg text-green-600">Most Consistent</h4>
-                    <p className="font-bold">
-                      {participantStats.reduce((most, current) => 
-                        current.consistency_score < most.consistency_score ? current : most
-                      ).name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Consistency Score: {Math.min(...participantStats.map(p => p.consistency_score))}
-                    </p>
-                  </div>
-                  <div className="text-center p-4 border rounded-lg">
-                    <h4 className="font-semibold text-lg text-blue-600">Highest Average</h4>
-                    <p className="font-bold">
-                      {participantStats.reduce((highest, current) => 
-                        current.average_points_per_week > highest.average_points_per_week ? current : highest
-                      ).name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {Math.max(...participantStats.map(p => p.average_points_per_week))} pts/week
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Winners Tab */}
-        <TabsContent value="winners" className="space-y-4">
-          {/* Weekly Winners */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Winners</CardTitle>
-              <CardDescription>All weekly champions for the {season} season</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {weeklyWinners.map((winner) => (
-                  <div key={winner.week} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline">Week {winner.week}</Badge>
-                      <div>
-                        <p className="font-medium">{winner.winner_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {winner.winner_points} points • {winner.winner_correct_picks} correct
-                        </p>
-                      </div>
-                    </div>
-                    {winner.tie_breaker_used && (
-                      <Badge variant="secondary">Tie-breaker</Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Participants Tab */}
-        <TabsContent value="participants" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Participant Statistics</CardTitle>
-              <CardDescription>Detailed stats for all participants</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {participantStats.map((participant, index) => (
-                  <div key={participant.participant_id} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <Badge variant={index < 3 ? "default" : "outline"}>
-                          #{index + 1}
-                        </Badge>
-                        <h3 className="font-semibold">{participant.name}</h3>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold">{participant.total_points} points</p>
-                        <p className="text-sm text-muted-foreground">
-                          {participant.weeks_won} weeks won
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Best Week</p>
-                        <p className="font-medium">Week {participant.best_week.week}: {participant.best_week.points} pts</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Worst Week</p>
-                        <p className="font-medium">Week {participant.worst_week.week}: {participant.worst_week.points} pts</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Avg Points/Week</p>
-                        <p className="font-medium">{participant.average_points_per_week}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Consistency</p>
-                        <p className="font-medium">{participant.consistency_score}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Weekly Tab */}
-        <TabsContent value="weekly" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Breakdown</CardTitle>
-              <CardDescription>Week-by-week performance analysis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {weeklyWinners.map((winner) => (
-                  <div key={winner.week} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold">Week {winner.week}</h4>
-                      <Badge variant="outline">{winner.total_participants} participants</Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{winner.winner_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {winner.winner_points} points • {winner.winner_correct_picks} correct picks
-                        </p>
-                      </div>
-                      {winner.tie_breaker_used && (
-                        <Badge variant="secondary">Tie-breaker used</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* ── FOOTER ── */}
+      <Footer pageName="Season Review" />
     </div>
   );
 }

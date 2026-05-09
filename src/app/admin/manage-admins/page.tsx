@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -383,11 +384,7 @@ function ManageAdminsContent() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '1.5rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>&copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ</p>
-        </div>
-      </footer>
+      <Footer pageName="Commissioner HQ" />
 
       {/* Reset Password Modal */}
       <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>

@@ -331,11 +331,11 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
             <span style={{ ...b, fontSize: '0.85rem', color: textDim }}>Loading participants...</span>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <Table>
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <Table style={{ width: 'max-content', minWidth: '100%' }}>
               <TableHeader>
                 <TableRow style={{ borderBottom: `1px solid ${border}`, background: surface }}>
-                  <TableHead style={{ width: 44 }}>
+                  <TableHead style={{ width: 44, minWidth: 44 }}>
                     <input
                       type="checkbox"
                       checked={selectedParticipants.length === filteredParticipants.length && filteredParticipants.length > 0}
@@ -343,11 +343,11 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                       style={{ accentColor: green }}
                     />
                   </TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>Name</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>Email</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>Joined</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>Status</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right' }}>Actions</TableHead>
+                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '9rem', whiteSpace: 'nowrap' }}>Name</TableHead>
+                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '12rem', whiteSpace: 'nowrap' }}>Email</TableHead>
+                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '6rem', whiteSpace: 'nowrap' }}>Joined</TableHead>
+                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '5rem', whiteSpace: 'nowrap' }}>Status</TableHead>
+                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right', minWidth: '8rem', whiteSpace: 'nowrap' }}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -25,6 +25,7 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
+import { Footer } from '@/components/layout/Footer';
 
 // Design tokens — match landing page exactly
 const bg      = 'oklch(13% 0.025 255)';
@@ -710,14 +711,8 @@ function AdminDashboardContent() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '2rem 0' }}>
-        <div className="lp-inner" style={{ textAlign: 'center' }}>
-          <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>
-            &copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ
-          </p>
-        </div>
-      </footer>
-
+      <Footer pageName="Commissioner HQ" />
+      
       {/* Create Pool Dialog */}
       <CreatePoolDialog
         open={createPoolDialogOpen}

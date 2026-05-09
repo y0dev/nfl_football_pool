@@ -1,30 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { 
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
   ArrowLeft,
   Search,
   Plus,
-  Users,
   Trophy,
-  Calendar,
-  Activity,
-  Settings,
   Eye,
-  Edit,
-  Trash2,
+  Settings,
   Mail,
   BarChart3,
   Share2,
   Copy,
-  Check
+  Check,
+  LogOut,
+  RefreshCw,
+  Users,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -33,6 +26,24 @@ import { debugLog, createPageUrl, getMaxWeeksForSeason, MAX_WEEKS_POSTSEASON, MA
 import { AuthProvider } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { Footer } from '@/components/layout/Footer';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PoolWithParticipants extends Pool {
   participantCount: number;
@@ -83,15 +94,11 @@ function PoolsManagementContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Check admin status
         if (user) {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
           setIsSuperAdmin(superAdminStatus);
           debugLog('Super admin status:', superAdminStatus);
-          
-          // Both commissioners and admins can access this page
-          // Commissioners will only see their own pools, admins will see all pools
           await loadPools(superAdminStatus);
           await loadStats(superAdminStatus);
           await loadCurrentWeek();
@@ -102,99 +109,51 @@ function PoolsManagementContent() {
         setIsLoading(false);
       }
     };
-
     loadData();
   }, [user, verifyAdminStatus, router]);
 
-  // Listen for custom event to open create pool dialog
   useEffect(() => {
-    const handleOpenCreatePool = () => {
-      setCreatePoolDialogOpen(true);
-    };
-
+    const handleOpenCreatePool = () => setCreatePoolDialogOpen(true);
     document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
-    
-    return () => {
-      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
-    };
+    return () => document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
   }, []);
 
   const loadPools = async (superAdminStatus: boolean) => {
     try {
       if (!user?.email) return;
-      
-      // Get pools based on user role
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
-      
-      let poolsQuery = supabase
-        .from('pools')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      // If user is not a super admin, only show pools they created
-      if (!superAdminStatus) {
-        poolsQuery = poolsQuery.eq('created_by', user.email);
-      }
-      
+      let poolsQuery = supabase.from('pools').select('*').order('created_at', { ascending: false });
+      if (!superAdminStatus) poolsQuery = poolsQuery.eq('created_by', user.email);
       const { data: poolsData, error: poolsError } = await poolsQuery;
-      
       if (poolsError) throw poolsError;
-      
-      // Get participant counts for each pool
       const poolsWithParticipants: PoolWithParticipants[] = await Promise.all(
         (poolsData || []).map(async (pool) => {
           const { data: participants, error: participantsError } = await supabase
-            .from('participants')
-            .select('id, is_active, created_at')
-            .eq('pool_id', pool.id)
-            .eq('is_active', true); // Only count active participants
-          
+            .from('participants').select('id, is_active, created_at')
+            .eq('pool_id', pool.id).eq('is_active', true);
           if (participantsError) throw participantsError;
-          
           const participantCount = participants?.length || 0;
-          const activeParticipantCount = participantCount; // Since we're already filtering for active
-          
-          // Get last activity (most recent participant join or pool creation)
-          const lastActivity = participants && participants.length > 0 
+          const activeParticipantCount = participantCount;
+          const lastActivity = participants && participants.length > 0
             ? Math.max(...participants.map(p => new Date(p.created_at).getTime()), new Date(pool.created_at).getTime())
             : new Date(pool.created_at).getTime();
-          
-          return {
-            ...pool,
-            participantCount,
-            activeParticipantCount,
-            lastActivity: new Date(lastActivity).toLocaleDateString()
-          };
+          return { ...pool, participantCount, activeParticipantCount, lastActivity: new Date(lastActivity).toLocaleDateString() };
         })
       );
-      
       setPools(poolsWithParticipants);
       setFilteredPools(poolsWithParticipants);
-      
-      // Debug logging for data accuracy
       if (process.env.NODE_ENV === 'development') {
         console.log('Pools loaded:', {
           userRole: superAdminStatus ? 'admin' : 'commissioner',
           userEmail: user.email,
           totalPools: poolsWithParticipants.length,
-          poolsData: poolsWithParticipants.map(p => ({
-            id: p.id,
-            name: p.name,
-            created_by: p.created_by,
-            participantCount: p.participantCount,
-            activeParticipantCount: p.activeParticipantCount
-          }))
+          poolsData: poolsWithParticipants.map(p => ({ id: p.id, name: p.name, created_by: p.created_by, participantCount: p.participantCount, activeParticipantCount: p.activeParticipantCount }))
         });
       }
-      
     } catch (error) {
       console.error('Error loading pools:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load pools data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load pools data', variant: 'destructive' });
     }
   };
 
@@ -209,92 +168,40 @@ function PoolsManagementContent() {
   };
 
   const handlePoolCreated = async () => {
-    // Refresh pools and stats after pool creation
     await loadPools(isSuperAdmin);
     await loadStats(isSuperAdmin);
-    toast({
-      title: 'Pool Created',
-      description: 'New pool has been created successfully',
-    });
+    toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
   const loadStats = async (superAdminStatus: boolean) => {
     try {
       if (!user?.email) return;
-      
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
-      
-      // Build queries based on user role
       let poolsQuery = supabase.from('pools').select('*', { count: 'exact', head: true });
       let activePoolsQuery = supabase.from('pools').select('*', { count: 'exact', head: true }).eq('is_active', true);
-      
-      // If user is not a super admin, only count pools they created
       if (!superAdminStatus) {
         poolsQuery = poolsQuery.eq('created_by', user.email);
         activePoolsQuery = activePoolsQuery.eq('created_by', user.email);
       }
-      
-      // Get total pools
       const { count: totalPools } = await poolsQuery;
-      
-      // Get active pools
       const { count: activePools } = await activePoolsQuery;
-      
-      // Get total participants for accessible pools
-      let participantsQuery = supabase
-        .from('participants')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-      
+      let participantsQuery = supabase.from('participants').select('*', { count: 'exact', head: true }).eq('is_active', true);
       if (!superAdminStatus) {
-        // For commissioners, get participant count only for their pools
-        const { data: userPools } = await supabase
-          .from('pools')
-          .select('id')
-          .eq('created_by', user.email);
-        
+        const { data: userPools } = await supabase.from('pools').select('id').eq('created_by', user.email);
         if (userPools && userPools.length > 0) {
-          const poolIds = userPools.map(p => p.id);
-          participantsQuery = participantsQuery.in('pool_id', poolIds);
+          participantsQuery = participantsQuery.in('pool_id', userPools.map(p => p.id));
         } else {
-          // No pools created by user, so no participants
-          setStats({
-            totalPools: totalPools || 0,
-            activePools: activePools || 0,
-            totalParticipants: 0,
-            totalGames: 0
-          });
+          setStats({ totalPools: totalPools || 0, activePools: activePools || 0, totalParticipants: 0, totalGames: 0 });
           return;
         }
       }
-      
       const { count: totalParticipants } = await participantsQuery;
-      
-      // Get total games for current week (same for all users)
-      const { count: totalGames } = await supabase
-        .from('games')
-        .select('*', { count: 'exact', head: true });
-      
-      setStats({
-        totalPools: totalPools || 0,
-        activePools: activePools || 0,
-        totalParticipants: totalParticipants || 0,
-        totalGames: totalGames || 0
-      });
-      
-      // Debug logging for stats accuracy
+      const { count: totalGames } = await supabase.from('games').select('*', { count: 'exact', head: true });
+      setStats({ totalPools: totalPools || 0, activePools: activePools || 0, totalParticipants: totalParticipants || 0, totalGames: totalGames || 0 });
       if (process.env.NODE_ENV === 'development') {
-        console.log('Stats loaded:', {
-          userRole: superAdminStatus ? 'admin' : 'commissioner',
-          userEmail: user.email,
-          totalPools,
-          activePools,
-          totalParticipants,
-          totalGames
-        });
+        console.log('Stats loaded:', { userRole: superAdminStatus ? 'admin' : 'commissioner', userEmail: user.email, totalPools, activePools, totalParticipants, totalGames });
       }
-      
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -305,12 +212,11 @@ function PoolsManagementContent() {
     if (!term.trim()) {
       setFilteredPools(pools);
     } else {
-      const filtered = pools.filter(pool => 
+      setFilteredPools(pools.filter(pool =>
         pool.name.toLowerCase().includes(term.toLowerCase()) ||
         pool.created_by.toLowerCase().includes(term.toLowerCase()) ||
         pool.id.toLowerCase().includes(term.toLowerCase())
-      );
-      setFilteredPools(filtered);
+      ));
     }
   };
 
@@ -328,25 +234,18 @@ function PoolsManagementContent() {
     }
   };
 
-  const handleViewPool = (poolId: string) => {
-    router.push(createPageUrl(`adminpool?poolId=${poolId}`));
-  };
-
-  const handleViewLeaderboard = (poolId: string) => {
-    router.push(createPageUrl(`leaderboard?pool=${poolId}`));
-  };
+  const handleViewPool = (poolId: string) => router.push(createPageUrl(`adminpool?poolId=${poolId}`));
+  const handleViewLeaderboard = (poolId: string) => router.push(createPageUrl(`leaderboard?pool=${poolId}`));
 
   const handleSendInvite = (pool: PoolWithParticipants) => {
     setSelectedPoolForShare(pool);
     const baseUrl = window.location.origin;
-    const shareUrl = `${baseUrl}/invite?pool=${pool.id}&week=${currentWeek}`;
-    setShareLink(shareUrl);
+    setShareLink(`${baseUrl}/invite?pool=${pool.id}&week=${currentWeek}`);
     setShareModalOpen(true);
     setCopied(false);
   };
 
   const handleSharePool = (pool: PoolWithParticipants) => {
-    // Navigate to the pool picks page with current week
     router.push(`/pool/${pool.id}/picks?week=${currentWeek}&seasonType=2`);
   };
 
@@ -355,68 +254,36 @@ function PoolsManagementContent() {
       await navigator.clipboard.writeText(shareLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: 'Link Copied!',
-        description: 'Pool invitation link copied to clipboard',
-      });
+      toast({ title: 'Link Copied!', description: 'Pool invitation link copied to clipboard' });
     } catch (error) {
       console.error('Failed to copy link:', error);
-      toast({
-        title: 'Copy Failed',
-        description: 'Failed to copy link to clipboard',
-        variant: 'destructive',
-      });
+      toast({ title: 'Copy Failed', description: 'Failed to copy link to clipboard', variant: 'destructive' });
     }
   };
 
   const handleTransferPool = async () => {
     if (!selectedPoolForTransfer || !newCommissionerEmail.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please select a pool and enter the new commissioner email',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Please select a pool and enter the new commissioner email', variant: 'destructive' });
       return;
     }
-
     setIsTransferring(true);
     try {
-      // Get the current session token
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
-
+      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/transfer-pool', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          poolId: selectedPoolForTransfer.id,
-          newCommissionerEmail: newCommissionerEmail.trim()
-        }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ poolId: selectedPoolForTransfer.id, newCommissionerEmail: newCommissionerEmail.trim() }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
-      
       if (result.success) {
-        toast({
-          title: 'Pool Transferred',
-          description: result.message,
-        });
+        toast({ title: 'Pool Transferred', description: result.message });
         setTransferPoolDialogOpen(false);
         setSelectedPoolForTransfer(null);
         setNewCommissionerEmail('');
-        // Reload pools to get updated data
         await loadPools(isSuperAdmin);
         await loadStats(isSuperAdmin);
       } else {
@@ -424,309 +291,268 @@ function PoolsManagementContent() {
       }
     } catch (error) {
       console.error('Transfer pool error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to transfer pool. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to transfer pool. Please try again.', variant: 'destructive' });
     } finally {
       setIsTransferring(false);
     }
   };
 
+  // Reusable inline button styles
+  const btnBase = (variant: 'primary' | 'outline' | 'ghost' = 'outline') => ({
+    display: 'flex', alignItems: 'center', gap: '0.3rem',
+    padding: '0.35rem 0.65rem',
+    background: variant === 'primary' ? green : 'transparent',
+    color: variant === 'primary' ? text : textMid,
+    border: `1px solid ${variant === 'primary' ? green : border}`,
+    borderRadius: 5,
+    ...bc, fontWeight: 700, fontSize: '0.68rem',
+    letterSpacing: '0.07em', textTransform: 'uppercase' as const,
+    cursor: 'pointer', whiteSpace: 'nowrap' as const,
+  });
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading pools…</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.push(createPageUrl('admindashboard'))}
-                  className="p-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Pool Management</h1>
-              </div>
-              <p className="text-sm sm:text-base text-gray-600">
-                {isSuperAdmin 
-                  ? 'Manage all NFL Confidence Pools in the system'
-                  : 'Manage your NFL Confidence Pools'
-                }
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  {isSuperAdmin ? 'System Admin' : 'Commissioner'}
-                </Badge>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
-                >
-                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={() => {
-                  const event = new CustomEvent('openCreatePoolDialog');
-                  document.dispatchEvent(event);
-                }}
-                className="flex items-center gap-2"
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* NAV */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.push(createPageUrl('admindashboard'))}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
-                <Plus className="h-4 w-4" />
-                Create Pool
-              </Button>
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trophy style={{ width: 14, height: 14, color: text }} />
+                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>NFL Confidence Pool</span>
+              </div>
             </div>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} /> {isLoggingOut ? 'Signing Out…' : 'Sign Out'}
+            </button>
           </div>
         </div>
+      </nav>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Pools</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalPools}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.activePools} active
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Participants</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalParticipants}</div>
-              <p className="text-xs text-muted-foreground">
-                Across all pools
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Games</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalGames}</div>
-              <p className="text-xs text-muted-foreground">
-                Available for pools
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Average Size</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.totalPools > 0 ? Math.round(stats.totalParticipants / stats.totalPools) : 0}
+      {/* HERO */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2rem, 4vw, 3rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Pool Management
+          </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+                {isSuperAdmin ? 'All' : 'My'} NFL<br />
+                <span style={{ color: gold }}>Confidence Pools</span>
+              </h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.75rem' }}>
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                  {isSuperAdmin ? 'System Admin' : 'Commissioner'}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Participants per pool
+              <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.5rem' }}>
+                {isSuperAdmin ? 'Manage all NFL Confidence Pools in the system' : 'Manage your NFL Confidence Pools'}
               </p>
-            </CardContent>
-          </Card>
+            </div>
+            <button
+              onClick={() => { const event = new CustomEvent('openCreatePoolDialog'); document.dispatchEvent(event); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: 14, height: 14 }} />
+              Create Pool
+            </button>
+          </div>
         </div>
+      </section>
 
-        {/* Search and Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Search Pools
-            </CardTitle>
-            <CardDescription>
-              Find pools by name, creator, or pool ID
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input
-              placeholder="Search pools..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="max-w-md"
-            />
-          </CardContent>
-        </Card>
+      {/* green rule */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-        {/* Pools List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              {isSuperAdmin ? 'All Pools' : 'My Pools'} ({filteredPools.length})
-            </CardTitle>
-            <CardDescription>
-              {isSuperAdmin 
-                ? 'Manage all pools, view participants, and monitor activity'
-                : 'Manage your pools, view participants, and monitor activity'
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* MAIN CONTENT */}
+      <section style={{ background: bg, padding: '2rem 0' }}>
+        <div className="lp-inner">
+
+          {/* Stats grid */}
+          <div className="admin-actions-grid" style={{ marginBottom: '1.5rem' }}>
+            {[
+              { label: 'Total Pools', value: stats.totalPools, sub: `${stats.activePools} active` },
+              { label: 'Total Participants', value: stats.totalParticipants, sub: 'Across all pools' },
+              { label: 'Total Games', value: stats.totalGames, sub: 'Available for pools' },
+              { label: 'Average Size', value: stats.totalPools > 0 ? Math.round(stats.totalParticipants / stats.totalPools) : 0, sub: 'Participants per pool' },
+            ].map(({ label, value, sub }) => (
+              <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.1rem 1.25rem' }}>
+                <p style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>{label}</p>
+                <p style={{ ...bc, fontWeight: 900, fontSize: '2rem', color: greenHi, lineHeight: 1.1 }}>{value}</p>
+                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <Search style={{ width: 16, height: 16, color: greenHi }} />
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Search Pools</span>
+            </div>
+            <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.75rem' }}>Find pools by name, creator, or pool ID</p>
+            <div style={{ position: 'relative', maxWidth: 420 }}>
+              <Search style={{ width: 14, height: 14, color: textDim, position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Search pools..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                style={{
+                  width: '100%', paddingLeft: '2.25rem', paddingRight: '1rem',
+                  paddingTop: '0.5rem', paddingBottom: '0.5rem',
+                  background: surface, border: `1px solid ${border}`, borderRadius: 6,
+                  ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Pools list */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '1.25rem', borderBottom: `1px solid ${border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <Trophy style={{ width: 16, height: 16, color: gold }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  {isSuperAdmin ? 'All Pools' : 'My Pools'} ({filteredPools.length})
+                </span>
+              </div>
+              <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
+                {isSuperAdmin ? 'Manage all pools, view participants, and monitor activity' : 'Manage your pools, view participants, and monitor activity'}
+              </p>
+            </div>
+
             {filteredPools.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {searchTerm ? 'No pools found matching your search.' : 'No pools created yet.'}
+              <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <Trophy style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+                <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>
+                  {searchTerm ? 'No pools found matching your search.' : 'No pools created yet.'}
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {filteredPools.map((pool) => (
-                  <div key={pool.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <Trophy className="h-8 w-8 text-blue-600" />
+                  <div key={pool.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem', transition: 'border-color 0.15s' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+
+                      {/* Pool info */}
+                      <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Trophy style={{ width: 16, height: 16, color: text }} />
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3 style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.2rem' }}>
+                            {pool.name}
+                          </h3>
+                          <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.4rem' }}>Created by: {pool.created_by}</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.12rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)', color: pool.is_active ? greenHi : textDim, border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}` }}>
+                              {pool.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.12rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                              Season {pool.season}
+                            </span>
+                            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.12rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                              {pool.participantCount} participants
+                            </span>
+                            {pool.tie_breaker_method && (
+                              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.12rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                                TB: {pool.tie_breaker_method}
+                              </span>
+                            )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate">
-                              {pool.name}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              Created by: {pool.created_by}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                              <Badge variant={pool.is_active ? "default" : "secondary"}>
-                                {pool.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
-                              <Badge variant="outline">
-                                Season {pool.season}
-                              </Badge>
-                              <Badge variant="outline">
-                                {pool.participantCount} participants
-                              </Badge>
-                              {pool.tie_breaker_method && (
-                                <Badge variant="outline">
-                                  Tie Breaker: {pool.tie_breaker_method}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              Created: {new Date(pool.created_at).toLocaleDateString()} | 
-                              Last Activity: {pool.lastActivity}
-                            </p>
-                          </div>
+                          <p style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.35rem' }}>
+                            Created: {new Date(pool.created_at).toLocaleDateString()} | Last Activity: {pool.lastActivity}
+                          </p>
                         </div>
                       </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          onClick={() => handleViewPool(pool.id)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </Button>
-                        <Button
-                          onClick={() => handleViewLeaderboard(pool.id)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <BarChart3 className="h-4 w-4" />
-                          Leaderboard
-                        </Button>
-                        {/* Override Winners */}
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        <button onClick={() => handleViewPool(pool.id)} style={btnBase()}>
+                          <Eye style={{ width: 11, height: 11 }} /> View
+                        </button>
+                        <button onClick={() => handleViewLeaderboard(pool.id)} style={btnBase()}>
+                          <BarChart3 style={{ width: 11, height: 11 }} /> Leaderboard
+                        </button>
                         {(isSuperAdmin || pool.created_by === user?.email) && (
-                          <Button
+                          <button
                             onClick={() => {
                               setOverridePool(pool);
                               setOverrideSeason(String(pool.season));
                               setOverrideWeek(String(currentWeek));
                               setOverrideSeasonType('Regular');
-                          // Load participants for dropdown
-                          (async () => {
-                            try {
-                              const { getSupabaseServiceClient } = await import('@/lib/supabase');
-                              const supabase = getSupabaseServiceClient();
-                              const { data: participants } = await supabase
-                                .from('participants')
-                                .select('id, name')
-                                .eq('pool_id', pool.id)
-                                .eq('is_active', true)
-                                .order('name', { ascending: true });
-                              setOverrideParticipants((participants || []).map(p => ({ id: p.id, name: p.name || 'Unknown' })));
-                            } catch (e) {
-                              console.error('Failed to load participants for override', e);
-                              setOverrideParticipants([]);
-                            } finally {
-                              setOverrideDialogOpen(true);
-                            }
-                          })();
+                              (async () => {
+                                try {
+                                  const { getSupabaseServiceClient } = await import('@/lib/supabase');
+                                  const supabase = getSupabaseServiceClient();
+                                  const { data: participants } = await supabase
+                                    .from('participants').select('id, name')
+                                    .eq('pool_id', pool.id).eq('is_active', true).order('name', { ascending: true });
+                                  setOverrideParticipants((participants || []).map(p => ({ id: p.id, name: p.name || 'Unknown' })));
+                                } catch (e) {
+                                  console.error('Failed to load participants for override', e);
+                                  setOverrideParticipants([]);
+                                } finally {
+                                  setOverrideDialogOpen(true);
+                                }
+                              })();
                             }}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+                            style={{ ...btnBase(), color: amber, borderColor: `${amber}60` }}
                           >
-                            <Trophy className="h-4 w-4" />
-                            Override Winner
-                          </Button>
+                            <Trophy style={{ width: 11, height: 11 }} /> Override Winner
+                          </button>
                         )}
-                        <Button
-                          onClick={() => handleSharePool(pool)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Share2 className="h-4 w-4" />
-                          Share
-                        </Button>
-                        <Button
-                          onClick={() => handleSendInvite(pool)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Mail className="h-4 w-4" />
-                          Invite
-                        </Button>
-                        <Button
-                          onClick={() => router.push(`/admin/pool/${pool.id}`)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border-blue-200"
-                        >
-                          <Settings className="h-4 w-4" />
-                          Admin
-                        </Button>
+                        <button onClick={() => handleSharePool(pool)} style={btnBase()}>
+                          <Share2 style={{ width: 11, height: 11 }} /> Share
+                        </button>
+                        <button onClick={() => handleSendInvite(pool)} style={btnBase()}>
+                          <Mail style={{ width: 11, height: 11 }} /> Invite
+                        </button>
+                        <button onClick={() => router.push(`/admin/pool/${pool.id}`)} style={{ ...btnBase(), color: greenHi, borderColor: `${green}80` }}>
+                          <Settings style={{ width: 11, height: 11 }} /> Admin
+                        </button>
                         {isSuperAdmin && (
-                          <Button
-                            onClick={() => {
-                              setSelectedPoolForTransfer(pool);
-                              setTransferPoolDialogOpen(true);
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2"
+                          <button
+                            onClick={() => { setSelectedPoolForTransfer(pool); setTransferPoolDialogOpen(true); }}
+                            style={btnBase()}
                           >
-                            <Settings className="h-4 w-4" />
-                            Transfer
-                          </Button>
+                            <Settings style={{ width: 11, height: 11 }} /> Transfer
+                          </button>
                         )}
                       </div>
                     </div>
@@ -734,70 +560,56 @@ function PoolsManagementContent() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <Footer pageName="Pools" />
 
       {/* Pool Invitation Modal */}
       <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, color: text }}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Mail style={{ width: 16, height: 16, color: greenHi }} />
               Pool Invitation
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription style={{ ...b, fontSize: '0.82rem', color: textDim }}>
               Invite participants to join this pool for Week {currentWeek}
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <Label htmlFor="share-link" className="text-sm font-medium">
-                Pool Invitation Link
-              </Label>
-              <div className="flex gap-2 mt-2">
-                <Input
-                  id="share-link"
+              <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Pool Invitation Link</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
                   value={shareLink}
                   readOnly
-                  className="flex-1"
+                  style={{ flex: 1, padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.82rem', color: textMid, outline: 'none' }}
                   placeholder="Generating link..."
                 />
-                <Button
+                <button
                   onClick={handleCopyLink}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.85rem', background: copied ? green : 'transparent', color: copied ? text : textMid, border: `1px solid ${copied ? green : border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
-                  {copied ? (
-                    <>
-                      <Check className="h-4 w-4 text-green-600" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" />
-                      Copy
-                    </>
-                  )}
-                </Button>
+                  {copied ? <><Check style={{ width: 12, height: 12 }} /> Copied!</> : <><Copy style={{ width: 12, height: 12 }} /> Copy</>}
+                </button>
               </div>
             </div>
-
             {selectedPoolForShare && (
-              <div className="bg-gray-50 rounded-lg p-3">
-                <h4 className="font-medium text-sm mb-2">Pool Details</h4>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <p><span className="font-medium">Name:</span> {selectedPoolForShare.name}</p>
-                  <p><span className="font-medium">Season:</span> {selectedPoolForShare.season}</p>
-                  <p><span className="font-medium">Week:</span> {currentWeek}</p>
-                  <p><span className="font-medium">Participants:</span> {selectedPoolForShare.participantCount || 0}</p>
+              <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.75rem' }}>
+                <h4 style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Pool Details</h4>
+                <div style={{ ...b, fontSize: '0.82rem', color: textMid, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                  <p><strong style={{ color: text }}>Name:</strong> {selectedPoolForShare.name}</p>
+                  <p><strong style={{ color: text }}>Season:</strong> {selectedPoolForShare.season}</p>
+                  <p><strong style={{ color: text }}>Week:</strong> {currentWeek}</p>
+                  <p><strong style={{ color: text }}>Participants:</strong> {selectedPoolForShare.participantCount || 0}</p>
                 </div>
               </div>
             )}
-
-            <div className="text-xs text-gray-500">
+            <div style={{ ...b, fontSize: '0.75rem', color: textDim, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <p>• This link will take participants to the pool selection page for Week {currentWeek}</p>
               <p>• Participants can join the pool and submit their picks</p>
               <p>• The link includes the current week for easy access</p>
@@ -808,70 +620,48 @@ function PoolsManagementContent() {
 
       {/* Override Winner Dialog */}
       <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, color: text }}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Trophy style={{ width: 16, height: 16, color: gold }} />
               {overrideType === 'week' ? 'Override Weekly Winner' : 'Override Quarter Winner'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription style={{ ...b, fontSize: '0.82rem', color: textDim }}>
               Manually set the {overrideType === 'week' ? 'weekly' : 'quarter'} winner for a pool
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Load participants when opening */}
-            {/* This is kept inside component state/effects */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Type toggle */}
-            <div className="flex gap-2">
-              <Button
-                variant={overrideType === 'week' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setOverrideType('week')}
-              >
-                Weekly
-              </Button>
-              <Button
-                variant={overrideType === 'quarter' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setOverrideType('quarter')}
-              >
-                Quarter
-              </Button>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {(['week', 'quarter'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setOverrideType(t)}
+                  style={{ padding: '0.35rem 0.75rem', background: overrideType === t ? green : 'transparent', color: overrideType === t ? text : textMid, border: `1px solid ${overrideType === t ? green : border}`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  {t === 'week' ? 'Weekly' : 'Quarter'}
+                </button>
+              ))}
             </div>
 
-            {/* Pool details */}
             {overridePool && (
-              <div className="text-sm text-gray-600">
-                <div className="font-medium">Pool: {overridePool.name}</div>
+              <div style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                <div style={{ color: text, fontWeight: 600 }}>Pool: {overridePool.name}</div>
                 <div>Season: {overrideSeason || overridePool.season}</div>
               </div>
             )}
 
-            {/* Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               {overrideType === 'week' ? (
                 <>
                   <div>
-                    <Label htmlFor="ov-week" className="text-sm">Week</Label>
-                    <Input
-                      id="ov-week"
-                      value={overrideWeek}
-                      onChange={(e) => setOverrideWeek(e.target.value)}
-                      placeholder="e.g. 7"
-                      min={1}
-                      max={(overrideSeasonType === 'Preseason' ? MAX_WEEKS_PRESEASON : overrideSeasonType === 'Regular' ? MAX_WEEKS_REGULAR_SEASON : MAX_WEEKS_POSTSEASON)}
-                      type="number"
-                    />
+                    <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Week</label>
+                    <input type="number" value={overrideWeek} onChange={(e) => setOverrideWeek(e.target.value)} placeholder="e.g. 7" min={1} max={(overrideSeasonType === 'Preseason' ? MAX_WEEKS_PRESEASON : overrideSeasonType === 'Regular' ? MAX_WEEKS_REGULAR_SEASON : MAX_WEEKS_POSTSEASON)} style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }} />
                   </div>
                   <div>
-                    <Label htmlFor="ov-seasontype" className="text-sm">Season Type</Label>
-                    <select
-                      id="ov-seasontype"
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={overrideSeasonType}
-                      onChange={(e) => setOverrideSeasonType(e.target.value as any)}
-                    >
+                    <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Season Type</label>
+                    <select value={overrideSeasonType} onChange={(e) => setOverrideSeasonType(e.target.value as any)} style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none' }}>
                       <option value="Preseason">Preseason</option>
                       <option value="Regular">Regular</option>
                       <option value="Postseason">Postseason</option>
@@ -879,69 +669,50 @@ function PoolsManagementContent() {
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="sm:col-span-2">
-                    <Label htmlFor="ov-quarter" className="text-sm">Quarter</Label>
-                    <select
-                      id="ov-quarter"
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={overrideQuarter}
-                      onChange={(e) => setOverrideQuarter(e.target.value as any)}
-                    >
-                      <option value="Q1">Q1 (Weeks 1-4)</option>
-                      <option value="Q2">Q2 (Weeks 5-8)</option>
-                      <option value="Q3">Q3 (Weeks 9-12)</option>
-                      <option value="Q4">Q4 (Weeks 13-16)</option>
-                      <option value="Playoffs">Playoffs</option>
-                    </select>
-                  </div>
-                </>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Quarter</label>
+                  <select value={overrideQuarter} onChange={(e) => setOverrideQuarter(e.target.value as any)} style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none' }}>
+                    <option value="Q1">Q1 (Weeks 1-4)</option>
+                    <option value="Q2">Q2 (Weeks 5-8)</option>
+                    <option value="Q3">Q3 (Weeks 9-12)</option>
+                    <option value="Q4">Q4 (Weeks 13-16)</option>
+                    <option value="Playoffs">Playoffs</option>
+                  </select>
+                </div>
               )}
 
               <div>
-                <Label htmlFor="ov-season" className="text-sm">Season</Label>
-                <Input id="ov-season" value={overrideSeason} onChange={(e) => setOverrideSeason(e.target.value)} placeholder="e.g. 2025" />
+                <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Season</label>
+                <input value={overrideSeason} onChange={(e) => setOverrideSeason(e.target.value)} placeholder="e.g. 2025" style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
               <div>
-                <Label htmlFor="ov-participant" className="text-sm">Winner Participant</Label>
-                <select
-                  id="ov-participant"
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  value={overrideParticipantId}
-                  onChange={(e) => {
-                    const pid = e.target.value;
-                    setOverrideParticipantId(pid);
-                    const p = overrideParticipants.find(x => x.id === pid);
-                    setOverrideParticipantName(p?.name || '');
-                  }}
-                >
+                <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Winner Participant</label>
+                <select value={overrideParticipantId} onChange={(e) => { const pid = e.target.value; setOverrideParticipantId(pid); const p = overrideParticipants.find(x => x.id === pid); setOverrideParticipantName(p?.name || ''); }} style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none' }}>
                   <option value="">Select participant…</option>
-                  {overrideParticipants.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
+                  {overrideParticipants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="ov-participant-name" className="text-sm">Winner Name</Label>
-                <Input id="ov-participant-name" value={overrideParticipantName} onChange={(e) => setOverrideParticipantName(e.target.value)} placeholder="Full name" />
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Winner Name</label>
+                <input value={overrideParticipantName} onChange={(e) => setOverrideParticipantName(e.target.value)} placeholder="Full name" style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
               <div>
-                <Label htmlFor="ov-points" className="text-sm">Points (optional)</Label>
-                <Input id="ov-points" value={overridePoints} onChange={(e) => setOverridePoints(e.target.value)} placeholder="leave blank to use current" />
+                <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Points (optional)</label>
+                <input value={overridePoints} onChange={(e) => setOverridePoints(e.target.value)} placeholder="leave blank to use current" style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
               <div>
-                <Label htmlFor="ov-correct" className="text-sm">Correct Picks (optional)</Label>
-                <Input id="ov-correct" value={overrideCorrect} onChange={(e) => setOverrideCorrect(e.target.value)} placeholder="leave blank to use current" />
+                <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>Correct Picks (optional)</label>
+                <input value={overrideCorrect} onChange={(e) => setOverrideCorrect(e.target.value)} placeholder="leave blank to use current" style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button
+            <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+              <button
                 onClick={async () => {
                   if (!overridePool) return;
                   setIsSubmittingOverride(true);
                   try {
-                  if (!overrideParticipantName.trim()) {
+                    if (!overrideParticipantName.trim()) {
                       toast({ title: 'Missing fields', description: 'Winner name is required', variant: 'destructive' });
                       setIsSubmittingOverride(false);
                       return;
@@ -949,14 +720,10 @@ function PoolsManagementContent() {
                     const { getSupabaseClient } = await import('@/lib/supabase');
                     const supabase = getSupabaseClient();
                     const { data: { session } } = await supabase.auth.getSession();
-
                     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
-
                     if (overrideType === 'week') {
-                      // Derive season type number from label
                       const seasonTypeNum = overrideSeasonType === 'Preseason' ? 1 : overrideSeasonType === 'Regular' ? 2 : 3;
-                      // If points/correct not provided, fetch from leaderboard
                       let pointsToUse = overridePoints.trim();
                       let correctToUse = overrideCorrect.trim();
                       if (!pointsToUse || !correctToUse) {
@@ -971,24 +738,12 @@ function PoolsManagementContent() {
                         }
                       }
                       const res = await fetch('/api/admin/week-winner', {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({
-                          poolId: overridePool.id,
-                          week: Number(overrideWeek),
-                          season: Number(overrideSeason || overridePool.season),
-                          seasonType: seasonTypeNum,
-                          winnerParticipantId: overrideParticipantId || null,
-                          winnerName: overrideParticipantName.trim(),
-                          winnerPoints: Number(pointsToUse || 0),
-                          winnerCorrectPicks: Number(correctToUse || 0),
-                          totalParticipants: overridePool.participantCount || 0
-                        })
+                        method: 'POST', headers,
+                        body: JSON.stringify({ poolId: overridePool.id, week: Number(overrideWeek), season: Number(overrideSeason || overridePool.season), seasonType: seasonTypeNum, winnerParticipantId: overrideParticipantId || null, winnerName: overrideParticipantName.trim(), winnerPoints: Number(pointsToUse || 0), winnerCorrectPicks: Number(correctToUse || 0), totalParticipants: overridePool.participantCount || 0 })
                       });
                       if (!res.ok) throw new Error('Failed to save weekly winner');
                       toast({ title: 'Weekly winner saved', description: `Week ${overrideWeek} winner overridden.` });
                     } else {
-                      // For quarter override, if points/correct missing, derive from periods leaderboard
                       let pointsToUse = overridePoints.trim();
                       let correctToUse = overrideCorrect.trim();
                       if (!pointsToUse || !correctToUse) {
@@ -1005,23 +760,12 @@ function PoolsManagementContent() {
                         }
                       }
                       const res = await fetch('/api/admin/period-winner', {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({
-                          poolId: overridePool.id,
-                          season: Number(overrideSeason || overridePool.season),
-                          periodName: overrideQuarter,
-                          winnerParticipantId: overrideParticipantId || null,
-                          winnerName: overrideParticipantName.trim(),
-                          periodPoints: Number(pointsToUse || 0),
-                          periodCorrectPicks: Number(correctToUse || 0),
-                          totalParticipants: overridePool.participantCount || 0
-                        })
+                        method: 'POST', headers,
+                        body: JSON.stringify({ poolId: overridePool.id, season: Number(overrideSeason || overridePool.season), periodName: overrideQuarter, winnerParticipantId: overrideParticipantId || null, winnerName: overrideParticipantName.trim(), periodPoints: Number(pointsToUse || 0), periodCorrectPicks: Number(correctToUse || 0), totalParticipants: overridePool.participantCount || 0 })
                       });
                       if (!res.ok) throw new Error('Failed to save period winner');
                       toast({ title: 'Quarter winner saved', description: `${overrideQuarter} winner overridden.` });
                     }
-
                     setOverrideDialogOpen(false);
                     setOverrideParticipantId('');
                     setOverrideParticipantName('');
@@ -1035,102 +779,86 @@ function PoolsManagementContent() {
                   }
                 }}
                 disabled={isSubmittingOverride}
+                style={{ padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isSubmittingOverride ? 'not-allowed' : 'pointer', opacity: isSubmittingOverride ? 0.6 : 1 }}
               >
                 {isSubmittingOverride ? 'Saving...' : 'Save'}
-              </Button>
-              <Button variant="outline" onClick={() => setOverrideDialogOpen(false)} disabled={isSubmittingOverride}>Cancel</Button>
+              </button>
+              <button
+                onClick={() => setOverrideDialogOpen(false)}
+                disabled={isSubmittingOverride}
+                style={{ padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Create Pool Dialog */}
-      <CreatePoolDialog 
-        open={createPoolDialogOpen} 
-        onOpenChange={setCreatePoolDialogOpen}
-        onPoolCreated={handlePoolCreated}
-      />
+      <CreatePoolDialog open={createPoolDialogOpen} onOpenChange={setCreatePoolDialogOpen} onPoolCreated={handlePoolCreated} />
 
       {/* Transfer Pool Dialog */}
       <Dialog open={transferPoolDialogOpen} onOpenChange={setTransferPoolDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, color: text }}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Settings style={{ width: 16, height: 16, color: greenHi }} />
               Transfer Pool
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription style={{ ...b, fontSize: '0.82rem', color: textDim }}>
               Transfer pool ownership to another commissioner
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {selectedPoolForTransfer && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h4 className="font-medium text-sm mb-2 text-blue-900">Pool Details</h4>
-                <div className="space-y-1 text-sm text-blue-800">
-                  <p><span className="font-medium">Name:</span> {selectedPoolForTransfer.name}</p>
-                  <p><span className="font-medium">Current Owner:</span> {selectedPoolForTransfer.created_by}</p>
-                  <p><span className="font-medium">Participants:</span> {selectedPoolForTransfer.participantCount || 0}</p>
+              <div style={{ background: 'oklch(20% 0.05 255)', border: `1px solid oklch(35% 0.08 255)`, borderRadius: 8, padding: '0.75rem' }}>
+                <h4 style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.07em', color: purple, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Pool Details</h4>
+                <div style={{ ...b, fontSize: '0.82rem', color: textMid, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                  <p><strong style={{ color: text }}>Name:</strong> {selectedPoolForTransfer.name}</p>
+                  <p><strong style={{ color: text }}>Current Owner:</strong> {selectedPoolForTransfer.created_by}</p>
+                  <p><strong style={{ color: text }}>Participants:</strong> {selectedPoolForTransfer.participantCount || 0}</p>
                 </div>
               </div>
             )}
-            
             <div>
-              <Label htmlFor="new-commissioner" className="text-sm font-medium">
-                New Commissioner Email
-              </Label>
-              <Input
-                id="new-commissioner"
+              <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>New Commissioner Email</label>
+              <input
                 type="email"
                 value={newCommissionerEmail}
                 onChange={(e) => setNewCommissionerEmail(e.target.value)}
                 placeholder="commissioner@example.com"
-                className="mt-2"
+                style={{ width: '100%', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, ...b, fontSize: '0.85rem', color: text, outline: 'none', boxSizing: 'border-box' as const }}
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Enter the email address of the commissioner who will receive this pool
-              </p>
+              <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.4rem' }}>Enter the email address of the commissioner who will receive this pool</p>
             </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <h4 className="font-medium text-sm mb-2 text-yellow-900">⚠️ Important</h4>
-              <div className="text-sm text-yellow-800 space-y-1">
+            <div style={{ background: `${amber}12`, border: `1px solid ${amber}30`, borderRadius: 8, padding: '0.75rem' }}>
+              <h4 style={{ ...bc, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.07em', color: amber, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Important</h4>
+              <div style={{ ...b, fontSize: '0.78rem', color: textMid, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <p>• This action will transfer complete ownership of the pool</p>
                 <p>• The new commissioner will have full control over the pool</p>
                 <p>• This action cannot be undone</p>
               </div>
             </div>
-            
-            <div className="flex gap-3 pt-4">
-              <Button
+            <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.25rem' }}>
+              <button
                 onClick={handleTransferPool}
                 disabled={isTransferring || !newCommissionerEmail.trim()}
-                className="flex items-center gap-2"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: (isTransferring || !newCommissionerEmail.trim()) ? 'not-allowed' : 'pointer', opacity: (isTransferring || !newCommissionerEmail.trim()) ? 0.6 : 1 }}
               >
                 {isTransferring ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Transferring...
-                  </>
+                  <><RefreshCw style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> Transferring...</>
                 ) : (
-                  <>
-                    <Settings className="h-4 w-4" />
-                    Transfer Pool
-                  </>
+                  <><Settings style={{ width: 13, height: 13 }} /> Transfer Pool</>
                 )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setTransferPoolDialogOpen(false);
-                  setSelectedPoolForTransfer(null);
-                  setNewCommissionerEmail('');
-                }}
+              </button>
+              <button
+                onClick={() => { setTransferPoolDialogOpen(false); setSelectedPoolForTransfer(null); setNewCommissionerEmail(''); }}
                 disabled={isTransferring}
+                style={{ padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         </DialogContent>

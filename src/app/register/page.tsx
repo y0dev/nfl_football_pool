@@ -4,17 +4,35 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, ArrowLeft, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Shield, Eye, EyeOff, Trophy } from 'lucide-react';
 import Link from 'next/link';
-import { Label } from '@/components/ui/label';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { debugLog } from '@/lib/utils';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const fieldStyle = {
+  background: card,
+  border: `1px solid oklch(30% 0.03 255)`,
+  color: text,
+  borderRadius: 6,
+} as const;
 
 const adminRegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -44,13 +62,13 @@ function AdminRegisterContent() {
         if (user && verifyAdminStatus) {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
-          
+
           // Redirect commissioners to their dashboard
           if (!superAdminStatus) {
             router.push('/dashboard');
             return;
           }
-          
+
           // Redirect super admins to admin dashboard
           router.push('/admin/dashboard');
         }
@@ -99,11 +117,11 @@ function AdminRegisterContent() {
       });
 
       console.log('Response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log('Response data:', result);
 
@@ -136,170 +154,206 @@ function AdminRegisterContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col justify-center py-6 sm:py-12 px-4 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mb-6">
-            <Shield className="h-8 w-8 text-white" />
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Create Commissioner Account
-          </h2>
-          <p className="text-sm sm:text-base text-gray-600">
-            Join the NFL Confidence Pool as a commissioner
-          </p>
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+
+      {/* Branding */}
+      <div style={{ marginBottom: '1.75rem', textAlign: 'center' }}>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.85rem' }}>
+          <Shield style={{ width: 24, height: 24, color: text }} />
         </div>
+        <h1 style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', margin: 0 }}>
+          Create Commissioner Account
+        </h1>
+        <p style={{ ...b, color: textMid, fontSize: '0.875rem', marginTop: '0.35rem' }}>
+          Join the NFL Confidence Pool as a commissioner
+        </p>
       </div>
 
-      <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-xl rounded-2xl py-8 px-6 sm:px-8">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" noValidate>
-            <div>
-              <Label htmlFor="fullName" className="text-sm font-semibold text-gray-700 mb-2 block">
-                Full Name
-              </Label>
-              <Input
-                id="fullName"
-                type="text"
-                {...form.register('fullName')}
-                className="h-12 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors"
-                placeholder="Enter your full name"
-              />
-              {form.formState.errors.fullName && (
-                <p className="mt-2 text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
-                  {form.formState.errors.fullName.message}
-                </p>
-              )}
-            </div>
+      {/* Form card */}
+      <div style={{
+        background: card,
+        border: `1px solid ${border}`,
+        borderTop: `3px solid ${green}`,
+        borderRadius: 10,
+        padding: '2rem',
+        maxWidth: 460,
+        width: '100%',
+      }}>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }} noValidate>
 
-            <div>
-              <Label htmlFor="email" className="text-sm font-semibold text-gray-700 mb-2 block">
-                Email Address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                {...form.register('email')}
-                className="h-12 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors"
-                placeholder="Enter your email address"
-              />
-              {form.formState.errors.email && (
-                <p className="mt-2 text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
-                  {form.formState.errors.email.message}
-                </p>
+            {/* Full Name */}
+            <FormField
+              control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', color: textMid, textTransform: 'uppercase' }}>
+                    Full Name
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="Enter your full name"
+                      style={fieldStyle}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage style={{ ...b, fontSize: '0.78rem', color: amber }} />
+                </FormItem>
               )}
-            </div>
+            />
 
-            <div>
-              <Label htmlFor="password" className="text-sm font-semibold text-gray-700 mb-2 block">
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  {...form.register('password')}
-                  className="h-12 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors pr-12"
-                  placeholder="Create a strong password"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </Button>
-              </div>
-              {form.formState.errors.password && (
-                <p className="mt-2 text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
-                  {form.formState.errors.password.message}
-                </p>
+            {/* Email */}
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', color: textMid, textTransform: 'uppercase' }}>
+                    Email Address
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email address"
+                      style={fieldStyle}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage style={{ ...b, fontSize: '0.78rem', color: amber }} />
+                </FormItem>
               )}
-            </div>
+            />
 
-            <div>
-              <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700 mb-2 block">
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  {...form.register('confirmPassword')}
-                  className="h-12 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors pr-12"
-                  placeholder="Confirm your password"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </Button>
-              </div>
-              {form.formState.errors.confirmPassword && (
-                <p className="mt-2 text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
-                  {form.formState.errors.confirmPassword.message}
-                </p>
+            {/* Password */}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', color: textMid, textTransform: 'uppercase' }}>
+                    Password
+                  </FormLabel>
+                  <FormControl>
+                    <div style={{ position: 'relative' }}>
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Create a strong password"
+                        style={{ ...fieldStyle, paddingRight: '2.75rem' }}
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute', right: 0, top: 0,
+                          height: '100%', padding: '0 0.75rem',
+                          background: 'transparent', border: 'none',
+                          color: textDim, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center',
+                        }}
+                      >
+                        {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage style={{ ...b, fontSize: '0.78rem', color: amber }} />
+                </FormItem>
               )}
-            </div>
+            />
 
-            <div className="pt-4">
-              <Button
-                type="submit"
-                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Creating Account...
-                  </div>
-                ) : (
-                  'Create Commissioner Account'
-                )}
-              </Button>
-            </div>
+            {/* Confirm Password */}
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', color: textMid, textTransform: 'uppercase' }}>
+                    Confirm Password
+                  </FormLabel>
+                  <FormControl>
+                    <div style={{ position: 'relative' }}>
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        placeholder="Confirm your password"
+                        style={{ ...fieldStyle, paddingRight: '2.75rem' }}
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={{
+                          position: 'absolute', right: 0, top: 0,
+                          height: '100%', padding: '0 0.75rem',
+                          background: 'transparent', border: 'none',
+                          color: textDim, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center',
+                        }}
+                      >
+                        {showConfirmPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage style={{ ...b, fontSize: '0.78rem', color: amber }} />
+                </FormItem>
+              )}
+            />
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                width: '100%', padding: '0.65rem 1.25rem',
+                background: isLoading ? 'oklch(36% 0.10 155)' : green,
+                color: text,
+                border: 'none', borderRadius: 7,
+                ...bc, fontWeight: 700, fontSize: '0.82rem',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.7 : 1,
+                marginTop: '0.5rem',
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <span style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${text}`, borderTopColor: 'transparent', animation: 'spin 1s linear infinite', display: 'inline-block' }} />
+                  Creating Account...
+                </>
+              ) : (
+                'Create Commissioner Account'
+              )}
+            </button>
           </form>
+        </Form>
 
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white/80 text-gray-500 font-medium">
-                  Already have an account?
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link
-                href="/login"
-                className="w-full flex justify-center py-3 px-4 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
-              >
-                Sign in to Dashboard
-              </Link>
-            </div>
-          </div>
+        {/* Divider */}
+        <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ flex: 1, height: 1, background: border }} />
+          <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>Already have an account?</span>
+          <div style={{ flex: 1, height: 1, background: border }} />
         </div>
+
+        <Link
+          href="/login"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+            width: '100%', padding: '0.6rem 1rem',
+            background: 'transparent', color: textMid,
+            border: `1px solid ${border}`, borderRadius: 7,
+            ...bc, fontWeight: 700, fontSize: '0.78rem',
+            letterSpacing: '0.07em', textTransform: 'uppercase',
+            textDecoration: 'none',
+          }}
+        >
+          Sign in to Dashboard
+        </Link>
       </div>
     </div>
   );

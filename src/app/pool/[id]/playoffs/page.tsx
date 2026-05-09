@@ -2,18 +2,32 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Trophy, CheckCircle2, Calendar, Target } from 'lucide-react';
+import { Users, Trophy, CheckCircle2, Calendar, Target, ArrowLeft, RefreshCw, LogOut } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
 import { createPageUrl, debugLog, getTeamAbbreviation } from '@/lib/utils';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PlayoffTeam {
   id: string;
@@ -55,6 +69,7 @@ function PlayoffsPageContent() {
   const router = useRouter();
   const poolId = params.id as string;
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const [poolName, setPoolName] = useState<string>('');
   const [poolSeason, setPoolSeason] = useState<number>(2025);
@@ -81,10 +96,9 @@ function PlayoffsPageContent() {
     try {
       setIsLoading(true);
 
-      // Load pool info
       const poolResponse = await fetch(`/api/pools/${poolId}`);
       const poolData = await poolResponse.json();
-      
+
       let seasonToUse = poolSeason;
       if (poolData.success) {
         setPoolName(poolData.pool.name);
@@ -92,35 +106,28 @@ function PlayoffsPageContent() {
         setPoolSeason(seasonToUse);
       }
 
-      // Load participants (will be filtered by submission status after loadSubmissionStatus)
       const users = await loadUsers(poolId);
       setParticipants(users || []);
-      // Keep a copy of all participants for display purposes
       setAllParticipantsForDisplay(users || []);
 
-      // Load playoff teams
       const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${seasonToUse}`);
       const teamsData = await teamsResponse.json();
-      
+
       if (teamsData.success) {
         const teams = teamsData.teams || [];
         setPlayoffTeams(teams);
-        
-        // Create sorted array with placeholders for missing seeds (max 14 teams: 7 per conference)
+
         const conferences = ['AFC', 'NFC'];
         const sorted: PlayoffTeam[] = [];
-        
+
         conferences.forEach(conference => {
-          // Get existing teams for this conference
           const conferenceTeams = teams.filter((t: PlayoffTeam) => (t.conference || '').toUpperCase() === conference);
-          
-          // Create array of 7 slots for this conference
+
           for (let seed = 1; seed <= 7; seed++) {
             const existingTeam = conferenceTeams.find((t: PlayoffTeam) => t.seed === seed);
             if (existingTeam) {
               sorted.push(existingTeam);
             } else {
-              // Create placeholder team for missing seed
               sorted.push({
                 id: `placeholder-${conference}-${seed}`,
                 pool_id: poolId,
@@ -133,11 +140,10 @@ function PlayoffsPageContent() {
             }
           }
         });
-        
+
         setSortedPlayoffTeams(sorted);
       }
 
-      // Load submission status (this will also filter participants)
       await loadSubmissionStatus();
 
     } catch (error) {
@@ -156,26 +162,22 @@ function PlayoffsPageContent() {
     try {
       const response = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${poolSeason || 2025}`);
       const data = await response.json();
-      
+
       if (data.success) {
         debugLog('PLAYOFFS: loadSubmissionStatus', data);
         setSubmissionStatus(data.submissions || []);
         setAllSubmitted(data.allSubmitted || false);
         setAllConfidencePoints(data.allConfidencePoints || null);
-        
-        // Filter participants to exclude those who have submitted
+
         const submittedParticipantIds = new Set(
           (data.submissions || [])
             .filter((s: SubmissionStatus) => s.submitted)
             .map((s: SubmissionStatus) => s.participant_id)
         );
-        
-        // Reload participants and filter out submitted ones
+
         const allUsers = await loadUsers(poolId);
         debugLog('PLAYOFFS: allUsers', allUsers);
-        // Keep all participants for display
         setAllParticipantsForDisplay(allUsers || []);
-        // Filter participants for the submission form (exclude those who have submitted)
         const availableUsers = (allUsers || []).filter(
           user => !submittedParticipantIds.has(user.id)
         );
@@ -220,7 +222,6 @@ function PlayoffsPageContent() {
   };
 
   const handleConfidencePointChange = (teamName: string, value: string) => {
-    // Handle clear action
     if (value === 'CLEAR') {
       setConfidencePoints(prev => {
         const updated = { ...prev };
@@ -229,10 +230,9 @@ function PlayoffsPageContent() {
       });
       return;
     }
-    
+
     const numValue = parseInt(value);
     if (isNaN(numValue) || numValue < 1) {
-      // If invalid, remove the confidence point
       setConfidencePoints(prev => {
         const updated = { ...prev };
         delete updated[teamName];
@@ -240,32 +240,29 @@ function PlayoffsPageContent() {
       });
       return;
     }
-    
+
     setConfidencePoints(prev => ({
       ...prev,
       [teamName]: numValue
     }));
   };
 
-  // Calculate available confidence points for a team (exclude already used ones)
   const getAvailableConfidencePoints = (currentTeamName: string): number[] => {
-    // Only count teams that have actual names (not placeholders)
     const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
     const usedPoints = Object.entries(confidencePoints)
       .filter(([teamName]) => teamName !== currentTeamName && teamName.trim() !== '')
       .map(([, points]) => points);
-    
+
     const maxPoints = actualTeams.length;
     return Array.from({ length: maxPoints }, (_, i) => i + 1)
       .filter(points => !usedPoints.includes(points));
   };
 
   const validateConfidencePoints = (): string | null => {
-    // Only validate for teams that actually have names (not placeholders)
     const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
     const values = Object.values(confidencePoints);
     const uniqueValues = new Set(values);
-    
+
     if (values.length !== actualTeams.length) {
       return 'Please assign confidence points to all teams';
     }
@@ -276,7 +273,7 @@ function PlayoffsPageContent() {
 
     const sortedValues = [...values].sort((a, b) => a - b);
     const expectedValues = Array.from({ length: actualTeams.length }, (_, i) => i + 1);
-    
+
     if (JSON.stringify(sortedValues) !== JSON.stringify(expectedValues)) {
       return 'Confidence points must be sequential (1, 2, 3, etc.)';
     }
@@ -284,7 +281,6 @@ function PlayoffsPageContent() {
     return null;
   };
 
-  // Generate random confidence points for all teams (debug only)
   const generateRandomConfidencePoints = () => {
     if (!selectedParticipantId) {
       toast({
@@ -297,20 +293,18 @@ function PlayoffsPageContent() {
 
     const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
     const teamCount = actualTeams.length;
-    
-    // Generate array of sequential numbers (1 to teamCount) and shuffle
+
     const points = Array.from({ length: teamCount }, (_, i) => i + 1);
     for (let i = points.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [points[i], points[j]] = [points[j], points[i]];
     }
-    
-    // Assign shuffled points to teams
+
     const randomPoints: Record<string, number> = {};
     actualTeams.forEach((team, index) => {
       randomPoints[team.team_name] = points[index];
     });
-    
+
     setConfidencePoints(randomPoints);
     toast({
       title: 'Random Points Generated',
@@ -328,7 +322,6 @@ function PlayoffsPageContent() {
       return;
     }
 
-    // Skip validation in debug mode, otherwise validate
     if (!debugMode) {
       const validationError = validateConfidencePoints();
       if (validationError) {
@@ -353,7 +346,6 @@ function PlayoffsPageContent() {
     setIsSubmitting(true);
 
     try {
-      // Only submit confidence points for teams that actually have names (not placeholders)
       const actualTeams = sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '');
       const submissionData = actualTeams.map(team => ({
         participant_id: selectedParticipantId,
@@ -380,18 +372,15 @@ function PlayoffsPageContent() {
           title: 'Success',
           description: 'Playoff confidence points submitted successfully',
         });
-        
-        // Clear selected participant so they are removed from the list
+
         const submittedParticipantId = selectedParticipantId;
         setSelectedParticipantId('');
         setConfidencePoints({});
         setHasSubmission(false);
         setIsCompleteSubmission(false);
-        
-        // Reload submission status (which will also update the participants list)
+
         await loadSubmissionStatus();
-        
-        // Navigate to playoff picks page after successful submission
+
         router.push(`/pool/${poolId}/picks?week=1&seasonType=3`);
       } else {
         toast({
@@ -418,505 +407,501 @@ function PlayoffsPageContent() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading playoff data…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-col gap-2 mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold">{poolName} - Playoff Confidence Points</h1>
-          <p className="text-gray-600">Season {poolSeason}</p>
-        </div>
+    <div style={{ background: bg, minHeight: '100vh' }}>
 
-        {/* Navigation Buttons */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              try {
-                const upcomingWeek = await getUpcomingWeek();
-                // Navigate to current week based on season type
-                router.push(`/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`);
-              } catch (error) {
-                console.error('Error getting current week:', error);
-                // Fallback to week 1 regular season
-                router.push(`/pool/${poolId}/picks?week=1&seasonType=2`);
-              }
-            }}
-            className="flex items-center gap-2"
-          >
-            <Calendar className="h-4 w-4" />
-            Go to Current Week
-          </Button>
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.back()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.6rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                NFL Confidence Pool
+              </span>
+            </div>
+            <button
+              onClick={() => signOut()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.7rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 5,
+                ...bc, fontWeight: 600, fontSize: '0.72rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} /> Sign Out
+            </button>
+          </div>
         </div>
+      </nav>
 
-        {/* Submission Status */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Submission Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="text-3xl font-bold">{submissionPercentage}%</div>
-              <div className="flex-1">
-                <div className="text-sm text-gray-600 mb-1">
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2rem, 4vw, 3rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Postseason
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            {poolName} — Playoff <span style={{ color: gold }}>Confidence Points</span>
+          </h1>
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid, marginTop: '0.75rem' }}>
+            Season {poolSeason}
+          </p>
+        </div>
+      </section>
+
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── CONTENT ── */}
+      <section style={{ background: bg, padding: '2.5rem 0', minHeight: '50vh' }}>
+        <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Navigation button */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+            <button
+              onClick={async () => {
+                try {
+                  const upcomingWeek = await getUpcomingWeek();
+                  router.push(`/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`);
+                } catch (error) {
+                  console.error('Error getting current week:', error);
+                  router.push(`/pool/${poolId}/picks?week=1&seasonType=2`);
+                }
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                padding: '0.5rem 0.9rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              <Calendar style={{ width: 13, height: 13 }} />
+              Go to Current Week
+            </button>
+          </div>
+
+          {/* Submission Status */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+              <Users style={{ width: 16, height: 16, color: greenHi }} />
+              <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Submission Status
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <p style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: greenHi, lineHeight: 1, flexShrink: 0 }}>{submissionPercentage}%</p>
+              <div style={{ flex: 1 }}>
+                <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.4rem' }}>
                   {submissionStatus.filter(s => s.submitted).length} of {submissionStatus.length} participants submitted
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${submissionPercentage}%` }}
-                  ></div>
+                </p>
+                <div style={{ width: '100%', background: surface, borderRadius: 999, height: 6, overflow: 'hidden' }}>
+                  <div style={{ width: `${submissionPercentage}%`, background: green, height: '100%', borderRadius: 999, transition: 'width 0.3s ease' }} />
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      {/* All Submissions View */}
-      {allSubmitted && allConfidencePoints && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              All Playoff Confidence Points
-            </CardTitle>
-            <CardDescription>
-              Everyone has submitted their confidence points
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Table View - Separated by Conference */}
-            <div className="space-y-6">
-              {(() => {
-                // Extract unique participants from submissionStatus or allConfidencePoints
-                const participantMap = new Map<string, { id: string; name: string }>();
-                
-                // First, try to get from submissionStatus
-                submissionStatus.forEach(status => {
-                  if (!participantMap.has(status.participant_id)) {
-                    participantMap.set(status.participant_id, {
-                      id: status.participant_id,
-                      name: status.participant_name
-                    });
-                  }
-                });
-                
-                // Also check allConfidencePoints for any missing participants
-                allConfidencePoints.forEach(cp => {
-                  if (!participantMap.has(cp.participant_id)) {
-                    const participantName = (cp.participants as any)?.name || 'Unknown';
-                    participantMap.set(cp.participant_id, {
-                      id: cp.participant_id,
-                      name: participantName
-                    });
-                  }
-                });
-                
-                // Fallback to allParticipantsForDisplay if available
-                if (participantMap.size === 0 && allParticipantsForDisplay.length > 0) {
-                  allParticipantsForDisplay.forEach(p => {
-                    participantMap.set(p.id, p);
-                  });
-                }
-                
-                const participantsList = Array.from(participantMap.values());
-                const afcTeams = sortedPlayoffTeams.filter(
-                  team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'AFC'
-                );
-                const nfcTeams = sortedPlayoffTeams.filter(
-                  team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'NFC'
-                );
-
-                return (
-                  <>
-                    {/* AFC Table */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 pb-2 border-b-2 border-red-300">
-                        <div className="w-3 h-3 rounded-full bg-red-600"></div>
-                        <h3 className="text-base sm:text-lg font-bold text-red-600">AFC</h3>
-                      </div>
-                      <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                        <table className="w-full caption-bottom text-sm border-collapse min-w-full">
-                          <thead>
-                            <tr className="bg-gray-50 border-b">
-                              <th className="sticky left-0 bg-gray-50 z-30 font-semibold min-w-[120px] sm:min-w-[150px] border-r text-xs sm:text-sm shadow-[2px_0_4px_rgba(0,0,0,0.1)] h-10 px-2 text-left align-middle">
-                                Participant
-                              </th>
-                              {afcTeams.map(team => (
-                                <th key={team.id} className="text-center font-semibold min-w-[90px] sm:min-w-[110px] px-1 sm:px-2 h-10 align-middle">
-                                  <div className="flex flex-col items-center gap-1 sm:gap-1.5">
-                                    <span className="text-xs font-medium leading-tight">
-                                      <span className="sm:hidden">{getTeamAbbreviation(team.team_name)}</span>
-                                      <span className="hidden sm:inline">{team.team_name}</span>
-                                    </span>
-                                    {team.seed && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className="text-xs border-red-300 text-red-700 w-12 flex items-center justify-center"
-                                      >
-                                        AFC #{team.seed}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {participantsList.map((participant, index) => {
-                              const participantPoints = allConfidencePoints.filter(
-                                cp => cp.participant_id === participant.id
-                              );
-                              const pointsMap: Record<string, number> = {};
-                              participantPoints.forEach(cp => {
-                                pointsMap[cp.team_name] = cp.confidence_points;
-                              });
-
-                              const rowBgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
-                              return (
-                                <tr 
-                                  key={participant.id} 
-                                  className={`border-b transition-colors hover:bg-gray-50 ${rowBgColor}`}
-                                >
-                                  <td className={`sticky left-0 ${rowBgColor} z-20 font-medium border-r text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none shadow-[2px_0_4px_rgba(0,0,0,0.1)] p-2 align-middle`}>
-                                    {participant.name}
-                                  </td>
-                                  {afcTeams.map(team => {
-                                    const points = pointsMap[team.team_name];
-                                    return (
-                                      <td key={team.id} className="text-center px-1 sm:px-2 py-2 sm:py-3 align-middle">
-                                        <div className="flex flex-col items-center justify-center gap-0.5">
-                                          <span className={`text-lg sm:text-xl font-bold ${
-                                            points ? 'text-blue-600' : 'text-gray-400'
-                                          }`}>
-                                            {points || '-'}
-                                          </span>
-                                        </div>
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* NFC Table */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-300">
-                        <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                        <h3 className="text-base sm:text-lg font-bold text-blue-600">NFC</h3>
-                      </div>
-                      <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                        <table className="w-full caption-bottom text-sm border-collapse min-w-full">
-                          <thead>
-                            <tr className="bg-gray-50 border-b">
-                              <th className="sticky left-0 bg-gray-50 z-30 font-semibold min-w-[120px] sm:min-w-[150px] border-r text-xs sm:text-sm shadow-[2px_0_4px_rgba(0,0,0,0.1)] h-10 px-2 text-left align-middle">
-                                Participant
-                              </th>
-                              {nfcTeams.map(team => (
-                                <th key={team.id} className="text-center font-semibold min-w-[90px] sm:min-w-[110px] px-1 sm:px-2 h-10 align-middle">
-                                  <div className="flex flex-col items-center gap-1 sm:gap-1.5">
-                                    <span className="text-xs font-medium leading-tight">
-                                      <span className="sm:hidden">{getTeamAbbreviation(team.team_name)}</span>
-                                      <span className="hidden sm:inline">{team.team_name}</span>
-                                    </span>
-                                    {team.seed && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className="text-xs border-blue-300 text-blue-700 w-12 flex items-center justify-center"
-                                      >
-                                        NFC #{team.seed}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {participantsList.map((participant, index) => {
-                              const participantPoints = allConfidencePoints.filter(
-                                cp => cp.participant_id === participant.id
-                              );
-                              const pointsMap: Record<string, number> = {};
-                              participantPoints.forEach(cp => {
-                                pointsMap[cp.team_name] = cp.confidence_points;
-                              });
-
-                              const rowBgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
-                              return (
-                                <tr 
-                                  key={participant.id} 
-                                  className={`border-b transition-colors hover:bg-gray-50 ${rowBgColor}`}
-                                >
-                                  <td className={`sticky left-0 ${rowBgColor} z-20 font-medium border-r text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none shadow-[2px_0_4px_rgba(0,0,0,0.1)] p-2 align-middle`}>
-                                    {participant.name}
-                                  </td>
-                                  {nfcTeams.map(team => {
-                                    const points = pointsMap[team.team_name];
-                                    return (
-                                      <td key={team.id} className="text-center px-1 sm:px-2 py-2 sm:py-3 align-middle">
-                                        <div className="flex flex-col items-center justify-center gap-0.5">
-                                          <span className={`text-lg sm:text-xl font-bold ${
-                                            points ? 'text-blue-600' : 'text-gray-400'
-                                          }`}>
-                                            {points || '-'}
-                                          </span>
-                                        </div>
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Submission Form */}
-      {!allSubmitted && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Submit Playoff Confidence Points</CardTitle>
-            <CardDescription>
-              Assign confidence points (1-{sortedPlayoffTeams.length}) to each playoff team. 
-              Points cannot be changed after submission. Each number can only be used once.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Participant Selection */}
-            <div>
-              <Label htmlFor="participant">Select Participant</Label>
-              <select
-                id="participant"
-                value={selectedParticipantId}
-                onChange={(e) => handleParticipantChange(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md mt-1"
-              >
-                <option value="">Select a participant...</option>
-                {participants.map(participant => (
-                  <option key={participant.id} value={participant.id}>
-                    {participant.name}
-                  </option>
-                ))}
-              </select>
-              {hasSubmission && selectedParticipantId && (
-                <p className={`text-sm mt-1 flex items-center gap-1 ${isCompleteSubmission ? 'text-green-600' : 'text-orange-600'}`}>
-                  <CheckCircle2 className="h-4 w-4" />
-                  {isCompleteSubmission 
-                    ? `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has already submitted all confidence points`
-                    : `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has a partial submission. You can complete or update it.`
-                  }
+          {/* All Submissions View */}
+          {allSubmitted && allConfidencePoints && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                <Trophy style={{ width: 16, height: 16, color: gold }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: gold, textTransform: 'uppercase' }}>
+                  All Playoff Confidence Points
                 </p>
+              </div>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.25rem' }}>
+                Everyone has submitted their confidence points
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {(() => {
+                  const participantMap = new Map<string, { id: string; name: string }>();
+
+                  submissionStatus.forEach(status => {
+                    if (!participantMap.has(status.participant_id)) {
+                      participantMap.set(status.participant_id, {
+                        id: status.participant_id,
+                        name: status.participant_name
+                      });
+                    }
+                  });
+
+                  allConfidencePoints.forEach(cp => {
+                    if (!participantMap.has(cp.participant_id)) {
+                      const participantName = (cp.participants as any)?.name || 'Unknown';
+                      participantMap.set(cp.participant_id, {
+                        id: cp.participant_id,
+                        name: participantName
+                      });
+                    }
+                  });
+
+                  if (participantMap.size === 0 && allParticipantsForDisplay.length > 0) {
+                    allParticipantsForDisplay.forEach(p => {
+                      participantMap.set(p.id, p);
+                    });
+                  }
+
+                  const participantsList = Array.from(participantMap.values());
+                  const afcTeams = sortedPlayoffTeams.filter(
+                    team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'AFC'
+                  );
+                  const nfcTeams = sortedPlayoffTeams.filter(
+                    team => team.team_name && team.team_name.trim() !== '' && team.conference?.toUpperCase() === 'NFC'
+                  );
+
+                  const confTableStyle = {
+                    width: '100%',
+                    borderCollapse: 'collapse' as const,
+                    fontSize: '0.82rem',
+                  };
+
+                  const renderConferenceTable = (confTeams: PlayoffTeam[], confLabel: string, confColor: string) => (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingBottom: '0.5rem', borderBottom: `2px solid ${confColor}`, marginBottom: '0.75rem' }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: confColor, flexShrink: 0 }} />
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: confColor, letterSpacing: '0.05em' }}>{confLabel}</p>
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={confTableStyle}>
+                          <thead>
+                            <tr style={{ background: surface, borderBottom: `1px solid ${border}` }}>
+                              <th style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textAlign: 'left', padding: '0.5rem 0.75rem', position: 'sticky', left: 0, background: surface, zIndex: 10, minWidth: 120, borderRight: `1px solid ${border}` }}>
+                                Participant
+                              </th>
+                              {confTeams.map(team => (
+                                <th key={team.id} style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textAlign: 'center', padding: '0.5rem 0.5rem', minWidth: 90 }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                                    <span>{getTeamAbbreviation(team.team_name)}</span>
+                                    {team.seed && (
+                                      <span style={{ ...bc, fontWeight: 700, fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}` }}>
+                                        {confLabel} #{team.seed}
+                                      </span>
+                                    )}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {participantsList.map((participant, index) => {
+                              const participantPoints = allConfidencePoints.filter(
+                                cp => cp.participant_id === participant.id
+                              );
+                              const pointsMap: Record<string, number> = {};
+                              participantPoints.forEach(cp => {
+                                pointsMap[cp.team_name] = cp.confidence_points;
+                              });
+
+                              const rowBg = index % 2 === 0 ? card : surface;
+                              return (
+                                <tr key={participant.id} style={{ borderBottom: `1px solid ${border}`, background: rowBg }}>
+                                  <td style={{ ...b, fontWeight: 600, fontSize: '0.8rem', color: text, padding: '0.5rem 0.75rem', position: 'sticky', left: 0, background: rowBg, zIndex: 5, borderRight: `1px solid ${border}`, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {participant.name}
+                                  </td>
+                                  {confTeams.map(team => {
+                                    const points = pointsMap[team.team_name];
+                                    return (
+                                      <td key={team.id} style={{ textAlign: 'center', padding: '0.5rem' }}>
+                                        <span style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: points ? greenHi : textDim }}>
+                                          {points || '-'}
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+
+                  const afcAccentColor = 'oklch(55% 0.18 25)';
+                  const nfcAccentColor = 'oklch(55% 0.16 240)';
+
+                  return (
+                    <>
+                      {renderConferenceTable(afcTeams, 'AFC', afcAccentColor)}
+                      {renderConferenceTable(nfcTeams, 'NFC', nfcAccentColor)}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Submission Form */}
+          {!allSubmitted && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                Submit Playoff Confidence Points
+              </p>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.25rem' }}>
+                Assign confidence points (1–{sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '').length}) to each playoff team. Points cannot be changed after submission. Each number can only be used once.
+              </p>
+
+              {/* Participant Selection */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                  Select Participant
+                </label>
+                <select
+                  id="participant"
+                  value={selectedParticipantId}
+                  onChange={(e) => handleParticipantChange(e.target.value)}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.875rem', appearance: 'none', cursor: 'pointer' }}
+                >
+                  <option value="">Select a participant…</option>
+                  {participants.map(participant => (
+                    <option key={participant.id} value={participant.id}>
+                      {participant.name}
+                    </option>
+                  ))}
+                </select>
+                {hasSubmission && selectedParticipantId && (
+                  <p style={{ ...b, fontSize: '0.78rem', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleteSubmission ? greenHi : amber }}>
+                    <CheckCircle2 style={{ width: 13, height: 13 }} />
+                    {isCompleteSubmission
+                      ? `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has already submitted all confidence points`
+                      : `${participants.find(p => p.id === selectedParticipantId)?.name || 'This participant'} has a partial submission. You can complete or update it.`
+                    }
+                  </p>
+                )}
+              </div>
+
+              {/* Confidence Points Input */}
+              {selectedParticipantId && !isCompleteSubmission && sortedPlayoffTeams.length > 0 && (
+                <>
+                  <div className="admin-2col-grid" style={{ marginBottom: '1.25rem' }}>
+                    {/* AFC Conference */}
+                    <div>
+                      <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: 'oklch(55% 0.18 25)', letterSpacing: '0.05em', marginBottom: '0.85rem', paddingBottom: '0.5rem', borderBottom: `2px solid oklch(55% 0.18 25)` }}>
+                        AFC
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                        {sortedPlayoffTeams
+                          .filter(team => team.conference?.toUpperCase() === 'AFC')
+                          .map(team => {
+                            const isPlaceholder = !team.team_name || team.team_name.trim() === '';
+                            const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
+                            const currentValue = confidencePoints[team.team_name];
+
+                            return (
+                              <div key={team.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: `1px solid ${border}` }}>
+                                <div style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textDim, width: 24, textAlign: 'center', flexShrink: 0 }}>
+                                  {team.seed || '-'}
+                                </div>
+                                <div style={{ flex: 1, ...b, fontSize: '0.875rem', color: isPlaceholder ? textDim : text, fontStyle: isPlaceholder ? 'italic' : 'normal' }}>
+                                  {isPlaceholder ? "Seed hasn't been determined yet" : team.team_name}
+                                </div>
+                                <div style={{ width: 110, flexShrink: 0 }}>
+                                  {isPlaceholder ? (
+                                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, fontStyle: 'italic' }}>N/A</p>
+                                  ) : (
+                                    <Select
+                                      value={currentValue?.toString() || ''}
+                                      onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
+                                    >
+                                      <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.8rem', height: 32 }}>
+                                        <SelectValue placeholder="Points" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {currentValue && (
+                                          <SelectItem value="CLEAR" style={{ color: 'oklch(60% 0.18 25)' }}>
+                                            Clear
+                                          </SelectItem>
+                                        )}
+                                        {availablePoints.length > 0 ? (
+                                          availablePoints.map(points => (
+                                            <SelectItem key={points} value={points.toString()}>
+                                              {points} point{points !== 1 ? 's' : ''}
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <SelectItem value="NONE" disabled>
+                                            No points available
+                                          </SelectItem>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* NFC Conference */}
+                    <div>
+                      <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: 'oklch(55% 0.16 240)', letterSpacing: '0.05em', marginBottom: '0.85rem', paddingBottom: '0.5rem', borderBottom: `2px solid oklch(55% 0.16 240)` }}>
+                        NFC
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                        {sortedPlayoffTeams
+                          .filter(team => team.conference?.toUpperCase() === 'NFC')
+                          .map(team => {
+                            const isPlaceholder = !team.team_name || team.team_name.trim() === '';
+                            const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
+                            const currentValue = confidencePoints[team.team_name];
+
+                            return (
+                              <div key={team.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: `1px solid ${border}` }}>
+                                <div style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textDim, width: 24, textAlign: 'center', flexShrink: 0 }}>
+                                  {team.seed || '-'}
+                                </div>
+                                <div style={{ flex: 1, ...b, fontSize: '0.875rem', color: isPlaceholder ? textDim : text, fontStyle: isPlaceholder ? 'italic' : 'normal' }}>
+                                  {isPlaceholder ? "Seed hasn't been determined yet" : team.team_name}
+                                </div>
+                                <div style={{ width: 110, flexShrink: 0 }}>
+                                  {isPlaceholder ? (
+                                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, fontStyle: 'italic' }}>N/A</p>
+                                  ) : (
+                                    <Select
+                                      value={currentValue?.toString() || ''}
+                                      onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
+                                    >
+                                      <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.8rem', height: 32 }}>
+                                        <SelectValue placeholder="Points" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {currentValue && (
+                                          <SelectItem value="CLEAR" style={{ color: 'oklch(60% 0.18 25)' }}>
+                                            Clear
+                                          </SelectItem>
+                                        )}
+                                        {availablePoints.length > 0 ? (
+                                          availablePoints.map(points => (
+                                            <SelectItem key={points} value={points.toString()}>
+                                              {points} point{points !== 1 ? 's' : ''}
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <SelectItem value="NONE" disabled>
+                                            No points available
+                                          </SelectItem>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Debug Mode — dev only */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: 'oklch(20% 0.04 72 / 0.3)', border: `1px solid oklch(72% 0.16 60 / 0.25)`, borderRadius: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <Checkbox
+                          id="debug-mode"
+                          checked={debugMode}
+                          onCheckedChange={(checked) => setDebugMode(checked === true)}
+                        />
+                        <Label
+                          htmlFor="debug-mode"
+                          style={{ ...b, fontSize: '0.8rem', color: amber, cursor: 'pointer' }}
+                        >
+                          Debug Mode: Submit to DB and navigate to playoff picks page
+                        </Label>
+                      </div>
+                      <button
+                        onClick={generateRandomConfidencePoints}
+                        style={{
+                          width: '100%', padding: '0.5rem',
+                          background: 'oklch(65% 0.12 290 / 0.15)',
+                          border: `1px solid oklch(65% 0.12 290 / 0.35)`,
+                          borderRadius: 6, color: 'oklch(65% 0.12 290)',
+                          ...bc, fontWeight: 700, fontSize: '0.75rem',
+                          letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                        }}
+                      >
+                        Generate Random Confidence Points
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    style={{
+                      width: '100%', marginTop: '1.25rem', padding: '0.7rem',
+                      background: isSubmitting ? textDim : green, color: text,
+                      border: 'none', borderRadius: 6,
+                      ...bc, fontWeight: 800, fontSize: '0.82rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {isSubmitting ? 'Submitting…' : 'Submit Confidence Points'}
+                  </button>
+                </>
+              )}
+
+              {selectedParticipantId && isCompleteSubmission && (
+                <div style={{ padding: '1rem', background: 'oklch(46% 0.14 155 / 0.12)', border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: 8 }}>
+                  <p style={{ ...b, fontSize: '0.875rem', color: greenHi }}>
+                    You have already submitted your playoff confidence points. They cannot be changed after submission.
+                  </p>
+                </div>
               )}
             </div>
+          )}
 
-            {/* Confidence Points Input - Bracket Style */}
-            {selectedParticipantId && !isCompleteSubmission && sortedPlayoffTeams.length > 0 && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* AFC Conference */}
-                  <div className="space-y-2">
-                    <div className="text-lg font-bold text-red-600 mb-4 pb-2 border-b-2 border-red-600">
-                      AFC
-                    </div>
-                    {sortedPlayoffTeams
-                      .filter(team => team.conference?.toUpperCase() === 'AFC')
-                      .map(team => {
-                        const isPlaceholder = !team.team_name || team.team_name.trim() === '';
-                        const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
-                        const currentValue = confidencePoints[team.team_name];
-                        
-                        return (
-                          <div key={team.id} className="flex items-center gap-3 py-2 border-b border-gray-200 last:border-b-0">
-                            <div className="w-8 text-center font-semibold text-gray-600">
-                              {team.seed || '-'}
-                            </div>
-                            <div className="flex-1 font-medium">
-                              {isPlaceholder ? (
-                                <span className="text-gray-400 italic">Seed hasn't been determined yet</span>
-                              ) : (
-                                team.team_name
-                              )}
-                            </div>
-                            <div className="w-32">
-                              {isPlaceholder ? (
-                                <div className="text-sm text-gray-400 italic">N/A</div>
-                              ) : (
-                                <Select
-                                  value={currentValue?.toString() || ''}
-                                  onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Points" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {currentValue && (
-                                      <SelectItem value="CLEAR" className="text-red-600">
-                                        Clear
-                                      </SelectItem>
-                                    )}
-                                    {availablePoints.length > 0 ? (
-                                      availablePoints.map(points => (
-                                        <SelectItem key={points} value={points.toString()}>
-                                          {points} point{points !== 1 ? 's' : ''}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="NONE" disabled>
-                                        No points available
-                                      </SelectItem>
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-
-                  {/* NFC Conference */}
-                  <div className="space-y-2">
-                    <div className="text-lg font-bold text-blue-600 mb-4 pb-2 border-b-2 border-blue-600">
-                      NFC
-                    </div>
-                    {sortedPlayoffTeams
-                      .filter(team => team.conference?.toUpperCase() === 'NFC')
-                      .map(team => {
-                        const isPlaceholder = !team.team_name || team.team_name.trim() === '';
-                        const availablePoints = isPlaceholder ? [] : getAvailableConfidencePoints(team.team_name);
-                        const currentValue = confidencePoints[team.team_name];
-                        
-                        return (
-                          <div key={team.id} className="flex items-center gap-3 py-2 border-b border-gray-200 last:border-b-0">
-                            <div className="w-8 text-center font-semibold text-gray-600">
-                              {team.seed || '-'}
-                            </div>
-                            <div className="flex-1 font-medium">
-                              {isPlaceholder ? (
-                                <span className="text-gray-400 italic">Seed hasn't been determined yet</span>
-                              ) : (
-                                team.team_name
-                              )}
-                            </div>
-                            <div className="w-32">
-                              {isPlaceholder ? (
-                                <div className="text-sm text-gray-400 italic">N/A</div>
-                              ) : (
-                                <Select
-                                  value={currentValue?.toString() || ''}
-                                  onValueChange={(value) => handleConfidencePointChange(team.team_name, value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Points" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {currentValue && (
-                                      <SelectItem value="CLEAR" className="text-red-600">
-                                        Clear
-                                      </SelectItem>
-                                    )}
-                                    {availablePoints.length > 0 ? (
-                                      availablePoints.map(points => (
-                                        <SelectItem key={points} value={points.toString()}>
-                                          {points} point{points !== 1 ? 's' : ''}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="NONE" disabled>
-                                        No points available
-                                      </SelectItem>
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-                      
-                {/* Debug Mode Checkbox - Only visible in development */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="space-y-3 mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="debug-mode"
-                        checked={debugMode}
-                        onCheckedChange={(checked) => setDebugMode(checked === true)}
-                      />
-                      <Label
-                        htmlFor="debug-mode"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        Debug Mode: Submit to DB and navigate to playoff picks page
-                      </Label>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={generateRandomConfidencePoints}
-                      className="w-full bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100"
-                    >
-                      🎲 Generate Random Confidence Points
-                    </Button>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="w-full mt-6"
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Confidence Points'}
-                </Button>
-              </>
-            )}
-
-            {selectedParticipantId && isCompleteSubmission && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-800 font-medium">
-                  You have already submitted your playoff confidence points. 
-                  They cannot be changed after submission.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        </div>
+      </section>
     </div>
   );
 }
 
 export default function PlayoffsPage() {
-  return <PlayoffsPageContent />;
+  return (
+    <AuthProvider>
+      <PlayoffsPageContent />
+    </AuthProvider>
+  );
 }
-
