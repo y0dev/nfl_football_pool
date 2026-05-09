@@ -212,6 +212,432 @@ input[type="url"], textarea {
 
 /* ── End landing page layout ─────────────────────────────────────────────── */
 
+/* ── Admin layout ─────────────────────────────────────────────────────────── */
+
+.admin-container {
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .admin-container { padding: 1.5rem; }
+}
+
+.admin-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 640px) {
+  .admin-header-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .admin-stats-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.admin-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-actions-grid { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .admin-actions-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.admin-week-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .admin-week-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.admin-2col-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-2col-grid { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+}
+
+.admin-3col-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-3col-grid { grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+}
+
+.admin-5col-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-5col-grid { grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+}
+
+@media (min-width: 1280px) {
+  .admin-5col-grid { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* ── End admin layout ─────────────────────────────────────────────────────── */
+
+/* ── Admin dark theme ────────────────────────────────────────────────────── */
+
+/* All admin headings use Barlow Condensed — bold, game-day energy */
+.admin-theme h1,
+.admin-theme h2,
+.admin-theme h3 {
+  font-family: var(--font-barlow-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Shadcn CSS variable overrides — all components pick this up automatically */
+.admin-theme {
+  --background:           oklch(13% 0.025 255);
+  --foreground:           oklch(95% 0.006 255);
+  --card:                 oklch(21% 0.04 255);
+  --card-foreground:      oklch(95% 0.006 255);
+  --popover:              oklch(20% 0.03 255);
+  --popover-foreground:   oklch(95% 0.006 255);
+  --primary:              oklch(46% 0.14 155);
+  --primary-foreground:   oklch(95% 0.006 255);
+  --secondary:            oklch(26% 0.035 255);
+  --secondary-foreground: oklch(80% 0.015 255);
+  --muted:                oklch(20% 0.03 255);
+  --muted-foreground:     oklch(55% 0.018 255);
+  --accent:               oklch(28% 0.035 255);
+  --accent-foreground:    oklch(95% 0.006 255);
+  --destructive:          oklch(50% 0.22 25);
+  --destructive-foreground: oklch(95% 0.006 255);
+  --border:               oklch(33% 0.03 255);
+  --input:                oklch(26% 0.03 255);
+  --ring:                 oklch(46% 0.14 155);
+}
+
+/* Flatten light page-background gradients to dark — targets only slate/blue-50 wrappers,
+   not dark-color gradients like from-blue-500 (avatar circles etc.) */
+.admin-theme .bg-gradient-to-br.from-slate-50,
+.admin-theme .bg-gradient-to-br.from-blue-50 {
+  background: oklch(13% 0.025 255) !important;
+}
+.admin-theme .bg-gradient-to-r.from-blue-50,
+.admin-theme .bg-gradient-to-r.from-green-50 {
+  background: oklch(20% 0.03 255) !important;
+}
+
+/* Hardcoded Tailwind text colors → theme equivalents */
+.admin-theme .text-blue-600  { color: oklch(59% 0.15 155); }
+.admin-theme .text-blue-700  { color: oklch(65% 0.12 155); }
+.admin-theme .text-blue-800  { color: oklch(75% 0.08 155); }
+.admin-theme .text-blue-900  { color: oklch(85% 0.05 155); }
+.admin-theme .text-gray-300  { color: oklch(72% 0.008 255); }
+.admin-theme .text-gray-400  { color: oklch(45% 0.015 255); }
+.admin-theme .text-gray-500  { color: oklch(55% 0.018 255); }
+.admin-theme .text-gray-600  { color: oklch(62% 0.015 255); }
+.admin-theme .text-gray-700  { color: oklch(68% 0.015 255); }
+.admin-theme .text-gray-800  { color: oklch(85% 0.006 255); }
+.admin-theme .text-gray-900  { color: oklch(90% 0.006 255); }
+.admin-theme .text-yellow-600 { color: oklch(74% 0.16 72); }
+.admin-theme .text-green-600  { color: oklch(59% 0.15 155); }
+.admin-theme .text-green-700  { color: oklch(65% 0.12 155); }
+.admin-theme .text-green-800  { color: oklch(75% 0.08 155); }
+.admin-theme .text-green-900  { color: oklch(85% 0.05 155); }
+.admin-theme .text-red-600    { color: oklch(62% 0.22 25); }
+.admin-theme .text-indigo-600 { color: oklch(62% 0.12 270); }
+.admin-theme .text-purple-600 { color: oklch(65% 0.12 290); }
+.admin-theme .text-purple-700 { color: oklch(58% 0.12 290); }
+.admin-theme .text-purple-800 { color: oklch(65% 0.10 290); }
+
+/* Hover overrides (Tailwind encodes colons as \3A in CSS) */
+.admin-theme .hover\:text-gray-900:hover { color: oklch(95% 0.006 255); }
+.admin-theme .hover\:text-blue-800:hover { color: oklch(59% 0.15 155); }
+
+/* Background overrides */
+.admin-theme .bg-blue-50   { background-color: oklch(20% 0.03 255) !important; }
+.admin-theme .bg-blue-100  { background-color: oklch(23% 0.03 255) !important; }
+.admin-theme .bg-green-50  { background-color: oklch(18% 0.03 155) !important; }
+.admin-theme .bg-green-100 { background-color: oklch(22% 0.04 155) !important; }
+.admin-theme .bg-gray-100  { background-color: oklch(22% 0.025 255) !important; }
+.admin-theme .bg-purple-100 { background-color: oklch(23% 0.05 290) !important; }
+.admin-theme .hover\:bg-blue-100:hover { background-color: oklch(23% 0.03 255) !important; }
+
+/* Border colors */
+.admin-theme .border-blue-200,
+.admin-theme .border-green-200,
+.admin-theme .border-orange-200,
+.admin-theme .border-indigo-200 { border-color: oklch(26% 0.03 255); }
+.admin-theme .border-blue-300   { border-color: oklch(36% 0.08 155); }
+.admin-theme .border-blue-600   { border-color: oklch(46% 0.14 155); }
+.admin-theme .border-purple-200 { border-color: oklch(30% 0.05 290); }
+
+/* Notification panel (uses orange in light theme) */
+.admin-theme .bg-orange-50      { background-color: oklch(20% 0.03 255) !important; }
+.admin-theme .text-orange-900   { color: oklch(95% 0.006 255); }
+.admin-theme .text-orange-800   { color: oklch(75% 0.015 255); }
+.admin-theme .bg-orange-500     { background-color: oklch(59% 0.15 155); }
+
+/* Avatar gradient (dark-safe — leaves from-blue-500 / to-purple-600 untouched) */
+
+/* Shadcn component utility overrides — forces correct colors when Tailwind v4
+   doesn't cascade CSS variables through the @theme bridge correctly */
+
+/* Primary buttons (default variant) */
+.admin-theme .bg-primary {
+  background-color: oklch(46% 0.14 155) !important;
+}
+.admin-theme .text-primary-foreground {
+  color: oklch(95% 0.006 255) !important;
+}
+.admin-theme .hover\:bg-primary\/90:hover {
+  background-color: oklch(52% 0.15 155) !important;
+}
+
+/* Destructive buttons */
+.admin-theme .bg-destructive {
+  background-color: oklch(50% 0.22 25) !important;
+}
+.admin-theme .text-destructive-foreground {
+  color: oklch(95% 0.006 255) !important;
+}
+.admin-theme .hover\:bg-destructive\/90:hover {
+  background-color: oklch(55% 0.22 25) !important;
+}
+
+/* Secondary / outline buttons */
+.admin-theme .bg-secondary {
+  background-color: oklch(26% 0.035 255) !important;
+}
+.admin-theme .text-secondary-foreground {
+  color: oklch(80% 0.015 255) !important;
+}
+.admin-theme .hover\:bg-secondary\/80:hover {
+  background-color: oklch(30% 0.035 255) !important;
+}
+.admin-theme .bg-background {
+  background-color: oklch(13% 0.025 255) !important;
+}
+.admin-theme .border-input {
+  border-color: oklch(30% 0.03 255) !important;
+}
+.admin-theme .hover\:bg-accent:hover {
+  background-color: oklch(28% 0.035 255) !important;
+}
+.admin-theme .hover\:text-accent-foreground:hover {
+  color: oklch(95% 0.006 255) !important;
+}
+
+/* Muted text (card descriptions, sub-labels) */
+.admin-theme .text-muted-foreground {
+  color: oklch(55% 0.018 255) !important;
+}
+
+/* Card background — yard-line top-accent gives football field identity */
+.admin-theme .bg-card {
+  background-color: oklch(21% 0.04 255) !important;
+  border-top: 3px solid oklch(46% 0.14 155) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Select / Input fields */
+.admin-theme .bg-popover {
+  background-color: oklch(20% 0.03 255) !important;
+}
+.admin-theme .text-popover-foreground {
+  color: oklch(95% 0.006 255) !important;
+}
+
+/* Badge variants */
+.admin-theme .bg-primary\/10 {
+  background-color: oklch(46% 0.14 155 / 0.1) !important;
+}
+
+/* Gold stat numbers — trophy/scoreboard energy for key metrics */
+.admin-gold-stat {
+  font-family: var(--font-barlow-condensed);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: oklch(74% 0.16 72);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+/* Commissioner command header — green rule below the title bar */
+.admin-command-header {
+  border-bottom: 2px solid oklch(46% 0.14 155);
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Scoreboard stat block — used in Current Week card */
+.admin-scoreboard-stat {
+  text-align: center;
+  padding: 0.75rem;
+}
+
+.admin-scoreboard-stat .admin-scoreboard-number {
+  font-family: var(--font-barlow-condensed);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.admin-scoreboard-stat .admin-scoreboard-label {
+  font-size: 0.75rem;
+  color: oklch(55% 0.018 255);
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Admin form field dark styling ──────────────────────────────────────── */
+
+/* ── 1. Native <input> elements (shadcn Input, datetime, number, etc.) ── */
+.admin-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-theme textarea {
+  background-color: oklch(20% 0.03 255) !important;
+  border:           1px solid oklch(30% 0.03 255) !important;
+  color:            oklch(95% 0.006 255) !important;
+  border-radius:    6px;
+}
+
+.admin-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.admin-theme textarea:focus {
+  border-color: oklch(46% 0.14 155) !important;
+  outline:      none !important;
+  box-shadow:   0 0 0 1px oklch(46% 0.14 155) !important;
+}
+
+.admin-theme input::placeholder,
+.admin-theme textarea::placeholder {
+  color:   oklch(48% 0.018 255) !important;
+  opacity: 1 !important;
+}
+
+/* ── 2. Hide number-input spinners completely ── */
+.admin-theme input[type="number"]::-webkit-inner-spin-button,
+.admin-theme input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  display: none !important;
+  margin: 0 !important;
+}
+.admin-theme input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+/* ── 3. datetime-local / date calendar icon ── */
+.admin-theme input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.admin-theme input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) opacity(0.6);
+  cursor: pointer;
+}
+
+/* ── 4. shadcn SelectTrigger — renders as <button role="combobox"> ──
+   Tailwind v4 + Turbopack does NOT generate flex/height classes from select.tsx,
+   so we must supply the full layout here. */
+.admin-theme button[role="combobox"] {
+  display:          flex !important;
+  align-items:      center !important;
+  justify-content:  space-between !important;
+  height:           2.25rem !important;
+  width:            100% !important;
+  padding:          0 0.75rem !important;
+  white-space:      nowrap !important;
+  border-radius:    6px !important;
+  background-color: oklch(20% 0.03 255) !important;
+  border:           1px solid oklch(30% 0.03 255) !important;
+  color:            oklch(95% 0.006 255) !important;
+  font-size:        0.875rem !important;
+  cursor:           pointer !important;
+  box-sizing:       border-box !important;
+}
+
+.admin-theme button[role="combobox"]:focus,
+.admin-theme button[role="combobox"][data-state="open"] {
+  border-color: oklch(46% 0.14 155) !important;
+  outline:      none !important;
+  box-shadow:   0 0 0 1px oklch(46% 0.14 155) !important;
+}
+
+/* Chevron icon inside SelectTrigger — keep it right-aligned and dimmed */
+.admin-theme button[role="combobox"] svg {
+  flex-shrink: 0 !important;
+  color:       oklch(50% 0.018 255) !important;
+  opacity:     1 !important;
+}
+
+/* ── 5. shadcn SelectContent popover ──
+   Radix renders SelectContent in a portal OUTSIDE .admin-theme,
+   so [data-radix-popper-content-wrapper] is used as the anchor instead. */
+[data-radix-popper-content-wrapper] [role="listbox"] {
+  background-color: oklch(20% 0.03 255) !important;
+  border:           1px solid oklch(30% 0.03 255) !important;
+  color:            oklch(95% 0.006 255) !important;
+  border-radius:    6px !important;
+}
+
+[data-radix-popper-content-wrapper] [role="option"] {
+  color: oklch(90% 0.008 255) !important;
+  cursor: pointer !important;
+}
+
+[data-radix-popper-content-wrapper] [role="option"]:hover,
+[data-radix-popper-content-wrapper] [role="option"][data-highlighted] {
+  background-color: oklch(26% 0.03 255) !important;
+  color:            oklch(95% 0.006 255) !important;
+}
+
+[data-radix-popper-content-wrapper] [role="option"][data-state="checked"],
+[data-radix-popper-content-wrapper] [role="option"][aria-selected="true"] {
+  background-color: oklch(26% 0.03 255) !important;
+  color:            oklch(59% 0.15 155) !important;
+}
+
+/* ── End admin form field dark styling ───────────────────────────────────── */
+
+/* ── End admin dark theme ─────────────────────────────────────────────────── */
+
 /* NFL Theme Gradients */
 .nfl-gradient {
   background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%);

@@ -1,12 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { 
+import {
   ArrowLeft,
   UserPlus,
   Mail,
@@ -14,123 +11,84 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Shield
+  Shield,
+  RefreshCw,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
 function CreateCommissionerContent() {
   const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    fullName: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', fullName: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Check if user is super admin on component mount
   useState(() => {
     const checkAdminStatus = async () => {
       if (user) {
         const superAdminStatus = await verifyAdminStatus(true);
         setIsSuperAdmin(superAdminStatus);
-        
-        if (!superAdminStatus) {
-          router.push('/dashboard');
-        }
+        if (!superAdminStatus) router.push('/dashboard');
       }
     };
-    
     checkAdminStatus();
   });
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.email.trim() || !formData.fullName.trim() || !formData.password.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Please fill in all fields', variant: 'destructive' });
       return;
     }
-
     if (formData.password.length < 6) {
-      toast({
-        title: 'Error',
-        description: 'Password must be at least 6 characters long',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Password must be at least 6 characters long', variant: 'destructive' });
       return;
     }
-
     setIsProcessing(true);
     try {
-      // Get the current session token
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
+      if (!session?.access_token) throw new Error('No active session');
 
       const response = await fetch('/api/admin/create-commissioner', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          email: formData.email.trim(),
-          fullName: formData.fullName.trim(),
-          password: formData.password
-        }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ email: formData.email.trim(), fullName: formData.fullName.trim(), password: formData.password }),
       });
-
       const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to create commissioner');
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create commissioner');
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Commissioner created successfully',
-      });
-
-      // Reset form
-      setFormData({
-        email: '',
-        fullName: '',
-        password: ''
-      });
-
-      // Redirect to commissioners list
+      toast({ title: 'Success', description: 'Commissioner created successfully' });
+      setFormData({ email: '', fullName: '', password: '' });
       router.push('/admin/commissioners');
-
     } catch (error) {
-      console.error('Error creating commissioner:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to create commissioner',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to create commissioner', variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }
@@ -138,148 +96,222 @@ function CreateCommissionerContent() {
 
   if (!isSuperAdmin) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-600">Access Denied</h2>
-          <p className="text-gray-500 mt-2">Only super admins can create commissioners</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <Shield style={{ width: 48, height: 48, color: textDim, margin: '0 auto 1rem' }} />
+          <h2 style={{ ...bc, fontSize: '1.25rem', color: textMid, fontWeight: 700 }}>Access Denied</h2>
+          <p style={{ ...b, fontSize: '0.875rem', color: textDim, marginTop: '0.5rem' }}>Only super admins can create commissioners</p>
         </div>
       </div>
     );
   }
 
+  const fieldStyle = {
+    background: card,
+    border: `1px solid ${border}`,
+    color: text,
+    ...b, fontSize: '0.88rem',
+  };
+
+  const labelStyle = {
+    ...bc, fontSize: '0.7rem', fontWeight: 700 as const,
+    letterSpacing: '0.08em', color: textDim,
+    textTransform: 'uppercase' as const,
+    display: 'flex', alignItems: 'center', gap: '0.35rem',
+    marginBottom: '0.4rem',
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.push('/admin/commissioners')}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Commissioners
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Create Commissioner</h1>
-          <p className="text-gray-600 mt-1">Add a new commissioner to the system</p>
-        </div>
-      </div>
+    <div style={{ background: bg, minHeight: '100vh' }}>
 
-      {/* Create Commissioner Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Commissioner Details
-          </CardTitle>
-          <CardDescription>
-            Enter the commissioner&apos;s information to create their account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                Email Address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="commissioner@example.com"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                required
-                className="w-full"
-              />
-            </div>
-
-            {/* Full Name Field */}
-            <div className="space-y-2">
-              <Label htmlFor="fullName" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Full Name
-              </Label>
-              <Input
-                id="fullName"
-                type="text"
-                placeholder="John Doe"
-                value={formData.fullName}
-                onChange={(e) => handleInputChange('fullName', e.target.value)}
-                required
-                className="w-full"
-              />
-            </div>
-
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  required
-                  className="w-full pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <p className="text-sm text-gray-500">
-                Password must be at least 6 characters long
-              </p>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex gap-4 pt-4">
-              <Button
-                type="submit"
-                disabled={isProcessing}
-                className="flex items-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    Create Commissioner
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
                 onClick={() => router.push('/admin/commissioners')}
-                disabled={isProcessing}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.6rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
               >
-                Cancel
-              </Button>
+                <ArrowLeft style={{ width: 12, height: 12 }} />
+                Back
+              </button>
+              <div style={{ width: 1, height: 20, background: border }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <UserPlus style={{ width: 14, height: 14, color: text }} />
+                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Create Commissioner
+                </span>
+              </div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2.5rem, 5vw, 4rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            System Administration
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(2rem, 5vw, 3rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+            Add<br /><span style={{ color: gold }}>Commissioner</span>
+          </h1>
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid, maxWidth: '36ch' }}>
+            Create a new commissioner account with access to manage their assigned pools.
+          </p>
+        </div>
+      </section>
+
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── FORM ── */}
+      <section style={{ background: surface, padding: '3rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ maxWidth: 520 }}>
+            <div style={{
+              background: card,
+              border: `1px solid ${border}`,
+              borderLeft: `3px solid ${green}`,
+              borderRadius: 8,
+              padding: '2rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <UserPlus style={{ width: 18, height: 18, color: greenHi }} />
+                <h2 style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Commissioner Details
+                </h2>
+              </div>
+
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label htmlFor="email" style={labelStyle}>
+                    <Mail style={{ width: 13, height: 13 }} /> Email Address
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="commissioner@example.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    required
+                    style={fieldStyle}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fullName" style={labelStyle}>
+                    <User style={{ width: 13, height: 13 }} /> Full Name
+                  </label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="John Doe"
+                    value={formData.fullName}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    required
+                    style={fieldStyle}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" style={labelStyle}>
+                    <Lock style={{ width: 13, height: 13 }} /> Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Enter password (min 6 characters)"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      required
+                      style={{ ...fieldStyle, paddingRight: '2.75rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: 0, top: 0, height: '100%',
+                        padding: '0 0.75rem', background: 'transparent',
+                        border: 'none', color: textDim, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem' }}>
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    style={{
+                      flex: 1,
+                      padding: '0.55rem 1rem',
+                      background: isProcessing ? 'oklch(35% 0.08 155)' : green,
+                      color: text, border: 'none', borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.82rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                    }}
+                  >
+                    {isProcessing
+                      ? <><RefreshCw style={{ width: 13, height: 13 }} className="animate-spin" /> Creating…</>
+                      : <><UserPlus style={{ width: 13, height: 13 }} /> Create Commissioner</>
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/admin/commissioners')}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '0.55rem 1rem',
+                      background: 'transparent', color: textMid,
+                      border: `1px solid ${border}`, borderRadius: 6,
+                      ...bc, fontWeight: 600, fontSize: '0.82rem',
+                      letterSpacing: '0.07em', textTransform: 'uppercase',
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ background: bg, borderTop: `1px solid ${border}`, padding: '1.5rem 0' }}>
+        <div className="lp-inner" style={{ textAlign: 'center' }}>
+          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>&copy; {new Date().getFullYear()} NFL Confidence Pool · Commissioner HQ</p>
+        </div>
+      </footer>
     </div>
   );
 }

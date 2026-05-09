@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +22,22 @@ const adminLoginSchema = z.object({
 
 type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 
+// Design tokens — match landing page
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const errRed  = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
 function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -31,186 +45,231 @@ function AdminLoginContent() {
   const { signIn, user } = useAuth();
   const router = useRouter();
 
-  // Redirect if user is already logged in and is a super admin
   useEffect(() => {
     if (user && user.is_super_admin) {
       router.push(createPageUrl('admindashboard'));
     } else if (user && user.is_super_admin === false) {
-      // Regular admin should go to their dashboard
       router.push(createPageUrl('dashboard'));
     }
   }, [user, router]);
 
   const form = useForm<AdminLoginFormData>({
     resolver: zodResolver(adminLoginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: AdminLoginFormData) => {
     setIsLoading(true);
     try {
-      console.log('Admin login attempt for:', data.email);
       const result = await loginUser(data.email, data.password);
-      
-      console.log('Login result:', result);
-      
       if (result.success && result.user) {
-        console.log('Login successful, user data:', result.user);
-        
-        // Set the user in the auth context
         await signIn(result.user);
-        
-        toast({
-          title: 'Success',
-          description: 'Admin login successful!',
-        });
-        
-        // Redirect based on admin status
+        toast({ title: 'Success', description: 'Login successful!' });
         if (result.user.is_super_admin) {
-          console.log('Redirecting super admin to admin dashboard');
           window.location.href = createPageUrl('admindashboard');
         } else {
-          console.log('Redirecting regular admin to dashboard');
           window.location.href = createPageUrl('dashboard');
         }
       } else {
-        console.error('Login failed:', result.error);
-        toast({
-          title: 'Error',
-          description: result.error || 'Invalid credentials',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: result.error || 'Invalid credentials', variant: 'destructive' });
       }
-    } catch (error) {
-      console.error('Admin login error:', error);
-      toast({
-        title: 'Error',
-        description: 'Login failed. Please try again.',
-        variant: 'destructive',
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Back to main page link */}
-        <div className="mb-4 sm:mb-6">
-          <Link 
-            href="/" 
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+    <div style={{
+      background: bg,
+      minHeight: '100vh',
+      backgroundImage: `repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 59px,
+        oklch(100% 0 0 / 0.022) 59px,
+        oklch(100% 0 0 / 0.022) 60px
+      )`,
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        borderBottom: `1px solid ${border}`,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              ...bc, fontWeight: 600, fontSize: '0.75rem',
+              letterSpacing: '0.08em', color: textMid, textTransform: 'uppercase',
+              textDecoration: 'none',
+            }}
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to main page</span>
-            <span className="sm:hidden">Back</span>
+            <ArrowLeft style={{ width: 14, height: 14 }} />
+            Back to Home
           </Link>
         </div>
+      </nav>
 
-        {/* Admin Login Card */}
-        <Card className="w-full shadow-lg">
-          <CardHeader className="text-center pb-4 sm:pb-6">
-            <div className="flex items-center justify-center mb-3 sm:mb-4">
-              <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
+      {/* ── HERO ── */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem' }}>
+        <div style={{ width: '100%', maxWidth: 400 }}>
+
+          {/* Icon + Title */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              background: green, margin: '0 auto 1rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Shield style={{ width: 24, height: 24, color: text }} />
             </div>
-                            <CardTitle className="text-xl sm:text-2xl font-bold">Commissioner Access</CardTitle>
-            <CardDescription className="text-sm sm:text-base">
-              Sign in to manage your NFL Confidence Pool
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <p style={{
+              ...bc, fontWeight: 700, fontSize: '0.65rem',
+              letterSpacing: '0.26em', color: greenHi,
+              textTransform: 'uppercase', marginBottom: '0.4rem',
+            }}>
+              Commissioner Access
+            </p>
+            <h1 style={{
+              ...bc, fontWeight: 900, fontSize: '2rem',
+              color: text, letterSpacing: '0.03em', textTransform: 'uppercase',
+            }}>
+              Sign In
+            </h1>
+            <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.4rem' }}>
+              Manage your NFL Confidence Pool
+            </p>
+          </div>
+
+          {/* Login Card */}
+          <div style={{
+            background: surface,
+            border: `1px solid ${border}`,
+            borderTop: `3px solid ${green}`,
+            borderRadius: 10,
+            padding: '2rem',
+          }}>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+              <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <FormField
                   control={form.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">Email Address</FormLabel>
+                      <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                        Email Address
+                      </FormLabel>
                       <FormControl>
-                        <Input 
-                          type="email" 
-                          placeholder="admin@example.com" 
-                          className="h-10 sm:h-12 text-sm sm:text-base"
+                        <Input
+                          type="email"
+                          placeholder="commissioner@example.com"
                           autoComplete="email"
-                          {...field} 
+                          style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem' }}
+                          {...field}
                         />
                       </FormControl>
-                      <FormMessage className="text-xs sm:text-sm" />
+                      <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">Password</FormLabel>
+                      <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                        Password
+                      </FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Input 
-                            type={showPassword ? 'text' : 'password'} 
-                            placeholder="Enter your password" 
-                            className="h-10 sm:h-12 text-sm sm:text-base pr-12"
+                        <div style={{ position: 'relative' }}>
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter your password"
                             autoComplete="current-password"
-                            {...field} 
+                            style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                            {...field}
                           />
-                          <Button
+                          <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                              position: 'absolute', right: 0, top: 0, height: '100%',
+                              padding: '0 0.75rem', background: 'transparent',
+                              border: 'none', color: textDim, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center',
+                            }}
                           >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
+                            {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                          </button>
                         </div>
                       </FormControl>
-                      <FormMessage className="text-xs sm:text-sm" />
+                      <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
                     </FormItem>
                   )}
                 />
-                <Button 
-                  type="submit" 
-                  className="w-full h-10 sm:h-12 text-sm sm:text-base font-medium" 
+
+                <button
+                  type="submit"
                   disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '0.7rem 1rem',
+                    background: isLoading ? 'oklch(35% 0.08 155)' : green,
+                    color: text, border: 'none', borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.85rem',
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                    transition: 'background 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  }}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign In as Commissioner'}
-                </Button>
+                  {isLoading ? (
+                    <>
+                      <span style={{ width: 14, height: 14, border: `2px solid oklch(50% 0.08 155)`, borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                      Signing in…
+                    </>
+                  ) : (
+                    <>
+                      <Shield style={{ width: 14, height: 14 }} />
+                      Sign In as Commissioner
+                    </>
+                  )}
+                </button>
               </form>
             </Form>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Help text */}
-        <div className="mt-4 sm:mt-6 text-center">
-          <p className="text-xs sm:text-sm text-gray-600">
-            Need help? Contact your pool commissioner
-          </p>
-        </div>
-        
-        {/* Additional links */}
-        <div className="mt-3 sm:mt-4 space-y-2">
-          <div className="text-center">
-            <Link href={createPageUrl('register')} className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+          {/* Footer links */}
+          <div style={{ textAlign: 'center', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Need help? Contact your pool commissioner
+            </p>
+            <Link
+              href={createPageUrl('register')}
+              style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textDecoration: 'none', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+            >
               Create Commissioner Account
             </Link>
           </div>
-          {/* <div className="text-center">
-            <Link href="/super-admin" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-              Admin Dashboard
-            </Link>
-          </div> */}
         </div>
       </div>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ borderTop: `1px solid ${border}`, padding: '1.25rem 0' }}>
+        <div className="lp-inner" style={{ textAlign: 'center' }}>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
+            &copy; {new Date().getFullYear()} NFL Confidence Pool
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
