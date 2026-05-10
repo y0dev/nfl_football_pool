@@ -238,12 +238,12 @@ function RegisterContent() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
-                        Full Name
+                        Display Name
                       </FormLabel>
                       <FormControl>
                         <Input
                           type="text"
-                          placeholder="Your full name"
+                          placeholder="Your name (shown in the pool)"
                           autoComplete="name"
                           style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem' }}
                           {...field}

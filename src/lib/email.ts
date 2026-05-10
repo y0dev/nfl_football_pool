@@ -403,6 +403,35 @@ class EmailService {
       html
     });
   }
+
+  async sendMagicLink(
+    email: string,
+    displayName: string,
+    magicUrl: string
+  ): Promise<boolean> {
+    const subject = 'Your Sunday Huddle Sign-In Link';
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:8px 0 0;font-size:26px;font-weight:900;color:#f1f5f9;letter-spacing:0.03em;text-transform:uppercase;">Your Sign-In Link</h1>
+        </div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.6;margin:0 0 24px;">
+          Hi ${displayName}, click the button below to sign in to your commissioner dashboard. This link expires in <strong style="color:#f1f5f9;">15 minutes</strong>.
+        </p>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${magicUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+            Sign In to Dashboard
+          </a>
+        </div>
+        <p style="color:#64748b;font-size:13px;line-height:1.6;margin:24px 0 0;text-align:center;">
+          If you did not request this link, you can safely ignore this email.<br>
+          This link can only be used once.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: email, subject, html });
+  }
 }
 
 // Export a singleton instance

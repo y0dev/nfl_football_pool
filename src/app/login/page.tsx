@@ -9,13 +9,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { loginUser } from '@/actions/loginUser';
 import { useAuth } from '@/lib/auth';
-import { Shield, Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
+import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { requestMagicLink } from '@/actions/magicLink';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -50,6 +51,8 @@ const FEATURES = [
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<'password' | 'magic' | 'magic-sent'>('password');
+  const [magicEmail, setMagicEmail] = useState('');
   const { toast } = useToast();
   const { signIn, user } = useAuth();
   const router = useRouter();
@@ -84,6 +87,22 @@ function LoginContent() {
       }
     } catch {
       toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onSendMagicLink = async () => {
+    if (!magicEmail || !magicEmail.includes('@')) {
+      toast({ title: 'Error', description: 'Please enter a valid email address.', variant: 'destructive' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await requestMagicLink(magicEmail);
+      setMode('magic-sent');
+    } catch {
+      toast({ title: 'Error', description: 'Failed to send magic link. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -216,7 +235,7 @@ function LoginContent() {
             </p>
           </div>
 
-          {/* Login Card */}
+          {/* Auth Card */}
           <div style={{
             background: card,
             border: `1px solid ${border}`,
@@ -225,72 +244,132 @@ function LoginContent() {
             padding: '2rem',
             marginBottom: '1.75rem',
           }}>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
-                        Email Address
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="commissioner@example.com"
-                          autoComplete="email"
-                          style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem' }}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
-                    </FormItem>
-                  )}
-                />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
-                        Password
-                      </FormLabel>
-                      <FormControl>
-                        <div style={{ position: 'relative' }}>
+            {/* ── PASSWORD MODE ── */}
+            {mode === 'password' && (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                          Email Address
+                        </FormLabel>
+                        <FormControl>
                           <Input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder="Enter your password"
-                            autoComplete="current-password"
-                            style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                            type="email"
+                            placeholder="commissioner@example.com"
+                            autoComplete="email"
+                            style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem' }}
                             {...field}
                           />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            style={{
-                              position: 'absolute', right: 0, top: 0, height: '100%',
-                              padding: '0 0.75rem', background: 'transparent',
-                              border: 'none', color: textDim, cursor: 'pointer',
-                              display: 'flex', alignItems: 'center',
-                            }}
-                          >
-                            {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
-                    </FormItem>
-                  )}
-                />
+                        </FormControl>
+                        <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                          Password
+                        </FormLabel>
+                        <FormControl>
+                          <div style={{ position: 'relative' }}>
+                            <Input
+                              type={showPassword ? 'text' : 'password'}
+                              placeholder="Enter your password"
+                              autoComplete="current-password"
+                              style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', color: textDim, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
+                      </FormItem>
+                    )}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    style={{
+                      width: '100%', padding: '0.75rem 1rem',
+                      background: isLoading ? 'oklch(35% 0.08 155)' : green,
+                      color: text, border: 'none', borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.85rem',
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      transition: 'background 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    }}
+                  >
+                    {isLoading ? (
+                      <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Signing in...</>
+                    ) : 'Sign In'}
+                  </button>
+
+                  {/* Divider + magic link toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                    <div style={{ flex: 1, height: 1, background: border }} />
+                    <span style={{ ...b, fontSize: '0.75rem', color: textDim, whiteSpace: 'nowrap' }}>or</span>
+                    <div style={{ flex: 1, height: 1, background: border }} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMode('magic')}
+                    style={{
+                      width: '100%', padding: '0.7rem 1rem',
+                      background: 'transparent', color: textMid,
+                      border: `1px solid ${border}`, borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.82rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Send Magic Link Instead
+                  </button>
+                </form>
+              </Form>
+            )}
+
+            {/* ── MAGIC LINK MODE ── */}
+            {mode === 'magic' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="commissioner@example.com"
+                    value={magicEmail}
+                    onChange={(e) => setMagicEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && onSendMagicLink()}
+                    autoComplete="email"
+                    autoFocus
+                    style={{ display: 'block', width: '100%', height: '2.5rem', padding: '0 0.75rem', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem', background: bg, border: `1px solid ${border}`, color: text, ...b }}
+                  />
+                </div>
 
                 <button
-                  type="submit"
+                  onClick={onSendMagicLink}
                   disabled={isLoading}
                   style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
+                    width: '100%', padding: '0.75rem 1rem',
                     background: isLoading ? 'oklch(35% 0.08 155)' : green,
                     color: text, border: 'none', borderRadius: 6,
                     ...bc, fontWeight: 700, fontSize: '0.85rem',
@@ -301,16 +380,45 @@ function LoginContent() {
                   }}
                 >
                   {isLoading ? (
-                    <>
-                      <span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign In as Commissioner'
-                  )}
+                    <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Sending...</>
+                  ) : 'Send Magic Link'}
                 </button>
-              </form>
-            </Form>
+
+                <button
+                  type="button"
+                  onClick={() => setMode('password')}
+                  style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0 }}
+                >
+                  Back to password sign in
+                </button>
+              </div>
+            )}
+
+            {/* ── MAGIC LINK SENT ── */}
+            {mode === 'magic-sent' && (
+              <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                <div style={{ width: 48, height: 48, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'oklch(46% 0.14 155 / 0.15)', border: '1px solid oklch(46% 0.14 155 / 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={greenHi} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
+                </div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                  Check Your Email
+                </p>
+                <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, textTransform: 'uppercase', lineHeight: 1, marginBottom: '0.75rem' }}>
+                  Magic Link Sent
+                </p>
+                <p style={{ ...b, fontSize: '0.875rem', color: textMid, lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                  We sent a sign-in link to <strong style={{ color: text }}>{magicEmail}</strong>. It expires in 15 minutes.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setMode('password'); setMagicEmail(''); }}
+                  style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0 }}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            )}
+
           </div>
 
           {/* Footer links */}
