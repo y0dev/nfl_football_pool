@@ -8,6 +8,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 interface Game {
   id: string;
@@ -172,13 +173,7 @@ function LandingPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: green, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Trophy className="h-4 w-4" style={{ color: text }} />
-              </div>
+              <BrandLogo variant="icon" size={32} />
               <span style={{
                 ...bc, fontWeight: 800, fontSize: '0.95rem',
                 letterSpacing: '0.07em', color: text, textTransform: 'uppercase',
@@ -212,7 +207,7 @@ function LandingPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => router.push('/admin/login')}
+                  onClick={() => router.push('/login')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                     padding: '0.45rem 0.9rem',

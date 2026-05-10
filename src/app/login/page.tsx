@@ -15,6 +15,7 @@ import { AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -110,16 +111,8 @@ function LoginContent() {
         <div style={{ position: 'absolute', top: 0, left: 0, width: 3, height: '100%', background: green }} />
 
         {/* Logo */}
-        <Link
-          href="/"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', marginBottom: '4rem' }}
-        >
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Shield style={{ width: 16, height: 16, color: text }} />
-          </div>
-          <span style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Sunday Huddle
-          </span>
+        <Link href="/" style={{ display: 'inline-block', textDecoration: 'none', marginBottom: '4rem' }}>
+          <BrandLogo variant="horizontal" size={68} />
         </Link>
 
         {/* Headline */}
@@ -190,10 +183,8 @@ function LoginContent() {
         }}
         className="login-mobile-brand"
         >
-          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Shield style={{ width: 12, height: 12, color: text }} />
-            </div>
+          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+            <BrandLogo variant="icon" size={28} />
             <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Sunday Huddle
             </span>
@@ -211,8 +202,8 @@ function LoginContent() {
 
           {/* Icon + Title */}
           <div style={{ marginBottom: '2.25rem' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
-              <Shield style={{ width: 24, height: 24, color: text }} />
+            <div style={{ marginBottom: '1.25rem' }}>
+              <BrandLogo variant="icon" size={52} />
             </div>
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
               Commissioner Access
@@ -315,10 +306,7 @@ function LoginContent() {
                       Signing in...
                     </>
                   ) : (
-                    <>
-                      <Shield style={{ width: 14, height: 14 }} />
-                      Sign In as Commissioner
-                    </>
+                    'Sign In as Commissioner'
                   )}
                 </button>
               </form>

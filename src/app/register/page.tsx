@@ -7,12 +7,13 @@ import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
+import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { createPageUrl, debugLog } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 // Design tokens — match landing page
 const bg      = 'oklch(13% 0.025 255)';
@@ -118,13 +119,8 @@ function RegisterContent() {
         <div style={{ position: 'absolute', top: 0, left: 0, width: 3, height: '100%', background: green }} />
 
         {/* Logo */}
-        <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', marginBottom: '4rem' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Shield style={{ width: 16, height: 16, color: text }} />
-          </div>
-          <span style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Sunday Huddle
-          </span>
+        <Link href="/" style={{ display: 'inline-block', textDecoration: 'none', marginBottom: '4rem' }}>
+          <BrandLogo variant="horizontal" size={68} />
         </Link>
 
         {/* Headline */}
@@ -191,10 +187,8 @@ function RegisterContent() {
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Shield style={{ width: 12, height: 12, color: text }} />
-            </div>
+          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+            <BrandLogo variant="icon" size={28} />
             <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Sunday Huddle
             </span>
@@ -212,8 +206,8 @@ function RegisterContent() {
 
           {/* Icon + Title */}
           <div style={{ marginBottom: '2rem' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
-              <Shield style={{ width: 24, height: 24, color: text }} />
+            <div style={{ marginBottom: '1.25rem' }}>
+              <BrandLogo variant="icon" size={52} />
             </div>
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
               Commissioner Access
@@ -366,10 +360,7 @@ function RegisterContent() {
                       Creating Account...
                     </>
                   ) : (
-                    <>
-                      <Shield style={{ width: 14, height: 14 }} />
-                      Create Commissioner Account
-                    </>
+                    'Create Commissioner Account'
                   )}
                 </button>
               </form>

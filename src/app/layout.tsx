@@ -22,6 +22,15 @@ export const metadata: Metadata = {
   },
   description:
     "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
+  icons: {
+    icon: '/brand/sh-app-icon.png',
+    apple: '/brand/sh-app-icon.png',
+  },
+  openGraph: {
+    title: 'Sunday Huddle',
+    description: 'Picks. People. Compete. — NFL confidence pools made simple.',
+    images: [{ url: '/brand/sh-logo.png', width: 1254, height: 630 }],
+  },
 };
 
 export default function RootLayout({
