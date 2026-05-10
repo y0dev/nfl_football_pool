@@ -1,18 +1,29 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Users, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getSupabaseClient } from '@/lib/supabase';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { Game } from '@/types/game';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const blue    = 'oklch(65% 0.15 250)';
+const amber   = 'oklch(72% 0.16 60)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
+const inputStyle = { ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box' as const, fontSize: '0.875rem' };
 
 interface Participant {
   id: string;
@@ -30,26 +41,16 @@ interface OverrideMondayNightScoreProps {
   seasonType: number;
 }
 
-export function OverrideMondayNightScore({
-  poolId,
-  poolName,
-  week,
-  season,
-  seasonType
-}: OverrideMondayNightScoreProps) {
+export function OverrideMondayNightScore({ poolId, poolName, week, season, seasonType }: OverrideMondayNightScoreProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<string>('');
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
-  const [mondayNightGameInfo, setMondayNightGameInfo] = useState<{
-    game: Game;
-    displayText: string;
-  } | null>(null);
+  const [mondayNightGameInfo, setMondayNightGameInfo] = useState<{ game: Game; displayText: string } | null>(null);
   const { toast } = useToast();
 
-  // Check if this is a period week or Super Bowl
   const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
   const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
   const shouldShowOverride = isPeriodWeek || isSuperBowl;
@@ -58,52 +59,24 @@ export function OverrideMondayNightScore({
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
-      
       if (!poolId) {
-        console.error('No poolId provided for loading participants');
-        toast({
-          title: 'Error',
-          description: 'Pool ID is required to load participants',
-          variant: 'destructive'
-        });
+        toast({ title: 'Error', description: 'Pool ID is required to load participants', variant: 'destructive' });
         return;
       }
-
-      // Get all participants from the pool (not just those who submitted picks)
-      const { data: participantsData, error: participantsError } = await supabase
+      const { data, error } = await supabase
         .from('participants')
         .select('id, name, email')
         .eq('pool_id', poolId)
         .eq('is_active', true)
         .order('name');
-
-      if (participantsError) {
-        console.error('Error loading participants:', participantsError);
-        toast({
-          title: 'Error',
-          description: 'Failed to load participants',
-          variant: 'destructive'
-        });
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
         return;
       }
-
-      // Transform to the expected format
-      const participantsList = (participantsData || []).map(participant => ({
-        id: participant.id,
-        name: participant.name,
-        email: participant.email,
-        poolId: poolId,
-        poolName: poolName
-      }));
-
-      setParticipants(participantsList);
+      setParticipants((data || []).map(p => ({ id: p.id, name: p.name, email: p.email, poolId, poolName })));
     } catch (error) {
       console.error('Error loading participants:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load participants',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -116,10 +89,7 @@ export function OverrideMondayNightScore({
         const result = await response.json();
         if (result.success) {
           setGames(result.games);
-          
-          // Identify the Monday night game
-          const mondayNightInfo = getMondayNightGameInfo(result.games);
-          setMondayNightGameInfo(mondayNightInfo);
+          setMondayNightGameInfo(getMondayNightGameInfo(result.games));
         }
       }
     } catch (error) {
@@ -136,34 +106,18 @@ export function OverrideMondayNightScore({
 
   const handleSubmit = async () => {
     if (!selectedParticipant || !mondayNightScore) {
-      toast({
-        title: 'Error',
-        description: 'Please select a participant and enter a Monday night score',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Please select a participant and enter a Monday night score', variant: 'destructive' });
       return;
     }
-
     const score = parseInt(mondayNightScore);
     if (isNaN(score) || score < 0) {
-      toast({
-        title: 'Error',
-        description: 'Monday night score must be a positive number',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Monday night score must be a positive number', variant: 'destructive' });
       return;
     }
-
-    // Get the pool ID for the selected participant
     const participant = participants.find(p => p.id === selectedParticipant);
     const targetPoolId = poolId || participant?.poolId;
-    
     if (!targetPoolId) {
-      toast({
-        title: 'Error',
-        description: 'Could not determine pool for selected participant',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Could not determine pool for selected participant', variant: 'destructive' });
       return;
     }
 
@@ -171,160 +125,112 @@ export function OverrideMondayNightScore({
     try {
       const response = await fetch('/api/admin/override-monday-night-score', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          poolId: targetPoolId,
-          participantId: selectedParticipant,
-          week,
-          season,
-          seasonType,
-          mondayNightScore: score
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poolId: targetPoolId, participantId: selectedParticipant, week, season, seasonType, mondayNightScore: score }),
       });
-
       const result = await response.json();
-
       if (result.success) {
-        toast({
-          title: 'Success',
-          description: result.message,
-        });
+        toast({ title: 'Success', description: result.message });
         setSelectedParticipant('');
         setMondayNightScore('');
       } else {
-        toast({
-          title: 'Error',
-          description: result.error,
-          variant: 'destructive'
-        });
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error submitting Monday night score:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to submit Monday night score',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Failed to submit Monday night score', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!shouldShowOverride) {
-    return null;
-  }
+  if (!shouldShowOverride) return null;
+
+  const submitDisabled = !selectedParticipant || !mondayNightScore || isSubmitting;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-blue-600" />
-          Override Monday Night Score
-        </CardTitle>
-        <CardDescription>
-          Add Monday night game score predictions for participants in this pool.
-          {isPeriodWeek && `This week (${PERIOD_WEEKS.join(', ')}) serves as a tie-breaker.`}
-          {isSuperBowl && ' This is the Super Bowl where tie breakers are used.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Monday Night Game Info */}
-        {mondayNightGameInfo ? (
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="h-4 w-4 text-blue-600" />
-              <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+        <Target style={{ width: 14, height: 14, color: blue }} />
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Override Monday Night Score</p>
+      </div>
+      <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
+        Add Monday night game score predictions for participants in this pool.
+        {isPeriodWeek && ` This week (${PERIOD_WEEKS.join(', ')}) serves as a tie-breaker.`}
+        {isSuperBowl && ' This is the Super Bowl where tie breakers are used.'}
+      </p>
+
+      {/* Game Info */}
+      {mondayNightGameInfo ? (
+        <div style={{ padding: '0.75rem 0.85rem', background: `color-mix(in oklch, ${blue} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${blue} 25%, ${border})`, borderRadius: 6, marginBottom: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+            <Target style={{ width: 13, height: 13, color: blue }} />
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: blue, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monday Night Game</span>
+          </div>
+          <p style={{ ...b, fontWeight: 700, fontSize: '0.9rem', color: text }}>{mondayNightGameInfo.displayText}</p>
+          <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
+            Game ID: {mondayNightGameInfo.game.id} | Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+          </p>
+        </div>
+      ) : (
+        <div style={{ padding: '0.75rem 0.85rem', background: `color-mix(in oklch, ${amber} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${amber} 25%, ${border})`, borderRadius: 6, marginBottom: '0.85rem' }}>
+          <p style={{ ...b, fontSize: '0.78rem', color: amber }}>No Monday night game found for Week {week}. Please check the games data.</p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem' }}>
+          <Loader2 style={{ width: 20, height: 20, color: textDim, animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading participants...</span>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+            <div>
+              <label style={labelStyle}>Participant</label>
+              <Select value={selectedParticipant} onValueChange={setSelectedParticipant}>
+                <SelectTrigger><SelectValue placeholder="Select a participant" /></SelectTrigger>
+                <SelectContent>
+                  {participants.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span>{p.name}</span>
+                      {p.email && <span style={{ color: textDim, fontSize: '0.75em', marginLeft: '0.35rem' }}>({p.email})</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="text-lg font-semibold text-blue-800">
-              {mondayNightGameInfo.displayText}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              Game ID: {mondayNightGameInfo.game.id} | Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+            <div>
+              <label style={labelStyle}>Monday Night Score</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g., 45"
+                value={mondayNightScore}
+                onChange={(e) => setMondayNightScore(e.target.value)}
+                style={inputStyle}
+              />
+              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>Total points predicted for Monday night game</p>
             </div>
           </div>
-        ) : (
-          <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-            <div className="text-sm text-yellow-800">
-              No Monday night game found for Week {week}. Please check the games data.
-            </div>
-          </div>
-        )}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading participants...</span>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="participant">Participant</Label>
-                <Select value={selectedParticipant} onValueChange={setSelectedParticipant}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a participant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {participants.map((participant) => (
-                      <SelectItem key={participant.id} value={participant.id}>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          <div className="flex flex-col">
-                            <span>{participant.name}</span>
-                            {participant.email && (
-                              <span className="text-xs text-gray-500">({participant.email})</span>
-                            )}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div>
-                <Label htmlFor="mondayNightScore">Monday Night Score</Label>
-                <Input
-                  id="mondayNightScore"
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="e.g., 45"
-                  value={mondayNightScore}
-                  onChange={(e) => setMondayNightScore(e.target.value)}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Total points predicted for Monday night game
-                </p>
-              </div>
-            </div>
+          <button
+            onClick={handleSubmit}
+            disabled={submitDisabled}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: submitDisabled ? border : green, color: submitDisabled ? textDim : text, border: 'none', borderRadius: 6, cursor: submitDisabled ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+          >
+            {isSubmitting ? <Loader2 style={{ width: 13, height: 13, animation: 'spin 0.8s linear infinite' }} /> : <Save style={{ width: 13, height: 13 }} />}
+            {isSubmitting ? 'Adding Score...' : 'Add Monday Night Score'}
+          </button>
 
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleSubmit}
-                disabled={!selectedParticipant || !mondayNightScore || isSubmitting}
-                className="flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {isSubmitting ? 'Adding Score...' : 'Add Monday Night Score'}
-              </Button>
+          {participants.length === 0 && (
+            <div style={{ marginTop: '0.85rem', padding: '0.75rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>No participants found with submitted picks for this week.</p>
             </div>
-
-            {participants.length === 0 && (
-              <Alert>
-                <AlertDescription>
-                  No participants found with submitted picks for this week.
-                </AlertDescription>
-              </Alert>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </>
+      )}
+    </div>
   );
 }

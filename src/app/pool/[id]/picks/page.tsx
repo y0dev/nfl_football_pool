@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -180,6 +181,7 @@ function PoolPicksContent() {
   const [weekHasPicks, setWeekHasPicks] = useState(false);
   const [weekEnded, setWeekEnded] = useState(false);
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
+  const [isOffseasonState, setIsOffseasonState] = useState(false);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -499,6 +501,11 @@ function PoolPicksContent() {
       if (!isSeasonTypeValid) {
         try {
           const upcomingWeek = await getUpcomingWeek();
+          if (upcomingWeek.seasonType === 0) {
+            setIsOffseasonState(true);
+            setIsLoading(false);
+            return;
+          }
           weekToUse = upcomingWeek.week;
           seasonTypeToUse = upcomingWeek.seasonType;
           setCurrentWeek(weekToUse);
@@ -540,6 +547,11 @@ function PoolPicksContent() {
         debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         const upcomingWeek = await getUpcomingWeek();
+        if (upcomingWeek.seasonType === 0) {
+          setIsOffseasonState(true);
+          setIsLoading(false);
+          return;
+        }
         weekToUse = upcomingWeek.week;
         seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
@@ -1071,6 +1083,21 @@ function PoolPicksContent() {
           <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
           <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading pool picks…</p>
         </div>
+      </div>
+    );
+  }
+
+  // ── OFFSEASON ─────────────────────────────────────────────────────────────────
+  if (isOffseasonState) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+        <section style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+          <div className="lp-inner">
+            <OffseasonBanner />
+          </div>
+        </section>
+        <Footer pageName="Pool Picks" />
       </div>
     );
   }

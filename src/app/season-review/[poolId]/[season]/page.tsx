@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 
@@ -71,6 +70,7 @@ export default function SeasonReviewPage() {
   const [data, setData] = useState<SeasonReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'winners' | 'participants' | 'weekly'>('overview');
 
   useEffect(() => {
     loadSeasonData();
@@ -214,21 +214,31 @@ export default function SeasonReviewPage() {
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', width: '100%' }}>
-              {['overview', 'winners', 'participants', 'weekly'].map((tab) => (
-                <TabsTrigger
-                  key={tab}
-                  value={tab}
-                  style={{ flex: 1, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase' }}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Tab bar */}
+            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', width: '100%' }}>
+              {(['overview', 'winners', 'participants', 'weekly'] as const).map((tab) => {
+                const active = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      flex: 1, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                      padding: '0.45rem 0.5rem', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      background: active ? card : 'transparent',
+                      color: active ? text : textMid,
+                    }}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Overview Tab */}
-            <TabsContent value="overview" className="space-y-4">
+            {activeTab === 'overview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
               {/* Season Winner */}
               {seasonWinner && (
@@ -366,10 +376,12 @@ export default function SeasonReviewPage() {
                   </div>
                 </div>
               )}
-            </TabsContent>
+            </div>
+            )}
 
             {/* Winners Tab */}
-            <TabsContent value="winners" className="space-y-4">
+            {activeTab === 'winners' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
                 <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Winners</p>
                 <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>All weekly champions for the {season} season</p>
@@ -409,10 +421,12 @@ export default function SeasonReviewPage() {
                   ))}
                 </div>
               </div>
-            </TabsContent>
+            </div>
+            )}
 
             {/* Participants Tab */}
-            <TabsContent value="participants" className="space-y-4">
+            {activeTab === 'participants' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
                 <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Participant Statistics</p>
                 <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Detailed stats for all participants</p>
@@ -457,10 +471,12 @@ export default function SeasonReviewPage() {
                   ))}
                 </div>
               </div>
-            </TabsContent>
+            </div>
+            )}
 
             {/* Weekly Tab */}
-            <TabsContent value="weekly" className="space-y-4">
+            {activeTab === 'weekly' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
                 <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Breakdown</p>
                 <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Week-by-week performance analysis</p>
@@ -498,8 +514,9 @@ export default function SeasonReviewPage() {
                   ))}
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+            )}
+          </div>
         </div>
       </section>
 

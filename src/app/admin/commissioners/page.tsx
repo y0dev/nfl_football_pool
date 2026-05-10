@@ -393,7 +393,7 @@ function CommissionersManagementContent() {
 
       {/* Reset Password Modal */}
       <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ maxWidth: '28rem' }}>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Key style={{ width: 18, height: 18 }} /> Reset Password

@@ -15,6 +15,7 @@ import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { Game, SelectedUser } from '@/types/game';
 import { userSessionManager } from '@/lib/user-session';
 import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -54,6 +55,7 @@ function ParticipantContent() {
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
   const [poolSeason, setPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
+  const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
@@ -156,6 +158,11 @@ function ParticipantContent() {
         }
       } else {
         const upcomingWeek = await getUpcomingWeek();
+        if (upcomingWeek.seasonType === 0) {
+          setIsOffseasonState(true);
+          setIsLoading(false);
+          return;
+        }
         weekToUse = upcomingWeek.week;
         seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
@@ -659,6 +666,17 @@ function ParticipantContent() {
             <div style={{ height: 36, background: border, borderRadius: 6, opacity: 0.6 }} />
           </div>
           <p style={{ ...b, color: textMid, fontSize: '0.875rem', marginTop: '1rem', textAlign: 'center' }}>Redirecting to new page...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Offseason state ──
+  if (isOffseasonState) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <div style={{ padding: 'clamp(2rem, 4vw, 3rem) 1rem', maxWidth: 1200, margin: '0 auto' }}>
+          <OffseasonBanner />
         </div>
       </div>
     );

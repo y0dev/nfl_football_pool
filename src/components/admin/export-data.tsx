@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Download, FileSpreadsheet, Calendar, Trophy, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PERIOD_WEEKS } from '@/lib/utils';
@@ -40,11 +39,18 @@ const labelStyle = {
   display: 'block', marginBottom: '0.4rem',
 };
 
-const fieldStyle = {
+const seasonInputStyle = {
+  ...b,
   background: card,
   border: `1px solid oklch(30% 0.03 255)`,
   color: text,
-  ...b, fontSize: '0.88rem',
+  fontSize: '0.88rem',
+  width: '100%',
+  height: '2.5rem',
+  padding: '0 0.75rem',
+  borderRadius: 6,
+  boxSizing: 'border-box' as const,
+  appearance: 'auto' as const,
 };
 
 export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = new Date().getFullYear() }: ExportDataProps) {
@@ -262,12 +268,14 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
 
             <div>
               <label style={labelStyle}>Season</label>
-              <Input
+              <input
                 type="number"
                 value={selectedSeason}
                 onChange={(e) => setSelectedSeason(e.target.value)}
-                min="2020" max="2030"
-                style={fieldStyle}
+                min="2020"
+                max="2030"
+                step="1"
+                style={seasonInputStyle}
               />
             </div>
 
@@ -373,12 +381,14 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
 
             <div>
               <label style={labelStyle}>Season</label>
-              <Input
+              <input
                 type="number"
                 value={selectedSeason}
                 onChange={(e) => setSelectedSeason(e.target.value)}
-                min="2020" max="2030"
-                style={fieldStyle}
+                min="2020"
+                max="2030"
+                step="1"
+                style={seasonInputStyle}
               />
             </div>
           </div>

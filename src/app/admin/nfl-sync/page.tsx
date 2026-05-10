@@ -442,7 +442,7 @@ function NFLSyncContent() {
 
       {/* Sync Results Dialog */}
       <Dialog open={showSyncPopup} onOpenChange={setShowSyncPopup}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: '42rem', maxHeight: '80vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {lastSyncResult?.success

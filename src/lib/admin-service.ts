@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, debugError } from './utils';
+import { debugLog, debugError, isOffseason } from './utils';
 
 export interface DashboardStats {
   totalPools: number;
@@ -98,6 +98,20 @@ export class AdminService {
       if (process.env.NODE_ENV === 'development') {
         console.log('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
       }
+
+      const now = new Date();
+      
+      if (isOffseason(now)) {
+        return {
+          totalPools: 0,
+          activePools: 0,
+          totalParticipants: 0,
+          totalGames: 0,
+          pendingSubmissions: 0,
+          completedSubmissions: 0
+        };
+      }
+          
 
       let poolsQuery = this.supabase
         .from('pools')

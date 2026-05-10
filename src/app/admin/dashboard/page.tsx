@@ -26,6 +26,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
 import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens — match landing page exactly
 const bg      = 'oklch(13% 0.025 255)';
@@ -112,9 +113,11 @@ function AdminDashboardContent() {
   }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
-    if (currentWeek && currentSeasonType && isSuperAdmin !== undefined) {
-      loadDashboardStats();
-      loadLastGameUpdate();
+    if (currentWeek && currentSeasonType !== undefined && isSuperAdmin !== undefined) {
+      if (currentSeasonType !== 0) {
+        loadDashboardStats();
+        loadLastGameUpdate();
+      }
       generateNotifications();
     }
   }, [currentWeek, currentSeasonType, isSuperAdmin]);
@@ -249,7 +252,9 @@ function AdminDashboardContent() {
     );
   }
 
-  const seasonLabel = currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
+
+  const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
+  const weekTitle = currentSeasonType === 0 ? 'Offseason' : `Week ${currentWeek} - ${seasonLabel}`;
 
   const statItems = [
     { label: 'Total Pools',    value: dashboardStats.totalPools,                          sub: `${dashboardStats.activePools} active` },
@@ -485,6 +490,15 @@ function AdminDashboardContent() {
       {/* ── green rule ── */}
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
+      {/* ── OFFSEASON BANNER ── */}
+      {currentSeasonType === 0 && (
+        <section style={{ background: bg, padding: '2rem 0' }}>
+          <div className="lp-inner">
+            <OffseasonBanner message="The NFL season has ended. Use the tools below to manage pools and pre-load the upcoming season's games." />
+          </div>
+        </section>
+      )}
+
       {/* ── QUICK ACTIONS ── */}
       <section style={{ background: surface, padding: '3rem 0' }}>
         <div className="lp-inner">
@@ -596,7 +610,7 @@ function AdminDashboardContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
             <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
             <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-              Week {currentWeek} Scoreboard
+              {weekTitle}
             </h3>
             <span style={{ ...bc, fontSize: '0.72rem', color: textDim, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               {seasonLabel}
@@ -666,6 +680,7 @@ function AdminDashboardContent() {
               borderLeft: `3px solid ${green}`,
               borderRadius: 8,
               padding: '1.5rem',
+              alignSelf: 'start',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                 <Shield style={{ width: 16, height: 16, color: greenHi }} />

@@ -1,14 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Share2, Link as LinkIcon, QrCode } from 'lucide-react';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const blue    = 'oklch(65% 0.15 250)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
 
 interface ParticipantLinksProps {
   poolId: string;
@@ -20,62 +30,39 @@ interface ParticipantLinksProps {
 export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: ParticipantLinksProps) {
   const [currentWeek, setCurrentWeek] = useState<number>(weekNumber || 1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(seasonType || 2);
-  const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
-  // Generate participant link
   const generateParticipantLink = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    // All season types use the picks route
     return `${baseUrl}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
   };
 
-  // Copy link to clipboard
   const copyLink = async () => {
     const link = generateParticipantLink();
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
-      toast({
-        title: 'Link Copied',
-        description: 'Participant link copied to clipboard',
-      });
+      toast({ title: 'Link Copied', description: 'Participant link copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to copy link',
-        variant: 'destructive',
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy link', variant: 'destructive' });
     }
   };
 
-  // Share link (mobile-friendly)
   const shareLink = async () => {
     const link = generateParticipantLink();
-    const weekLabel = currentSeasonType === 3 
-      ? `Round ${currentWeek}` 
-      : `Week ${currentWeek}`;
-    const text = `Join ${poolName} - ${weekLabel} Sunday Huddle: ${link}`;
-    
+    const weekLabel = currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`;
+    const text = `Join ${poolName} — ${weekLabel} Sunday Huddle: ${link}`;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `${poolName} - ${weekLabel}`,
-          text: text,
-          url: link,
-        });
-      } catch (error) {
-        console.log('Share cancelled or failed');
-      }
+        await navigator.share({ title: `${poolName} - ${weekLabel}`, text, url: link });
+      } catch { /* share cancelled */ }
     } else {
-      // Fallback to copy
       copyLink();
     }
   };
 
-  // Load current week on mount
   useEffect(() => {
     const loadWeek = async () => {
       try {
@@ -90,113 +77,98 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
   }, []);
 
   const participantLink = generateParticipantLink();
+  const weekLabel = currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <LinkIcon className="h-5 w-5" />
-          Participant Links
-        </CardTitle>
-        <CardDescription>
-          Generate and share links for participants to join your pool
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Pool and Week Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+        <LinkIcon style={{ width: 14, height: 14, color: textMid }} />
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Participant Links</p>
+      </div>
+      <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1.25rem' }}>Generate and share links for participants to join your pool</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+        {/* Pool + Week info */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div>
-            <Label className="text-sm font-medium">Pool</Label>
-            <div className="mt-1">
-              <Badge variant="secondary" className="text-sm">
-                {poolName}
-              </Badge>
-            </div>
+            <label style={labelStyle}>Pool</label>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: textMid, padding: '0.25rem 0.6rem', background: surface, border: `1px solid ${border}`, borderRadius: 20 }}>{poolName}</span>
           </div>
           <div>
-            <Label className="text-sm font-medium">
-              {currentSeasonType === 3 ? 'Round' : 'Week'}
-            </Label>
-            <div className="mt-1">
-              <Badge variant="outline" className="text-sm">
-                {currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`}
-              </Badge>
-            </div>
+            <label style={labelStyle}>{currentSeasonType === 3 ? 'Round' : 'Week'}</label>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: textMid, padding: '0.25rem 0.6rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 20 }}>{weekLabel}</span>
           </div>
         </div>
 
-        {/* Generated Link */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Participant Link</Label>
-          <div className="flex gap-2">
-            <Input
+        {/* Link */}
+        <div>
+          <label style={labelStyle}>Participant Link</label>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              type="text"
               value={participantLink}
               readOnly
-              className="flex-1 text-sm"
+              style={{ flex: 1, ...b, background: surface, border: `1px solid ${border}`, color: textMid, padding: '0.45rem 0.75rem', borderRadius: 6, fontSize: '0.8rem', boxSizing: 'border-box' as const }}
             />
-            <Button
+            <button
               onClick={copyLink}
-              variant="outline"
-              size="sm"
-              className="shrink-0"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.75rem', background: 'transparent', color: copied ? greenHi : textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' as const }}
             >
-              <Copy className="h-4 w-4" />
+              <Copy style={{ width: 12, height: 12 }} />
               {copied ? 'Copied!' : 'Copy'}
-            </Button>
+            </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
             onClick={shareLink}
-            className="flex-1 sm:flex-none"
-            disabled={isLoading}
+            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.55rem', background: green, color: text, border: 'none', borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
           >
-            <Share2 className="h-4 w-4 mr-2" />
+            <Share2 style={{ width: 13, height: 13 }} />
             Share Link
-          </Button>
-          
-          <Button
-            variant="outline"
-            className="flex-1 sm:flex-none"
+          </button>
+          <button
             onClick={() => window.open(participantLink, '_blank')}
+            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.55rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
           >
-            <QrCode className="h-4 w-4 mr-2" />
+            <QrCode style={{ width: 13, height: 13 }} />
             Preview Link
-          </Button>
+          </button>
         </div>
 
         {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-2">How to use:</h4>
-          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Copy or share the participant link above</li>
-            <li>Send it to your pool participants via text, email, or messaging</li>
-            <li>Participants can click the link to access the pool directly</li>
-            <li>The link includes the pool ID and current week automatically</li>
+        <div style={{ padding: '0.85rem 1rem', background: `color-mix(in oklch, ${blue} 7%, ${surface})`, border: `1px solid color-mix(in oklch, ${blue} 22%, ${border})`, borderRadius: 6 }}>
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: blue, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>How to use</p>
+          <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            {[
+              'Copy or share the participant link above',
+              'Send it to your pool participants via text, email, or messaging',
+              'Participants can click the link to access the pool directly',
+              'The link includes the pool ID and current week automatically',
+            ].map((item, i) => (
+              <li key={i} style={{ listStyleType: 'decimal', ...b, fontSize: '0.78rem', color: textMid }}>{item}</li>
+            ))}
           </ol>
         </div>
 
-        {/* Quick Share Options */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">Quick Share</Label>
-          <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const weekLabel = currentSeasonType === 3 ? `Round ${currentWeek}` : `Week ${currentWeek}`;
-                const subject = `${poolName} - ${weekLabel} NFL Pool`;
-                const body = `Join our Sunday Huddle for ${weekLabel}!\n\nClick this link to participate: ${participantLink}`;
-                window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-              }}
-            >
-              📧 Email
-            </Button>
-          </div>
+        {/* Quick Share */}
+        <div>
+          <label style={labelStyle}>Quick Share</label>
+          <button
+            onClick={() => {
+              const subject = `${poolName} — ${weekLabel} NFL Pool`;
+              const body = `Join our Sunday Huddle for ${weekLabel}!\n\nClick this link to participate: ${participantLink}`;
+              window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+          >
+            📧 Email
+          </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

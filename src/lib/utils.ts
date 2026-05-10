@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Returns true when the current date falls in the NFL offseason.
+ * Offseason: February 10 (day after the Super Bowl window closes) through July 31.
+ * In-season: August 1 through February 9.
+ */
+export function isOffseason(date: Date = new Date()): boolean {
+  const month = date.getMonth() + 1; // convert 0-indexed to 1-indexed
+  const day = date.getDate();
+  return (month === 2 && day >= 10) || (month >= 3 && month <= 7);
+}
+
 // Rank icon and color utilities for leaderboards
 export const getRankIcon = (index: number) => {
   switch (index) {
@@ -377,22 +388,27 @@ export function getPlayoffRoundName(week: number): string {
  * @returns A formatted string representing the week/round title
  */
 export function getWeekTitle(week: number, seasonType: number): string {
-  if (seasonType === 3) {
-    // Playoff rounds
-    const roundNames: Record<number, string> = {
-      1: 'Wild Card Round',
-      2: 'Divisional Round',
-      3: 'Conference Championships',
-      4: 'Super Bowl',
-    };
-    return roundNames[week] || `Playoff Round ${week}`;
-  } else if (seasonType === 1) {
-    // Preseason
-    return `Preseason Week ${week}`;
-  } else {
-    // Regular Season
+  if (!isOffseason()) {
+    if (seasonType === 3) {
+      const roundNames: Record<number, string> = {
+        1: "Wild Card Round",
+        2: "Divisional Round",
+        3: "Conference Championships",
+        4: "Super Bowl",
+      };
+
+      return roundNames[week] ?? `Playoff Round ${week}`;
+    }
+
+    if (seasonType === 1) {
+      return `Preseason Week ${week}`;
+    }
+
     return `Week ${week}`;
   }
+
+  return "Offseason";
+  
 }
 
 /**

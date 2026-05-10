@@ -27,6 +27,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -544,31 +545,56 @@ function CommissionerDashboardContent() {
       <section style={{
         background: bg,
         backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
-        padding: 'clamp(2rem, 4vw, 3rem) 0',
+        padding: 'clamp(3rem, 6vw, 5rem) 0',
       }}>
         <div className="lp-inner">
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
-            Commissioner HQ
-          </p>
-          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
-            Commissioner <span style={{ color: gold }}>Dashboard</span>
-          </h1>
-          <p style={{ ...b, fontSize: '0.9rem', color: textMid, marginBottom: '1rem' }}>
-            Manage your Sunday Huddles and participants
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <span style={{
-              ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-              padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
-              background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}`,
-            }}>Commissioner</span>
-            <span style={{
-              ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-              padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
-              background: 'oklch(46% 0.14 155 / 0.2)', color: greenHi,
-              border: `1px solid oklch(46% 0.14 155 / 0.4)`,
-            }}>Active</span>
+          <div className="lp-hero-row">
+
+            {/* Left: title + description */}
+            <div className="lp-hero-text">
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.67rem', letterSpacing: '0.28em', color: greenHi, textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
+                Commissioner HQ
+              </p>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(3rem, 7vw, 4.5rem)', lineHeight: 0.92, letterSpacing: '-0.01em', color: text, textTransform: 'uppercase', marginBottom: '1.5rem' }}>
+                Commissioner<br /><span style={{ color: gold }}>Dashboard</span>
+              </h1>
+              <p style={{ ...b, fontSize: '0.95rem', lineHeight: 1.72, color: textMid, maxWidth: '36ch' }}>
+                Manage your Sunday Huddles and participants.
+              </p>
+              <p style={{ ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim, marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Week {currentWeek} · Refreshed {lastRefresh.toLocaleTimeString()}
+              </p>
+            </div>
+
+            {/* Right: commissioner access overview */}
+            <div className="lp-hero-card">
+              <div style={{ background: surface, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '1.75rem' }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.24em', color: greenHi, textTransform: 'uppercase', marginBottom: '1.25rem' }}>
+                  Commissioner Access
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {[
+                    { label: 'Status', value: 'Active', sub: 'Account standing' },
+                    { label: 'Pools', value: String(dashboardStats.totalPools), sub: `${dashboardStats.activePools} active` },
+                    { label: 'Members', value: String(dashboardStats.totalParticipants), sub: 'Across all pools' },
+                  ].map(({ label, value, sub }) => (
+                    <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' }}>
+                      <div style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: gold, lineHeight: 1, letterSpacing: '0.02em' }}>
+                        {value}
+                      </div>
+                      <div style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.3rem' }}>
+                        {label}
+                      </div>
+                      <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '0.15rem' }}>
+                        {sub}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -579,8 +605,15 @@ function CommissionerDashboardContent() {
       <section style={{ background: bg, padding: '2.5rem 0' }}>
         <div className="lp-inner">
 
+          {/* Offseason Banner */}
+          {currentSeasonType === 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <OffseasonBanner message="The NFL season has ended. Your pools and historical data remain accessible below." />
+            </div>
+          )}
+
           {/* Countdown Timer */}
-          {countdown && countdown !== 'Games Started' && (
+          {currentSeasonType !== 0 && countdown && countdown !== 'Games Started' && (
             <div style={{
               background: 'oklch(20% 0.04 230)',
               border: `1px solid oklch(30% 0.06 230)`,
@@ -602,7 +635,7 @@ function CommissionerDashboardContent() {
           )}
 
           {/* Games Started Warning */}
-          {countdown === 'Games Started' && (
+          {currentSeasonType !== 0 && countdown === 'Games Started' && (
             <div style={{
               background: 'oklch(18% 0.04 25)',
               border: `1px solid oklch(30% 0.08 25)`,
@@ -725,44 +758,6 @@ function CommissionerDashboardContent() {
               )}
             </div>
           </div>
-
-          {/* Role Information - Only in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <Trophy style={{ width: 14, height: 14, color: greenHi }} />
-                <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Your Commissioner Access
-                </p>
-              </div>
-              <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
-                Current permissions and pool access
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {[
-                  { label: 'Role', value: 'Commissioner', badge: true },
-                  { label: 'Pool Access', value: `${dashboardStats.totalPools} pools`, badge: false },
-                  { label: 'Status', value: 'Active', badge: true, accent: greenHi },
-                  { label: 'Last Activity', value: lastRefresh.toLocaleDateString(), badge: false },
-                ].map(({ label, value, badge, accent }) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ ...b, fontSize: '0.82rem', color: textMid, fontWeight: 600 }}>{label}:</span>
-                    {badge ? (
-                      <span style={{
-                        ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-                        padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
-                        background: accent ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)',
-                        color: accent || textMid,
-                        border: `1px solid ${accent ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
-                      }}>{value}</span>
-                    ) : (
-                      <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>{value}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
       </section>

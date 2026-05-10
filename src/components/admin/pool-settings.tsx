@@ -4,11 +4,7 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
@@ -16,6 +12,21 @@ import { updatePool } from '@/actions/updatePool';
 import { Trash2, Lock } from 'lucide-react';
 import { DEFAULT_POOL_SEASON } from '@/lib/utils';
 
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const amber   = 'oklch(72% 0.16 60)';
+const red     = 'oklch(60% 0.22 25)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
+const inputStyle = { ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box' as const, fontSize: '0.875rem' };
 
 const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
@@ -42,23 +53,20 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isClosingSeason, setIsClosingSeason] = useState(false);
   const [closeSeasonResult, setCloseSeasonResult] = useState<{ winner?: string; message?: string } | null>(null);
-
-
   const { toast } = useToast();
 
   const form = useForm<PoolSettingsData>({
     resolver: zodResolver(poolSettingsSchema),
     defaultValues: {
       name: poolName,
-              season: DEFAULT_POOL_SEASON, // Default to current season for new pools
-      is_active: true, // Default to active for new pools
-      tie_breaker_method: 'none', // Default to no tie breaker
+      season: DEFAULT_POOL_SEASON,
+      is_active: true,
+      tie_breaker_method: 'none',
       tie_breaker_question: '',
       tie_breaker_answer: undefined,
     },
   });
 
-  // Load pool data
   useEffect(() => {
     const loadPoolData = async () => {
       try {
@@ -76,23 +84,17 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         }
       } catch (error) {
         console.error('Error loading pool data:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load pool settings',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to load pool settings', variant: 'destructive' });
       } finally {
         setIsLoading(false);
       }
     };
-
     loadPoolData();
   }, [poolId, form, toast]);
 
   const onSubmit = async (data: PoolSettingsData) => {
     try {
       setIsSaving(true);
-      
       await updatePool(poolId, {
         name: data.name,
         season: data.season,
@@ -101,18 +103,10 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         tie_breaker_question: data.tie_breaker_question,
         tie_breaker_answer: data.tie_breaker_answer,
       });
-      
-      toast({
-        title: 'Success',
-        description: 'Pool settings updated successfully',
-      });
+      toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
       console.error('Failed to update pool settings:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update pool settings',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to update pool settings', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -121,48 +115,29 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const handleDelete = async () => {
     try {
       setIsDeleting(true);
-      const response = await fetch(`/api/admin/pools/${poolId}`, {
-        method: 'DELETE',
-      });
-
+      const response = await fetch(`/api/admin/pools/${poolId}`, { method: 'DELETE' });
       const result = await response.json();
-
       if (result.success) {
-        const deletedData = result.deletedData || {};
-        const totalItems = (deletedData.participants || 0) + (deletedData.picks || 0) + (deletedData.scores || 0) + (deletedData.tieBreakers || 0);
-        
-        let description = "Pool deleted successfully";
-        if (totalItems > 0) {
-          description += `. Also deleted: ${deletedData.participants || 0} participants, ${deletedData.picks || 0} picks, ${deletedData.scores || 0} scores, and ${deletedData.tieBreakers || 0} tie breakers.`;
+        const d = result.deletedData || {};
+        const total = (d.participants || 0) + (d.picks || 0) + (d.scores || 0) + (d.tieBreakers || 0);
+        let description = 'Pool deleted successfully';
+        if (total > 0) {
+          description += `. Also deleted: ${d.participants || 0} participants, ${d.picks || 0} picks, ${d.scores || 0} scores, and ${d.tieBreakers || 0} tie breakers.`;
         }
-        
-        toast({
-          title: "Success",
-          description: description,
-        });
+        toast({ title: 'Success', description });
         onPoolDeleted?.();
       } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to delete pool",
-          variant: "destructive",
-        });
+        toast({ title: 'Error', description: result.error || 'Failed to delete pool', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error deleting pool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete pool",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'Failed to delete pool', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
-      setDeleteConfirmation(''); // Reset confirmation field
+      setDeleteConfirmation('');
     }
   };
-
-
 
   const handleCloseSeason = async () => {
     try {
@@ -178,9 +153,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         const winner = result.winnersComputed?.[0] ?? result.winnersAlreadyExist?.[0] ?? null;
         setCloseSeasonResult({
           winner: winner ? String(winner) : undefined,
-          message: result.closed?.length > 0
-            ? 'Season closed and locked successfully.'
-            : 'Pool was already closed.',
+          message: result.closed?.length > 0 ? 'Season closed and locked successfully.' : 'Pool was already closed.',
         });
         toast({ title: 'Season Closed', description: 'Pool locked and winner recorded.' });
       } else {
@@ -196,163 +169,131 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Pool Settings</CardTitle>
-          <CardDescription>Loading pool settings...</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div style={cardStyle}>
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pool Settings</p>
+        <div style={{ marginTop: '0.85rem' }}>
+          {[['75%'], ['50%'], ['66%']].map(([w], i) => (
+            <div key={i} style={{ height: 12, background: surface, borderRadius: 4, marginBottom: '0.5rem', width: w }} />
+          ))}
+        </div>
+      </div>
     );
   }
 
+  const deleteMatch = deleteConfirmation === poolName;
+  const deleteTyped = deleteConfirmation.length > 0;
+
   return (
-    <div className="space-y-4">
-    
-    {/* Close Season */}
-    <Card className="border-amber-200">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-amber-600">
-          <Lock className="h-5 w-5" />
-          Close Season
-        </CardTitle>
-        <CardDescription>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* Close Season */}
+      <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${amber} 35%, ${border})` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+          <Lock style={{ width: 16, height: 16, color: amber }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Close Season</p>
+        </div>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
           Lock this pool, prevent new picks, and compute the final season winner.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-gray-600 mb-4">
-          Use this when the NFL season is over. The pool will be set to inactive and the
-          season winner will be computed from all scores and saved permanently.
         </p>
+        <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
+          Use this when the NFL season is over. The pool will be set to inactive and the season winner will be computed from all scores and saved permanently.
+        </p>
+
         {closeSeasonResult && (
-          <div className="mb-4 p-3 rounded border border-amber-200 bg-amber-50 text-sm">
-            <p className="font-semibold text-amber-800">{closeSeasonResult.message}</p>
+          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: `color-mix(in oklch, ${amber} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${amber} 30%, ${border})`, borderRadius: 6 }}>
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>{closeSeasonResult.message}</p>
             {closeSeasonResult.winner && (
-              <p className="text-amber-700 mt-1">Winner: {closeSeasonResult.winner}</p>
+              <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>Winner: {closeSeasonResult.winner}</p>
             )}
           </div>
         )}
-        <Button
-          variant="outline"
-          className="border-amber-400 text-amber-700 hover:bg-amber-50"
+
+        <button
           onClick={handleCloseSeason}
           disabled={isClosingSeason}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: isClosingSeason ? textDim : amber, border: `1px solid color-mix(in oklch, ${amber} 50%, ${border})`, borderRadius: 6, cursor: isClosingSeason ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
         >
-          <Lock className="h-4 w-4 mr-2" />
+          <Lock style={{ width: 13, height: 13 }} />
           {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
-        </Button>
-      </CardContent>
-    </Card>
+        </button>
+      </div>
 
-    {/* Danger Zone */}
-    <Card className="border-red-200">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-red-600">
-          <Trash2 className="h-5 w-5" />
-          Danger Zone
-        </CardTitle>
-        <CardDescription>
-          Irreversible and destructive actions
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Password Reset */}
-
-
-          {/* Delete Pool */}
-          <div>
-            <h4 className="font-semibold text-red-600 mb-2">Delete Pool</h4>
-            <p className="text-sm text-gray-600 mb-4">
-              Once you delete a pool, there is no going back. Please be certain.
-            </p>
-            <Dialog 
-              open={showDeleteDialog} 
-              onOpenChange={(open) => {
-                setShowDeleteDialog(open);
-                if (!open) {
-                  setDeleteConfirmation(''); // Reset confirmation when dialog closes
-                }
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Pool
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete Pool</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.
-                    <br /><br />
-                    <span className="font-bold">This will also permanently delete:</span>
-                    <ul className="list-disc list-inside mt-2 space-y-1">
-                      <li>All participants in this pool</li>
-                      <li>All picks submitted by participants</li>
-                      <li>All scores and standings</li>
-                      <li>All tie breaker responses</li>
-                    </ul>
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <p className="text-sm text-gray-600 mb-3">
-                    To confirm deletion, please type <span className="font-mono font-bold text-red-600">{poolName}</span> in the field below:
-                  </p>
-                  <Input
-                    type="text"
-                    placeholder="Enter pool name to confirm"
-                    value={deleteConfirmation}
-                    onChange={(e) => setDeleteConfirmation(e.target.value)}
-                    className={`w-full ${
-                      deleteConfirmation === poolName 
-                        ? 'border-green-500 bg-green-50' 
-                        : deleteConfirmation 
-                        ? 'border-red-500 bg-red-50' 
-                        : ''
-                    }`}
-                  />
-                  {deleteConfirmation && (
-                    <p className={`text-sm mt-1 ${
-                      deleteConfirmation === poolName 
-                        ? 'text-green-600' 
-                        : 'text-red-600'
-                    }`}>
-                      {deleteConfirmation === poolName 
-                        ? '✓ Pool name matches - deletion enabled' 
-                        : '✗ Pool name does not match'
-                      }
-                    </p>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    onClick={handleDelete} 
-                    disabled={isDeleting || deleteConfirmation !== poolName}
-                  >
-                    {isDeleting ? 'Deleting...' : 'Delete Pool'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+      {/* Danger Zone */}
+      <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${red} 35%, ${border})` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+          <Trash2 style={{ width: 16, height: 16, color: red }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</p>
         </div>
-      </CardContent>
-    </Card>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Irreversible and destructive actions</p>
 
+        <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: red, marginBottom: '0.35rem' }}>Delete Pool</p>
+        <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.85rem' }}>
+          Once you delete a pool, there is no going back. Please be certain.
+        </p>
 
-  </div>
+        <Dialog
+          open={showDeleteDialog}
+          onOpenChange={(open) => {
+            setShowDeleteDialog(open);
+            if (!open) setDeleteConfirmation('');
+          }}
+        >
+          <DialogTrigger asChild>
+            <button style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', background: `color-mix(in oklch, ${red} 15%, ${surface})`, color: red, border: `1px solid color-mix(in oklch, ${red} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <Trash2 style={{ width: 12, height: 12 }} />
+              Delete Pool
+            </button>
+          </DialogTrigger>
+          <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
+            <DialogHeader>
+              <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Delete Pool</DialogTitle>
+              <DialogDescription asChild>
+                <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+                  <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.</p>
+                  <p style={{ ...b, fontWeight: 700, color: textMid, marginBottom: '0.35rem' }}>This will also permanently delete:</p>
+                  <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    {['All participants in this pool', 'All picks submitted by participants', 'All scores and standings', 'All tie breaker responses'].map(item => (
+                      <li key={item} style={{ listStyleType: 'disc', ...b, fontSize: '0.78rem', color: textDim }}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div style={{ padding: '0.75rem 0' }}>
+              <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
+                To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: red }}>{poolName}</span> below:
+              </p>
+              <input
+                type="text"
+                placeholder="Enter pool name to confirm"
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                style={{ ...inputStyle, border: `1px solid ${deleteTyped ? (deleteMatch ? 'oklch(50% 0.14 155)' : red) : border}` }}
+              />
+              {deleteTyped && (
+                <p style={{ ...b, fontSize: '0.75rem', color: deleteMatch ? 'oklch(59% 0.15 155)' : red, marginTop: '0.25rem' }}>
+                  {deleteMatch ? '✓ Pool name matches — deletion enabled' : '✗ Pool name does not match'}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button onClick={() => setShowDeleteDialog(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting || !deleteMatch}
+                style={{ ...bc, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: isDeleting || !deleteMatch ? surface : `color-mix(in oklch, ${red} 20%, ${surface})`, color: isDeleting || !deleteMatch ? textDim : red, border: `1px solid ${isDeleting || !deleteMatch ? border : `color-mix(in oklch, ${red} 40%, ${border})`}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isDeleting || !deleteMatch ? 'not-allowed' : 'pointer' }}
+              >
+                <Trash2 style={{ width: 12, height: 12 }} />
+                {isDeleting ? 'Deleting...' : 'Delete Pool'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
   );
 }

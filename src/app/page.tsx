@@ -5,8 +5,9 @@ import { Search, Users, Trophy, Calendar, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { createPageUrl, getWeekTitle as getWeekTitleUtil } from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 interface Game {
   id: string;
@@ -71,23 +72,22 @@ function LandingPage() {
     const loadData = async () => {
       try {
         const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
-        setCurrentSeasonType(weekData?.season_type || 2);
+        const weekNum = weekData?.week_number || 1;
+        const seasonType = weekData?.season_type ?? 2;
+        setCurrentWeek(weekNum);
+        setCurrentSeasonType(seasonType);
 
-        const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-
-        const { data: gamesData, error } = await supabase
-          .from('games')
-          .select('*')
-          .eq('week', weekData?.week_number || 1)
-          .eq('season_type', weekData?.season_type || 2)
-          .order('kickoff_time');
-
-        if (error) {
-          console.error('Error loading games:', error);
-        } else {
-          setGames(gamesData || []);
+        // seasonType 0 = offseason signal from getCurrentWeekFromGames
+        if (seasonType !== 0) {
+          const { getSupabaseClient } = await import('@/lib/supabase');
+          const supabase = getSupabaseClient();
+          const { data: gamesData, error } = await supabase
+            .from('games')
+            .select('*')
+            .eq('week', weekNum)
+            .eq('season_type', seasonType)
+            .order('kickoff_time');
+          if (!error) setGames(gamesData || []);
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -386,7 +386,7 @@ function LandingPage() {
               ...bc, fontWeight: 800, fontSize: '1.25rem',
               letterSpacing: '0.06em', color: text, textTransform: 'uppercase',
             }}>
-              {getWeekTitle()} Games
+              {getWeekTitle() == "Offseason" ? "Offseason" : `${getWeekTitle()} Games`}
             </h3>
           </div>
 
@@ -487,6 +487,8 @@ function LandingPage() {
                   </div>
                 ))}
               </div>
+            ) : currentSeasonType === 0 ? (
+              <OffseasonBanner />
             ) : (
               <div style={{ padding: '3rem', textAlign: 'center' }}>
                 <p style={{ ...b, color: textDim, fontSize: '0.9rem' }}>

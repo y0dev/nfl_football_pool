@@ -1030,7 +1030,7 @@ function PlayoffManagementContent() {
 
       {/* ── TEAM DIALOG ── */}
       <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
+        <DialogContent style={{ maxWidth: '28rem', width: 'calc(100vw - 2rem)' }}>
           <DialogHeader>
             <DialogTitle>{editingTeam?.id ? 'Edit' : 'Add'} Playoff Team</DialogTitle>
             <DialogDescription>Configure team seed and conference</DialogDescription>
@@ -1083,7 +1083,7 @@ function PlayoffManagementContent() {
 
       {/* ── GAME DIALOG ── */}
       <Dialog open={gameDialogOpen} onOpenChange={setGameDialogOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: '28rem', width: 'calc(100vw - 2rem)', maxHeight: '90vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>{editingGame?.id ? 'Edit' : 'Add'} Playoff Game</DialogTitle>
             <DialogDescription>
@@ -1173,7 +1173,7 @@ function PlayoffManagementContent() {
 
       {/* ── RESULT DIALOG ── */}
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
-        <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
+        <DialogContent style={{ maxWidth: '28rem', width: 'calc(100vw - 2rem)' }}>
           <DialogHeader>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {resultDialogType === 'success'
@@ -1194,7 +1194,7 @@ function PlayoffManagementContent() {
 
       {/* ── CONFIRM DIALOG ── */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent className="max-w-4xl w-[calc(100vw-1rem)] sm:w-full lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent style={{ maxWidth: '64rem', width: 'calc(100vw - 1rem)', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
           <DialogHeader>
             <DialogTitle>Review Games Before Saving</DialogTitle>
             <DialogDescription>
