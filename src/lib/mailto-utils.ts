@@ -56,60 +56,72 @@ export async function copyMailtoToClipboard(mailtoUrl: string): Promise<boolean>
 export function createPoolInviteEmail(poolName: string, poolId: string, weekNumber: number, adminEmail?: string): MailtoOptions {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   const inviteLink = `${baseUrl}/invite?pool=${poolId}&week=${weekNumber}${adminEmail ? `&admin=${encodeURIComponent(adminEmail)}` : ''}`;
-  
+
   return {
-    subject: `${poolName} - Week ${weekNumber} NFL Pool Invitation`,
-    body: `You're invited to join our Sunday Huddle for Week ${weekNumber}!
+    subject: `You're invited to ${poolName} — Week ${weekNumber} NFL Pick'em`,
+    body: `Hey! You've been invited to join ${poolName} on Sunday Huddle.
 
-Pool: ${poolName}
-Current Week: ${weekNumber}
+HOW IT WORKS
+------------
+Each week, pick the winner of every NFL game and assign confidence points (1 to the number of games). If your pick is right, you earn those points. Highest score wins the week.
 
-Click this link to join: ${inviteLink}
+JOIN HERE
+---------
+${inviteLink}
 
-Once you join, you'll be able to make your picks for all the NFL games this week.
+Just click the link, find your name on the roster, and start picking. No account needed — it takes under a minute.
 
-Looking forward to seeing your picks!
-Pool Commissioner`
+Week ${weekNumber} games are already loaded. Get your picks in before the first kickoff!
+
+See you in the pool,
+Your Commissioner`
   };
 }
 
 export function createReminderEmail(poolName: string, weekNumber: number): MailtoOptions {
   return {
-    subject: `${poolName} - Week ${weekNumber} Reminder`,
-    body: `Hi there!
+    subject: `Reminder: Week ${weekNumber} picks due — ${poolName}`,
+    body: `Hey!
 
-This is a friendly reminder that you haven't submitted your picks for Week ${weekNumber} of our Sunday Huddle.
+Quick reminder: you haven't submitted your Week ${weekNumber} picks for ${poolName} yet.
 
-Please log in and submit your picks before the games start.
+Picks lock when the first game kicks off — make sure you're in before then or you'll miss the week entirely.
 
-Thanks!
-Pool Commissioner`
+To submit, open the pool link your commissioner shared and select your winners + confidence points.
+
+Good luck this week,
+Your Commissioner`
   };
 }
 
 export function createSubmissionSummaryEmail(
-  poolName: string, 
-  weekNumber: number, 
+  poolName: string,
+  weekNumber: number,
   totalParticipants: number,
   submittedCount: number,
   submittedParticipants: Array<{name: string, email: string}>,
   pendingParticipants: Array<{name: string, email: string}>
 ): MailtoOptions {
+  const pendingCount = totalParticipants - submittedCount;
+  const submissionRate = totalParticipants > 0 ? Math.round((submittedCount / totalParticipants) * 100) : 0;
+
   return {
-    subject: `${poolName} - Week ${weekNumber} Submission Summary`,
+    subject: `${poolName} — Week ${weekNumber} submission summary (${submittedCount}/${totalParticipants} in)`,
     body: `Week ${weekNumber} Submission Summary
-
 Pool: ${poolName}
-Total Participants: ${totalParticipants}
-Submitted: ${submittedCount}
-Pending: ${totalParticipants - submittedCount}
+Generated: ${new Date().toLocaleString()}
 
-Submitted Participants:
-${submittedParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+OVERVIEW
+--------
+Submitted:  ${submittedCount} / ${totalParticipants} (${submissionRate}%)
+Pending:    ${pendingCount}
 
-Pending Participants:
-${pendingParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+${pendingCount > 0 ? `STILL NEED TO SUBMIT (${pendingCount})
+${'-'.repeat(30)}
+${pendingParticipants.map(p => `  ${p.name}  <${p.email}>`).join('\n')}
 
-This summary was generated on ${new Date().toLocaleString()}.`
+` : 'All participants have submitted their picks!\n\n'}${submittedCount > 0 ? `SUBMITTED (${submittedCount})
+${'-'.repeat(30)}
+${submittedParticipants.map(p => `  ${p.name}  <${p.email}>`).join('\n')}` : ''}`
   };
 }

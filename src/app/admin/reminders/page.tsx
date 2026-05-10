@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createReminderEmail, createSubmissionSummaryEmail } from '@/lib/mailto-utils';
+import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createSubmissionSummaryEmail } from '@/lib/mailto-utils';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -227,29 +227,32 @@ function RemindersContent() {
     }
     setIsSendingReminders(true);
     try {
-      const selectedParticipantsData = participants.filter(p => selectedParticipants.has(p.id));
-      const poolName = pools.find(p => p.id === selectedPool)?.name || 'NFL Pool';
-      const emailOptions = createReminderEmail(poolName, currentWeek);
-      emailOptions.bcc = selectedParticipantsData.map(p => p.email).join(',');
-      const mailtoUrl = createMailtoUrl(emailOptions);
-      const opened = await openEmailClient(mailtoUrl);
+      const response = await fetch('/api/admin/send-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantIds: Array.from(selectedParticipants),
+          week: currentWeek,
+          seasonType: currentSeasonType,
+        }),
+      });
 
-      if (opened) {
-        toast({ title: 'Email Client Opened', description: `Email prepared for ${selectedParticipants.size} participant(s). Your email client should open automatically.` });
+      const data = await response.json();
+
+      if (data.success) {
+        const { successful, failed } = data.results;
+        toast({
+          title: 'Reminders Sent',
+          description: `Sent ${successful} reminder${successful !== 1 ? 's' : ''}${failed > 0 ? `. ${failed} failed — check SMTP configuration.` : '.'}`,
+        });
+        setSelectedParticipants(new Set());
+        await loadParticipants();
       } else {
-        const copied = await copyMailtoToClipboard(mailtoUrl);
-        if (copied) {
-          toast({ title: 'Email URL Copied', description: 'Email URL copied to clipboard. Paste it in your browser address bar to open your email client.' });
-        } else {
-          toast({ title: 'Manual Action Required', description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`, variant: 'destructive' });
-        }
+        toast({ title: 'Error', description: data.error || 'Failed to send reminders', variant: 'destructive' });
       }
-
-      setSelectedParticipants(new Set());
-      await loadParticipants();
     } catch (error) {
-      console.error('Error preparing reminders:', error);
-      toast({ title: 'Error', description: 'Failed to prepare reminders', variant: 'destructive' });
+      console.error('Error sending reminders:', error);
+      toast({ title: 'Error', description: 'Failed to send reminders', variant: 'destructive' });
     } finally {
       setIsSendingReminders(false);
       setShowConfirmDialog(false);

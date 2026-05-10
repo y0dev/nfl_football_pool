@@ -91,37 +91,84 @@ class EmailService {
 
   // Template for commissioner account creation notification
   async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
-    const subject = 'Welcome! Your Commissioner Account Has Been Created';
+    const subject = 'Welcome to Sunday Huddle — Your Commissioner Account Is Ready';
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const dashboardUrl = `${baseUrl}/admin/dashboard`;
-    
+    const loginUrl = `${baseUrl}/login`;
+
     const content = `
       <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
         Hi ${adminName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Your commissioner account has been successfully created! You now have full access to manage pools and participants in the Sunday Huddle system.
+        Your Sunday Huddle commissioner account has been created. You can sign in right away using a magic link — no password required.
       </p>
-      
+
       ${createInfoBox(`
-        <strong>Account Details:</strong><br>
+        <strong>Your Account:</strong><br>
         Email: ${adminEmail}<br>
         Name: ${adminName}<br>
         Created: ${new Date().toLocaleString()}
       `, 'info')}
-      
-      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
-        You can now log in and start creating pools, managing participants, and sending invitations.
+
+      <p style="margin: 20px 0 8px; color: #1f2937; font-size: 15px; font-weight: 600;">How to sign in:</p>
+      <ol style="margin: 0 0 20px; padding-left: 20px; color: #374151; font-size: 15px; line-height: 1.8;">
+        <li>Click "Sign In to Your Dashboard" below</li>
+        <li>Enter your email address: <strong>${adminEmail}</strong></li>
+        <li>Click <strong>Send Magic Link</strong></li>
+        <li>Check your inbox and click the link — you'll be signed in instantly</li>
+      </ol>
+
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        As a commissioner you can create pools, invite participants, track weekly submissions, and manage standings.
       </p>
     `;
 
     const html = createResponsiveEmailTemplate({
-      title: 'Commissioner Account Created',
+      title: 'Welcome, Commissioner',
       content,
-      buttonText: 'Go to Dashboard',
-      buttonUrl: dashboardUrl,
-      footerText: 'This is an automated notification from the Sunday Huddle system.'
+      buttonText: 'Sign In to Your Dashboard',
+      buttonUrl: loginUrl,
+      footerText: 'This is an automated notification from Sunday Huddle. If you did not expect this email, please ignore it.'
+    });
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject,
+      html
+    });
+  }
+
+  // Template for password reset notification
+  async sendPasswordResetNotification(adminEmail: string, adminName: string): Promise<boolean> {
+    const subject = 'Your Sunday Huddle Password Has Been Reset';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const loginUrl = `${baseUrl}/login`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        Your Sunday Huddle commissioner account password was reset by a system administrator on ${new Date().toLocaleString()}.
+      </p>
+
+      ${createInfoBox(`
+        If you did not request this change, contact your system administrator immediately and do not use the new credentials.
+      `, 'warning')}
+
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        You can sign in at any time using the magic link option. Just visit the sign-in page, enter your email, and we'll send you a secure one-time link — no password needed.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Password Reset',
+      content,
+      buttonText: 'Sign In',
+      buttonUrl: loginUrl,
+      footerText: 'This is a security notification from Sunday Huddle.'
     });
 
     return this.sendEmail({
