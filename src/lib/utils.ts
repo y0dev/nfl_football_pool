@@ -73,7 +73,7 @@ export function createPageUrl(page: string): string {
     case "register":
       return "/register";
     case "adminlogin":
-      return "/admin/login";
+      return "/login";
     case "invite":
       return "/invite";
     case "login":

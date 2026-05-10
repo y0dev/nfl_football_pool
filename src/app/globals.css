@@ -137,6 +137,91 @@ input[type="url"], textarea {
   }
 }
 
+/* Login / Register pages: dark theme variable overrides (same pattern as .admin-theme) */
+.login-split {
+  --background:           oklch(13% 0.025 255);
+  --foreground:           oklch(95% 0.006 255);
+  --card:                 oklch(20% 0.03 255);
+  --card-foreground:      oklch(95% 0.006 255);
+  --muted-foreground:     oklch(50% 0.018 255);
+  --input:                oklch(26% 0.03 255);
+  --ring:                 oklch(46% 0.14 155);
+  --border:               oklch(26% 0.03 255);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Labels must be block so they don't flow inline with inputs
+   (Tailwind w-full / display classes don't generate from component files in v4+Turbopack) */
+.login-split label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Inputs: full-width block with fixed height — overrides shadcn component-file Tailwind */
+.login-split input:not([type="checkbox"]):not([type="radio"]) {
+  display: block;
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-size: 0.875rem;
+  background-color: oklch(13% 0.025 255) !important;
+  border: 1px solid oklch(26% 0.03 255) !important;
+  color: oklch(95% 0.006 255) !important;
+}
+
+/* Kill browser autofill background (Chrome/Edge override with inset shadow) */
+.login-split input:-webkit-autofill,
+.login-split input:-webkit-autofill:hover,
+.login-split input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px oklch(13% 0.025 255) inset !important;
+  -webkit-text-fill-color: oklch(95% 0.006 255) !important;
+  caret-color: oklch(95% 0.006 255);
+}
+
+.login-split input::placeholder {
+  color: oklch(50% 0.018 255);
+}
+
+/* Ensure password-field wrapper div is full-width block */
+.login-split form div[style] {
+  width: 100%;
+}
+
+.login-split-marketing {
+  display: none;
+}
+
+.login-split-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 900px) {
+  .login-split {
+    flex-direction: row;
+  }
+
+  .login-split-marketing {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+  }
+
+  .login-split-form {
+    flex: 0 0 480px;
+    width: 480px;
+  }
+
+  .login-mobile-brand {
+    display: none;
+  }
+}
+
 /* Feature cards: 1-col mobile, 3-col tablet+ */
 .lp-features {
   display: grid;
