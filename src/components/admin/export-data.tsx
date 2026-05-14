@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, FileSpreadsheet, Calendar, Trophy, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PERIOD_WEEKS } from '@/lib/utils';
-import { getSupabaseServiceClient } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
 // Design tokens
@@ -75,13 +74,12 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
   const loadPools = async () => {
     setIsLoadingPools(true);
     try {
-      if (!user?.email) return;
-      const supabase = getSupabaseServiceClient();
-      const { data: poolsData, error: poolsError } = await supabase
-        .from('pools').select('*').order('created_at', { ascending: false });
-      if (poolsError) throw poolsError;
-      setPools(poolsData || []);
-      if (poolsData && poolsData.length > 0) setSelectedPoolId(poolsData[0].id);
+      const res = await fetch('/api/admin/all-pools');
+      if (!res.ok) throw new Error('Failed to load pools');
+      const data = await res.json();
+      const poolsData = data.pools || [];
+      setPools(poolsData);
+      if (poolsData.length > 0) setSelectedPoolId(poolsData[0].id);
     } catch (error) {
       console.error('Error loading pools:', error);
       toast({ title: 'Error', description: 'Failed to load pools', variant: 'destructive' });

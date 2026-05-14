@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Save, Users, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getSupabaseClient } from '@/lib/supabase';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { Game } from '@/types/game';
@@ -56,24 +55,17 @@ export function OverrideMondayNightScore({ poolId, poolName, week, season, seaso
   const shouldShowOverride = isPeriodWeek || isSuperBowl;
 
   const loadParticipants = useCallback(async () => {
+    if (!poolId) return;
     setIsLoading(true);
     try {
-      const supabase = getSupabaseClient();
-      if (!poolId) {
-        toast({ title: 'Error', description: 'Pool ID is required to load participants', variant: 'destructive' });
-        return;
+      const res = await fetch(`/api/admin/pool-participants?poolId=${poolId}`);
+      if (!res.ok) throw new Error('Failed to load participants');
+      const data = await res.json();
+      if (data.success) {
+        setParticipants((data.participants || []).map((p: { id: string; name: string; email?: string }) => ({
+          id: p.id, name: p.name, email: p.email, poolId, poolName,
+        })));
       }
-      const { data, error } = await supabase
-        .from('participants')
-        .select('id, name, email')
-        .eq('pool_id', poolId)
-        .eq('is_active', true)
-        .order('name');
-      if (error) {
-        toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
-        return;
-      }
-      setParticipants((data || []).map(p => ({ id: p.id, name: p.name, email: p.email, poolId, poolName })));
     } catch (error) {
       console.error('Error loading participants:', error);
       toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });

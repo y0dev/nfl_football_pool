@@ -53,6 +53,7 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic' | 'magic-sent'>('password');
   const [magicEmail, setMagicEmail] = useState('');
+  const [loginError, setLoginError] = useState('');
   const { toast } = useToast();
   const { signIn, user } = useAuth();
   const router = useRouter();
@@ -72,21 +73,21 @@ function LoginContent() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
+    setLoginError('');
     try {
       const result = await loginUser(data.email, data.password);
       if (result.success && result.user) {
         await signIn(result.user);
-        toast({ title: 'Success', description: 'Login successful!' });
         if (result.user.is_super_admin) {
           window.location.href = createPageUrl('admindashboard');
         } else {
           window.location.href = createPageUrl('dashboard');
         }
       } else {
-        toast({ title: 'Error', description: result.error || 'Invalid credentials', variant: 'destructive' });
+        setLoginError(result.error || 'Incorrect email or password. Please check your credentials and try again.');
       }
     } catch {
-      toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
+      setLoginError('Login failed. Please check your email and password and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -262,8 +263,9 @@ function LoginContent() {
                             type="email"
                             placeholder="commissioner@example.com"
                             autoComplete="email"
-                            style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem' }}
+                            style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem' }}
                             {...field}
+                            onChange={(e) => { field.onChange(e); setLoginError(''); }}
                           />
                         </FormControl>
                         <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
@@ -285,8 +287,9 @@ function LoginContent() {
                               type={showPassword ? 'text' : 'password'}
                               placeholder="Enter your password"
                               autoComplete="current-password"
-                              style={{ background: bg, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                              style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
                               {...field}
+                              onChange={(e) => { field.onChange(e); setLoginError(''); }}
                             />
                             <button
                               type="button"
@@ -301,6 +304,21 @@ function LoginContent() {
                       </FormItem>
                     )}
                   />
+
+                  {loginError && (
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '0.65rem',
+                      padding: '0.75rem 1rem',
+                      background: 'oklch(62% 0.22 25 / 0.1)',
+                      border: `1px solid oklch(62% 0.22 25 / 0.4)`,
+                      borderRadius: 6,
+                    }}>
+                      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>⚠</span>
+                      <p style={{ ...b, fontSize: '0.825rem', color: errRed, lineHeight: 1.45, margin: 0 }}>
+                        {loginError}
+                      </p>
+                    </div>
+                  )}
 
                   <button
                     type="submit"

@@ -77,11 +77,8 @@ function CommissionersManagementContent() {
   const loadCommissioners = async () => {
     try {
       if (!user?.email) return;
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const { data: adminsData, error: adminsError } = await supabase.from('admins').select('*').order('created_at', { ascending: false });
-      if (adminsError) throw adminsError;
-      const commissionersData = adminsData?.filter(admin => !admin.is_super_admin) || [];
+      const allAdmins = await adminService.getAdmins();
+      const commissionersData = allAdmins.filter(admin => !admin.is_super_admin);
       setCommissioners(commissionersData);
       setFilteredCommissioners(commissionersData);
     } catch (error) {
@@ -93,11 +90,10 @@ function CommissionersManagementContent() {
   const loadStats = async () => {
     try {
       if (!user?.email) return;
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const { data: commissionersData } = await supabase.from('admins').select('is_active').eq('is_super_admin', false);
-      const totalCommissioners = commissionersData?.length || 0;
-      const activeCommissioners = commissionersData?.filter(c => c.is_active).length || 0;
+      const allAdmins = await adminService.getAdmins();
+      const commissionersData = allAdmins.filter(a => !a.is_super_admin);
+      const totalCommissioners = commissionersData.length;
+      const activeCommissioners = commissionersData.filter(c => c.is_active).length;
       setStats({ totalCommissioners, activeCommissioners, inactiveCommissioners: totalCommissioners - activeCommissioners });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -123,12 +119,9 @@ function CommissionersManagementContent() {
     }
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
         body: JSON.stringify({ adminId: selectedCommissioner.id, newPassword: newPassword.trim() }),
       });
       const result = await response.json();
@@ -148,12 +141,9 @@ function CommissionersManagementContent() {
   const handleToggleStatus = async (commissioner: Admin) => {
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/toggle-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
         body: JSON.stringify({ adminId: commissioner.id, isActive: !commissioner.is_active }),
       });
       const result = await response.json();
@@ -173,12 +163,9 @@ function CommissionersManagementContent() {
     if (!selectedCommissioner) return;
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/delete-commissioner', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
         body: JSON.stringify({ adminId: selectedCommissioner.id }),
       });
       const result = await response.json();
@@ -199,8 +186,6 @@ function CommissionersManagementContent() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      await getSupabaseClient().auth.signOut();
       await signOut();
       router.push('/admin/login');
     } catch {

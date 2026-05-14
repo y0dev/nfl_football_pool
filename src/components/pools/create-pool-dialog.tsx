@@ -9,7 +9,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createPool } from '@/actions/createPool';
 import { useAuth } from '@/lib/auth';
-import { DEFAULT_POOL_SEASON, PERIOD_WEEKS } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -29,6 +29,8 @@ const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
   pool_type: z.enum(['normal', 'knockout']),
+  season_scope: z.string(),
+  join_password: z.string().optional(),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -41,23 +43,34 @@ interface CreatePoolDialogProps {
 
 export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const { user } = useAuth();
 
   const form = useForm<PoolFormData>({
     resolver: zodResolver(poolSchema),
-    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, pool_type: 'normal' as const },
+    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, pool_type: 'normal' as const, season_scope: 'regular', join_password: '' },
   });
 
   async function onSubmit(data: PoolFormData) {
     if (!user) return;
     setIsLoading(true);
+    setErrorMsg('');
     try {
-      await createPool({ name: data.name, created_by: user.email || '', season: data.season, pool_type: data.pool_type });
+      const scopeOption = SEASON_SCOPE_OPTIONS.find(o => o.value === data.season_scope);
+      await createPool({
+        name: data.name,
+        created_by: user.email || '',
+        season: data.season,
+        pool_type: data.pool_type,
+        season_scope: scopeOption ? [...scopeOption.types] : [2],
+        join_password: data.join_password || undefined,
+      });
       onPoolCreated();
       onOpenChange(false);
       form.reset();
     } catch (error) {
       console.error('Failed to create pool:', error);
+      setErrorMsg('Failed to create pool. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -104,6 +117,32 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
 
             <FormField
               control={form.control}
+              name="season_scope"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Season Scope</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select season scope" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {SEASON_SCOPE_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                    {SEASON_SCOPE_OPTIONS.find(o => o.value === form.watch('season_scope'))?.desc ?? 'Which portion of the season this pool covers.'}
+                  </FormDescription>
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="pool_type"
               render={({ field }) => (
                 <FormItem>
@@ -124,6 +163,25 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="join_password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></FormLabel>
+                  <FormControl>
+                    <input placeholder="Leave blank for open access" {...field} style={inputStyle} />
+                  </FormControl>
+                  <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>If set, participants must enter this password to join from the public pool search page.</FormDescription>
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
+            {errorMsg && (
+              <p style={{ ...b, fontSize: '0.8rem', color: red, padding: '0.5rem 0.75rem', background: `${red}18`, border: `1px solid ${red}44`, borderRadius: 6 }}>{errorMsg}</p>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.5rem' }}>
               <button type="button" onClick={() => onOpenChange(false)} disabled={isLoading} style={{ ...bc, padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isLoading ? 'not-allowed' : 'pointer' }}>

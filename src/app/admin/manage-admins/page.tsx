@@ -78,12 +78,10 @@ function ManageAdminsContent() {
   const loadAdmins = async () => {
     try {
       if (!user?.email) return;
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const { data: adminsData, error } = await supabase.from('admins').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setAdmins(adminsData || []);
-      setFilteredAdmins(adminsData || []);
+      const { adminService } = await import('@/lib/admin-service');
+      const adminsData = await adminService.getAdmins();
+      setAdmins(adminsData);
+      setFilteredAdmins(adminsData);
     } catch (error) {
       console.error('Error loading admins:', error);
       toast({ title: 'Error', description: 'Failed to load admins data', variant: 'destructive' });
@@ -93,12 +91,11 @@ function ManageAdminsContent() {
   const loadStats = async () => {
     try {
       if (!user?.email) return;
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const { data } = await supabase.from('admins').select('is_super_admin, is_active');
-      const totalAdmins = data?.length || 0;
-      const superAdmins = data?.filter(a => a.is_super_admin).length || 0;
-      const activeAdmins = data?.filter(a => a.is_active).length || 0;
+      const { adminService } = await import('@/lib/admin-service');
+      const data = await adminService.getAdmins();
+      const totalAdmins = data.length;
+      const superAdmins = data.filter(a => a.is_super_admin).length;
+      const activeAdmins = data.filter(a => a.is_active).length;
       setStats({ totalAdmins, superAdmins, commissioners: totalAdmins - superAdmins, activeAdmins, inactiveAdmins: totalAdmins - activeAdmins });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -124,12 +121,9 @@ function ManageAdminsContent() {
     }
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/reset-admin-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: selectedAdmin.id, newPassword }),
       });
       const result = await response.json();
@@ -149,12 +143,9 @@ function ManageAdminsContent() {
   const handleToggleStatus = async (admin: Admin) => {
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/toggle-admin-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: admin.id }),
       });
       const result = await response.json();
@@ -174,12 +165,9 @@ function ManageAdminsContent() {
     if (!selectedAdmin) return;
     setIsProcessing(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const { data: { session } } = await getSupabaseClient().auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
       const response = await fetch('/api/admin/delete-admin', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: selectedAdmin.id }),
       });
       const result = await response.json();
@@ -200,8 +188,6 @@ function ManageAdminsContent() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      await getSupabaseClient().auth.signOut();
       await signOut();
       router.push('/admin/login');
     } catch {

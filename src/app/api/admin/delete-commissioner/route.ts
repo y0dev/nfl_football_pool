@@ -3,29 +3,20 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Verify the request is from a super admin
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ success: false, error: 'No authorization header' }, { status: 401 });
+    const adminEmail = request.headers.get('x-admin-email');
+    if (!adminEmail) {
+      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
     const supabase = getSupabaseServiceClient();
-    
-    // Get user from token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
-    }
 
-    // Verify user is a super admin
-    const { data: currentAdmin, error: currentAdminError } = await supabase
+    const { data: currentAdmin } = await supabase
       .from('admins')
       .select('is_super_admin')
-      .eq('email', user.email)
+      .eq('email', adminEmail)
       .single();
-    
-    if (currentAdminError || !currentAdmin || !currentAdmin.is_super_admin) {
+
+    if (!currentAdmin?.is_super_admin) {
       return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 

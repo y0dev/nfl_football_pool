@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Trophy, RefreshCw, BarChart3 } from 'lucide-react';
 import { Game } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
 import { debugError, debugLog, getTeamAbbreviation, PERIOD_WEEKS, isDummyData } from '@/lib/utils';
-import { getSupabaseServiceClient } from '@/lib/supabase';
 
 // Design tokens
 const surface = 'oklch(17% 0.028 255)';
@@ -38,41 +36,22 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  // Function to load Monday night scores for tie-breaker weeks
   const loadMondayNightScores = async (poolId: string, weekNumber: number, season: number) => {
     debugLog('loadMondayNightScores called with:', { poolId, weekNumber, season, PERIOD_WEEKS });
-    if (isDummyData()) {
-      return new Map();
-    }
-
+    if (isDummyData()) return new Map();
     if (!PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number])) {
       debugLog('Not a tie-breaker week, skipping Monday night scores');
       return new Map();
     }
 
-    debugLog('Loading Monday night scores for tie-breaker week:', weekNumber);
-
     try {
-      const supabase = getSupabaseServiceClient();
-      const { data, error } = await supabase
-        .from('tie_breakers')
-        .select('participant_id, answer')
-        .eq('pool_id', poolId)
-        .eq('week', weekNumber)
-        .eq('season', season);
-
-      if (error) {
-        debugError('Error loading Monday night scores:', error);
-        return new Map();
-      }
-
-      debugLog('Monday night scores data:', data);
-
+      const res = await fetch(`/api/tie-breakers?poolId=${poolId}&week=${weekNumber}&season=${season}`);
+      if (!res.ok) return new Map();
+      const data = await res.json();
       const scoresMap = new Map<string, number>();
-      data?.forEach(score => {
-        scoresMap.set(score.participant_id, score.answer);
+      data.tieBreakers?.forEach((tb: { participant_id: string; answer: number }) => {
+        scoresMap.set(tb.participant_id, tb.answer);
       });
-
       debugLog('Monday night scores map:', scoresMap);
       return scoresMap;
     } catch (err) {
@@ -150,65 +129,62 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
 
   const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
 
+  const thStyle: React.CSSProperties = {
+    ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em',
+    color: textDim, textTransform: 'uppercase', whiteSpace: 'nowrap',
+    padding: '0.625rem 0.75rem', background: surface,
+    borderBottom: `1px solid ${border}`, textAlign: 'left',
+  };
+
   return (
     <div style={{ overflowX: 'auto', width: '100%' }}>
-      <Table style={{ width: 'max-content', minWidth: '100%' }}>
-        <TableHeader>
-          <TableRow style={{ borderBottom: `1px solid ${border}`, background: surface }}>
-            <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '3.5rem', whiteSpace: 'nowrap' }}>
-              Rank
-            </TableHead>
-            <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '9rem', whiteSpace: 'nowrap' }}>
-              Participant
-            </TableHead>
-            <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'center', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
-              Points
-            </TableHead>
-            <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'center', minWidth: '5rem', whiteSpace: 'nowrap' }}>
-              Correct
-            </TableHead>
+      <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...thStyle, minWidth: '3.5rem' }}>Rank</th>
+            <th style={{ ...thStyle, minWidth: '9rem' }}>Participant</th>
+            <th style={{ ...thStyle, minWidth: '4.5rem', textAlign: 'center' }}>Points</th>
+            <th style={{ ...thStyle, minWidth: '5rem', textAlign: 'center' }}>Correct</th>
             {isPeriodWeek && (
-              <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'center', minWidth: '5rem', whiteSpace: 'nowrap' }}>
-                Mon Night
-              </TableHead>
+              <th style={{ ...thStyle, minWidth: '5rem', textAlign: 'center' }}>Mon Night</th>
             )}
             {games.map((game, index) => (
-              <TableHead key={game.id || index} style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.06em', color: textDim, textTransform: 'uppercase', textAlign: 'center', padding: '0.5rem 0.4rem', minWidth: '3.5rem', whiteSpace: 'nowrap' }}>
+              <th key={game.id || index} style={{ ...thStyle, fontSize: '0.62rem', letterSpacing: '0.06em', textAlign: 'center', padding: '0.5rem 0.4rem', minWidth: '3.5rem' }}>
                 <div>{getTeamAbbreviation(game.away_team || '')}</div>
                 <div style={{ color: textDim, fontSize: '0.55rem' }}>@</div>
                 <div>{getTeamAbbreviation(game.home_team || '')}</div>
-              </TableHead>
+              </th>
             ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+          </tr>
+        </thead>
+        <tbody>
           {leaderboardData.map((entry, index) => (
-            <TableRow key={entry.participant_id || index} style={{ borderBottom: `1px solid ${border}`, background: index % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.5)' }}>
-              <TableCell style={{ ...b, fontSize: '0.875rem', color: text }}>
+            <tr key={entry.participant_id || index} style={{ borderBottom: `1px solid ${border}`, background: index % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.5)' }}>
+              <td style={{ ...b, fontSize: '0.875rem', color: text, padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   {index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
                   {index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
                   {index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
                   <span style={{ color: index < 3 ? text : textMid, fontWeight: index < 3 ? 700 : 400 }}>{index + 1}</span>
                 </div>
-              </TableCell>
-              <TableCell style={{ ...b, fontSize: '0.875rem', color: text, fontWeight: 600, maxWidth: '14rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              </td>
+              <td style={{ ...b, fontSize: '0.875rem', color: text, fontWeight: 600, padding: '0.5rem 0.75rem', verticalAlign: 'middle', maxWidth: '14rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {entry.participant_name || 'Unknown'}
-              </TableCell>
-              <TableCell style={{ ...bc, fontSize: '0.95rem', fontWeight: 900, color: greenHi, textAlign: 'center' }}>
+              </td>
+              <td style={{ ...bc, fontSize: '0.95rem', fontWeight: 900, color: greenHi, textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 {entry.total_points || 0}
-              </TableCell>
-              <TableCell style={{ ...b, fontSize: '0.875rem', color: textMid, textAlign: 'center' }}>
+              </td>
+              <td style={{ ...b, fontSize: '0.875rem', color: textMid, textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 {entry.correct_picks || 0}/{entry.total_picks || 0}
-              </TableCell>
+              </td>
               {isPeriodWeek && (
-                <TableCell style={{ ...b, fontSize: '0.875rem', color: textMid, textAlign: 'center' }}>
+                <td style={{ ...b, fontSize: '0.875rem', color: textMid, textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                   {(() => {
                     const score = mondayNightScores.get(entry.participant_id);
                     debugLog(`Monday night score for ${entry.participant_name} (${entry.participant_id}):`, score);
                     return score || '-';
                   })()}
-                </TableCell>
+                </td>
               )}
               {games.map((game, gameIndex) => {
                 const status = game.status?.toLowerCase() || '';
@@ -218,7 +194,6 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                 const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
                 const confidence = pick?.confidence_points || 0;
 
-                // Pick color
                 const pickColor = isGameInProgress
                   ? 'oklch(65% 0.12 240)'
                   : !isGameFinal
@@ -227,7 +202,6 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   ? greenHi
                   : liveRed;
 
-                // Badge background
                 const badgeBg = confidence === 0
                   ? 'oklch(26% 0.03 255)'
                   : isGameInProgress
@@ -239,7 +213,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   : `${liveRed}22`;
 
                 return (
-                  <TableCell key={game.id || gameIndex} style={{ textAlign: 'center', padding: '0.35rem' }}>
+                  <td key={game.id || gameIndex} style={{ textAlign: 'center', padding: '0.35rem', verticalAlign: 'middle' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
                       <div style={{ ...b, fontSize: '0.75rem', fontWeight: 600, color: pickColor }}>
                         {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '-'}
@@ -258,13 +232,13 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                         </div>
                       )}
                     </div>
-                  </TableCell>
+                  </td>
                 );
               })}
-            </TableRow>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }

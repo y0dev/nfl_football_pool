@@ -5,17 +5,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2, Lock } from 'lucide-react';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { Trash2, Lock, Settings, Save } from 'lucide-react';
+import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
 const amber   = 'oklch(72% 0.16 60)';
 const red     = 'oklch(60% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';
@@ -32,6 +34,7 @@ const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
   is_active: z.boolean(),
+  season_scope: z.string(),
   tie_breaker_method: z.string().optional(),
   tie_breaker_question: z.string().optional(),
   tie_breaker_answer: z.number().optional(),
@@ -61,6 +64,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       name: poolName,
       season: DEFAULT_POOL_SEASON,
       is_active: true,
+      season_scope: 'regular',
       tie_breaker_method: 'none',
       tie_breaker_question: '',
       tie_breaker_answer: undefined,
@@ -77,6 +81,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             name: pool.name,
             season: pool.season,
             is_active: pool.is_active,
+            season_scope: seasonTypesToScopeValue(pool.season_scope ?? [2]),
             tie_breaker_method: pool.tie_breaker_method || 'none',
             tie_breaker_question: pool.tie_breaker_question || '',
             tie_breaker_answer: pool.tie_breaker_answer || undefined,
@@ -95,10 +100,12 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const onSubmit = async (data: PoolSettingsData) => {
     try {
       setIsSaving(true);
+      const scopeOption = SEASON_SCOPE_OPTIONS.find(o => o.value === data.season_scope);
       await updatePool(poolId, {
         name: data.name,
         season: data.season,
         is_active: data.is_active,
+        season_scope: scopeOption ? [...scopeOption.types] : [2],
         tie_breaker_method: data.tie_breaker_method,
         tie_breaker_question: data.tie_breaker_question,
         tie_breaker_answer: data.tie_breaker_answer,
@@ -182,118 +189,213 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
 
   const deleteMatch = deleteConfirmation === poolName;
   const deleteTyped = deleteConfirmation.length > 0;
+  const watchedScope = form.watch('season_scope');
+  const scopeDesc = SEASON_SCOPE_OPTIONS.find(o => o.value === watchedScope)?.desc ?? '';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-      {/* Close Season */}
-      <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${amber} 35%, ${border})` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-          <Lock style={{ width: 16, height: 16, color: amber }} />
-          <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Close Season</p>
-        </div>
-        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
-          Lock this pool, prevent new picks, and compute the final season winner.
-        </p>
-        <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
-          Use this when the NFL season is over. The pool will be set to inactive and the season winner will be computed from all scores and saved permanently.
-        </p>
-
-        {closeSeasonResult && (
-          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: `color-mix(in oklch, ${amber} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${amber} 30%, ${border})`, borderRadius: 6 }}>
-            <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>{closeSeasonResult.message}</p>
-            {closeSeasonResult.winner && (
-              <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>Winner: {closeSeasonResult.winner}</p>
-            )}
+        {/* General Settings */}
+        <div style={{ ...cardStyle, borderLeft: `3px solid ${green}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+            <Settings style={{ width: 16, height: 16, color: greenHi }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>General Settings</p>
           </div>
-        )}
 
-        <button
-          onClick={handleCloseSeason}
-          disabled={isClosingSeason}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: isClosingSeason ? textDim : amber, border: `1px solid color-mix(in oklch, ${amber} 50%, ${border})`, borderRadius: 6, cursor: isClosingSeason ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
-        >
-          <Lock style={{ width: 13, height: 13 }} />
-          {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
-        </button>
-      </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Pool Name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Pool Name</FormLabel>
+                  <FormControl>
+                    <input {...field} style={inputStyle} placeholder="Enter pool name" />
+                  </FormControl>
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
 
-      {/* Danger Zone */}
-      <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${red} 35%, ${border})` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-          <Trash2 style={{ width: 16, height: 16, color: red }} />
-          <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</p>
-        </div>
-        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Irreversible and destructive actions</p>
+            {/* Season Scope */}
+            <FormField
+              control={form.control}
+              name="season_scope"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Season Scope</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
+                        <SelectValue placeholder="Select season scope" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {SEASON_SCOPE_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {scopeDesc && (
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>{scopeDesc}</p>
+                  )}
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
 
-        <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: red, marginBottom: '0.35rem' }}>Delete Pool</p>
-        <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.85rem' }}>
-          Once you delete a pool, there is no going back. Please be certain.
-        </p>
+            {/* Active status */}
+            <FormField
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Pool Status</FormLabel>
+                  <Select onValueChange={(v) => field.onChange(v === 'true')} value={String(field.value)}>
+                    <FormControl>
+                      <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="true">Active — accepting picks</SelectItem>
+                      <SelectItem value="false">Inactive — locked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+          </div>
 
-        <Dialog
-          open={showDeleteDialog}
-          onOpenChange={(open) => {
-            setShowDeleteDialog(open);
-            if (!open) setDeleteConfirmation('');
-          }}
-        >
-          <DialogTrigger asChild>
-            <button style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', background: `color-mix(in oklch, ${red} 15%, ${surface})`, color: red, border: `1px solid color-mix(in oklch, ${red} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              <Trash2 style={{ width: 12, height: 12 }} />
-              Delete Pool
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+            <button
+              type="submit"
+              disabled={isSaving}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: isSaving ? surface : green, color: isSaving ? textDim : text, border: 'none', borderRadius: 6, cursor: isSaving ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+            >
+              <Save style={{ width: 13, height: 13 }} />
+              {isSaving ? 'Saving…' : 'Save Settings'}
             </button>
-          </DialogTrigger>
-          <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
-            <DialogHeader>
-              <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Delete Pool</DialogTitle>
-              <DialogDescription asChild>
-                <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
-                  <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.</p>
-                  <p style={{ ...b, fontWeight: 700, color: textMid, marginBottom: '0.35rem' }}>This will also permanently delete:</p>
-                  <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    {['All participants in this pool', 'All picks submitted by participants', 'All scores and standings', 'All tie breaker responses'].map(item => (
-                      <li key={item} style={{ listStyleType: 'disc', ...b, fontSize: '0.78rem', color: textDim }}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </DialogDescription>
-            </DialogHeader>
+          </div>
+        </div>
 
-            <div style={{ padding: '0.75rem 0' }}>
-              <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
-                To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: red }}>{poolName}</span> below:
-              </p>
-              <input
-                type="text"
-                placeholder="Enter pool name to confirm"
-                value={deleteConfirmation}
-                onChange={(e) => setDeleteConfirmation(e.target.value)}
-                style={{ ...inputStyle, border: `1px solid ${deleteTyped ? (deleteMatch ? 'oklch(50% 0.14 155)' : red) : border}` }}
-              />
-              {deleteTyped && (
-                <p style={{ ...b, fontSize: '0.75rem', color: deleteMatch ? 'oklch(59% 0.15 155)' : red, marginTop: '0.25rem' }}>
-                  {deleteMatch ? '✓ Pool name matches — deletion enabled' : '✗ Pool name does not match'}
-                </p>
+        {/* Close Season */}
+        <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${amber} 35%, ${border})` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <Lock style={{ width: 16, height: 16, color: amber }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Close Season</p>
+          </div>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
+            Lock this pool, prevent new picks, and compute the final season winner.
+          </p>
+          <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
+            Use this when the NFL season is over. The pool will be set to inactive and the season winner will be computed from all scores and saved permanently.
+          </p>
+
+          {closeSeasonResult && (
+            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: `color-mix(in oklch, ${amber} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${amber} 30%, ${border})`, borderRadius: 6 }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>{closeSeasonResult.message}</p>
+              {closeSeasonResult.winner && (
+                <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>Winner: {closeSeasonResult.winner}</p>
               )}
             </div>
+          )}
 
-            <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button onClick={() => setShowDeleteDialog(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting || !deleteMatch}
-                style={{ ...bc, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: isDeleting || !deleteMatch ? surface : `color-mix(in oklch, ${red} 20%, ${surface})`, color: isDeleting || !deleteMatch ? textDim : red, border: `1px solid ${isDeleting || !deleteMatch ? border : `color-mix(in oklch, ${red} 40%, ${border})`}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isDeleting || !deleteMatch ? 'not-allowed' : 'pointer' }}
-              >
+          <button
+            type="button"
+            onClick={handleCloseSeason}
+            disabled={isClosingSeason}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: isClosingSeason ? textDim : amber, border: `1px solid color-mix(in oklch, ${amber} 50%, ${border})`, borderRadius: 6, cursor: isClosingSeason ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+          >
+            <Lock style={{ width: 13, height: 13 }} />
+            {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
+          </button>
+        </div>
+
+        {/* Danger Zone */}
+        <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${red} 35%, ${border})` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <Trash2 style={{ width: 16, height: 16, color: red }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</p>
+          </div>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Irreversible and destructive actions</p>
+
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: red, marginBottom: '0.35rem' }}>Delete Pool</p>
+          <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.85rem' }}>
+            Once you delete a pool, there is no going back. Please be certain.
+          </p>
+
+          <Dialog
+            open={showDeleteDialog}
+            onOpenChange={(open) => {
+              setShowDeleteDialog(open);
+              if (!open) setDeleteConfirmation('');
+            }}
+          >
+            <DialogTrigger asChild>
+              <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', background: `color-mix(in oklch, ${red} 15%, ${surface})`, color: red, border: `1px solid color-mix(in oklch, ${red} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 <Trash2 style={{ width: 12, height: 12 }} />
-                {isDeleting ? 'Deleting...' : 'Delete Pool'}
+                Delete Pool
               </button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
+            </DialogTrigger>
+            <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
+              <DialogHeader>
+                <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Delete Pool</DialogTitle>
+                <DialogDescription asChild>
+                  <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+                    <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.</p>
+                    <p style={{ ...b, fontWeight: 700, color: textMid, marginBottom: '0.35rem' }}>This will also permanently delete:</p>
+                    <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      {['All participants in this pool', 'All picks submitted by participants', 'All scores and standings', 'All tie breaker responses'].map(item => (
+                        <li key={item} style={{ listStyleType: 'disc', ...b, fontSize: '0.78rem', color: textDim }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </DialogDescription>
+              </DialogHeader>
+
+              <div style={{ padding: '0.75rem 0' }}>
+                <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
+                  To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: red }}>{poolName}</span> below:
+                </p>
+                <input
+                  type="text"
+                  placeholder="Enter pool name to confirm"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  style={{ ...inputStyle, border: `1px solid ${deleteTyped ? (deleteMatch ? 'oklch(50% 0.14 155)' : red) : border}` }}
+                />
+                {deleteTyped && (
+                  <p style={{ ...b, fontSize: '0.75rem', color: deleteMatch ? 'oklch(59% 0.15 155)' : red, marginTop: '0.25rem' }}>
+                    {deleteMatch ? '✓ Pool name matches — deletion enabled' : '✗ Pool name does not match'}
+                  </p>
+                )}
+              </div>
+
+              <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" onClick={() => setShowDeleteDialog(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isDeleting || !deleteMatch}
+                  style={{ ...bc, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: isDeleting || !deleteMatch ? surface : `color-mix(in oklch, ${red} 20%, ${surface})`, color: isDeleting || !deleteMatch ? textDim : red, border: `1px solid ${isDeleting || !deleteMatch ? border : `color-mix(in oklch, ${red} 40%, ${border})`}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isDeleting || !deleteMatch ? 'not-allowed' : 'pointer' }}
+                >
+                  <Trash2 style={{ width: 12, height: 12 }} />
+                  {isDeleting ? 'Deleting...' : 'Delete Pool'}
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+      </form>
+    </Form>
   );
 }

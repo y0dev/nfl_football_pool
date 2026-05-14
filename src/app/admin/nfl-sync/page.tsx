@@ -107,15 +107,10 @@ function NFLSyncContent() {
 
   const loadCurrentStats = async () => {
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const { data: games, error } = await getSupabaseServiceClient().from('games').select('status').eq('season', new Date().getFullYear());
-      if (error) throw error;
-      setCurrentStats({
-        totalGames: games?.length || 0,
-        liveGames: games?.filter(g => g.status === 'live').length || 0,
-        completedGames: games?.filter(g => g.status === 'final').length || 0,
-        scheduledGames: games?.filter(g => g.status === 'scheduled').length || 0,
-      });
+      const res = await fetch(`/api/admin/games/stats?season=${new Date().getFullYear()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) setCurrentStats(data.stats);
     } catch (error) {
       console.error('Error loading current stats:', error);
     }
@@ -169,8 +164,6 @@ function NFLSyncContent() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      await getSupabaseClient().auth.signOut();
       await signOut();
       router.push('/admin/login');
     } catch {

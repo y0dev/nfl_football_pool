@@ -110,7 +110,7 @@ function PoolAdminContent() {
           <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pool Not Found</h2>
           <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>The requested pool could not be found.</p>
           <button
-            onClick={() => router.push(createPageUrl('admin/dashboard'))}
+            onClick={() => router.push('/admin/pools')}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
               width: '100%', padding: '0.6rem 1rem',
@@ -142,7 +142,7 @@ function PoolAdminContent() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
-                onClick={() => router.push(createPageUrl('admin/dashboard'))}
+                onClick={() => router.push('/admin/pools')}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
                   padding: '0.35rem 0.6rem',
@@ -154,7 +154,7 @@ function PoolAdminContent() {
                 }}
               >
                 <ArrowLeft style={{ width: 12, height: 12 }} />
-                Dashboard
+                All Pools
               </button>
               <div style={{ width: 1, height: 20, background: border }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

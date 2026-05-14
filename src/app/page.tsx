@@ -80,15 +80,11 @@ function LandingPage() {
 
         // seasonType 0 = offseason signal from getCurrentWeekFromGames
         if (seasonType !== 0) {
-          const { getSupabaseClient } = await import('@/lib/supabase');
-          const supabase = getSupabaseClient();
-          const { data: gamesData, error } = await supabase
-            .from('games')
-            .select('*')
-            .eq('week', weekNum)
-            .eq('season_type', seasonType)
-            .order('kickoff_time');
-          if (!error) setGames(gamesData || []);
+          const res = await fetch(`/api/games/week?week=${weekNum}&seasonType=${seasonType}`);
+          if (res.ok) {
+            const result = await res.json();
+            if (result.success) setGames(result.games || []);
+          }
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -99,27 +95,9 @@ function LandingPage() {
     loadData();
   }, []);
 
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!searchTerm.trim()) return;
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      const { data: pools, error } = await supabase
-        .from('pools')
-        .select('id, name, created_by')
-        .or(`name.ilike.%${searchTerm}%,created_by.ilike.%${searchTerm}%`)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (error) { console.error('Error searching pools:', error); return; }
-      if (pools && pools.length > 0) {
-        router.push(createPageUrl(`poolpicks?poolId=${pools[0].id}`));
-      } else {
-        console.log('No pools found');
-      }
-    } catch (error) {
-      console.error('Error searching for pool:', error);
-    }
+    router.push(`/pools?q=${encodeURIComponent(searchTerm.trim())}`);
   };
 
   const getGameStatus = (game: Game) => {

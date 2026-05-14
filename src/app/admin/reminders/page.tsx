@@ -124,68 +124,18 @@ function RemindersContent() {
 
   const loadParticipants = async () => {
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-
-      console.log('User info:', { email: user?.email, isSuperAdmin: user?.is_super_admin, userId: user?.id });
-
-      let participantsQuery = supabase.from('participants').select('*').eq('is_active', true);
-
-      if (selectedPool !== 'all') {
-        participantsQuery = participantsQuery.eq('pool_id', selectedPool);
-      } else if (!user?.is_super_admin) {
-        const userPoolIds = pools.map(p => p.id);
-        if (userPoolIds.length > 0) {
-          participantsQuery = participantsQuery.in('pool_id', userPoolIds);
-        } else {
-          setParticipants([]);
-          return;
-        }
-      }
-
-      const { data: participantsData, error } = await participantsQuery;
-
-      if (error) {
-        console.error('Error loading participants:', error);
-        toast({ title: 'Error', description: `Failed to load participants: ${error.message}`, variant: 'destructive' });
-        return;
-      }
-
-      if (!participantsData || participantsData.length === 0) {
-        setParticipants([]);
-        return;
-      }
-
-      const participantsWithSubmissionStatus = await Promise.all(
-        participantsData.map(async (participant) => {
-          const { data: games } = await supabase.from('games').select('id').eq('week', currentWeek);
-
-          let has_submitted = false;
-          if (games && games.length > 0) {
-            const gameIds = games.map(g => g.id);
-            const { data: picks } = await supabase
-              .from('picks')
-              .select('id')
-              .eq('participant_id', participant.id)
-              .eq('pool_id', participant.pool_id)
-              .in('game_id', gameIds);
-            has_submitted = Boolean(picks && picks.length === gameIds.length);
-          }
-
-          const { data: poolData } = await supabase.from('pools').select('name').eq('id', participant.pool_id).single();
-
-          return { ...participant, pool_name: poolData?.name || 'Unknown Pool', has_submitted, last_reminder_sent: null };
-        })
-      );
-
-      setParticipants(participantsWithSubmissionStatus);
-
-      console.log('Participants loaded:', {
-        total: participantsWithSubmissionStatus.length,
-        selectedPool,
-        userIsSuperAdmin: user?.is_super_admin,
-        poolsCount: pools.length
+      const params = new URLSearchParams({
+        week: String(currentWeek),
+        seasonType: String(currentSeasonType),
+        poolId: selectedPool,
+        adminEmail: user?.email || '',
+        isSuperAdmin: String(user?.is_super_admin || false),
       });
+      const res = await fetch(`/api/admin/reminders/participants?${params}`);
+      if (!res.ok) throw new Error('Failed to load participants');
+      const data = await res.json();
+      if (data.success) setParticipants(data.participants);
+      else throw new Error(data.error);
     } catch (error) {
       console.error('Error loading participants:', error);
     }

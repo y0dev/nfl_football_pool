@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Users, CheckCircle2, XCircle, Target } from 'lucide-react';
-import { loadUsers } from '@/actions/loadUsers';
 import { PlayoffParticipantEditDialog } from './playoff-participant-edit-dialog';
 
 const card    = 'oklch(20% 0.03 255)';
@@ -41,31 +40,10 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
   const loadParticipantStatus = async () => {
     try {
       setIsLoading(true);
-      const allParticipants = await loadUsers(poolId);
-      if (!allParticipants || allParticipants.length === 0) { setParticipants([]); return; }
-
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-
-      const { data: playoffTeams } = await supabase.from('playoff_teams').select('id').eq('season', poolSeason);
-      const teamsCount = playoffTeams?.length || 0;
-
-      const { data: confidenceSubmissions } = await supabase
-        .from('playoff_confidence_points').select('participant_id')
-        .eq('pool_id', poolId).eq('season', poolSeason);
-
-      const counts = new Map<string, number>();
-      confidenceSubmissions?.forEach(s => counts.set(s.participant_id, (counts.get(s.participant_id) || 0) + 1));
-
-      const list: ParticipantStatus[] = allParticipants.map(p => ({
-        id: p.id, name: p.name,
-        submissionCount: counts.get(p.id) || 0,
-        totalTeams: teamsCount,
-        hasSubmitted: (counts.get(p.id) || 0) === teamsCount && teamsCount > 0,
-      }));
-
-      list.sort((a, b) => a.hasSubmitted !== b.hasSubmitted ? (a.hasSubmitted ? -1 : 1) : a.name.localeCompare(b.name));
-      setParticipants(list);
+      const res = await fetch(`/api/admin/playoff/participants-status?poolId=${poolId}&season=${poolSeason}`);
+      if (!res.ok) throw new Error('Failed to load participant status');
+      const data = await res.json();
+      if (data.success) setParticipants(data.participants);
     } catch (error) {
       console.error('Error loading participant status:', error);
       setParticipants([]);

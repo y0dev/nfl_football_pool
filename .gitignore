@@ -3,6 +3,12 @@
 !public
 
 !src
+!src/actions
+!src/app
+!src/components
+!src/lib
+!tests/e2e
+!tests/utils
 !next.config.js
 !playwright.config.ts
 !tsconfig.json

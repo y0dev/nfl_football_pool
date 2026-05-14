@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -332,42 +331,50 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
           </div>
         ) : (
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <Table style={{ width: 'max-content', minWidth: '100%' }}>
-              <TableHeader>
-                <TableRow style={{ borderBottom: `1px solid ${border}`, background: surface }}>
-                  <TableHead style={{ width: 44, minWidth: 44 }}>
+            <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: surface }}>
+                  {/* checkbox col */}
+                  <th style={{ width: 44, minWidth: 44, padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'left', verticalAlign: 'middle' }}>
                     <input
                       type="checkbox"
                       checked={selectedParticipants.length === filteredParticipants.length && filteredParticipants.length > 0}
                       onChange={handleSelectAll}
-                      style={{ accentColor: green }}
+                      style={{ accentColor: green, cursor: 'pointer' }}
                     />
-                  </TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '9rem', whiteSpace: 'nowrap' }}>Name</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '12rem', whiteSpace: 'nowrap' }}>Email</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '6rem', whiteSpace: 'nowrap' }}>Joined</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', minWidth: '5rem', whiteSpace: 'nowrap' }}>Status</TableHead>
-                  <TableHead style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right', minWidth: '8rem', whiteSpace: 'nowrap' }}>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                  </th>
+                  {[
+                    { label: 'Name',    minWidth: '9rem' },
+                    { label: 'Email',   minWidth: '12rem' },
+                    { label: 'Joined',  minWidth: '6rem' },
+                    { label: 'Status',  minWidth: '5rem' },
+                  ].map(({ label, minWidth }) => (
+                    <th key={label} style={{ padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'left', verticalAlign: 'middle', minWidth, whiteSpace: 'nowrap', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.12em', color: textDim, textTransform: 'uppercase' }}>
+                      {label}
+                    </th>
+                  ))}
+                  <th style={{ padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'right', verticalAlign: 'middle', minWidth: '8rem', whiteSpace: 'nowrap', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.12em', color: textDim, textTransform: 'uppercase' }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {activeParticipants.map((participant, i) => (
-                  <TableRow
+                  <tr
                     key={participant.id}
-                    style={{
-                      borderBottom: `1px solid ${border}`,
-                      background: i % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.5)',
-                    }}
+                    style={{ borderBottom: `1px solid ${border}`, background: i % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.4)' }}
                   >
-                    <TableCell>
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                       <input
                         type="checkbox"
                         checked={selectedParticipants.includes(participant.id)}
                         onChange={() => handleSelectParticipant(participant.id)}
-                        style={{ accentColor: green }}
+                        style={{ accentColor: green, cursor: 'pointer' }}
                       />
-                    </TableCell>
-                    <TableCell style={{ ...b, fontSize: '0.85rem', color: text, fontWeight: 500 }}>
+                    </td>
+
+                    {/* Name / edit */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.85rem', color: text, fontWeight: 600 }}>
                       {editingParticipant === participant.id ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <Input
@@ -395,35 +402,41 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                           </button>
                         </div>
                       )}
-                    </TableCell>
-                    <TableCell style={{ ...b, fontSize: '0.82rem', color: participant.email ? textMid : textDim }}>
-                      {participant.email || <em>No email</em>}
-                    </TableCell>
-                    <TableCell style={{ ...b, fontSize: '0.82rem', color: textDim }}>
+                    </td>
+
+                    {/* Email */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.82rem', color: participant.email ? textMid : textDim }}>
+                      {participant.email || <em style={{ fontStyle: 'italic' }}>No email</em>}
+                    </td>
+
+                    {/* Joined date */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.78rem', color: textDim }}>
                       {new Date(participant.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <span style={{
-                        ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-                        padding: '0.12rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
-                        background: 'oklch(46% 0.14 155 / 0.18)', color: greenHi,
-                        border: `1px solid oklch(46% 0.14 155 / 0.35)`,
-                      }}>Active</span>
-                    </TableCell>
-                    <TableCell style={{ textAlign: 'right' }}>
+                    </td>
+
+                    {/* Status badge */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.2rem 0.5rem', borderRadius: 4, background: 'oklch(46% 0.14 155 / 0.15)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.3)` }}>
+                        Active
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', textAlign: 'right' }}>
                       <button
-                        style={{ ...btnBase, padding: '0.25rem 0.6rem', color: 'oklch(65% 0.18 25)', borderColor: 'oklch(38% 0.1 25)' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.65rem', background: 'oklch(50% 0.22 25 / 0.12)', color: 'oklch(65% 0.18 25)', border: `1px solid oklch(50% 0.22 25 / 0.35)`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
                         onClick={() => handleRemoveParticipant(participant.id, participant.name)}
                       >
-                        <Trash2 style={{ width: 11, height: 11 }} />
+                        <Trash2 style={{ width: 10, height: 10 }} />
                         Remove
                       </button>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
+
                 {activeParticipants.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                       <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
                       <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.4rem' }}>
                         {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
@@ -437,11 +450,11 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
                           </button>
                         </div>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         )}
       </div>

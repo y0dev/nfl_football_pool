@@ -3,216 +3,109 @@ import { Page, expect } from '@playwright/test';
 export class TestHelpers {
   constructor(private page: Page) {}
 
-  /**
-   * Wait for the page to be fully loaded
-   */
   async waitForPageLoad() {
     await this.page.waitForLoadState('networkidle');
   }
 
-  /**
-   * Wait for a specific element to be visible
-   */
   async waitForElement(selector: string, timeout = 10000) {
     await this.page.waitForSelector(selector, { state: 'visible', timeout });
   }
 
-  /**
-   * Fill a form field
-   */
   async fillField(selector: string, value: string) {
     await this.page.fill(selector, value);
   }
 
-  /**
-   * Click an element
-   */
   async clickElement(selector: string) {
     await this.page.click(selector);
   }
 
-  /**
-   * Select an option from a dropdown
-   */
-  async selectOption(selector: string, value: string) {
-    await this.page.selectOption(selector, value);
-  }
-
-  /**
-   * Check if an element contains text
-   */
   async expectElementContainsText(selector: string, text: string) {
     await expect(this.page.locator(selector)).toContainText(text);
   }
 
-  /**
-   * Check if an element is visible
-   */
   async expectElementVisible(selector: string) {
-    await expect(this.page.locator(selector)).toBeVisible();
+    await expect(this.page.locator(selector).first()).toBeVisible();
   }
 
-  /**
-   * Check if an element is not visible
-   */
   async expectElementNotVisible(selector: string) {
     await expect(this.page.locator(selector)).not.toBeVisible();
   }
 
-  /**
-   * Get text content of an element
-   */
   async getElementText(selector: string): Promise<string> {
     return await this.page.locator(selector).textContent() || '';
   }
 
-  /**
-   * Wait for navigation to complete
-   */
   async waitForNavigation() {
     await this.page.waitForURL('**');
   }
 
-  /**
-   * Take a screenshot for debugging
-   */
-  async takeScreenshot(name: string) {
-    await this.page.screenshot({ path: `screenshots/${name}.png` });
-  }
-
-  /**
-   * Check if URL contains expected path
-   */
   async expectURLContains(path: string) {
     await expect(this.page).toHaveURL(new RegExp(path));
   }
 
-  /**
-   * Wait for a specific API response
-   */
   async waitForAPIResponse(urlPattern: string) {
-    await this.page.waitForResponse(response => 
+    await this.page.waitForResponse(response =>
       response.url().includes(urlPattern) && response.status() === 200
     );
   }
 
-  /**
-   * Mock API responses for testing
-   */
-  async mockAPIResponse(urlPattern: string, responseData: any) {
+  async mockAPIResponse(urlPattern: string, responseData: unknown, status = 200) {
     await this.page.route(urlPattern, route => {
       route.fulfill({
-        status: 200,
+        status,
         contentType: 'application/json',
-        body: JSON.stringify(responseData)
+        body: JSON.stringify(responseData),
       });
     });
   }
 
-  /**
-   * Wait for toast notification to appear
-   */
-  async waitForToast(type: 'success' | 'error', timeout = 5000) {
-    const selector = type === 'success' ? '.success-toast, .toast-success, [role="status"]' : '.error-toast, .toast-error, [role="alert"]';
-    await this.waitForElement(selector, timeout);
-  }
-
-  /**
-   * Check if modal/dialog is open
-   */
-  async expectModalOpen(title?: string) {
-    if (title) {
-      await this.expectElementVisible(`[role="dialog"] h2:has-text("${title}")`);
-    } else {
-      await this.expectElementVisible('[role="dialog"]');
-    }
-  }
-
-  /**
-   * Check if alert dialog is open
-   */
-  async expectAlertDialogOpen(title?: string) {
-    if (title) {
-      await this.expectElementVisible(`[role="alertdialog"] h2:has-text("${title}")`);
-    } else {
-      await this.expectElementVisible('[role="alertdialog"]');
-    }
+  async waitForToast(timeout = 5000) {
+    await this.waitForElement('[role="status"], [data-sonner-toast]', timeout);
   }
 }
 
-/**
- * Common test data for the NFL pool application
- */
 export const testData = {
   users: {
     commissioner: {
-      email: 'admin@test.com',
-      password: 'admin123',
-      name: 'Test Commissioner'
+      email: 'commissioner@test.com',
+      name: 'Test Commissioner',
     },
-    // participant: {
-    //   email: 'participant@test.com',
-    //   password: 'participant123',
-    //   name: 'Test Participant'
-    // },
-    admin: {
+    superAdmin: {
       email: 'superadmin@test.com',
-      password: 'super123',
-      name: 'Test Admin'
-    }
+      name: 'Test Super Admin',
+    },
   },
   pools: {
-    testPool: {
-      name: 'Test Pool 2025',
-      description: 'A test pool for end-to-end testing'
-    }
-  }
+    openPool: {
+      id: 'test-pool-open-id',
+      name: 'Sunday Huddle Test Pool',
+      season: 2025,
+      participant_count: 12,
+      requires_password: false,
+    },
+    lockedPool: {
+      id: 'test-pool-locked-id',
+      name: 'Private Invite Pool',
+      season: 2025,
+      participant_count: 6,
+      requires_password: true,
+    },
+  },
 };
 
-/**
- * Common selectors used across tests
- */
 export const selectors = {
-  // Auth
-  loginForm: '[data-testid="login-form"]',
-  emailInput: '[data-testid="email-input"]',
-  passwordInput: '[data-testid="password-input"]',
-  loginButton: '[data-testid="login-button"]',
-  
-  // Navigation
-  navMenu: '[data-testid="nav-menu"]',
-  poolLink: '[data-testid="pool-link"]',
-  
-  // Pool
-  poolName: '[data-testid="pool-name"]',
-  poolDescription: '[data-testid="pool-description"]',
-  
-  // Picks
-  pickForm: '[data-testid="pick-form"]',
-  pickButton: '[data-testid="pick-button"]',
-  
-  // Leaderboard
-  leaderboard: '[data-testid="leaderboard"]',
-  leaderboardRow: '[data-testid="leaderboard-row"]',
-  
-  // Admin
-  adminPanel: '[data-testid="admin-panel"]',
-  adminActions: '[data-testid="admin-actions"]',
-  
-  // Commissioners Management
-  commissionersList: '.commissioners-list, .commissioners-table',
-  commissionerCard: '.commissioner-card, .commissioner-row',
-  commissionerName: '.commissioner-name, .name',
-  commissionerEmail: '.commissioner-email, .email',
-  commissionerStatus: '.commissioner-status, .status',
-  
-  // Quick Actions
-  quickActions: '.quick-actions, .action-cards',
-  
-  // Toast Messages
-  successToast: '.success-toast, .toast-success, [role="status"]',
-  errorToast: '.error-toast, .toast-error, [role="alert"]',
-  
-  // Sync History
-  syncHistory: '.sync-history, .history-section'
+  nav: 'nav',
+  brandText: 'nav span',
+  commissionerLoginBtn: 'button:has-text("Commissioner")',
+  searchInput: '[data-testid="pool-search-input"]',
+  poolCard: '[data-testid="pool-card"]',
+  joinForm: '[data-testid="join-form"]',
+  joinName: '[data-testid="join-name"]',
+  joinEmail: '[data-testid="join-email"]',
+  joinPassword: '[data-testid="join-password"]',
+  joinSubmit: '[data-testid="join-submit"]',
+  joinSuccess: '[data-testid="join-success"]',
+  loginEmailInput: 'input[type="email"], input[placeholder*="email" i], input[placeholder*="Email" i]',
+  magicLinkBtn: 'button:has-text("Magic Link"), button:has-text("Send Magic Link"), button:has-text("magic")',
+  notificationBell: 'button:has([data-lucide="bell"]), button svg[class*="bell"]',
 };

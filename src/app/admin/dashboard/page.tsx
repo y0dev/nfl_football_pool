@@ -15,6 +15,7 @@ import {
   Bell,
   RefreshCw,
   Plus,
+  X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -204,8 +205,6 @@ function AdminDashboardContent() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      await getSupabaseClient().auth.signOut();
       await signOut();
       router.push(createPageUrl('adminlogin'));
     } catch {
@@ -379,17 +378,46 @@ function AdminDashboardContent() {
       </nav>
 
       {/* ── Notifications Banner ── */}
-      {showNotifications && notifications.length > 0 && (
+      {showNotifications && (
         <div style={{ background: 'oklch(18% 0.03 255)', borderBottom: `1px solid ${border}` }}>
           <div className="lp-inner" style={{ paddingTop: '0.875rem', paddingBottom: '0.875rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {notifications.map((n, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', ...b, fontSize: '0.8rem', color: textMid }}>
-                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: greenHi, flexShrink: 0, marginTop: 6 }} />
-                  {n}
-                </div>
-              ))}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.18em', color: textDim, textTransform: 'uppercase' }}>
+                Notifications {notifications.length > 0 && `(${notifications.length})`}
+              </span>
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => setNotifications([])}
+                  style={{ ...bc, fontSize: '0.62rem', fontWeight: 600, color: textDim, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.1rem 0.3rem' }}
+                >
+                  Clear All
+                </button>
+              )}
             </div>
+            {notifications.length === 0 ? (
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>No new notifications</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {notifications.map((n, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
+                    <span style={{ ...b, fontSize: '0.8rem', color: textMid, flex: 1 }}>{n}</span>
+                    <button
+                      onClick={() => setNotifications(prev => prev.filter((_, idx) => idx !== i))}
+                      aria-label="Dismiss notification"
+                      style={{
+                        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                        background: 'transparent', border: `1px solid ${border}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', color: textDim,
+                      }}
+                    >
+                      <X style={{ width: 10, height: 10 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

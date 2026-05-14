@@ -20,6 +20,7 @@ export interface Pool {
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
+  season_scope?: number[];
 }
 
 export interface Participant {
