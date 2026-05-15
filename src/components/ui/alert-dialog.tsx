@@ -56,6 +56,8 @@ const AlertDialogContent = React.forwardRef<
         maxWidth: '32rem',
         borderRadius: '0.5rem',
         padding: '1.5rem',
+        background: 'oklch(20% 0.03 255)',
+        border: '1px solid oklch(26% 0.03 255)',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
         ...style,
       }}
@@ -67,13 +69,12 @@ AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({
   className,
+  style,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn(
-      "flex flex-col space-y-2 text-center sm:text-left",
-      className
-    )}
+    className={cn("flex flex-col space-y-2 text-center sm:text-left", className)}
+    style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', ...style }}
     {...props}
   />
 )
@@ -81,13 +82,12 @@ AlertDialogHeader.displayName = "AlertDialogHeader"
 
 const AlertDialogFooter = ({
   className,
+  style,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
-    )}
+    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+    style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap', ...style }}
     {...props}
   />
 )
@@ -96,10 +96,11 @@ AlertDialogFooter.displayName = "AlertDialogFooter"
 const AlertDialogTitle = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
     className={cn("text-lg font-semibold", className)}
+    style={{ fontSize: '1rem', fontWeight: 700, ...style }}
     {...props}
   />
 ))
@@ -108,10 +109,11 @@ AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName
 const AlertDialogDescription = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
     className={cn("text-sm text-muted-foreground", className)}
+    style={{ fontSize: '0.875rem', lineHeight: 1.5, ...style }}
     {...props}
   />
 ))
@@ -120,10 +122,17 @@ AlertDialogDescription.displayName = AlertDialogPrimitive.Description.displayNam
 const AlertDialogAction = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
   <AlertDialogPrimitive.Action
     ref={ref}
     className={cn(buttonVariants(), className)}
+    style={{
+      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+      padding: '0.45rem 0.875rem', borderRadius: 6,
+      fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+      border: 'none',
+      ...style,
+    }}
     {...props}
   />
 ))
@@ -132,14 +141,18 @@ AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName
 const AlertDialogCancel = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
   <AlertDialogPrimitive.Cancel
     ref={ref}
-    className={cn(
-      buttonVariants({ variant: "outline" }),
-      "mt-2 sm:mt-0",
-      className
-    )}
+    className={cn(buttonVariants({ variant: "outline" }), className)}
+    style={{
+      padding: '0.45rem 0.875rem', borderRadius: 6,
+      fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
+      background: 'transparent',
+      border: '1px solid oklch(26% 0.03 255)',
+      color: 'oklch(72% 0.015 255)',
+      ...style,
+    }}
     {...props}
   />
 ))

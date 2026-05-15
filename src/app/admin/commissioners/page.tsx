@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
 import {
-  ArrowLeft, Search, Users, Shield, Eye, EyeOff, Trash2,
-  RefreshCw, Key, UserX, UserCheck, AlertTriangle, LogOut,
+  ArrowLeft, Search, Users, Eye, EyeOff,
+  RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, Admin } from '@/lib/admin-service';
-import { debugLog } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import {
@@ -18,8 +15,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Footer } from '@/components/layout/Footer';
+import { useAdminDomain } from '@/lib/admin-domain.client';
+import { AdminUser } from '@/lib/admin-domain.types';
+import { AdminDomainRules } from '@/lib/admin-domain.rules';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -37,160 +36,63 @@ const liveRed = 'oklch(62% 0.22 25)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
+const inputStyle = {
+  ...b, background: surface, border: `1px solid ${border}`, color: text,
+  padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6,
+  boxSizing: 'border-box' as const, fontSize: '0.875rem',
+};
+
 function CommissionersManagementContent() {
-  const { user, signOut, verifyAdminStatus } = useAuth();
+  const { signOut } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [commissioners, setCommissioners] = useState<Admin[]>([]);
-  const [filteredCommissioners, setFilteredCommissioners] = useState<Admin[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [stats, setStats] = useState({ totalCommissioners: 0, activeCommissioners: 0, inactiveCommissioners: 0 });
-  const [selectedCommissioner, setSelectedCommissioner] = useState<Admin | null>(null);
-  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { commissioners, stats, isLoading, refresh, actions } = useAdminDomain();
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        if (user) {
-          const superAdminStatus = await verifyAdminStatus(true);
-          setIsSuperAdmin(superAdminStatus);
-          if (!superAdminStatus) { router.push('/dashboard'); return; }
-          await loadCommissioners();
-          await loadStats();
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, [user, verifyAdminStatus, router]);
+  const [searchTerm, setSearchTerm]                   = useState('');
+  const [isLoggingOut, setIsLoggingOut]               = useState(false);
+  const [isProcessing, setIsProcessing]               = useState(false);
+  const [selected, setSelected]                       = useState<AdminUser | null>(null);
+  const [resetOpen, setResetOpen]                     = useState(false);
+  const [newPassword, setNewPassword]                 = useState('');
+  const [showPassword, setShowPassword]               = useState(false);
+  const [passwordError, setPasswordError]             = useState('');
 
-  const loadCommissioners = async () => {
-    try {
-      if (!user?.email) return;
-      const allAdmins = await adminService.getAdmins();
-      const commissionersData = allAdmins.filter(admin => !admin.is_super_admin);
-      setCommissioners(commissionersData);
-      setFilteredCommissioners(commissionersData);
-    } catch (error) {
-      console.error('Error loading commissioners:', error);
-      toast({ title: 'Error', description: 'Failed to load commissioners data', variant: 'destructive' });
-    }
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return commissioners;
+    return commissioners.filter(c =>
+      c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
+    );
+  }, [commissioners, searchTerm]);
+
+  const handleToggle = async (c: AdminUser) => {
+    setIsProcessing(true);
+    await actions.toggle(c);
+    setIsProcessing(false);
   };
 
-  const loadStats = async () => {
-    try {
-      if (!user?.email) return;
-      const allAdmins = await adminService.getAdmins();
-      const commissionersData = allAdmins.filter(a => !a.is_super_admin);
-      const totalCommissioners = commissionersData.length;
-      const activeCommissioners = commissionersData.filter(c => c.is_active).length;
-      setStats({ totalCommissioners, activeCommissioners, inactiveCommissioners: totalCommissioners - activeCommissioners });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-    if (!term.trim()) {
-      setFilteredCommissioners(commissioners);
-    } else {
-      setFilteredCommissioners(commissioners.filter(c =>
-        c.full_name?.toLowerCase().includes(term.toLowerCase()) ||
-        c.email.toLowerCase().includes(term.toLowerCase())
-      ));
-    }
+  const handleDelete = async (c: AdminUser) => {
+    setIsProcessing(true);
+    await actions.remove(c);
+    setIsProcessing(false);
   };
 
   const handleResetPassword = async () => {
-    if (!selectedCommissioner || !newPassword.trim()) {
-      toast({ title: 'Error', description: 'Please enter a new password', variant: 'destructive' });
-      return;
-    }
+    if (!selected) return;
+    const err = AdminDomainRules.validatePassword(newPassword.trim());
+    if (err) { setPasswordError(err); return; }
+    setPasswordError('');
     setIsProcessing(true);
-    try {
-      const response = await fetch('/api/admin/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
-        body: JSON.stringify({ adminId: selectedCommissioner.id, newPassword: newPassword.trim() }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: 'Password Reset', description: `Password reset for ${selectedCommissioner.email}` });
-        setResetPasswordModalOpen(false);
-        setNewPassword('');
-        setSelectedCommissioner(null);
-      } else throw new Error(result.error || 'Failed');
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to reset password.', variant: 'destructive' });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleToggleStatus = async (commissioner: Admin) => {
-    setIsProcessing(true);
-    try {
-      const response = await fetch('/api/admin/toggle-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
-        body: JSON.stringify({ adminId: commissioner.id, isActive: !commissioner.is_active }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: 'Status Updated', description: `${commissioner.email} ${commissioner.is_active ? 'deactivated' : 'activated'}` });
-        await loadCommissioners();
-        await loadStats();
-      } else throw new Error(result.error || 'Failed');
-    } catch {
-      toast({ title: 'Error', description: 'Failed to update status.', variant: 'destructive' });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDeleteCommissioner = async () => {
-    if (!selectedCommissioner) return;
-    setIsProcessing(true);
-    try {
-      const response = await fetch('/api/admin/delete-commissioner', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Email': user?.email || '' },
-        body: JSON.stringify({ adminId: selectedCommissioner.id }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: 'Commissioner Deleted', description: `${selectedCommissioner.email} permanently deleted` });
-        setDeleteModalOpen(false);
-        setSelectedCommissioner(null);
-        await loadCommissioners();
-        await loadStats();
-      } else throw new Error(result.error || 'Failed');
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete commissioner.', variant: 'destructive' });
-    } finally {
-      setIsProcessing(false);
-    }
+    await actions.resetPassword(selected, newPassword.trim());
+    setIsProcessing(false);
+    setResetOpen(false);
+    setNewPassword('');
+    setSelected(null);
   };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    try {
-      await signOut();
-      router.push('/admin/login');
-    } catch {
-      setIsLoggingOut(false);
-    }
+    try { await signOut(); router.push('/admin/login'); }
+    catch { setIsLoggingOut(false); }
   };
 
   if (isLoading) {
@@ -202,9 +104,9 @@ function CommissionersManagementContent() {
   }
 
   const statItems = [
-    { label: 'Total', value: stats.totalCommissioners, color: gold, sub: 'All time' },
-    { label: 'Active', value: stats.activeCommissioners, color: greenHi, sub: 'Currently active' },
-    { label: 'Inactive', value: stats.inactiveCommissioners, color: liveRed, sub: 'Deactivated' },
+    { label: 'Total',    value: stats.commissioners, color: gold,    sub: 'All time' },
+    { label: 'Active',   value: stats.active,        color: greenHi, sub: 'Currently active' },
+    { label: 'Inactive', value: stats.inactive,      color: liveRed, sub: 'Deactivated' },
   ];
 
   return (
@@ -227,6 +129,9 @@ function CommissionersManagementContent() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+              <button onClick={refresh} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <RefreshCw style={{ width: 12, height: 12 }} /> Refresh
+              </button>
               <button onClick={() => router.push('/admin/create-commissioner')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <Users style={{ width: 12, height: 12 }} /> Add Commissioner
               </button>
@@ -257,17 +162,15 @@ function CommissionersManagementContent() {
         </div>
       </section>
 
-      {/* ── green rule ── */}
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
       {/* ── LIST ── */}
       <section style={{ background: bg, padding: '3rem 0' }}>
         <div className="lp-inner">
-          {/* Search */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
             <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-              All Commissioners ({filteredCommissioners.length})
+              All Commissioners ({filtered.length})
             </h3>
           </div>
 
@@ -277,70 +180,67 @@ function CommissionersManagementContent() {
               <Input
                 placeholder="Search by name or email…"
                 value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.85rem', paddingLeft: '2.25rem' }}
               />
             </div>
           </div>
 
-          {/* Commissioner list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {filteredCommissioners.length === 0 ? (
+            {filtered.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
                 <Users style={{ width: 40, height: 40, color: textDim, margin: '0 auto 1rem' }} />
                 <p style={{ ...b, color: textDim, fontSize: '0.9rem' }}>
-                  {searchTerm ? 'No commissioners found matching your search.' : 'No commissioners created yet.'}
+                  {searchTerm ? 'No commissioners match your search.' : 'No commissioners created yet.'}
                 </p>
               </div>
-            ) : (
-              filteredCommissioners.map((commissioner) => (
-                <div key={commissioner.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg, oklch(46% 0.14 155), oklch(62% 0.12 270))`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ ...bc, fontWeight: 900, fontSize: '1rem', color: text }}>
-                          {(commissioner.full_name?.charAt(0) || commissioner.email.charAt(0)).toUpperCase()}
+            ) : filtered.map((c) => (
+              <div key={c.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, oklch(46% 0.14 155), oklch(62% 0.12 270))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ ...bc, fontWeight: 900, fontSize: '1rem', color: text }}>
+                        {(c.name?.charAt(0) || c.email.charAt(0)).toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: text }}>{c.name || 'Unnamed Commissioner'}</span>
+                        <span style={{ ...bc, fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.1em', color: c.isActive ? greenHi : liveRed, background: c.isActive ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(50% 0.22 25 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                          {c.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                          <span style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: text, letterSpacing: '0.02em' }}>
-                            {commissioner.full_name || 'Unnamed Commissioner'}
-                          </span>
-                          <span style={{ ...bc, fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.1em', color: commissioner.is_active ? greenHi : liveRed, textTransform: 'uppercase', background: commissioner.is_active ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(50% 0.22 25 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4 }}>
-                            {commissioner.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{commissioner.email}</p>
-                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
-                          Created {new Date(commissioner.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
+                      <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{c.email}</p>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
+                        Created {new Date(c.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
+                  </div>
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => { setSelectedCommissioner(commissioner); setResetPasswordModalOpen(true); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-                      >
-                        <Key style={{ width: 11, height: 11 }} /> Reset Password
-                      </button>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => { setSelected(c); setResetOpen(true); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                    >
+                      <Key style={{ width: 11, height: 11 }} /> Reset Password
+                    </button>
 
+                    {AdminDomainRules.canToggle(c) && (
                       <button
-                        onClick={() => handleToggleStatus(commissioner)}
+                        onClick={() => handleToggle(c)}
                         disabled={isProcessing}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: commissioner.is_active ? 'oklch(50% 0.22 25 / 0.15)' : 'oklch(46% 0.14 155 / 0.15)', color: commissioner.is_active ? liveRed : greenHi, border: `1px solid ${commissioner.is_active ? liveRed : greenHi}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: c.isActive ? 'oklch(50% 0.22 25 / 0.15)' : 'oklch(46% 0.14 155 / 0.15)', color: c.isActive ? liveRed : greenHi, border: `1px solid ${c.isActive ? liveRed : greenHi}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.6 : 1 }}
                       >
-                        {commissioner.is_active
+                        {c.isActive
                           ? <><UserX style={{ width: 11, height: 11 }} /> Deactivate</>
-                          : <><UserCheck style={{ width: 11, height: 11 }} /> Activate</>
-                        }
+                          : <><UserCheck style={{ width: 11, height: 11 }} /> Activate</>}
                       </button>
+                    )}
 
+                    {AdminDomainRules.canDelete(c) && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <button
-                            onClick={() => setSelectedCommissioner(commissioner)}
                             disabled={isProcessing}
                             style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'oklch(50% 0.22 25 / 0.15)', color: liveRed, border: `1px solid ${liveRed}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.6 : 1 }}
                           >
@@ -349,65 +249,80 @@ function CommissionersManagementContent() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <AlertTriangle style={{ width: 18, height: 18 }} /> Delete Commissioner
+                            <AlertDialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: liveRed, ...bc, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                              <AlertTriangle style={{ width: 16, height: 16 }} /> Delete Commissioner
                             </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to permanently delete {commissioner.full_name || commissioner.email}? This cannot be undone.
+                            <AlertDialogDescription style={{ color: textMid }}>
+                              Permanently delete <strong style={{ color: text }}>{c.name || c.email}</strong>? This cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteCommissioner} className="bg-red-600 hover:bg-red-700" disabled={isProcessing}>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(c)}
+                              disabled={isProcessing}
+                              style={{ background: 'oklch(50% 0.22 25 / 0.2)', color: liveRed, border: `1px solid ${liveRed}`, opacity: isProcessing ? 0.6 : 1 }}
+                            >
                               {isProcessing ? 'Deleting…' : 'Delete Permanently'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                    </div>
+                    )}
                   </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
       <Footer pageName="Commissioner HQ" />
 
-      {/* Reset Password Modal */}
-      <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>
-        <DialogContent style={{ maxWidth: '28rem' }}>
+      {/* Reset Password Dialog */}
+      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) { setNewPassword(''); setSelected(null); setPasswordError(''); } }}>
+        <DialogContent style={{ maxWidth: '26rem' }}>
           <DialogHeader>
-            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Key style={{ width: 18, height: 18 }} /> Reset Password
+            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Key style={{ width: 16, height: 16, color: greenHi }} /> Reset Password
             </DialogTitle>
-            <DialogDescription>
-              Set a new password for {selectedCommissioner?.full_name || selectedCommissioner?.email}
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Set a new password for <strong style={{ color: text }}>{selected?.name || selected?.email}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <Label htmlFor="new-password">New Password</Label>
-              <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-                <Input
-                  id="new-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="pr-12"
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
-                </button>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="e.g. MyPass1!"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                style={{ ...inputStyle, border: `1px solid ${passwordError ? liveRed : border}` }}
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', color: textDim, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+              </button>
             </div>
+            <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '-0.5rem' }}>
+              Min {AdminDomainRules.passwordMinLength()} chars · uppercase · lowercase · number · special character
+            </p>
+            {passwordError && (
+              <p style={{ ...b, fontSize: '0.78rem', color: liveRed, background: `oklch(62% 0.22 25 / 0.08)`, border: `1px solid oklch(62% 0.22 25 / 0.3)`, borderRadius: 5, padding: '0.4rem 0.65rem', marginTop: '-0.25rem' }}>
+                {passwordError}
+              </p>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button onClick={() => { setResetPasswordModalOpen(false); setNewPassword(''); setSelectedCommissioner(null); }} style={{ padding: '0.45rem 0.875rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: textMid, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleResetPassword} disabled={!newPassword.trim() || isProcessing} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (!newPassword.trim() || isProcessing) ? 'not-allowed' : 'pointer', opacity: (!newPassword.trim() || isProcessing) ? 0.6 : 1 }}>
-                {isProcessing ? <><RefreshCw style={{ width: 12, height: 12 }} className="animate-spin" /> Resetting…</> : <><Key style={{ width: 12, height: 12 }} /> Reset Password</>}
+              <button onClick={() => { setResetOpen(false); setNewPassword(''); setSelected(null); setPasswordError(''); }} style={{ padding: '0.45rem 0.875rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: textMid, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleResetPassword}
+                disabled={!newPassword || isProcessing}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (!newPassword || isProcessing) ? 'not-allowed' : 'pointer', opacity: (!newPassword || isProcessing) ? 0.6 : 1 }}
+              >
+                {isProcessing
+                  ? <><RefreshCw style={{ width: 12, height: 12, animation: 'spin 0.8s linear infinite' }} /> Resetting…</>
+                  : <><Key style={{ width: 12, height: 12 }} /> Reset Password</>}
               </button>
             </div>
           </div>
