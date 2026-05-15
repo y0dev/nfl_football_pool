@@ -1,12 +1,36 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Barlow, Barlow_Condensed } from "next/font/google";
+// @ts-ignore
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
+const barlow = Barlow({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-barlow",
+});
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
+  variable: "--font-barlow-condensed",
+});
 
 export const metadata: Metadata = {
-  title: "NFL Confidence Pool",
-  description: "Join the ultimate NFL confidence pool experience",
+  title: {
+    default: "Sunday Huddle",
+    template: "%s | Sunday Huddle",
+  },
+  description:
+    "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
+  icons: {
+    icon: '/brand/sh-app-icon.png',
+    apple: '/brand/sh-app-icon.png',
+  },
+  openGraph: {
+    title: 'Sunday Huddle',
+    description: 'Picks. People. Compete. — NFL confidence pools made simple.',
+    images: [{ url: '/brand/sh-logo.png', width: 1254, height: 630 }],
+  },
 };
 
 export default function RootLayout({
@@ -16,10 +40,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className} suppressHydrationWarning>
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          {children}
-        </div>
+      <body
+        className={`${inter.className} ${barlow.variable} ${barlowCondensed.variable}`}
+        suppressHydrationWarning
+      >
+        {children}
       </body>
     </html>
   );

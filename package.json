@@ -28,7 +28,9 @@
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report",
     "test:install": "playwright install",
-    "test:email": "node scripts/test-email.mjs"
+    "test:email": "node scripts/test-email.mjs",
+    "close-season": "tsx scripts/close-season.ts",
+    "close-season:dry": "tsx scripts/close-season.ts --dry-run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

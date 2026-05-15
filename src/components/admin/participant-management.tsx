@@ -1,17 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Trash2, Loader2, Plus, Search, Users, Download, Upload, Edit, Save, X } from 'lucide-react';
+import { Trash2, Loader2, Search, Users, Download, Upload, Edit, Save, X } from 'lucide-react';
 import { getPoolParticipants, removeParticipantFromPool, addParticipantToPool, updateParticipantName } from '@/actions/adminActions';
 import { AddUserDialog } from './add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface Participant {
   id: string;
@@ -26,6 +37,20 @@ interface ParticipantManagementProps {
   poolName: string;
 }
 
+const btnBase: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+  padding: '0.4rem 0.85rem',
+  border: `1px solid ${border}`, borderRadius: 6,
+  ...bc, fontWeight: 700, fontSize: '0.72rem',
+  letterSpacing: '0.07em', textTransform: 'uppercase',
+  cursor: 'pointer', whiteSpace: 'nowrap',
+  background: 'transparent', color: textMid,
+};
+
+const btnGreen: React.CSSProperties = { ...btnBase, background: green, color: text, border: `1px solid ${green}` };
+const btnRed: React.CSSProperties   = { ...btnBase, background: 'oklch(38% 0.14 25)', color: text, border: '1px solid oklch(48% 0.16 25)' };
+const btnGhost: React.CSSProperties = { ...btnBase, padding: '0.25rem 0.4rem', background: 'transparent', border: '1px solid transparent', color: textDim };
+
 export function ParticipantManagement({ poolId, poolName }: ParticipantManagementProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
@@ -38,15 +63,20 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    loadParticipants();
-  }, [poolId]);
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => { loadParticipants(); }, [poolId]);
 
   useEffect(() => {
-    // Filter participants based on search term
-    const filtered = participants.filter(p => 
+    const filtered = participants.filter(p =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -58,129 +88,68 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     try {
       const data = await getPoolParticipants(poolId);
       setParticipants(data);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load participants",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRemoveParticipant = async (participantId: string, participantName: string) => {
-    if (!confirm(`Are you sure you want to remove ${participantName} from the pool?`)) {
-      return;
-    }
-
+    if (!confirm(`Are you sure you want to remove ${participantName} from the pool?`)) return;
     try {
       await removeParticipantFromPool(participantId);
-      toast({
-        title: "Success",
-        description: `${participantName} has been removed from the pool`,
-      });
-      loadParticipants(); // Refresh the list
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to remove participant",
-        variant: "destructive",
-      });
+      toast({ title: 'Success', description: `${participantName} has been removed from the pool` });
+      loadParticipants();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to remove participant', variant: 'destructive' });
     }
   };
 
   const handleBulkRemove = async () => {
     if (selectedParticipants.length === 0) {
-      toast({
-        title: "Warning",
-        description: "Please select participants to remove",
-        variant: "destructive",
-      });
+      toast({ title: 'Warning', description: 'Please select participants to remove', variant: 'destructive' });
       return;
     }
-
-    if (!confirm(`Are you sure you want to remove ${selectedParticipants.length} participant(s) from the pool?`)) {
-      return;
-    }
-
+    if (!confirm(`Are you sure you want to remove ${selectedParticipants.length} participant(s) from the pool?`)) return;
     try {
-      for (const participantId of selectedParticipants) {
-        await removeParticipantFromPool(participantId);
-      }
-      
-      toast({
-        title: "Success",
-        description: `${selectedParticipants.length} participant(s) have been removed from the pool`,
-      });
-      
+      for (const id of selectedParticipants) await removeParticipantFromPool(id);
+      toast({ title: 'Success', description: `${selectedParticipants.length} participant(s) removed` });
       setSelectedParticipants([]);
-      loadParticipants(); // Refresh the list
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to remove some participants",
-        variant: "destructive",
-      });
+      loadParticipants();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to remove some participants', variant: 'destructive' });
     }
   };
 
   const handleBulkAdd = async () => {
     if (!bulkAddText.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter participant data",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'Please enter participant data', variant: 'destructive' });
       return;
     }
-
-    const lines = bulkAddText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-
+    const lines = bulkAddText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length === 0) {
-      toast({
-        title: "Error",
-        description: "No valid data found",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'No valid data found', variant: 'destructive' });
       return;
     }
-
     try {
       for (const line of lines) {
         if (bulkAddWithEmail) {
-          // Format: "Name,email@example.com" or "Name email@example.com"
           const parts = line.includes(',') ? line.split(',') : line.split(' ');
           const name = parts[0]?.trim();
           const email = parts[1]?.trim() || '';
-          
-          if (name) {
-            await addParticipantToPool(poolId, name, email);
-          }
+          if (name) await addParticipantToPool(poolId, name, email);
         } else {
-          // Just names, one per line
           await addParticipantToPool(poolId, line, '');
         }
       }
-      
-      toast({
-        title: "Success",
-        description: `${lines.length} participant(s) have been added to the pool`,
-      });
-      
+      toast({ title: 'Success', description: `${lines.length} participant(s) added` });
       setBulkAddText('');
       setBulkAddWithEmail(false);
       setBulkAddDialogOpen(false);
-      loadParticipants(); // Refresh the list
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add some participants",
-        variant: "destructive",
-      });
+      loadParticipants();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add some participants', variant: 'destructive' });
     }
   };
 
@@ -196,50 +165,32 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
 
   const handleSaveEdit = async () => {
     if (!editingParticipant || !editName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid name",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'Please enter a valid name', variant: 'destructive' });
       return;
     }
-
     try {
       setIsUpdating(true);
       await updateParticipantName(editingParticipant, editName.trim());
-      
-      toast({
-        title: "Success",
-        description: "Participant name updated successfully",
-      });
-      
+      toast({ title: 'Success', description: 'Participant name updated' });
       setEditingParticipant(null);
       setEditName('');
-      loadParticipants(); // Refresh the list
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update participant name",
-        variant: "destructive",
-      });
+      loadParticipants();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update participant name', variant: 'destructive' });
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleSelectAll = () => {
-    if (selectedParticipants.length === filteredParticipants.length) {
-      setSelectedParticipants([]);
-    } else {
-      setSelectedParticipants(filteredParticipants.map(p => p.id));
-    }
+    setSelectedParticipants(
+      selectedParticipants.length === filteredParticipants.length ? [] : filteredParticipants.map(p => p.id)
+    );
   };
 
   const handleSelectParticipant = (participantId: string) => {
-    setSelectedParticipants(prev => 
-      prev.includes(participantId) 
-        ? prev.filter(id => id !== participantId)
-        : [...prev, participantId]
+    setSelectedParticipants(prev =>
+      prev.includes(participantId) ? prev.filter(id => id !== participantId) : [...prev, participantId]
     );
   };
 
@@ -247,11 +198,8 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     const csvContent = [
       ['Name', 'Email', 'Joined Date', 'Status'],
       ...filteredParticipants.map(p => [
-        p.name,
-        p.email || '',
-        new Date(p.created_at).toLocaleDateString(),
-        p.is_active ? 'Active' : 'Inactive'
-      ])
+        p.name, p.email || '', new Date(p.created_at).toLocaleDateString(), p.is_active ? 'Active' : 'Inactive',
+      ]),
     ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -265,321 +213,339 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     URL.revokeObjectURL(url);
   };
 
-  const addTestParticipants = async () => {
-    const testParticipants = [
-      { name: 'John Smith', email: 'john.smith@example.com' },
-      { name: 'Sarah Johnson', email: 'sarah.johnson@example.com' },
-      { name: 'Mike Davis', email: 'mike.davis@example.com' },
-      { name: 'Lisa Wilson', email: 'lisa.wilson@example.com' },
-      { name: 'David Brown', email: 'david.brown@example.com' }
-    ];
-
-    try {
-      for (const participant of testParticipants) {
-        await addParticipantToPool(poolId, participant.name, participant.email);
-      }
-      
-      toast({
-        title: "Success",
-        description: `Added ${testParticipants.length} test participants to the pool`,
-      });
-      
-      loadParticipants(); // Refresh the list
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add some test participants",
-        variant: "destructive",
-      });
-    }
-  };
-
   const activeParticipants = filteredParticipants.filter(p => p.is_active);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Pool Participants</span>
-              <Badge variant="secondary">{activeParticipants.length}</Badge>
-            </CardTitle>
-            <CardDescription>
-              Manage participants in {poolName}
-            </CardDescription>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+      {/* ── Header card ── */}
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.25rem 1.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+              <Users style={{ width: 16, height: 16, color: greenHi }} />
+              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Pool Participants
+              </h2>
+              <span style={{
+                ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em',
+                padding: '0.1rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
+                background: 'oklch(46% 0.14 155 / 0.18)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`,
+              }}>{activeParticipants.length}</span>
+            </div>
+            <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>Manage participants in {poolName}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {process.env.NEXT_PUBLIC_NODE_ENV === 'development' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addTestParticipants}
-                className="flex items-center gap-2"
-              >
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Add Test Data</span>
-                <span className="sm:hidden">Test</span>
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportParticipants}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <button style={btnBase} onClick={exportParticipants}>
+              <Download style={{ width: 12, height: 12 }} />
+              Export
+            </button>
+
             <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <Upload className="h-4 w-4" />
-                  <span className="hidden sm:inline">Bulk Add</span>
-                  <span className="sm:hidden">Bulk</span>
-                </Button>
+                <button style={btnBase}>
+                  <Upload style={{ width: 12, height: 12 }} />
+                  Bulk Add
+                </button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent style={{ background: card, border: `1px solid ${border}`, color: text, maxWidth: 480, width: '95vw' }}>
                 <DialogHeader>
-                  <DialogTitle>Bulk Add Participants</DialogTitle>
-                  <DialogDescription>
-                    Add multiple participants at once. Choose your format below.
+                  <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Bulk Add Participants
+                  </DialogTitle>
+                  <DialogDescription style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                    Add multiple participants at once.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
-                      id="bulk-with-email"
                       checked={bulkAddWithEmail}
-                      onChange={(e) => setBulkAddWithEmail(e.target.checked)}
-                      className="rounded"
+                      onChange={e => setBulkAddWithEmail(e.target.checked)}
+                      style={{ accentColor: green }}
                     />
-                    <Label htmlFor="bulk-with-email">Include email addresses</Label>
-                  </div>
+                    <span style={{ ...b, fontSize: '0.85rem', color: textMid }}>Include email addresses</span>
+                  </label>
                   <div>
-                    <Label htmlFor="bulk-names">
+                    <Label style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem', display: 'block' }}>
                       {bulkAddWithEmail ? 'Participant Data (one per line)' : 'Participant Names (one per line)'}
                     </Label>
                     <textarea
-                      id="bulk-names"
                       value={bulkAddText}
-                      onChange={(e) => setBulkAddText(e.target.value)}
+                      onChange={e => setBulkAddText(e.target.value)}
                       placeholder={
-                        bulkAddWithEmail 
-                          ? "John Doe,john@example.com\nJane Smith jane@example.com\nMike Johnson"
-                          : "John Doe\nJane Smith\nMike Johnson"
+                        bulkAddWithEmail
+                          ? 'John Doe,john@example.com\nJane Smith jane@example.com\nMike Johnson'
+                          : 'John Doe\nJane Smith\nMike Johnson'
                       }
-                      className="w-full h-32 p-3 border rounded-md resize-none"
+                      rows={5}
+                      style={{
+                        width: '100%', padding: '0.6rem 0.75rem',
+                        background: surface, border: `1px solid oklch(30% 0.03 255)`,
+                        color: text, borderRadius: 6, resize: 'vertical',
+                        ...b, fontSize: '0.85rem', boxSizing: 'border-box',
+                      }}
                     />
                     {bulkAddWithEmail && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>
                         Format: &quot;Name,email@example.com&quot; or &quot;Name email@example.com&quot;
                       </p>
                     )}
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => {
-                    setBulkAddDialogOpen(false);
-                    setBulkAddText('');
-                    setBulkAddWithEmail(false);
-                  }}>
+                <DialogFooter style={{ gap: '0.5rem' }}>
+                  <button style={btnBase} onClick={() => { setBulkAddDialogOpen(false); setBulkAddText(''); setBulkAddWithEmail(false); }}>
                     Cancel
-                  </Button>
-                  <Button onClick={handleBulkAdd}>
+                  </button>
+                  <button style={btnGreen} onClick={handleBulkAdd}>
                     Add Participants
-                  </Button>
+                  </button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <AddUserDialog 
-              poolId={poolId} 
-              poolName={poolName} 
-              onUserAdded={loadParticipants}
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Search and Bulk Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search participants..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          {selectedParticipants.length > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleBulkRemove}
-              className="flex items-center gap-2 w-full sm:w-auto justify-center"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Remove Selected ({selectedParticipants.length})</span>
-              <span className="sm:hidden">Remove {selectedParticipants.length}</span>
-            </Button>
-          )}
-        </div>
 
+            <AddUserDialog poolId={poolId} poolName={poolName} onUserAdded={loadParticipants} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Search + Bulk Remove ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
+          <Search style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: textDim, pointerEvents: 'none' }} />
+          <Input
+            placeholder="Search participants..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            style={{ paddingLeft: '2rem', background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.875rem' }}
+          />
+        </div>
+        {selectedParticipants.length > 0 && (
+          <button style={btnRed} onClick={handleBulkRemove}>
+            <Trash2 style={{ width: 12, height: 12 }} />
+            Remove Selected ({selectedParticipants.length})
+          </button>
+        )}
+      </div>
+
+      {/* ── Mobile cards ── */}
+      {isMobile && !isLoading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {activeParticipants.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', background: card, border: `1px solid ${border}`, borderRadius: 8 }}>
+              <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+              <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.4rem' }}>
+                {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
+              </p>
+              {!searchTerm && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+                  <AddUserDialog poolId={poolId} poolName={poolName} onUserAdded={loadParticipants} />
+                  <button style={btnBase} onClick={() => setBulkAddDialogOpen(true)}>
+                    <Upload style={{ width: 12, height: 12 }} />
+                    Bulk Add
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : activeParticipants.map((participant) => (
+            <div
+              key={participant.id}
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.9rem 1rem' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {editingParticipant === participant.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                      <Input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        style={{ height: 30, ...b, fontSize: '0.82rem', background: surface, border: `1px solid ${border}`, color: text, flex: 1 }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          else if (e.key === 'Escape') handleCancelEdit();
+                        }}
+                        autoFocus
+                      />
+                      <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleSaveEdit} disabled={isUpdating}>
+                        {isUpdating ? <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} /> : <Save style={{ width: 12, height: 12 }} />}
+                      </button>
+                      <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleCancelEdit}>
+                        <X style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                      <span style={{ ...b, fontWeight: 700, fontSize: '0.9rem', color: text }}>{participant.name}</span>
+                      <button style={{ ...btnGhost, padding: '0.15rem 0.25rem' }} onClick={() => handleStartEdit(participant)}>
+                        <Edit style={{ width: 11, height: 11 }} />
+                      </button>
+                    </div>
+                  )}
+                  <p style={{ ...b, fontSize: '0.78rem', color: participant.email ? textMid : textDim, marginBottom: '0.35rem' }}>
+                    {participant.email || <em style={{ fontStyle: 'italic' }}>No email</em>}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.15rem 0.45rem', borderRadius: 4, background: 'oklch(46% 0.14 155 / 0.15)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.3)` }}>
+                      Active
+                    </span>
+                    <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                      {new Date(participant.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.55rem', background: 'oklch(50% 0.22 25 / 0.12)', color: 'oklch(65% 0.18 25)', border: `1px solid oklch(50% 0.22 25 / 0.35)`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                  onClick={() => handleRemoveParticipant(participant.id, participant.name)}
+                >
+                  <Trash2 style={{ width: 10, height: 10 }} />
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Table ── */}
+      {(!isMobile || isLoading) && (
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', gap: '0.5rem' }}>
+            <Loader2 style={{ width: 20, height: 20, color: textDim, animation: 'spin 1s linear infinite' }} />
+            <span style={{ ...b, fontSize: '0.85rem', color: textDim }}>Loading participants...</span>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: surface }}>
+                  {/* checkbox col */}
+                  <th style={{ width: 44, minWidth: 44, padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'left', verticalAlign: 'middle' }}>
                     <input
                       type="checkbox"
                       checked={selectedParticipants.length === filteredParticipants.length && filteredParticipants.length > 0}
                       onChange={handleSelectAll}
-                      className="rounded"
+                      style={{ accentColor: green, cursor: 'pointer' }}
                     />
-                  </TableHead>
-                  <TableHead className="text-xs sm:text-sm">Name</TableHead>
-                  <TableHead className="text-xs sm:text-sm hidden md:table-cell">Email</TableHead>
-                  <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Joined</TableHead>
-                  <TableHead className="text-xs sm:text-sm">Status</TableHead>
-                  <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeParticipants.map((participant) => (
-                  <TableRow key={participant.id} className="group">
-                    <TableCell>
+                  </th>
+                  {[
+                    { label: 'Name',    minWidth: '9rem' },
+                    { label: 'Email',   minWidth: '12rem' },
+                    { label: 'Joined',  minWidth: '6rem' },
+                    { label: 'Status',  minWidth: '5rem' },
+                  ].map(({ label, minWidth }) => (
+                    <th key={label} style={{ padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'left', verticalAlign: 'middle', minWidth, whiteSpace: 'nowrap', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.12em', color: textDim, textTransform: 'uppercase' }}>
+                      {label}
+                    </th>
+                  ))}
+                  <th style={{ padding: '0.625rem 0.75rem', borderBottom: `1px solid ${border}`, textAlign: 'right', verticalAlign: 'middle', minWidth: '8rem', whiteSpace: 'nowrap', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.12em', color: textDim, textTransform: 'uppercase' }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeParticipants.map((participant, i) => (
+                  <tr
+                    key={participant.id}
+                    style={{ borderBottom: `1px solid ${border}`, background: i % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.4)' }}
+                  >
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                       <input
                         type="checkbox"
                         checked={selectedParticipants.includes(participant.id)}
                         onChange={() => handleSelectParticipant(participant.id)}
-                        className="rounded"
+                        style={{ accentColor: green, cursor: 'pointer' }}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium text-xs sm:text-sm">
+                    </td>
+
+                    {/* Name / edit */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.85rem', color: text, fontWeight: 600 }}>
                       {editingParticipant === participant.id ? (
-                        <div className="flex items-center gap-2">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <Input
                             value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="h-8 text-xs sm:text-sm"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleSaveEdit();
-                              } else if (e.key === 'Escape') {
-                                handleCancelEdit();
-                              }
+                            onChange={e => setEditName(e.target.value)}
+                            style={{ height: 30, ...b, fontSize: '0.82rem', background: surface, border: `1px solid ${border}`, color: text, width: 160 }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveEdit();
+                              else if (e.key === 'Escape') handleCancelEdit();
                             }}
+                            autoFocus
                           />
-                          <Button
-                            size="sm"
-                            onClick={handleSaveEdit}
-                            disabled={isUpdating}
-                            className="h-8 px-2"
-                          >
-                            {isUpdating ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Save className="h-3 w-3" />
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCancelEdit}
-                            className="h-8 px-2"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                          <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleSaveEdit} disabled={isUpdating}>
+                            {isUpdating ? <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} /> : <Save style={{ width: 12, height: 12 }} />}
+                          </button>
+                          <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleCancelEdit}>
+                            <X style={{ width: 12, height: 12 }} />
+                          </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="truncate max-w-[120px] sm:max-w-none">{participant.name}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleStartEdit(participant)}
-                            className="h-6 w-6 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span>{participant.name}</span>
+                          <button style={{ ...btnGhost, padding: '0.15rem 0.25rem' }} onClick={() => handleStartEdit(participant)}>
+                            <Edit style={{ width: 11, height: 11 }} />
+                          </button>
                         </div>
                       )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs sm:text-sm">
-                      {participant.email || (
-                        <span className="text-gray-400 italic">No email</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs sm:text-sm">
+                    </td>
+
+                    {/* Email */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.82rem', color: participant.email ? textMid : textDim }}>
+                      {participant.email || <em style={{ fontStyle: 'italic' }}>No email</em>}
+                    </td>
+
+                    {/* Joined date */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', ...b, fontSize: '0.78rem', color: textDim }}>
                       {new Date(participant.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                    </td>
+
+                    {/* Status badge */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.2rem 0.5rem', borderRadius: 4, background: 'oklch(46% 0.14 155 / 0.15)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.3)` }}>
                         Active
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                      <button
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.65rem', background: 'oklch(50% 0.22 25 / 0.12)', color: 'oklch(65% 0.18 25)', border: `1px solid oklch(50% 0.22 25 / 0.35)`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
                         onClick={() => handleRemoveParticipant(participant.id, participant.name)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
                       >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                        <span className="hidden sm:inline">Remove</span>
-                        <span className="sm:hidden">X</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                        <Trash2 style={{ width: 10, height: 10 }} />
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
                 ))}
+
                 {activeParticipants.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="space-y-4">
-                        <div className="text-gray-500 text-sm">
-                          {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                      <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+                      <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.4rem' }}>
+                        {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
+                      </p>
+                      {!searchTerm && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+                          <AddUserDialog poolId={poolId} poolName={poolName} onUserAdded={loadParticipants} />
+                          <button style={btnBase} onClick={() => setBulkAddDialogOpen(true)}>
+                            <Upload style={{ width: 12, height: 12 }} />
+                            Bulk Add
+                          </button>
                         </div>
-                        {!searchTerm && (
-                          <div className="space-y-2">
-                            <p className="text-sm text-gray-600">
-                              Add participants to your pool so they can make picks:
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                              <AddUserDialog 
-                                poolId={poolId} 
-                                poolName={poolName} 
-                                onUserAdded={loadParticipants}
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setBulkAddDialogOpen(true)}
-                                className="flex items-center gap-2"
-                              >
-                                <Upload className="h-4 w-4" />
-                                Bulk Add
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      )}
+                    </td>
+                  </tr>
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+      )}
+    </div>
   );
 }

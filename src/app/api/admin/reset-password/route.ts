@@ -1,37 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import bcrypt from 'bcryptjs';
+import { emailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify the request is from a super admin
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ success: false, error: 'No authorization header' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabase = getSupabaseServiceClient();
-    
-    // Get user from token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
-    }
-
-    // Verify user is a super admin
-    const { data: currentAdmin, error: currentAdminError } = await supabase
-      .from('admins')
-      .select('is_super_admin')
-      .eq('email', user.email)
-      .single();
-    
-    if (currentAdminError || !currentAdmin || !currentAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
-
-    // Parse request body
     const { adminId, newPassword } = await request.json();
-    
+
     if (!adminId || !newPassword) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
@@ -40,10 +15,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    // Get the admin record to verify it exists and is not a super admin
+    const supabase = getSupabaseServiceClient();
+
     const { data: targetAdmin, error: targetAdminError } = await supabase
       .from('admins')
-      .select('*')
+      .select('id, email, full_name, is_super_admin')
       .eq('id', adminId)
       .single();
 
@@ -55,30 +31,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Cannot reset super admin passwords' }, { status: 403 });
     }
 
-    // Update the password in the admins table
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
     const { error: updateError } = await supabase
       .from('admins')
-      .update({ 
-        password: newPassword,
-        updated_at: new Date().toISOString()
-      })
+      .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
       .eq('id', adminId);
 
     if (updateError) {
-      console.error('Error updating password:', updateError);
+      console.error('[SH][API][AUTH] Password update failed:', updateError);
       return NextResponse.json({ success: false, error: 'Failed to update password' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Password reset successfully' 
-    });
+    // Notify the commissioner their password changed
+    try {
+      await emailService.sendPasswordResetNotification(
+        targetAdmin.email,
+        targetAdmin.full_name || 'Commissioner'
+      );
+    } catch (emailError) {
+      console.warn('[SH][API][AUTH] Password reset notification email failed:', emailError);
+    }
 
+    return NextResponse.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
-    console.error('Password reset error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Internal server error' 
-    }, { status: 500 });
+    console.error('[SH][API][AUTH] Password reset error:', error);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

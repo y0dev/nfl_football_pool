@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { debugInfo, debugWarn } from './utils';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
@@ -120,7 +121,19 @@ interface ESPNGame {
   }>;
 }
 
-interface ESPNScoreboardResponse {
+interface ProviderInfo {
+  id: string;
+  name: string;
+  displayName: string;
+  priority: number;
+}
+
+interface SeasonInfo {
+  type: number;
+  year: number;
+}
+
+export interface ESPNScoreboardResponse {
   leagues: Array<{
     id: string;
     name: string;
@@ -128,6 +141,8 @@ interface ESPNScoreboardResponse {
     season: {
       year: number;
       type: number;
+      startDate?: string;
+      endDate?: string;
     };
     calendar: Array<{
       label: string;
@@ -142,7 +157,10 @@ interface ESPNScoreboardResponse {
       }>;
     }>;
   }>;
+  week?: { number: number };
+  seaseon?: SeasonInfo;
   events: ESPNGame[];
+  provider?: ProviderInfo;
 }
 
 class NFLAPIService {
@@ -152,7 +170,7 @@ class NFLAPIService {
 
   constructor() {
     this.baseUrl = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
-    console.log("ESPN API Base URL:", this.baseUrl);
+    debugInfo("ESPN API Base URL:", this.baseUrl);
   }
 
   // Utility: Add n days in UTC
@@ -260,12 +278,15 @@ class NFLAPIService {
 
   private async makeRequest(endpoint: string, params: Record<string, string> = {}) {
     const url = new URL(`${this.baseUrl}${endpoint}`);
+    console.log(`📊 Constructed URL: ${this.baseUrl}${endpoint} with params:`, params);
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, value);
     });
+    console.log(`Making request to ESPN API: ${url.toString()}`);
+
 
     try {
-      console.log(`🌐 Making ESPN API request to: ${url.toString()}`);
+      debugInfo(`Making ESPN API request to: ${url.toString()}`);
       
       const response = await fetch(url.toString(), {
         headers: {
@@ -280,10 +301,10 @@ class NFLAPIService {
       }
 
       const contentType = response.headers.get('content-type');
-      console.log(`📄 Response content-type: ${contentType}`);
+      debugInfo(`Response content-type: ${contentType}`);
       
       const data = await response.json();
-      console.log(`✅ ESPN API response received, events count: ${data.events?.length || 0}`);
+      debugInfo(`ESPN API response received, events count: ${data.events?.length || 0}`);
       
       return data;
     } catch (error) {
@@ -348,67 +369,109 @@ class NFLAPIService {
     }
   }
 
-  // Get games for a specific week
-  async getWeekGames(season: number,seasontype: number, week: number): Promise<NFLGame[]> {
+  // Compute the date range (YYYYMMDD) for a given season / season-type / week.
+  // Returns { start, end } where start is Thursday (or Saturday for postseason) and
+  // end is the last game day of that week.
+  weekDateRange(year: number, seasonType: number, week: number): { start: string; end: string } {
+    const toYMD = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}${m}${day}`;
+    };
+    const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+
+    const sep1 = new Date(Date.UTC(year, 8, 1));
+    const dow = sep1.getUTCDay();
+    const toNextMonday = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
+    const laborDay = new Date(Date.UTC(year, 8, 1 + toNextMonday));
+    const kickoff = add(laborDay, 3); // Thu
+
+    if (seasonType === 1) {
+      // Preseason: Thu–Mon (same rhythm as regular season)
+      const thu = add(kickoff, -(5 - week) * 7);
+      return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
+    }
+
+    if (seasonType === 2) {
+      // Regular season: Thu–Mon
+      const thu = add(kickoff, (week - 1) * 7);
+      return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
+    }
+
+    // Postseason: anchored to Week 18 Sunday
+    const week18Sun = add(kickoff, 17 * 7 + 3);
+    // Week 1 Wild Card: Sat–Mon (+6 to +8)
+    // Week 2 Divisional: Sat–Sun (+13 to +14)
+    // Week 3 Championship: Sun (+21)
+    // Week 4 Super Bowl: Sun (+35)
+    const startOffsets = [6, 13, 21, 35];
+    const endOffsets   = [8, 14, 21, 35];
+    const s = week - 1;
+    return {
+      start: toYMD(add(week18Sun, startOffsets[s] ?? 35)),
+      end:   toYMD(add(week18Sun, endOffsets[s]   ?? 35)),
+    };
+  }
+
+  // Get all games for a full NFL week using the date-range format (YYYYMMDD-YYYYMMDD).
+  // Use weekDateRange() to build start/end from season metadata.
+  async getWeekGames(weekStart: string, weekEnd: string): Promise<NFLGame[]> {
     try {
-      console.log(`📋 Fetching games for season ${season}, week ${week}...`);
-      
-      // ESPN API uses year, week, and seasontype parameters
-      // seasontype: 1=preseason, 2=regular season, 3=postseason
-      const params: Record<string, string> = {
-        year: season.toString(),
-        week: week.toString(),
-        seasontype: seasontype.toString() // Default to regular season
-      };
-      
-      const data = await this.makeRequest('/scoreboard', params);
-      const response = data as ESPNScoreboardResponse;
-      
-      if (!response.events || response.events.length === 0) {
-        console.log(`⚠️  No events found for season ${season}, week ${week}, seasontype ${params.seasontype}`);
+      debugInfo(`Fetching games for ${weekStart}-${weekEnd}...`);
+
+      const data = await this.makeRequest('/scoreboard', { dates: `${weekStart}-${weekEnd}` }) as ESPNScoreboardResponse;
+
+      if (!data.events || data.events.length === 0) {
+        debugWarn(`No events found for weekStart ${weekStart}`);
         return [];
       }
-      
-      console.log(`📊 Found ${response.events.length} events for season ${season}, week ${week}`);
-      
-      // Convert ESPN games to our format
-      const games: NFLGame[] = response.events.map((game: ESPNGame) => {
+
+      debugInfo(`Found ${data.events.length} events for weekStart ${weekStart}`);
+
+      const games: NFLGame[] = data.events.map((game: ESPNGame) => {
         const homeTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'home');
         const awayTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'away');
-        
+
         if (!homeTeam || !awayTeam) {
           console.warn(`⚠️  Missing team data for game ${game.id}`);
           return null;
         }
-        
-        const status = game.competitions[0]?.status?.type?.state || 'scheduled';
-        const gameStatus = status === 'post' ? 'finished' : 
-                          status === 'in' ? 'live' : 'scheduled';
-        
+
+        const state = game.competitions[0]?.status?.type?.state ?? 'pre';
+        const status: NFLGame['status'] =
+          state === 'post' ? 'finished' : state === 'in' ? 'live' : 'scheduled';
+
         return {
           id: game.id,
           date: game.date,
-          time: game.date, // ESPN provides ISO date string
+          time: game.date,
           home_team: homeTeam.team.displayName,
           away_team: awayTeam.team.displayName,
           home_score: homeTeam.score ? parseInt(homeTeam.score) : undefined,
           away_score: awayTeam.score ? parseInt(awayTeam.score) : undefined,
-          status: gameStatus,
-          week: week,
-          season: season,
-          season_type: seasontype, // Add season_type here
+          status,
+          week: game.week?.number ?? 0,
+          season: game.season?.year ?? new Date().getFullYear(),
+          season_type: game.season?.type ?? 2,
           home_team_id: homeTeam.team.abbreviation,
-          away_team_id: awayTeam.team.abbreviation
+          away_team_id: awayTeam.team.abbreviation,
         };
       }).filter(Boolean) as NFLGame[];
-      
-      console.log(`✅ Successfully converted ${games.length} games`);
+
+      debugInfo(`Successfully converted ${games.length} games`);
       return games;
-      
     } catch (error) {
-      console.error(`❌ Error fetching games for season ${season}, week ${week}:`, error);
+      console.error(`❌ Error fetching games for weekStart ${weekStart}:`, error);
       return [];
     }
+  }
+
+  // Get games for a single calendar date (YYYYMMDD).
+  // Use this when you only want one day's games (e.g. just Thursday night, just Sunday).
+  // For a full week across Thu–Mon, use getWeekGames() with weekDateRange() instead.
+  async getGamesByDate(date: string): Promise<NFLGame[]> {
+    return this.getWeekGames(date, date);
   }
 
   // Helper function to parse W-L-T from summary string (e.g., "3-5-1" or "2-1-1")
@@ -454,7 +517,7 @@ class NFLAPIService {
     try {
       // Use provided timestamp or current moment
       const ts = timestamp || new Date().toISOString();
-      console.log(`📋 Fetching games with date endpoint for timestamp: ${ts}`);
+      debugInfo(`Fetching games with date endpoint for timestamp: ${ts}`);
       
       // Get season/week info
       const res = this.classify(ts);
@@ -471,8 +534,8 @@ class NFLAPIService {
       // Build final endpoint (ESPN with selected date)
       const endpoint = `/scoreboard?dates=${formattedDate}`;
       
-      console.log(`🌐 Using ESPN endpoint: ${endpoint}`);
-      console.log(`📅 Date info:`, {
+      debugInfo(`Using ESPN endpoint: ${endpoint}`);
+      debugInfo(`📅 Date info:`, {
         originalTimestamp: ts,
         formattedDate,
         seasonInfo: res
@@ -482,11 +545,11 @@ class NFLAPIService {
       const response = data as ESPNScoreboardResponse;
       
       if (!response.events || response.events.length === 0) {
-        console.log(`⚠️  No events found for date ${formattedDate}`);
+        debugInfo(`⚠️  No events found for date ${formattedDate}`);
         return [];
       }
       
-      console.log(`📊 Found ${response.events.length} events for date ${formattedDate}`);
+      debugInfo(`Found ${response.events.length} events for date ${formattedDate}`);
       
       // Convert ESPN games to our format
       const games: NFLGame[] = response.events.map((game: ESPNGame) => {
@@ -525,7 +588,7 @@ class NFLAPIService {
         };
       }).filter(Boolean) as NFLGame[];
       
-      console.log(`✅ Successfully converted ${games.length} games`);
+      debugInfo(`Successfully converted ${games.length} games`);
       return games;
       
     } catch (error) {
@@ -675,7 +738,7 @@ class NFLAPIService {
   // Update game scores (for admin use)
   async updateGameScore(gameId: string, homeScore: number, awayScore: number): Promise<boolean> {
     // Note: ESPN API is read-only, so this would need to be handled in the database
-    console.log(`Updating game ${gameId}: ${awayScore} - ${homeScore}`);
+    debugInfo(`Updating game ${gameId}: ${awayScore} - ${homeScore}`);
     return true;
   }
 
@@ -717,7 +780,7 @@ class NFLAPIService {
     try {
       const data = await this.makeRequest(`/teams/${teamId}`) as any;
       const team = data?.team;
-      // console.log('team record', team);
+      // debugInfo('team record', team);
       if (!team || !team.record) {
         return null;
       }
@@ -761,11 +824,16 @@ class NFLAPIService {
     }
   }
 
+  // Get raw ESPN scoreboard envelope (season metadata + current-week games)
+  async getScoreboard(params?: Record<string, string>): Promise<ESPNScoreboardResponse> {
+    return this.makeRequest('/scoreboard', params ?? {}) as Promise<ESPNScoreboardResponse>;
+  }
+
   // Get all team IDs from standings
   async getAllTeamIds(): Promise<string[]> {
     try {
       const data = await this.getTeamESPNTeamId() as any;
-      console.log('data', data);
+      debugInfo('data', data);
       
       const teamIds: string[] = [];
       
@@ -808,7 +876,7 @@ class NFLAPIService {
         });
       }
       
-      console.log('Extracted team IDs:', teamIds);
+      debugInfo('Extracted team IDs:', teamIds);
       return teamIds;
     } catch (error) {
       console.error('Failed to get team IDs from standings:', error);

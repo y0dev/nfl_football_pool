@@ -1,10 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Trophy, TrendingUp, Users } from 'lucide-react';
+import { Trophy, TrendingUp, Users, RefreshCw } from 'lucide-react';
 import { debugLog } from '@/lib/utils';
+
+// Design tokens
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface SeasonLeaderboardEntry {
   participant_name: string;
@@ -34,7 +48,7 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
         setError(null);
 
         const response = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${currentWeek || ''}&currentSeasonType=${currentSeasonType || ''}`);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to load season leaderboard: ${response.status}`);
         }
@@ -61,206 +75,135 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading season standings...</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1rem', gap: '0.75rem' }}>
+        <RefreshCw style={{ width: 22, height: 22, color: textDim, animation: 'spin 1s linear infinite' }} />
+        <span style={{ ...b, fontSize: '0.875rem', color: textMid }}>Loading season standings…</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <div className="text-red-500 mb-2">
-          <TrendingUp className="h-8 w-8 mx-auto mb-2" />
-          <p className="text-sm">Unable to load season leaderboard</p>
-        </div>
-        <p className="text-xs text-gray-500">{error}</p>
+      <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+        <TrendingUp style={{ width: 32, height: 32, color: liveRed, margin: '0 auto 0.5rem' }} />
+        <p style={{ ...b, fontSize: '0.875rem', color: liveRed, marginBottom: '0.25rem' }}>Unable to load season leaderboard</p>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{error}</p>
       </div>
     );
   }
 
   if (leaderboard.length === 0) {
     return (
-      <div className="text-center py-8">
-        <Users className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-        <p className="text-sm text-gray-500">No season data available yet</p>
-        <p className="text-xs text-gray-400">Complete weeks will appear here</p>
+      <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+        <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.5rem' }} />
+        <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.2rem' }}>No season data available yet</p>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>Complete weeks will appear here</p>
       </div>
     );
   }
 
-  const getPositionIcon = (position: number) => {
-    switch (position) {
-      case 0:
-        return <Trophy className="h-4 w-4 text-yellow-500" />;
-      case 1:
-        return <Trophy className="h-4 w-4 text-gray-400" />;
-      case 2:
-        return <Trophy className="h-4 w-4 text-amber-600" />;
-      default:
-        return '';
-    }
-  };
+  const avgScore = Math.round(leaderboard.reduce((sum, entry) => sum + entry.average_points, 0) / leaderboard.length) || 0;
+  const maxWeeksPlayed = Math.max(...leaderboard.map(e => e.weeks_played)) || 0;
 
-  const getPositionBadge = (position: number) => {
-    switch (position) {
-      case 0:
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">1st</Badge>;
-      case 1:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-200">2nd</Badge>;
-      case 2:
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">3rd</Badge>;
-      default:
-        return <Badge variant="outline" className="text-gray-600">#{position + 1}</Badge>;
-    }
-  };
+  // Position accent colors
+  const positionAccent = (idx: number) =>
+    idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : border;
+
+  const positionLabel = (idx: number) =>
+    idx === 0 ? '1st' : idx === 1 ? '2nd' : idx === 2 ? '3rd' : `#${idx + 1}`;
+
+  const positionLabelColor = (idx: number) =>
+    idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : textDim;
 
   return (
-    <div className="space-y-4">
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <Card className="text-center">
-          <CardContent className="p-2 md:p-3">
-            <div className="text-base md:text-lg font-bold text-blue-600">{leaderboard.length}</div>
-            <div className="text-xs text-gray-600">Participants</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-2 md:p-3">
-            <div className="text-base md:text-lg font-bold text-green-600">
-              {leaderboard[0]?.total_points || 0}
-            </div>
-            <div className="text-xs text-gray-600">Leader Score</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-2 md:p-3">
-            <div className="text-base md:text-lg font-bold text-purple-600">
-              {Math.round(leaderboard.reduce((sum, entry) => sum + entry.average_points, 0) / leaderboard.length) || 0}
-            </div>
-            <div className="text-xs text-gray-600">Avg Score</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-2 md:p-3">
-            <div className="text-base md:text-lg font-bold text-orange-600">
-              {Math.max(...leaderboard.map(entry => entry.weeks_played)) || 0}
-            </div>
-            <div className="text-xs text-gray-600">Weeks Played</div>
-          </CardContent>
-        </Card>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+        {[
+          { value: leaderboard.length,                label: 'Participants',  color: greenHi },
+          { value: leaderboard[0]?.total_points || 0, label: 'Leader Score',  color: gold },
+          { value: avgScore,                           label: 'Avg Score',    color: purple },
+          { value: maxWeeksPlayed,                     label: 'Weeks Played', color: amber },
+        ].map(({ value, label, color }) => (
+          <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', color, lineHeight: 1 }}>{value}</div>
+            <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>{label}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-              <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Participant</th>
-              <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total Points</th>
-              <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Weeks</th>
-              <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th>
-              <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Best Week</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {leaderboard.map((entry, index) => (
-              <tr key={entry.participant_name} className="hover:bg-gray-50">
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2">
-                    {getPositionIcon(index)}
-                    {getPositionBadge(index)}
-                  </div>
-                </td>
-                <td className="py-3 px-3">
-                  <div className="font-medium text-gray-900">{entry.participant_name}</div>
-                </td>
-                <td className="py-3 px-3 text-center">
-                  <div className="font-bold text-lg text-blue-600">{entry.total_points}</div>
-                </td>
-                <td className="py-3 px-3 text-center">
-                  <Badge variant="outline" className="text-xs">
-                    {entry.weeks_played} weeks
-                  </Badge>
-                </td>
-                <td className="py-3 px-3 text-center">
-                  <div className="text-sm font-medium text-gray-700">
-                    {entry.average_points.toFixed(1)}
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-center">
-                  <div className="text-xs text-gray-600">
-                    Week {entry.best_week}
-                  </div>
-                  <div className="text-sm font-medium text-green-600">
-                    {entry.best_week_score} pts
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile Card View */}
-      <div className="lg:hidden space-y-3">
+      {/* Leaderboard rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {leaderboard.map((entry, index) => (
-          <Card key={entry.participant_name} className="p-4 hover:shadow-md transition-shadow">
-            {/* Header with Rank and Name */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-shrink-0">
-                {getPositionIcon(index)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-gray-900 text-lg truncate">
-                  {entry.participant_name}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  {getPositionBadge(index)}
-                  <span className="text-xs text-gray-500">
-                    {entry.weeks_played} week{entry.weeks_played !== 1 ? 's' : ''} played
+          <div
+            key={entry.participant_name}
+            style={{
+              background: index < 3 ? surface : card,
+              border: `1px solid ${index < 3 ? positionAccent(index) + '60' : border}`,
+              borderLeft: `4px solid ${positionAccent(index)}`,
+              borderRadius: 8,
+              padding: '0.85rem 1rem',
+            }}
+          >
+            {/* Top row: rank + name + total points */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: index < 3 ? '0.65rem' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                  {index === 0 && <Trophy style={{ width: 14, height: 14, color: gold }} />}
+                  {index === 1 && <Trophy style={{ width: 14, height: 14, color: textMid }} />}
+                  {index === 2 && <Trophy style={{ width: 14, height: 14, color: amber }} />}
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: positionLabelColor(index) }}>
+                    {positionLabel(index)}
                   </span>
                 </div>
+                <div style={{ ...b, fontSize: '0.9rem', fontWeight: 600, color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {entry.participant_name}
+                </div>
+                <span style={{
+                  ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.07em',
+                  padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase',
+                  background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`,
+                  flexShrink: 0,
+                }}>
+                  {entry.weeks_played} wk{entry.weeks_played !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '1.35rem', color: greenHi, lineHeight: 1 }}>{entry.total_points}</div>
+                <div style={{ ...b, fontSize: '0.68rem', color: textDim }}>total pts</div>
               </div>
             </div>
-            
-            {/* Main Stats */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {entry.total_points}
+
+            {/* Stats row for top 3 */}
+            {index < 3 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <div style={{ background: card, borderRadius: 6, padding: '0.4rem 0.5rem', textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: textMid, lineHeight: 1 }}>{entry.average_points.toFixed(1)}</div>
+                  <div style={{ ...b, fontSize: '0.65rem', color: textDim }}>avg/week</div>
                 </div>
-                <div className="text-xs text-gray-600 font-medium">Total Points</div>
-              </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-xl font-bold text-green-600">
-                  {entry.average_points.toFixed(1)}
+                <div style={{ background: card, borderRadius: 6, padding: '0.4rem 0.5rem', textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: textMid, lineHeight: 1 }}>{entry.best_week_score}</div>
+                  <div style={{ ...b, fontSize: '0.65rem', color: textDim }}>best wk score</div>
                 </div>
-                <div className="text-xs text-gray-600 font-medium">Avg/Week</div>
-              </div>
-            </div>
-            
-            {/* Best Week Performance */}
-            {entry.best_week > 0 && (
-              <div className="text-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="text-sm font-semibold text-yellow-800 mb-1">
-                  🏆 Best Week Performance
-                </div>
-                <div className="text-lg font-bold text-yellow-700">
-                  Week {entry.best_week}: {entry.best_week_score} pts
+                <div style={{ background: card, borderRadius: 6, padding: '0.4rem 0.5rem', textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: textMid, lineHeight: 1 }}>Wk {entry.best_week || '-'}</div>
+                  <div style={{ ...b, fontSize: '0.65rem', color: textDim }}>best week</div>
                 </div>
               </div>
             )}
-          </Card>
+          </div>
         ))}
       </div>
 
       {/* Legend */}
-      <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-200">
-        <p>Season leaderboard shows accumulated scores from all completed weeks</p>
-        <p>Best week indicates the participant&apos;s highest-scoring individual week</p>
+      <div style={{ borderTop: `1px solid ${border}`, paddingTop: '0.75rem', textAlign: 'center' }}>
+        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginBottom: '0.2rem' }}>
+          Season leaderboard shows accumulated scores from all completed weeks
+        </p>
+        <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+          Best week indicates the participant&apos;s highest-scoring individual week
+        </p>
       </div>
     </div>
   );

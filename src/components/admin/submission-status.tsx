@@ -1,12 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { loadUsers } from '@/actions/loadUsers';
 import { CheckCircle, Clock, Users } from 'lucide-react';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const amber   = 'oklch(72% 0.16 60)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface SubmissionStatusProps {
   poolId: string;
@@ -30,18 +40,12 @@ export function SubmissionStatus({ poolId, seasonType = 2 }: SubmissionStatusPro
     async function fetchData() {
       try {
         setLoading(true);
-        
-        // Get current week
         const { week, seasonType } = await getUpcomingWeek();
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
-        
         if (week) {
-          // Get users who have submitted
           const submittedIds = await getUsersWhoSubmitted(poolId, week, seasonType);
           setSubmittedUsers(submittedIds);
-          
-          // Get all users for this specific pool
           const allUsersData = await loadUsers(poolId);
           setAllUsers(allUsersData);
         }
@@ -54,28 +58,28 @@ export function SubmissionStatus({ poolId, seasonType = 2 }: SubmissionStatusPro
     fetchData();
   }, [poolId]);
 
+  const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <div className="text-center">
-            <Users className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-pulse" />
-            <p className="text-gray-600">Loading submission status...</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+          <Users style={{ width: 28, height: 28, color: textDim, margin: '0 auto 0.5rem', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading submission status...</p>
+        </div>
+      </div>
     );
   }
 
   if (!currentWeek) {
     return (
-      <Card>
-        <CardContent className="text-center py-8">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Active Week</h3>
-          <p className="text-gray-600">There is no active week for submissions at this time.</p>
-        </CardContent>
-      </Card>
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+          <Clock style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>No Active Week</p>
+          <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>There is no active week for submissions at this time.</p>
+        </div>
+      </div>
     );
   }
 
@@ -83,102 +87,81 @@ export function SubmissionStatus({ poolId, seasonType = 2 }: SubmissionStatusPro
   const totalCount = allUsers.length;
   const pendingCount = totalCount - submittedCount;
   const submissionRate = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : 0;
-
-  const submittedUserNames = allUsers
-    .filter(user => submittedUsers.includes(user.id))
-    .map(user => user.name);
-
-  const pendingUserNames = allUsers
-    .filter(user => !submittedUsers.includes(user.id))
-    .map(user => user.name);
+  const submittedUserNames = allUsers.filter(u => submittedUsers.includes(u.id)).map(u => u.name);
+  const pendingUserNames = allUsers.filter(u => !submittedUsers.includes(u.id)).map(u => u.name);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Users className="h-5 w-5" />
-          Week {currentWeek} Submission Status
-        </CardTitle>
-        <CardDescription>
-          Track which participants have submitted their picks
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">{submittedCount}</div>
-            <div className="text-sm text-green-700">Submitted</div>
+    <div style={cardStyle}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+        <Users style={{ width: 16, height: 16, color: textMid }} />
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Week {currentWeek} Submission Status</p>
+      </div>
+      <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1.25rem' }}>Track which participants have submitted their picks</p>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
+        {[
+          { label: 'Submitted', value: submittedCount, color: greenHi },
+          { label: 'Pending', value: pendingCount, color: amber },
+          { label: 'Complete', value: `${submissionRate}%`, color: textMid },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ textAlign: 'center', padding: '0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
+            <p style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', color, lineHeight: 1 }}>{value}</p>
+            <p style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.2rem' }}>{label}</p>
           </div>
-          <div className="text-center p-4 bg-yellow-50 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
-            <div className="text-sm text-yellow-700">Pending</div>
+        ))}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: '1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+          <span style={{ ...b, fontSize: '0.75rem', color: textMid }}>Submission Progress</span>
+          <span style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: textMid }}>{submittedCount}/{totalCount}</span>
+        </div>
+        <div style={{ width: '100%', background: surface, borderRadius: 999, height: 6, border: `1px solid ${border}` }}>
+          <div style={{ height: '100%', borderRadius: 999, background: green, width: `${submissionRate}%`, transition: 'width 0.3s ease' }} />
+        </div>
+      </div>
+
+      {/* Submitted names */}
+      {submittedUserNames.length > 0 && (
+        <div style={{ marginBottom: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+            <CheckCircle style={{ width: 13, height: 13, color: greenHi }} />
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Submitted ({submittedUserNames.length})</span>
           </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{submissionRate}%</div>
-            <div className="text-sm text-blue-700">Completion Rate</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+            {submittedUserNames.map((name, i) => (
+              <span key={i} style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', background: `color-mix(in oklch, ${greenHi} 12%, ${surface})`, color: greenHi, border: `1px solid color-mix(in oklch, ${greenHi} 35%, ${border})`, borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{name}</span>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Submission Progress</span>
-            <span>{submittedCount}/{totalCount}</span>
+      {/* Pending names */}
+      {pendingUserNames.length > 0 && (
+        <div style={{ marginBottom: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+            <Clock style={{ width: 13, height: 13, color: amber }} />
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pending ({pendingUserNames.length})</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-green-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${submissionRate}%` }}
-            ></div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+            {pendingUserNames.map((name, i) => (
+              <span key={i} style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', background: `color-mix(in oklch, ${amber} 10%, ${surface})`, color: amber, border: `1px solid color-mix(in oklch, ${amber} 30%, ${border})`, borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{name}</span>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Submitted Users */}
-        {submittedUserNames.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <h4 className="font-medium text-green-900">Submitted ({submittedUserNames.length})</h4>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {submittedUserNames.map((name, index) => (
-                <Badge key={index} variant="secondary" className="bg-green-100 text-green-800">
-                  {name}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pending Users */}
-        {pendingUserNames.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <h4 className="font-medium text-yellow-900">Pending ({pendingUserNames.length})</h4>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {pendingUserNames.map((name, index) => (
-                <Badge key={index} variant="outline" className="border-yellow-300 text-yellow-700">
-                  {name}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* All Submitted Message */}
-        {submittedCount === totalCount && totalCount > 0 && (
-          <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
-            <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-            <h4 className="font-semibold text-green-900 mb-1">All Picks Submitted!</h4>
-            <p className="text-green-700 text-sm">
-              All {totalCount} participants have submitted their picks for Week {currentWeek}.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* All submitted */}
+      {submittedCount === totalCount && totalCount > 0 && (
+        <div style={{ textAlign: 'center', padding: '0.85rem', background: `color-mix(in oklch, ${greenHi} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${greenHi} 25%, ${border})`, borderRadius: 8 }}>
+          <CheckCircle style={{ width: 24, height: 24, color: greenHi, margin: '0 auto 0.5rem' }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>All Picks Submitted!</p>
+          <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>All {totalCount} participants have submitted their picks for Week {currentWeek}.</p>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-# NFL Confidence Pool - Scripts Guide
+# Sunday Huddle - Scripts Guide
 
 This guide explains how to set up and run all the scripts in the `scripts/` directory for the NFL Confidence Pool application.
 

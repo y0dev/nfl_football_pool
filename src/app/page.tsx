@@ -1,15 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Search, Users, Trophy, Calendar, ArrowRight, Shield } from 'lucide-react';
+import { Search, Users, Trophy, Calendar, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { createPageUrl, getWeekTitle as getWeekTitleUtil } from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 interface Game {
   id: string;
@@ -21,6 +20,23 @@ interface Game {
   kickoff_time: string;
   winner: string;
 }
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const goldHi  = 'oklch(82% 0.18 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 function LandingPage() {
   const { user, verifyAdminStatus } = useAuth();
@@ -50,33 +66,25 @@ function LandingPage() {
         setIsSuperAdmin(null);
       }
     };
-
     checkAdminStatus();
   }, [user]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load current week
         const weekData = await loadCurrentWeek();
-        setCurrentWeek(weekData?.week_number || 1);
-        setCurrentSeasonType(weekData?.season_type || 2);
+        const weekNum = weekData?.week_number || 1;
+        const seasonType = weekData?.season_type ?? 2;
+        setCurrentWeek(weekNum);
+        setCurrentSeasonType(seasonType);
 
-        // Load games for the current week
-        const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-        
-        const { data: gamesData, error } = await supabase
-          .from('games')
-          .select('*')
-          .eq('week', weekData?.week_number || 1)
-          .eq('season_type', weekData?.season_type || 2)
-          .order('kickoff_time');
-
-        if (error) {
-          console.error('Error loading games:', error);
-        } else {
-          setGames(gamesData || []);
+        // seasonType 0 = offseason signal from getCurrentWeekFromGames
+        if (seasonType !== 0) {
+          const res = await fetch(`/api/games/week?week=${weekNum}&seasonType=${seasonType}`);
+          if (res.ok) {
+            const result = await res.json();
+            if (result.success) setGames(result.games || []);
+          }
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -84,41 +92,12 @@ function LandingPage() {
         setIsLoadingGames(false);
       }
     };
-
     loadData();
   }, []);
 
-
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!searchTerm.trim()) return;
-    
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      // Search for pools by name or admin email
-      const { data: pools, error } = await supabase
-        .from('pools')
-        .select('id, name, created_by')
-        .or(`name.ilike.%${searchTerm}%,created_by.ilike.%${searchTerm}%`)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (error) {
-        console.error('Error searching pools:', error);
-        return;
-      }
-
-      if (pools && pools.length > 0) {
-        // Redirect to participant page with the pool ID
-        router.push(createPageUrl(`poolpicks?poolId=${pools[0].id}`));
-      } else {
-        // Show error message - you could add a toast notification here
-        console.log('No pools found');
-      }
-    } catch (error) {
-      console.error('Error searching for pool:', error);
-    }
+    router.push(`/pools?q=${encodeURIComponent(searchTerm.trim())}`);
   };
 
   const getGameStatus = (game: Game) => {
@@ -127,12 +106,12 @@ function LandingPage() {
     const kickoff = new Date(game.kickoff_time);
     const now = new Date();
     if (kickoff > now) {
-      return kickoff.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
+      return kickoff.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
         day: 'numeric',
         hour: 'numeric',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     }
     return 'Starting Soon';
@@ -140,232 +119,410 @@ function LandingPage() {
 
   const getGameScore = (game: Game) => {
     if (game.status === 'scheduled') return '';
-    return `${game.away_score} - ${game.home_score}`;
+    return `${game.away_score} – ${game.home_score}`;
   };
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
+  const features = [
+    { icon: Trophy,   label: 'Weekly Competition', body: 'Compete weekly with friends and family in confidence pools',        accent: gold },
+    { icon: Users,    label: 'Social Experience',   body: 'Join pools, invite friends, and track your performance all season', accent: greenHi },
+    { icon: Calendar, label: 'Season Long',          body: 'Follow your progress through every week of the NFL season',         accent: gold },
+  ];
+
+  const steps = [
+    { n: '01', title: 'Join a Pool',  body: 'Find and join a confidence pool with friends or family' },
+    { n: '02', title: 'Make Picks',   body: 'Pick the winner of each game and assign confidence points' },
+    { n: '03', title: 'Watch Games',  body: 'Follow the games and see how your picks perform' },
+    { n: '04', title: 'Win Points',   body: 'Earn points for correct picks based on your confidence level' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900">
-      {/* Navigation Bar */}
-      <nav className="bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Trophy className="h-8 w-8 text-white" />
-              <h1 className="text-xl font-bold text-white">NFL Confidence Pool</h1>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+              <BrandLogo variant="icon" size={32} />
+              <span style={{
+                ...bc, fontWeight: 800, fontSize: '0.95rem',
+                letterSpacing: '0.07em', color: text, textTransform: 'uppercase',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                Sunday Huddle
+              </span>
             </div>
-            <div className="flex items-center gap-4">
+
+            <div style={{ flexShrink: 0 }}>
               {user ? (
-                <>
-                  <Button
-                    className="bg-green-600 hover:bg-green-700 text-white border-none"
-                    onClick={() => {
-                      if (isSuperAdmin === true) {
-                        router.push('/admin/dashboard');
-                      } else if (isSuperAdmin === false) {
-                        router.push('/dashboard');
-                      }
-                    }}
-                    disabled={isCheckingAdmin}
-                  >
-                    <Shield className="h-4 w-4 mr-2" />
-                    {isCheckingAdmin ? 'Loading...' : isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 text-white border-none"
-                  onClick={() => router.push('/admin/login')}
+                <button
+                  onClick={() => {
+                    if (isSuperAdmin === true) router.push('/admin/dashboard');
+                    else if (isSuperAdmin === false) router.push('/dashboard');
+                  }}
+                  disabled={isCheckingAdmin}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.45rem 0.9rem',
+                    background: green, color: text, border: 'none', borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.78rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: isCheckingAdmin ? 'not-allowed' : 'pointer',
+                    opacity: isCheckingAdmin ? 0.55 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
                 >
-                  <Shield className="h-4 w-4 mr-2" />
+                  <Shield className="h-3.5 w-3.5" />
+                  {isCheckingAdmin ? 'Loading…' : isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push('/login')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.45rem 0.9rem',
+                    background: 'transparent', color: text,
+                    border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.78rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Shield className="h-3.5 w-3.5" />
                   Commissioner Login
-                </Button>
+                </button>
               )}
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-6xl font-bold text-white mb-6">
-            NFL Confidence Pool
-          </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join the ultimate NFL prediction challenge. Pick winners, assign confidence points, 
-            and compete with friends and family in weekly confidence pools.
-          </p>
-          
-          {/* Pool Search */}
-          <Card className="max-w-md mx-auto bg-white/10 backdrop-blur-md border-white/20">
-            <CardHeader>
-              <CardTitle className="text-white">Find Your Pool</CardTitle>
-              <CardDescription className="text-blue-100">
-                Enter your pool name or admin email to join
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div>
-                  <Input
-                    placeholder="Enter pool name or admin email..."
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 59px,
+          oklch(100% 0 0 / 0.022) 59px,
+          oklch(100% 0 0 / 0.022) 60px
+        )`,
+        padding: 'clamp(3.5rem, 8vw, 6rem) 0',
+      }}>
+        <div className="lp-inner">
+          {/* .lp-hero-row: flex-col on mobile, flex-row on 768px+ */}
+          <div className="lp-hero-row">
+
+            {/* .lp-hero-text: full-width on mobile, flex-1 on desktop */}
+            <div className="lp-hero-text">
+              <p style={{
+                ...bc, fontWeight: 700, fontSize: '0.67rem',
+                letterSpacing: '0.28em', color: greenHi,
+                textTransform: 'uppercase', marginBottom: '1.1rem',
+                display: 'flex', alignItems: 'center', gap: '0.55rem',
+              }}>
+                <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
+                Weekly Confidence Pool
+              </p>
+
+              <h1 style={{
+                ...bc, fontWeight: 900,
+                fontSize: 'clamp(3rem, 8vw, 5.25rem)',
+                lineHeight: 0.92, letterSpacing: '-0.01em',
+                color: text, textTransform: 'uppercase',
+                marginBottom: '1.5rem',
+              }}>
+                Pick&nbsp;&apos;em.<br />
+                Prove&nbsp;&apos;em.<br />
+                <span style={{ color: goldHi }}>Win the<br />week.</span>
+              </h1>
+
+              <p style={{
+                ...b, fontSize: '1rem', lineHeight: 1.72,
+                color: textMid, maxWidth: '40ch',
+              }}>
+                Pick winners, assign confidence points, and compete with friends and family all season long.
+              </p>
+            </div>
+
+            {/* .lp-hero-card: full-width on mobile, fixed 380px on desktop */}
+            <div className="lp-hero-card">
+              <div style={{
+                background: surface,
+                border: `1px solid ${border}`,
+                borderTop: `3px solid ${green}`,
+                borderRadius: 10,
+                padding: '1.75rem',
+              }}>
+                <p style={{
+                  ...bc, fontWeight: 700, fontSize: '0.63rem',
+                  letterSpacing: '0.24em', color: greenHi,
+                  textTransform: 'uppercase', marginBottom: '0.3rem',
+                }}>
+                  Find Your Pool
+                </p>
+                <h2 style={{
+                  ...bc, fontWeight: 800, fontSize: '1.4rem',
+                  color: text, marginBottom: '1.25rem', letterSpacing: '0.02em',
+                }}>
+                  Join The Game
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <input
+                    placeholder="Pool Name"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    style={{
+                      background: bg,
+                      border: `1px solid ${border}`,
+                      color: text,
+                      borderRadius: 6,
+                      padding: '0.5rem 0.75rem',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      ...b, fontSize: '0.88rem',
+                    }}
                   />
+                  <button
+                    onClick={handleSearch}
+                    disabled={!searchTerm.trim()}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                      padding: '0.65rem 1rem',
+                      background: searchTerm.trim() ? green : 'oklch(22% 0.03 255)',
+                      color: text, border: 'none', borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.84rem',
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                      cursor: searchTerm.trim() ? 'pointer' : 'not-allowed',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    <Search className="h-4 w-4" />
+                    Find Pool
+                  </button>
                 </div>
-                <Button 
-                  onClick={handleSearch}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={!searchTerm.trim()}
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Find Pool
-                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* Features Section */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 text-center">
-            <CardContent className="pt-6">
-              <Trophy className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">Weekly Competition</h3>
-              <p className="text-blue-100">Compete weekly with friends and family in confidence pools</p>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 text-center">
-            <CardContent className="pt-6">
-              <Users className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">Social Experience</h3>
-              <p className="text-blue-100">Join pools, invite friends, and track your performance</p>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 text-center">
-            <CardContent className="pt-6">
-              <Calendar className="h-12 w-12 text-green-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">Season Long</h3>
-              <p className="text-blue-100">Follow your progress throughout the entire NFL season</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Games Ticker */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Trophy className="h-6 w-6 text-white" />
-            <h3 className="text-2xl font-bold text-white">{getWeekTitle()} Games</h3>
           </div>
-          
-          {isLoadingGames ? (
-            <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
-              <div className="animate-pulse space-y-4">
+        </div>
+      </section>
+
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── FEATURES ── */}
+      <section style={{ background: surface, padding: '3rem 0' }}>
+        <div className="lp-inner">
+          {/* .lp-features: 1-col mobile, 3-col 640px+ */}
+          <div className="lp-features">
+            {features.map(({ icon: Icon, label, body: desc, accent }) => (
+              <div key={label} style={{
+                background: card,
+                border: `1px solid ${border}`,
+                borderLeft: `3px solid ${accent}`,
+                borderRadius: 8,
+                padding: '1.25rem 1.5rem',
+              }}>
+                <Icon className="h-5 w-5 mb-3" style={{ color: accent }} />
+                <h3 style={{
+                  ...bc, fontWeight: 700, fontSize: '0.92rem',
+                  letterSpacing: '0.07em', color: text,
+                  textTransform: 'uppercase', marginBottom: '0.4rem',
+                }}>
+                  {label}
+                </h3>
+                <p style={{ ...b, fontSize: '0.875rem', lineHeight: 1.65, color: textMid }}>
+                  {desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── GAMES TICKER ── */}
+      <section style={{ background: bg, padding: '3.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+            <h3 style={{
+              ...bc, fontWeight: 800, fontSize: '1.25rem',
+              letterSpacing: '0.06em', color: text, textTransform: 'uppercase',
+            }}>
+              {getWeekTitle() == "Offseason" ? "Offseason" : `${getWeekTitle()} Games`}
+            </h3>
+          </div>
+
+          <div style={{
+            background: surface,
+            border: `1px solid ${border}`,
+            borderRadius: 10,
+            overflow: 'hidden',
+          }}>
+            {isLoadingGames ? (
+              <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="h-4 bg-white/20 rounded w-24"></div>
-                    <div className="h-4 bg-white/20 rounded w-32"></div>
-                    <div className="h-4 bg-white/20 rounded w-20"></div>
-                  </div>
+                  <div key={i} className="animate-pulse" style={{ height: 44, background: card, borderRadius: 6 }} />
                 ))}
               </div>
-            </div>
-          ) : games.length > 0 ? (
-            <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
-              <div className="space-y-3">
-                {games.map((game) => (
-                  <div key={game.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-blue-200 min-w-[80px]">
-                        {getGameStatus(game)}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">{game.away_team}</span>
-                        <span className="text-blue-200">@</span>
-                        <span className="font-medium text-white">{game.home_team}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getGameScore(game) && (
-                        <Badge variant="secondary" className="bg-white/20 text-white">
-                          {getGameScore(game)}
-                        </Badge>
-                      )}
-                      {game.status === 'live' && (
-                        <Badge variant="destructive" className="animate-pulse">
-                          LIVE
-                        </Badge>
-                      )}
-                      {game.status === 'final' && (
-                        <Badge variant="outline" className="border-green-400 text-green-400">
+            ) : games.length > 0 ? (
+              <div>
+                {/* .lp-sb-header: hidden on mobile, flex on 640px+ */}
+                <div
+                  className="lp-sb-header"
+                  style={{ background: card, borderBottom: `1px solid ${border}` }}
+                >
+                  <div className="lp-game-status">
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Status</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Matchup</span>
+                  </div>
+                  <div className="lp-game-score">
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Score</span>
+                  </div>
+                </div>
+
+                {games.map((game, idx) => (
+                  <div
+                    key={game.id}
+                    className="lp-game-row"
+                    style={{ borderBottom: idx < games.length - 1 ? `1px solid ${border}` : 'none' }}
+                  >
+                    {/* Status */}
+                    <div className="lp-game-status">
+                      {game.status === 'live' ? (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                          ...bc, fontWeight: 700, fontSize: '0.68rem',
+                          letterSpacing: '0.13em', color: liveRed, textTransform: 'uppercase',
+                        }}>
+                          <span className="animate-pulse" style={{
+                            width: 5, height: 5, borderRadius: '50%',
+                            background: liveRed, display: 'inline-block', flexShrink: 0,
+                          }} />
+                          Live
+                        </span>
+                      ) : game.status === 'final' ? (
+                        <span style={{
+                          ...bc, fontWeight: 700, fontSize: '0.68rem',
+                          letterSpacing: '0.13em', color: greenHi, textTransform: 'uppercase',
+                        }}>
                           Final
-                        </Badge>
+                        </span>
+                      ) : (
+                        <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                          {getGameStatus(game)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Matchup */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{
+                        ...bc, fontWeight: 700, fontSize: '0.93rem',
+                        letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {game.away_team}
+                      </span>
+                      <span style={{ ...b, fontSize: '0.75rem', color: textDim, flexShrink: 0 }}>@</span>
+                      <span style={{
+                        ...bc, fontWeight: 700, fontSize: '0.93rem',
+                        letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {game.home_team}
+                      </span>
+                    </div>
+
+                    {/* Score */}
+                    <div className="lp-game-score">
+                      {getGameScore(game) && (
+                        <span style={{
+                          ...bc, fontWeight: 800, fontSize: '0.93rem',
+                          color: text, fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {getGameScore(game)}
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6 text-center">
-              <p className="text-blue-100">No games scheduled for this week</p>
-            </div>
-          )}
-        </div>
-
-        {/* How It Works */}
-        <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-8">
-          <h3 className="text-2xl font-bold text-white mb-6 text-center">How It Works</h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold">1</span>
+            ) : currentSeasonType === 0 ? (
+              <OffseasonBanner />
+            ) : (
+              <div style={{ padding: '3rem', textAlign: 'center' }}>
+                <p style={{ ...b, color: textDim, fontSize: '0.9rem' }}>
+                  No games scheduled for this week
+                </p>
               </div>
-              <h4 className="text-white font-semibold mb-2">Join a Pool</h4>
-              <p className="text-blue-100 text-sm">Find and join a confidence pool with friends or family</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold">2</span>
-              </div>
-              <h4 className="text-white font-semibold mb-2">Make Picks</h4>
-              <p className="text-blue-100 text-sm">Pick the winner of each game and assign confidence points</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold">3</span>
-              </div>
-              <h4 className="text-white font-semibold mb-2">Watch Games</h4>
-              <p className="text-blue-100 text-sm">Follow the games and see how your picks perform</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold">4</span>
-              </div>
-              <h4 className="text-white font-semibold mb-2">Win Points</h4>
-              <p className="text-blue-100 text-sm">Earn points for correct picks based on your confidence level</p>
-            </div>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Footer */}
-      <footer className="bg-black/20 border-t border-white/20 mt-12">
-        <div className="container mx-auto px-4 py-6">
-          <div className="text-center text-blue-100">
-            <p>&copy; {new Date().getFullYear()} NFL Confidence Pool. All rights reserved.</p>
+      {/* ── HOW IT WORKS ── */}
+      <section style={{ background: surface, padding: '4rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+            <p style={{
+              ...bc, fontWeight: 700, fontSize: '0.67rem',
+              letterSpacing: '0.26em', color: greenHi,
+              textTransform: 'uppercase', marginBottom: '0.5rem',
+            }}>
+              Get Started
+            </p>
+            <h3 style={{
+              ...bc, fontWeight: 900,
+              fontSize: 'clamp(1.6rem, 4vw, 2.25rem)',
+              letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
+            }}>
+              How It Works
+            </h3>
+          </div>
+
+          {/* .lp-steps: 2-col mobile, 4-col 768px+ */}
+          <div className="lp-steps">
+            {steps.map(({ n, title, body: desc }) => (
+              <div key={n}>
+                <div style={{
+                  ...bc, fontWeight: 900, fontSize: '3rem',
+                  lineHeight: 1, color: gold, opacity: 0.6,
+                  marginBottom: '0.6rem', letterSpacing: '-0.02em',
+                }}>
+                  {n}
+                </div>
+                <h4 style={{
+                  ...bc, fontWeight: 700, fontSize: '0.9rem',
+                  letterSpacing: '0.07em', color: text,
+                  textTransform: 'uppercase', marginBottom: '0.35rem',
+                }}>
+                  {title}
+                </h4>
+                <p style={{ ...b, fontSize: '0.85rem', lineHeight: 1.65, color: textMid }}>
+                  {desc}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
-      </footer>
+      </section>
+
+      {/* ── FOOTER ── */}
+
+      <Footer />
     </div>
   );
 }
@@ -377,4 +534,3 @@ export default function HomePage() {
     </AuthProvider>
   );
 }
-

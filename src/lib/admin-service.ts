@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, debugError } from './utils';
+import { debugLog, debugError, isOffseason } from './utils';
 
 export interface DashboardStats {
   totalPools: number;
@@ -20,6 +20,7 @@ export interface Pool {
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
+  season_scope?: number[];
 }
 
 export interface Participant {
@@ -98,6 +99,20 @@ export class AdminService {
       if (process.env.NODE_ENV === 'development') {
         console.log('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
       }
+
+      const now = new Date();
+      
+      if (isOffseason(now)) {
+        return {
+          totalPools: 0,
+          activePools: 0,
+          totalParticipants: 0,
+          totalGames: 0,
+          pendingSubmissions: 0,
+          completedSubmissions: 0
+        };
+      }
+          
 
       let poolsQuery = this.supabase
         .from('pools')

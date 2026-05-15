@@ -1,37 +1,58 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Shield, 
-  Users, 
-  Trophy, 
-  Settings, 
-  BarChart3, 
-  Mail, 
+import {
+  Shield,
+  Users,
+  Trophy,
+  BarChart3,
+  Mail,
   Calendar,
   LogOut,
-  Activity,
-  Clock,
-  TrendingUp,
-  Plus,
-  Zap,
   Bell,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, DashboardStats, Pool, Admin } from '@/lib/admin-service';
+import { adminService, DashboardStats, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
+import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
+
+// Design tokens — match landing page exactly
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const quarterOptions = [
+  { value: 'all',      label: 'All Quarters' },
+  { value: 'Q1',       label: 'Quarter 1 (Weeks 1–4)' },
+  { value: 'Q2',       label: 'Quarter 2 (Weeks 5–8)' },
+  { value: 'Q3',       label: 'Quarter 3 (Weeks 9–12)' },
+  { value: 'Q4',       label: 'Quarter 4 (Weeks 13–16)' },
+  { value: 'Playoffs', label: 'Playoffs (Weeks 17–20)' },
+];
 
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -47,7 +68,7 @@ function AdminDashboardContent() {
     totalParticipants: 0,
     totalGames: 0,
     pendingSubmissions: 0,
-    completedSubmissions: 0
+    completedSubmissions: 0,
   });
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [lastGameUpdate, setLastGameUpdate] = useState<Date | null>(null);
@@ -60,53 +81,28 @@ function AdminDashboardContent() {
   const [isGeneratingWinners, setIsGeneratingWinners] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
 
-  // Define quarter options
-  const quarterOptions = [
-    { value: 'all', label: 'All Quarters' },
-    { value: 'Q1', label: 'Quarter 1 (Weeks 1-4)' },
-    { value: 'Q2', label: 'Quarter 2 (Weeks 5-8)' },
-    { value: 'Q3', label: 'Quarter 3 (Weeks 9-12)' },
-    { value: 'Q4', label: 'Quarter 4 (Weeks 13-16)' },
-    { value: 'Playoffs', label: 'Playoffs (Weeks 17-20)' }
-  ];
-
   useEffect(() => {
     const loadData = async () => {
       try {
         const { week, seasonType } = await getUpcomingWeek();
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
-        
-        // Check admin status
+
         if (user) {
           debugLog('Checking admin status for user:', user.email);
-          debugLog('User admin status from cache:', user.is_super_admin);
-          
           try {
             const superAdminStatus = await verifyAdminStatus(true);
             setIsSuperAdmin(superAdminStatus);
-            debugLog('Super admin status after verification:', superAdminStatus);
-            
-            // Redirect commissioners to their dashboard
             if (!superAdminStatus) {
-              debugLog('User is not a super admin, redirecting to dashboard');
               router.push(createPageUrl('dashboard'));
               return;
             }
-            
-            if (superAdminStatus) {
-              debugLog('User is super admin, loading admins...');
-              await loadAdmins();
-              debugLog('Admins loaded');
-            }
+            if (superAdminStatus) await loadAdmins();
           } catch (error) {
             debugLog('Error verifying admin status:', error);
-            // Don't redirect on error, just set loading to false
             setIsLoading(false);
             return;
           }
-        } else {
-          debugLog('No user found in admin dashboard');
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -114,141 +110,76 @@ function AdminDashboardContent() {
         setIsLoading(false);
       }
     };
-
     loadData();
   }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
-    if (currentWeek && currentSeasonType && isSuperAdmin !== undefined) {
-      loadDashboardStats();
-      loadLastGameUpdate();
+    if (currentWeek && currentSeasonType !== undefined && isSuperAdmin !== undefined) {
+      if (currentSeasonType !== 0) {
+        loadDashboardStats();
+        loadLastGameUpdate();
+      }
       generateNotifications();
     }
   }, [currentWeek, currentSeasonType, isSuperAdmin]);
 
-  // Listen for custom event to open create pool dialog
   useEffect(() => {
-    const handleOpenCreatePool = () => {
-      setCreatePoolDialogOpen(true);
-    };
-
+    const handleOpenCreatePool = () => setCreatePoolDialogOpen(true);
     document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
-    
-    return () => {
-      document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
-    };
+    return () => document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
   }, []);
 
   const loadDashboardStats = async () => {
     try {
       if (!user?.email) return;
-      
-      const stats = await adminService.getDashboardStats(
-        currentWeek,
-        currentSeasonType,
-        user.email,
-        true // isSuperAdmin = true for admin dashboard
-      );
-      
+      const stats = await adminService.getDashboardStats(currentWeek, currentSeasonType, user.email, true);
       setDashboardStats(stats);
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load dashboard data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load dashboard data', variant: 'destructive' });
     }
   };
 
   const loadLastGameUpdate = async () => {
     try {
       const response = await fetch('/api/games?action=last-update');
-      
-      if (!response.ok) {
-        console.error('Error fetching last game update:', response.statusText);
-        return;
-      }
-      
+      if (!response.ok) return;
       const data = await response.json();
-      debugLog('Last Game Update - API Response: ', data);
-      
-      if (data.success && data.lastUpdate) {
-        setLastGameUpdate(new Date(data.lastUpdate));
-      }
+      if (data.success && data.lastUpdate) setLastGameUpdate(new Date(data.lastUpdate));
     } catch (error) {
       console.error('Error loading last game update:', error);
     }
   };
 
   const loadAdmins = async () => {
-    debugLog('Function: loadAdmins - Loading admins...');
-    
     try {
       const adminsData = await adminService.getAdmins();
-      debugLog('adminsData', adminsData);
       setAdmins(adminsData);
     } catch (error) {
       console.error('Error loading admins:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load admin data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
     }
   };
 
   const generateNotifications = () => {
-    const newNotifications: string[] = [];
-    
-    // System health notifications
-    if (dashboardStats.totalPools === 0) {
-      newNotifications.push('🚨 No active pools found in the system. Create a pool to get started!');
-    }
-    
-    if (dashboardStats.activePools === 0 && dashboardStats.totalPools > 0) {
-      newNotifications.push('⚠️ All pools in the system are currently inactive');
-    }
-    
-    if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0) {
-      newNotifications.push('📢 No participants have joined any pools yet. Consider sending invitations.');
-    }
-    
-    // Week-specific notifications
+    const n: string[] = [];
+    if (dashboardStats.totalPools === 0)
+      n.push('🚨 No active pools found. Create a pool to get started!');
+    if (dashboardStats.activePools === 0 && dashboardStats.totalPools > 0)
+      n.push('⚠️ All pools are currently inactive.');
+    if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0)
+      n.push('📢 No participants have joined any pools yet. Consider sending invitations.');
     if (dashboardStats.pendingSubmissions > 0) {
-      const percentage = Math.round((dashboardStats.completedSubmissions / (dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions)) * 100);
-      newNotifications.push(`📊 Week ${currentWeek} Progress: ${dashboardStats.completedSubmissions}/${dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions} submissions (${percentage}% complete)`);
+      const pct = Math.round((dashboardStats.completedSubmissions / (dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions)) * 100);
+      n.push(`📊 Week ${currentWeek}: ${dashboardStats.completedSubmissions}/${dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions} submissions (${pct}%)`);
     }
-    
-    if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0) {
-      newNotifications.push('✅ All participants across all pools have submitted their picks for this week!');
-    }
-    
-    // Game-related notifications
-    if (dashboardStats.totalGames === 0) {
-      newNotifications.push('🏈 No games scheduled for the current week. Check NFL sync status.');
-    }
-    
-    // Performance notifications
-    if (dashboardStats.totalPools > 0 && dashboardStats.totalParticipants > 0) {
-      const avgParticipants = Math.round(dashboardStats.totalParticipants / dashboardStats.totalPools);
-      if (avgParticipants < 5) {
-        newNotifications.push('📈 Low participation: Average of ' + avgParticipants + ' participants per pool. Consider promotional activities.');
-      } else if (avgParticipants > 20) {
-        newNotifications.push('🎉 High engagement: Average of ' + avgParticipants + ' participants per pool!');
-      }
-    }
-    
-    // System recommendations
-    if (dashboardStats.totalPools > 5 && dashboardStats.activePools < dashboardStats.totalPools * 0.5) {
-      newNotifications.push('💡 Consider activating more pools to increase system engagement.');
-    }
-    
-    if (dashboardStats.pendingSubmissions > 10) {
-      newNotifications.push('⏰ Consider sending reminder emails to participants who haven\'t submitted picks.');
-    }
-    
-    setNotifications(newNotifications);
+    if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0)
+      n.push('✅ All participants have submitted picks for this week!');
+    if (dashboardStats.totalGames === 0)
+      n.push('🏈 No games scheduled for the current week. Check NFL sync.');
+    if (dashboardStats.pendingSubmissions > 10)
+      n.push("⏰ Consider sending reminder emails to participants who haven't submitted picks.");
+    setNotifications(n);
   };
 
   const handleRefresh = async () => {
@@ -258,41 +189,25 @@ function AdminDashboardContent() {
       await loadLastGameUpdate();
       generateNotifications();
       setLastRefresh(new Date());
-      toast({
-        title: 'Dashboard Refreshed',
-        description: 'All data has been updated',
-      });
-    } catch (error) {
-      console.error('Error refreshing dashboard:', error);
-      toast({
-        title: 'Refresh Failed',
-        description: 'Failed to refresh dashboard data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
+    } catch {
+      toast({ title: 'Refresh Failed', description: 'Failed to refresh dashboard data', variant: 'destructive' });
     } finally {
       setIsRefreshing(false);
     }
   };
 
   const handlePoolCreated = async () => {
-    // Refresh dashboard stats after pool creation
     await loadDashboardStats();
-    toast({
-      title: 'Pool Created',
-      description: 'New pool has been created successfully',
-    });
+    toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
       await signOut();
       router.push(createPageUrl('adminlogin'));
-    } catch (error) {
-      console.error('Error logging out:', error);
+    } catch {
       setIsLoggingOut(false);
     }
   };
@@ -302,23 +217,11 @@ function AdminDashboardContent() {
     try {
       const response = await fetch('/api/admin/winners/period', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          season: 2025, // Use current season
-          generateAllPools: true,
-          quarter: selectedQuarter
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ season: 2025, generateAllPools: true, quarter: selectedQuarter }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate period winners');
-      }
-
+      if (!response.ok) throw new Error('Failed to generate period winners');
       const result = await response.json();
-      
-      // Prepare summary data for the summary page
       const summaryData = {
         operation: 'Period Winners Generation',
         timestamp: new Date().toISOString(),
@@ -327,31 +230,14 @@ function AdminDashboardContent() {
         generatedWinners: result.generatedWinners || 0,
         noWinners: result.noWinners || 0,
         errors: result.errors || 0,
-        results: result.results || []
+        results: result.results || [],
       };
-
-      // Store data in localStorage for the summary page
       localStorage.setItem('adminSummaryData', JSON.stringify(summaryData));
-
-      // Show success toast
-      toast({
-        title: 'Period Winners Generation Complete',
-        description: `Processed ${summaryData.poolsProcessed} pools, generated ${summaryData.generatedWinners} winners`,
-        duration: 4000,
-      });
-
-      // Navigate to summary page
+      toast({ title: 'Period Winners Generated', description: `Processed ${summaryData.poolsProcessed} pools, generated ${summaryData.generatedWinners} winners`, duration: 4000 });
       router.push('/admin/summary');
-
-      // Refresh dashboard stats
       await loadDashboardStats();
-    } catch (error) {
-      console.error('Error generating period winners:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate period winners. Please try again.',
-        variant: 'destructive',
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate period winners. Please try again.', variant: 'destructive' });
     } finally {
       setIsGeneratingWinners(false);
     }
@@ -359,470 +245,521 @@ function AdminDashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div className="animate-spin rounded-full h-16 w-16" style={{ borderWidth: '3px', borderStyle: 'solid', borderColor: border, borderTopColor: green }} />
       </div>
     );
   }
 
+
+  const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
+  const weekTitle = currentSeasonType === 0 ? 'Offseason' : `Week ${currentWeek} - ${seasonLabel}`;
+
+  const statItems = [
+    { label: 'Total Pools',    value: dashboardStats.totalPools,                          sub: `${dashboardStats.activePools} active` },
+    { label: 'Participants',   value: dashboardStats.totalParticipants,                    sub: 'Across all pools' },
+    { label: 'Admins',         value: admins.filter(a => a.is_super_admin).length,         sub: 'System administrators' },
+    { label: 'Commissioners',  value: admins.filter(a => !a.is_super_admin).length,        sub: 'Pool managers' },
+  ];
+
+  const actions = [
+    { icon: Users,    accent: green,                   title: 'Manage Commissioners', desc: 'Create and manage commissioner accounts',    label: 'Manage Commissioners', onClick: () => router.push(createPageUrl('admincommissioners')) },
+    { icon: Shield,   accent: green,                   title: 'Manage Admins',        desc: 'Reset passwords and manage admin accounts',  label: 'Manage Admins',        onClick: () => router.push('/admin/manage-admins') },
+    { icon: Trophy,   accent: gold,                    title: 'Pool Management',      desc: 'Manage pools and participants',               label: 'Manage Pools',         onClick: () => router.push(createPageUrl('adminpools')) },
+    { icon: Mail,     accent: green,                   title: 'Email Management',     desc: 'Send emails and manage communications',       label: 'Email Management',     onClick: () => router.push(createPageUrl('adminreminders')) },
+    { icon: Trophy,   accent: gold,                    title: 'Playoff Management',   desc: 'Manage playoff teams and games',              label: 'Manage Playoffs',      onClick: () => router.push('/admin/playoffs') },
+    { icon: Calendar, accent: green,                   title: 'NFL Sync',             desc: 'Synchronize NFL game data',                  label: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
+    { icon: Calendar, accent: 'oklch(65% 0.12 290)',  title: 'Season Games',         desc: 'Import and manage full season schedules',    label: 'Season Games',         onClick: () => router.push('/admin/season-games') },
+    { icon: BarChart3, accent: 'oklch(62% 0.12 270)', title: 'Season Review',        desc: 'Review each pool by week',                   label: 'Season Review',        onClick: () => router.push('/season-review') },
+    { icon: Plus,     accent: green,                   title: 'Create Pool',          desc: 'Create a new confidence pool',               label: 'Create Pool',          onClick: () => { document.dispatchEvent(new CustomEvent('openCreatePoolDialog')); } },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+
+            {/* Left: branding */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: green, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Shield style={{ width: 16, height: 16, color: text }} />
               </div>
-              <p className="text-sm sm:text-base text-gray-600">
-                System-wide administrative control
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  System Admin
-                </Badge>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
-                >
-                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
-                </Button>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', display: 'block' }}>
+                  Commissioner HQ
+                </span>
+                <span style={{ ...bc, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '0.18em', color: greenHi, textTransform: 'uppercase' }}>
+                  System Administration
+                </span>
               </div>
+              <Badge variant="outline" style={{ fontSize: '0.6rem', flexShrink: 0, borderColor: border, color: textMid }}>
+                Super Admin
+              </Badge>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
+
+            {/* Right: utility buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 h-8 sm:h-9 text-xs sm:text-sm"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 6,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                  opacity: isRefreshing ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
               >
-                <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-                <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
-              </Button>
-              <Button
+                <RefreshCw style={{ width: 12, height: 12 }} className={isRefreshing ? 'animate-spin' : ''} />
+                {isRefreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+
+              <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 relative h-8 sm:h-9 text-xs sm:text-sm"
+                style={{
+                  position: 'relative',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34,
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 6,
+                  cursor: 'pointer',
+                }}
               >
-                <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Bell style={{ width: 15, height: 15 }} />
                 {notifications.length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
+                  <span style={{
+                    position: 'absolute', top: -5, right: -5,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: liveRed, color: text,
+                    ...bc, fontWeight: 700, fontSize: '0.6rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
                     {notifications.length}
-                  </Badge>
+                  </span>
                 )}
-              </Button>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  background: liveRed, color: text,
+                  border: 'none', borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                  opacity: isLoggingOut ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <LogOut style={{ width: 12, height: 12 }} />
+                Logout
+              </button>
             </div>
           </div>
         </div>
+      </nav>
 
-        {/* Notifications Panel */}
-        {showNotifications && notifications.length > 0 && (
-          <Card className="mb-6 border-orange-200 bg-orange-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-orange-900 text-sm sm:text-base">
-                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                Notifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {notifications.map((notification, index) => (
-                  <div key={index} className="flex items-center gap-2 text-xs sm:text-sm text-orange-800">
-                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                    <span className="break-words">{notification}</span>
+      {/* ── Notifications Banner ── */}
+      {showNotifications && (
+        <div style={{ background: 'oklch(18% 0.03 255)', borderBottom: `1px solid ${border}` }}>
+          <div className="lp-inner" style={{ paddingTop: '0.875rem', paddingBottom: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.18em', color: textDim, textTransform: 'uppercase' }}>
+                Notifications {notifications.length > 0 && `(${notifications.length})`}
+              </span>
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => setNotifications([])}
+                  style={{ ...bc, fontSize: '0.62rem', fontWeight: 600, color: textDim, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.1rem 0.3rem' }}
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+            {notifications.length === 0 ? (
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>No new notifications</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {notifications.map((n, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
+                    <span style={{ ...b, fontSize: '0.8rem', color: textMid, flex: 1 }}>{n}</span>
+                    <button
+                      onClick={() => setNotifications(prev => prev.filter((_, idx) => idx !== i))}
+                      aria-label="Dismiss notification"
+                      style={{
+                        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                        background: 'transparent', border: `1px solid ${border}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', color: textDim,
+                      }}
+                    >
+                      <X style={{ width: 10, height: 10 }} />
+                    </button>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Pools</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalPools}</div>
-              <p className="text-xs text-muted-foreground">
-                {dashboardStats.activePools} active
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Participants</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalParticipants}</div>
-              <p className="text-xs text-muted-foreground">
-                Across all pools
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Admins</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {admins.filter(admin => admin.is_super_admin).length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                System administrators
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Commissioners</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {admins.filter(admin => !admin.is_super_admin).length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pool managers
-              </p>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
+      )}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5" />
-                Manage Commissioners
-              </CardTitle>
-              <CardDescription>
-                Create and manage commissioner accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push(createPageUrl('admincommissioners'))}
-                className="w-full"
-              >
-                Manage Commissioners
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 59px,
+          oklch(100% 0 0 / 0.022) 59px,
+          oklch(100% 0 0 / 0.022) 60px
+        )`,
+        padding: 'clamp(3rem, 6vw, 5rem) 0',
+      }}>
+        <div className="lp-inner">
+          <div className="lp-hero-row">
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Shield className="h-5 w-5" />
-                Manage Admins
-              </CardTitle>
-              <CardDescription>
-                Reset passwords and manage admin accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/admin/manage-admins')}
-                className="w-full"
-              >
-                Manage Admins
-              </Button>
-            </CardContent>
-          </Card>
+            {/* Left: title + description */}
+            <div className="lp-hero-text">
+              <p style={{
+                ...bc, fontWeight: 700, fontSize: '0.67rem',
+                letterSpacing: '0.28em', color: greenHi,
+                textTransform: 'uppercase', marginBottom: '1rem',
+                display: 'flex', alignItems: 'center', gap: '0.55rem',
+              }}>
+                <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
+                System Administration
+              </p>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
-                Pool Management
-              </CardTitle>
-              <CardDescription>
-                Manage pools and participants
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-                             <Button 
-                 onClick={() => router.push(createPageUrl('adminpools'))}
-                 className="w-full"
-               >
-                 Manage Pools
-               </Button>
-            </CardContent>
-          </Card>
+              <h1 style={{
+                ...bc, fontWeight: 900,
+                fontSize: 'clamp(3rem, 7vw, 4.5rem)',
+                lineHeight: 0.92, letterSpacing: '-0.01em',
+                color: text, textTransform: 'uppercase',
+                marginBottom: '1.5rem',
+              }}>
+                Commissioner<br />
+                <span style={{ color: gold }}>HQ</span>
+              </h1>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Mail className="h-5 w-5" />
-                Email Management
-              </CardTitle>
-              <CardDescription>
-                Send emails and manage communications
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push(createPageUrl('adminreminders'))}
-                className="w-full"
-              >
-                Email Management
-              </Button>
-            </CardContent>
-          </Card>
+              <p style={{ ...b, fontSize: '0.95rem', lineHeight: 1.72, color: textMid, maxWidth: '36ch' }}>
+                Manage pools, commissioners, and game data across the entire system.
+              </p>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
-                Playoff Management
-              </CardTitle>
-              <CardDescription>
-                Manage playoff teams and games
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/admin/playoffs')}
-                className="w-full"
-              >
-                Manage Playoffs
-              </Button>
-            </CardContent>
-          </Card>
+              <p style={{
+                ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim,
+                marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+                Week {currentWeek} · {seasonLabel} · Refreshed {lastRefresh.toLocaleTimeString()}
+              </p>
+            </div>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Calendar className="h-5 w-5" />
-                NFL Sync
-              </CardTitle>
-              <CardDescription>
-                Synchronize NFL data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push(createPageUrl('adminnflsync'))}
-                className="w-full"
-              >
-                NFL Sync
-              </Button>
-            </CardContent>
-          </Card>
+            {/* Right: system overview stats */}
+            <div className="lp-hero-card">
+              <div style={{
+                background: surface,
+                border: `1px solid ${border}`,
+                borderTop: `3px solid ${green}`,
+                borderRadius: 10,
+                padding: '1.75rem',
+              }}>
+                <p style={{
+                  ...bc, fontWeight: 700, fontSize: '0.63rem',
+                  letterSpacing: '0.24em', color: greenHi,
+                  textTransform: 'uppercase', marginBottom: '1.25rem',
+                }}>
+                  System Overview
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {statItems.map(({ label, value, sub }) => (
+                    <div key={label} style={{
+                      background: card,
+                      border: `1px solid ${border}`,
+                      borderRadius: 8,
+                      padding: '1rem',
+                    }}>
+                      <div style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: gold, lineHeight: 1, letterSpacing: '0.02em' }}>
+                        {value}
+                      </div>
+                      <div style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.3rem' }}>
+                        {label}
+                      </div>
+                      <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '0.15rem' }}>
+                        {sub}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
-                Season Review
-              </CardTitle>
-              <CardDescription>
-                Review each pool by week
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => router.push('/season-review')}
-                className="w-full"
-              >
-                Season Review
-              </Button>
-            </CardContent>
-          </Card>
+          </div>
+        </div>
+      </section>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Plus className="h-5 w-5" />
-                Create Pool
-              </CardTitle>
-              <CardDescription>
-                Create a new confidence pool
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => {
-                  const event = new CustomEvent('openCreatePoolDialog');
-                  document.dispatchEvent(event);
-                }}
-                className="w-full"
-              >
-                Create Pool
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
-                Generate Period Winners
-              </CardTitle>
-              <CardDescription>
-                Calculate and generate period winners for all pools
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Quarter Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Select Quarter to Generate:
+      {/* ── OFFSEASON BANNER ── */}
+      {currentSeasonType === 0 && (
+        <section style={{ background: bg, padding: '2rem 0' }}>
+          <div className="lp-inner">
+            <OffseasonBanner message="The NFL season has ended. Use the tools below to manage pools and pre-load the upcoming season's games." />
+          </div>
+        </section>
+      )}
+
+      {/* ── QUICK ACTIONS ── */}
+      <section style={{ background: surface, padding: '3rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              Quick Actions
+            </h2>
+          </div>
+
+          <div className="admin-actions-grid">
+            {actions.map(({ icon: Icon, accent, title, desc, label, onClick }) => (
+              <div key={title} style={{
+                background: card,
+                border: `1px solid ${border}`,
+                borderLeft: `3px solid ${accent}`,
+                borderRadius: 8,
+                padding: '1.5rem',
+                display: 'flex', flexDirection: 'column', gap: '0.75rem',
+              }}>
+                <div>
+                  <Icon style={{ width: 20, height: 20, color: accent, marginBottom: '0.5rem' }} />
+                  <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.3rem' }}>
+                    {title}
+                  </h3>
+                  <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.55, color: textMid }}>
+                    {desc}
+                  </p>
+                </div>
+                <button
+                  onClick={onClick}
+                  style={{
+                    marginTop: 'auto',
+                    padding: '0.5rem 1rem',
+                    background: green, color: text,
+                    border: 'none', borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.8rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: 'pointer', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = greenHi)}
+                  onMouseLeave={e => (e.currentTarget.style.background = green)}
+                >
+                  {label}
+                </button>
+              </div>
+            ))}
+
+            {/* Generate Period Winners — has extra Select UI */}
+            <div style={{
+              background: card,
+              border: `1px solid ${border}`,
+              borderLeft: `3px solid ${gold}`,
+              borderRadius: 8,
+              padding: '1.5rem',
+              display: 'flex', flexDirection: 'column', gap: '0.75rem',
+            }}>
+              <div>
+                <Trophy style={{ width: 20, height: 20, color: gold, marginBottom: '0.5rem' }} />
+                <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.3rem' }}>
+                  Generate Period Winners
+                </h3>
+                <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.55, color: textMid }}>
+                  Calculate and generate period winners for all pools
+                </p>
+              </div>
+              <div>
+                <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 600, color: textDim, display: 'block', marginBottom: '0.375rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Select Quarter
                 </label>
                 <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger style={{ width: '100%' }}>
                     <SelectValue placeholder="Select quarter" />
                   </SelectTrigger>
                   <SelectContent>
-                    {quarterOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
+                    {quarterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              <Button 
+              <button
                 onClick={handleGeneratePeriodWinners}
                 disabled={isGeneratingWinners}
-                className="w-full"
+                style={{
+                  marginTop: 'auto',
+                  padding: '0.5rem 1rem',
+                  background: isGeneratingWinners ? 'oklch(35% 0.08 155)' : green,
+                  color: text, border: 'none', borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.8rem',
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: isGeneratingWinners ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                }}
               >
-                {isGeneratingWinners ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Trophy className="h-4 w-4 mr-2" />
-                    Generate Winners
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+                {isGeneratingWinners
+                  ? <><RefreshCw style={{ width: 13, height: 13 }} className="animate-spin" /> Generating…</>
+                  : <><Trophy style={{ width: 13, height: 13 }} /> Generate Winners</>
+                }
+              </button>
+            </div>
+          </div>
         </div>
+      </section>
 
-        {/* Current Week Info */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Current Week Information
-            </CardTitle>
-            <CardDescription>
-              Week {currentWeek} - {currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{dashboardStats.totalGames}</div>
-                <div className="text-sm text-gray-600">Games Scheduled</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
-                <div className="text-sm text-gray-600">Pending Submissions</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
-                <div className="text-sm text-gray-600">Completed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {lastGameUpdate ? lastGameUpdate.toLocaleTimeString() : 'N/A'}
+      {/* ── WEEK SCOREBOARD ── */}
+      <section style={{ background: bg, padding: '3.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              {weekTitle}
+            </h3>
+            <span style={{ ...bc, fontSize: '0.72rem', color: textDim, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {seasonLabel}
+            </span>
+          </div>
+
+          <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            {/* Column headers */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+              background: card, borderBottom: `1px solid ${border}`,
+              padding: '0.625rem 1.25rem',
+            }}>
+              {['Games', 'Pending', 'Submitted', 'Last Sync'].map(h => (
+                <div key={h} style={{ textAlign: 'center' }}>
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>{h}</span>
                 </div>
-                <div className="text-sm text-gray-600">Last Game Update</div>
+              ))}
+            </div>
+
+            {/* Values */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '1.75rem 1.25rem', gap: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
+                  {dashboardStats.totalGames}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>scheduled</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: gold, lineHeight: 1, letterSpacing: '0.02em' }}>
+                  {dashboardStats.pendingSubmissions}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>awaiting picks</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
+                  {dashboardStats.completedSubmissions}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>picks submitted</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 700, fontSize: '1.1rem', color: text, lineHeight: 1 }}>
+                  {lastGameUpdate ? lastGameUpdate.toLocaleTimeString() : '—'}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>last game sync</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </section>
 
-        {/* Role Information */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Your Role Information
-            </CardTitle>
-            <CardDescription>
-              Current permissions and access levels
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Primary Role:</span>
-                <Badge variant="outline">
-                  System Admin
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Global Permissions:</span>
-                <span className="text-sm text-gray-600">
-                  Full system access
-                </span>
-              </div>
+      {/* ── ACCESS + EXPORT ── */}
+      <section style={{ background: surface, padding: '4rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              Your Access
+            </h3>
+          </div>
 
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Pool Access:</span>
-                <span className="text-sm text-gray-600">
-                  All pools ({dashboardStats.totalPools})
-                </span>
+          <div className="admin-2col-grid">
+            {/* Role info */}
+            <div style={{
+              background: card,
+              border: `1px solid ${border}`,
+              borderLeft: `3px solid ${green}`,
+              borderRadius: 8,
+              padding: '1.5rem',
+              alignSelf: 'start',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <Shield style={{ width: 16, height: 16, color: greenHi }} />
+                <h4 style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase' }}>
+                  Role Information
+                </h4>
               </div>
-
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Status:</span>
-                <Badge variant="default">
-                  Active
-                </Badge>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Last Game Update:</span>
-                <span className="text-sm text-gray-600">
-                  {lastGameUpdate ? lastGameUpdate.toLocaleString() : 'Never'}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Last Dashboard Refresh:</span>
-                <span className="text-sm text-gray-600">
-                  {lastRefresh.toLocaleString()}
-                </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                {[
+                  { label: 'Primary Role',       value: 'System Admin' },
+                  { label: 'Global Permissions', value: 'Full system access' },
+                  { label: 'Pool Access',        value: `All pools (${dashboardStats.totalPools})` },
+                  { label: 'Status',             value: 'Active' },
+                  { label: 'Last Game Update',   value: lastGameUpdate ? lastGameUpdate.toLocaleString() : 'Never' },
+                  { label: 'Last Refresh',       value: lastRefresh.toLocaleString() },
+                ].map(({ label, value }, i, arr) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '0.625rem 0',
+                      borderBottom: i < arr.length - 1 ? `1px solid ${border}` : 'none',
+                    }}
+                  >
+                    <span style={{ ...bc, fontWeight: 600, fontSize: '0.75rem', color: textDim, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      {label}
+                    </span>
+                    <span style={{ ...b, fontSize: '0.82rem', color: text }}>{value}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Data Export Section */}
-        <ExportData 
-          poolId="system-wide"
-          poolName="All Pools"
-          currentWeek={currentWeek}
-          currentSeason={new Date().getFullYear()}
-        />
+            {/* Data export */}
+            <ExportData
+              poolId="system-wide"
+              poolName="All Pools"
+              currentWeek={currentWeek}
+              currentSeason={new Date().getFullYear()}
+            />
+          </div>
+        </div>
+      </section>
 
-      </div>
-
+      {/* ── FOOTER ── */}
+      <Footer pageName="Commissioner HQ" />
+      
       {/* Create Pool Dialog */}
-      <CreatePoolDialog 
-        open={createPoolDialogOpen} 
+      <CreatePoolDialog
+        open={createPoolDialogOpen}
         onOpenChange={setCreatePoolDialogOpen}
         onPoolCreated={handlePoolCreated}
       />
@@ -838,4 +775,4 @@ export default function AdminDashboardPage() {
       </AdminGuard>
     </AuthProvider>
   );
-} 
+}

@@ -1,19 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, User } from 'lucide-react';
 import { Game } from '@/types/game';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const amber   = 'oklch(72% 0.16 60)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface Pick {
   gameId: string;
@@ -36,36 +40,17 @@ interface PickConfirmationDialogProps {
 }
 
 export function PickConfirmationDialog({
-  open,
-  onOpenChange,
-  picks,
-  games,
-  weekNumber,
-  seasonType,
-  mondayNightScore,
-  onConfirm,
-  isSubmitting,
-  userName,
-  userEmail,
+  open, onOpenChange, picks, games, weekNumber, seasonType,
+  mondayNightScore, onConfirm, isSubmitting, userName, userEmail,
 }: PickConfirmationDialogProps) {
   const [userConfirmed, setUserConfirmed] = useState(false);
 
-  const handleConfirm = () => {
-    onConfirm();
-    setUserConfirmed(false); // Reset for next time
-  };
+  const handleConfirm = () => { onConfirm(); setUserConfirmed(false); };
 
   const getTeamName = (teamId: string) => {
-    
-    // Find team name from games data
     for (const game of games) {
-      
-      if (game.home_team.toString() === teamId) {
-        return game.home_team;
-      }
-      if (game.away_team.toString() === teamId) {
-        return game.away_team;
-      }
+      if (game.home_team.toString() === teamId) return game.home_team;
+      if (game.away_team.toString() === teamId) return game.away_team;
     }
     return 'Unknown Team';
   };
@@ -74,118 +59,99 @@ export function PickConfirmationDialog({
     .filter(pick => pick.pickedTeamId && pick.confidencePoints)
     .sort((a, b) => (b.confidencePoints || 0) - (a.confidencePoints || 0));
 
-  // Check if Monday night score should be shown
   const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
   const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
   const shouldShowMondayNightScore = (isPeriodWeek || isSuperBowl) && mondayNightScore !== null && mondayNightScore !== undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent style={{ maxWidth: '42rem', maxHeight: '80vh', overflowY: 'auto', background: card, border: `1px solid ${border}` }}>
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            <span>Confirm Your Picks</span>
+          <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <AlertTriangle style={{ width: 16, height: 16, color: amber }} />
+            Confirm Your Picks
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.25rem' }}>
             Please review your Week {weekNumber} picks before submitting. Once submitted, picks cannot be changed.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* User Confirmation */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <User className="h-5 w-5 text-blue-600" />
-              <span className="font-semibold text-blue-900">Submitting as:</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* User confirmation */}
+          <div style={{ padding: '0.85rem 1rem', background: `color-mix(in oklch, ${greenHi} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${greenHi} 25%, ${border})`, borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <User style={{ width: 14, height: 14, color: greenHi }} />
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.75rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Submitting as:</span>
             </div>
-            <div className="text-sm text-gray-600">
-              {userName} {userEmail && `- ${userEmail}`}
-            </div>
-            <div className="mt-3">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={userConfirmed}
-                  onChange={(e) => setUserConfirmed(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm text-blue-800">
-                  I confirm that I am <strong>{userName}</strong> and these are my picks
-                </span>
-              </label>
-            </div>
+            <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '0.65rem' }}>
+              {userName}{userEmail && ` — ${userEmail}`}
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={userConfirmed}
+                onChange={(e) => setUserConfirmed(e.target.checked)}
+                style={{ width: 14, height: 14, accentColor: green }}
+              />
+              <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>
+                I confirm that I am <strong style={{ color: text }}>{userName}</strong> and these are my picks
+              </span>
+            </label>
           </div>
 
-          {/* Picks Summary */}
+          {/* Picks summary */}
           <div>
-            <h4 className="font-semibold text-gray-900 mb-3">Your Picks (by confidence):</h4>
-            <div className="space-y-2">
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.6rem' }}>Your Picks (by confidence):</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {sortedPicks.map((pick) => {
                 const game = games.find(g => g.id === pick.gameId);
                 if (!game) return null;
-
                 return (
-                  <div key={pick.gameId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {getTeamName(pick.pickedTeamId!)}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        vs {game.home_team?.toString() === pick.pickedTeamId 
-                          ? game.away_team 
-                          : game.home_team}
-                      </div>
+                  <div key={pick.gameId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
+                    <div>
+                      <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{getTeamName(pick.pickedTeamId!)}</p>
+                      <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                        vs {game.home_team?.toString() === pick.pickedTeamId ? game.away_team : game.home_team}
+                      </p>
                     </div>
-                    <Badge variant="outline" className="ml-2">
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: greenHi, padding: '0.15rem 0.5rem', border: `1px solid color-mix(in oklch, ${greenHi} 40%, ${border})`, borderRadius: 4 }}>
                       {pick.confidencePoints} pts
-                    </Badge>
+                    </span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Monday Night Score */}
+          {/* Monday night score */}
           {shouldShowMondayNightScore && (
             <div>
-              <h4 className="font-semibold text-gray-900 mb-3">Monday Night Game Score:</h4>
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-blue-900">
-                      Total Points Prediction
-                    </div>
-                    <div className="text-sm text-blue-700">
-                      Used for tie-breaking in {isPeriodWeek ? 'tie-breaker week' : 'Super Bowl'}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    {mondayNightScore} points
-                  </Badge>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.6rem' }}>Monday Night Game Score:</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: `color-mix(in oklch, ${gold} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${gold} 30%, ${border})`, borderRadius: 8 }}>
+                <div>
+                  <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>Total Points Prediction</p>
+                  <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>Used for tie-breaking in {isPeriodWeek ? 'tie-breaker week' : 'Super Bowl'}</p>
                 </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: gold }}>{mondayNightScore} pts</span>
               </div>
             </div>
           )}
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-sm text-amber-800">
-              <strong>Important:</strong> After submission, you cannot change your picks. 
-              Make sure all selections are correct before confirming.
+          {/* Warning */}
+          <div style={{ padding: '0.6rem 0.85rem', background: `color-mix(in oklch, ${amber} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${amber} 30%, ${border})`, borderRadius: 6 }}>
+            <p style={{ ...b, fontSize: '0.78rem', color: amber }}>
+              <strong>Important:</strong> After submission, you cannot change your picks. Make sure all selections are correct before confirming.
             </p>
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+        <DialogFooter style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+          <button onClick={() => onOpenChange(false)} disabled={isSubmitting} style={{ ...bc, padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isSubmitting ? 'not-allowed' : 'pointer' }}>
             Review Picks
-          </Button>
-          <Button 
-            onClick={handleConfirm}
-            disabled={!userConfirmed || isSubmitting}
-          >
+          </button>
+          <button onClick={handleConfirm} disabled={!userConfirmed || isSubmitting} style={{ ...bc, padding: '0.5rem 1rem', background: (!userConfirmed || isSubmitting) ? border : green, color: (!userConfirmed || isSubmitting) ? textDim : text, border: 'none', borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (!userConfirmed || isSubmitting) ? 'not-allowed' : 'pointer' }}>
             {isSubmitting ? 'Submitting...' : 'Submit Picks'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

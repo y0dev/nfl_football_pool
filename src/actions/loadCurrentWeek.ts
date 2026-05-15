@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { DAYS_BEFORE_GAME } from '@/lib/utils';
+import { DAYS_BEFORE_GAME, isOffseason } from '@/lib/utils';
 
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
@@ -62,6 +62,21 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
 
 // Function to get the upcoming week (the week that should be unlocked for picks)
 export async function getUpcomingWeek(): Promise<{ week: number; seasonType: number }> {
+  const now = new Date();
+
+  if (isOffseason(now)) {
+    const supabase = getSupabaseClient();
+    const { data: futureGames } = await supabase
+      .from('games')
+      .select('id')
+      .gte('kickoff_time', now.toISOString())
+      .limit(1);
+    if (!futureGames || futureGames.length === 0) {
+      return { week: 1, seasonType: 0 };
+    }
+    // Games pre-loaded for upcoming season — fall through to normal detection
+  }
+      
   try {
     const { getWeekForPicks } = await import('./getCurrentWeekFromGames');
     return await getWeekForPicks();
@@ -80,6 +95,18 @@ export async function loadCurrentWeek() {
   try {
     const { getCurrentWeekFromGames } = await import('./getCurrentWeekFromGames');
     const { week, seasonType } = await getCurrentWeekFromGames();
+
+    if (seasonType === 0) {
+      // Offseason, return default week 1 with 0 games
+      return {
+        id: week,
+        week_number: week,
+        season_year: new Date().getFullYear(),
+        game_count: 0,
+        is_active: false,
+        season_type: seasonType
+      };
+    }
     
     // Get game count and season for this week
     const supabase = getSupabaseClient();

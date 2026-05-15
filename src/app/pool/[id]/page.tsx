@@ -2,15 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Calendar, Settings, BarChart3, RefreshCw, Shield, LogOut, Download, ExternalLink, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
@@ -19,12 +11,29 @@ import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { PoolSettings } from '@/components/admin/pool-settings';
 import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
+import { ExportData } from '@/components/admin/export-data';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl, PERIOD_WEEKS } from '@/lib/utils';
+import { DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface Pool {
   id: string;
@@ -36,76 +45,50 @@ interface Pool {
   description?: string;
   pool_type?: 'normal' | 'knockout';
   tie_breaker_method?: string;
-  tie_breaker_question?: string;
-  tie_breaker_answer?: number;
 }
+
+const TABS = [
+  { id: 'participants',  label: 'Participants',  icon: Users },
+  { id: 'links',         label: 'Links',         icon: ExternalLink },
+  { id: 'emails',        label: 'Emails',        icon: Mail },
+  { id: 'playoffs',      label: 'Playoffs',      icon: Trophy },
+  { id: 'season-review', label: 'Season Review', icon: Calendar },
+  { id: 'export',        label: 'Export',        icon: Download },
+  { id: 'settings',      label: 'Settings',      icon: Settings },
+  ...(process.env.NODE_ENV === 'development' ? [{ id: 'test-picks', label: 'Test Picks', icon: BarChart3 }] : []),
+];
 
 function PoolDetailsContent() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const poolId = params.id as string;
-  
+
   const [pool, setPool] = useState<Pool | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
-  const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE); // Default to regular season
-  const [isSaving, setIsSaving] = useState(false);
+  const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE);
+  const [activeTab, setActiveTab] = useState('participants');
   const { toast } = useToast();
-
-  // Form state for editing
-  const [editForm, setEditForm] = useState({
-    name: '',
-    season: DEFAULT_POOL_SEASON,
-    is_active: true,
-    description: '',
-    pool_type: 'normal' as 'normal' | 'knockout',
-    tie_breaker_method: '',
-    tie_breaker_question: '',
-    tie_breaker_answer: 0
-  });
 
   useEffect(() => {
     loadPoolData();
     loadCurrentWeekData();
   }, [poolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-
-
   const loadPoolData = async () => {
     try {
       setIsLoading(true);
-      // Fetch pool details - you'll need to create this action
       const response = await fetch(`/api/admin/pools/${poolId}`);
       const result = await response.json();
-      
       if (result.success) {
         setPool(result.pool);
-        setEditForm({
-          name: result.pool.name,
-          season: result.pool.season,
-          is_active: result.pool.is_active,
-          description: result.pool.description || '',
-          pool_type: result.pool.pool_type || 'normal',
-          tie_breaker_method: result.pool.tie_breaker_method || '',
-          tie_breaker_question: result.pool.tie_breaker_question || '',
-          tie_breaker_answer: result.pool.tie_breaker_answer || 0
-        });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to load pool details",
-          variant: "destructive",
-        });
+        toast({ title: 'Error', description: 'Failed to load pool details', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error loading pool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load pool details",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'Failed to load pool details', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -115,86 +98,23 @@ function PoolDetailsContent() {
     try {
       const weekData = await loadCurrentWeek();
       setCurrentWeek(weekData?.week_number || 1);
-      setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE); // Default to regular season
+      setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE);
     } catch (error) {
       console.error('Error loading current week:', error);
     }
   };
 
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      
-      // Validate form data
-      if (!editForm.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Pool name is required",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      if (editForm.season < 2020 || editForm.season > 2030) {
-        toast({
-          title: "Error",
-          description: "Season must be between 2020 and 2030",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Debug: Log what we're trying to save
-      console.log('Saving pool data:', editForm);
-      
-      const response = await fetch(`/api/admin/pools/${poolId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editForm),
-      });
-
-      const result = await response.json();
-      console.log('Save response:', result);
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: "Pool updated successfully",
-        });
-        setPool(result.pool);
-        setIsEditing(false);
-        
-        // Refresh the pool data to show updated values
-        await loadPoolData();
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to update pool",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error updating pool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update pool",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/admin/login');
   };
-
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading pool…</p>
         </div>
       </div>
     );
@@ -202,375 +122,221 @@ function PoolDetailsContent() {
 
   if (!pool) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-12">
-          <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Pool not found</h3>
-          <p className="text-gray-600 mb-4">The pool you&apos;re looking for doesn&apos;t exist.</p>
-                  <Button onClick={() => router.push(createPageUrl('adminpools'))} variant="outline">
-          Back to Pools
-        </Button>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '2rem', maxWidth: 400, width: '100%', textAlign: 'center' }}>
+          <Trophy style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+          <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pool Not Found</h2>
+          <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>The pool you&apos;re looking for doesn&apos;t exist.</p>
+          <button
+            onClick={() => router.push(createPageUrl('adminpools'))}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', padding: '0.6rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Pools
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6">
-      {/* Header */}
-      <div className="mb-6">
-        {/* Back Button */}
-        <div className="mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(createPageUrl('adminpools'))}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to Pools</span>
-            <span className="sm:hidden">Back</span>
-          </Button>
-        </div>
+    <div style={{ background: bg, minHeight: '100vh' }}>
 
-        {/* Pool Title and Actions */}
-        <div className="flex flex-col gap-4 mb-4">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold truncate">{pool.name}</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Pool Management</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SharePoolButton poolId={pool.id} poolName={pool.name} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditing(!isEditing)}
-              className="flex items-center gap-2 min-w-0"
-            >
-              {isEditing ? <X className="h-4 w-4 flex-shrink-0" /> : <Edit className="h-4 w-4 flex-shrink-0" />}
-              <span className="hidden sm:inline">{isEditing ? 'Cancel' : 'Edit'}</span>
-            </Button>
-            {isEditing && (
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 min-w-0"
+      {/* NAV */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.push(createPageUrl('adminpools'))}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
-                {isSaving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span className="hidden sm:inline">Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Save</span>
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Pool Status */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-          <Badge variant={pool.is_active ? "default" : "secondary"}>
-            {pool.is_active ? "Active" : "Inactive"}
-          </Badge>
-          <div className="flex items-center gap-1 sm:gap-2 text-gray-600">
-            <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span>Season {pool.season}</span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 text-gray-600">
-            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Created by {pool.created_by}</span>
-            <span className="sm:hidden">By {pool.created_by}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Pool Details Form */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Pool Details
-          </CardTitle>
-          <CardDescription>
-            {isEditing ? 'Edit pool information' : 'View pool information'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Pool Name</Label>
-              <Input
-                id="name"
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                disabled={!isEditing}
-                className="w-full"
-              />
-            </div>
-            <div>
-              <Label htmlFor="season">Season</Label>
-              <Input
-                id="season"
-                type="number"
-                value={editForm.season}
-                onChange={(e) => setEditForm({ ...editForm, season: parseInt(e.target.value) })}
-                disabled={!isEditing}
-                className="w-full"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={editForm.description}
-              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              disabled={!isEditing}
-              rows={3}
-              className="w-full resize-none"
-              placeholder="Enter pool description..."
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="pool_type">Pool Type</Label>
-            <Select
-              value={editForm.pool_type}
-              onValueChange={(value: 'normal' | 'knockout') => setEditForm({ ...editForm, pool_type: value })}
-              disabled={!isEditing}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select pool type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal">Normal Pool</SelectItem>
-                <SelectItem value="knockout">Knockout Pool</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-gray-600 mt-1">
-              Normal pools disable tie breakers during regular weeks (tie breakers only used in tie-breaker weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs). 
-              Knockout pools always use tie breakers.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="tie_breaker_method">Tie Breaker Method</Label>
-              <Select
-                value={editForm.tie_breaker_method}
-                onValueChange={(value) => setEditForm({ ...editForm, tie_breaker_method: value })}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tie breaker method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="total_points">Total Points</SelectItem>
-                  <SelectItem value="correct_picks">Correct Picks</SelectItem>
-                  <SelectItem value="confidence_points">Confidence Points</SelectItem>
-                  <SelectItem value="monday_night_total">Monday Night Total</SelectItem>
-                  <SelectItem value="highest_scoring_game">Highest Scoring Game</SelectItem>
-                  <SelectItem value="lowest_scoring_game">Lowest Scoring Game</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="tie_breaker_question">Tie Breaker Question</Label>
-              <Input
-                id="tie_breaker_question"
-                value={editForm.tie_breaker_question}
-                onChange={(e) => setEditForm({ ...editForm, tie_breaker_question: e.target.value })}
-                disabled={!isEditing}
-                placeholder={
-                  editForm.tie_breaker_method === 'monday_night_total' 
-                    ? "e.g., What will be the total points scored in Monday night's game?"
-                    : editForm.tie_breaker_method === 'highest_scoring_game'
-                    ? "e.g., What will be the total points in the highest scoring game?"
-                    : editForm.tie_breaker_method === 'lowest_scoring_game'
-                    ? "e.g., What will be the total points in the lowest scoring game?"
-                    : editForm.tie_breaker_method === 'custom'
-                    ? "Enter your custom tie breaker question"
-                    : "e.g., Enter tie breaker question"
-                }
-                className="w-full"
-              />
-            </div>
-            <div>
-              <Label htmlFor="tie_breaker_answer">Tie Breaker Answer</Label>
-              <Input
-                id="tie_breaker_answer"
-                type="number"
-                value={editForm.tie_breaker_answer}
-                onChange={(e) => setEditForm({ ...editForm, tie_breaker_answer: parseInt(e.target.value) })}
-                disabled={!isEditing}
-                placeholder="0"
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={editForm.is_active}
-              onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
-              disabled={!isEditing}
-              className="rounded"
-            />
-            <Label htmlFor="is_active">Pool is active</Label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Pool Management Tabs */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-          <TabsList className="flex w-full min-w-max gap-1 p-1">
-            <TabsTrigger value="overview" className="text-xs whitespace-nowrap px-2 py-1">Overview</TabsTrigger>
-            {process.env.NODE_ENV === 'development' && (
-              <TabsTrigger value="test-picks" className="text-xs whitespace-nowrap px-2 py-1">Test Picks</TabsTrigger>
-            )}
-            <TabsTrigger value="links" className="text-xs whitespace-nowrap px-2 py-1">Links</TabsTrigger>
-            <TabsTrigger value="participants" className="text-xs whitespace-nowrap px-2 py-1">Participants</TabsTrigger>
-            <TabsTrigger value="playoffs" className="text-xs whitespace-nowrap px-2 py-1">Playoffs</TabsTrigger>
-            <TabsTrigger value="season-review" className="text-xs whitespace-nowrap px-2 py-1">Season Review</TabsTrigger>
-            <TabsTrigger value="emails" className="text-xs whitespace-nowrap px-2 py-1">Emails</TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs whitespace-nowrap px-2 py-1">Settings</TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Pool Overview
-              </CardTitle>
-              <CardDescription>
-                General information about {pool.name}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Pool Name</p>
-                  <p className="font-semibold">{pool.name}</p>
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Pools
+              </button>
+              <div style={{ width: 1, height: 20, background: border }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Shield style={{ width: 14, height: 14, color: text }} />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Season</p>
-                  <p className="font-semibold">{pool.season}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Status</p>
-                  <Badge variant={pool.is_active ? "default" : "secondary"}>
-                    {pool.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Created By</p>
-                  <p className="font-semibold">{pool.created_by}</p>
-                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', maxWidth: '20ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Sunday Huddle
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+            <button
+              onClick={handleSignOut}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} /> Sign Out
+            </button>
+          </div>
+        </div>
+      </nav>
 
-        <TabsContent value="participants" className="space-y-6 mt-6">
-          <ParticipantManagement 
-            poolId={pool.id} 
-            poolName={pool.name}
-          />
-        </TabsContent>
+      {/* HERO */}
+      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Pool Management
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            {pool.name.split(' ').slice(0, -1).join(' ') || pool.name}<br />
+            {pool.name.split(' ').length > 1 && <span style={{ color: gold }}>{pool.name.split(' ').slice(-1)[0]}</span>}
+          </h1>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)', color: pool.is_active ? greenHi : textDim, border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}` }}>
+              {pool.is_active ? 'Active' : 'Inactive'}
+            </span>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+              Season {pool.season}
+            </span>
+            <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+              Created by {pool.created_by}
+            </span>
+          </div>
 
-        {process.env.NODE_ENV === 'development' && (
-          <TabsContent value="test-picks" className="space-y-6 mt-6">
-            <TestPicks 
-              poolId={pool.id} 
+          {/* Header action row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
+            <SharePoolButton poolId={pool.id} poolName={pool.name} />
+            <button
+              onClick={() => setActiveTab('settings')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: activeTab === 'settings' ? 'oklch(26% 0.03 255)' : 'transparent', color: activeTab === 'settings' ? text : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <Settings style={{ width: 12, height: 12 }} /> Settings
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* green rule */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* TABS */}
+      <section style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
+        <div className="lp-inner">
+          <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
+            {TABS.map(({ id, label, icon: Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.85rem', background: active ? green : 'transparent', color: active ? text : textMid, border: `1px solid ${active ? green : 'transparent'}`, borderBottom: active ? `1px solid ${green}` : '1px solid transparent', borderRadius: '6px 6px 0 0', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1 }}
+                >
+                  <Icon style={{ width: 12, height: 12 }} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* TAB CONTENT */}
+      <section style={{ background: bg, padding: '2.5rem 0', minHeight: '50vh' }}>
+        <div className="lp-inner">
+
+          {/* Participants */}
+          {activeTab === 'participants' && (
+            <ParticipantManagement poolId={pool.id} poolName={pool.name} />
+          )}
+
+          {/* Links */}
+          {activeTab === 'links' && (
+            <ParticipantLinks
+              poolId={pool.id}
               poolName={pool.name}
               weekNumber={currentWeek}
               seasonType={currentSeasonType}
             />
-          </TabsContent>
-        )}
+          )}
 
-        <TabsContent value="links" className="space-y-6 mt-6">
-          <ParticipantLinks 
-            poolId={pool.id} 
-            poolName={pool.name}
-            weekNumber={currentWeek}
-            seasonType={currentSeasonType}
-          />
-        </TabsContent>
-
-        <TabsContent value="playoffs" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Playoff Confidence Points
-              </CardTitle>
-              <CardDescription>
-                Manage playoff confidence points and view participant submission status
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-end">
-                <Button 
-                  onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
-                  className="flex items-center gap-2"
-                >
-                  <Trophy className="h-4 w-4" />
-                  Manage Playoff Confidence Points
-                </Button>
+          {/* Playoffs */}
+          {activeTab === 'playoffs' && (
+            <div>
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <Trophy style={{ width: 14, height: 14, color: greenHi }} />
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Playoff Confidence Points
+                  </p>
+                </div>
+                <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
+                  Manage playoff confidence points and view participant submission status
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  >
+                    <Trophy style={{ width: 12, height: 12 }} /> Manage Playoff Confidence Points
+                  </button>
+                </div>
               </div>
               <PlayoffParticipantsList poolId={pool.id} poolSeason={pool.season} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          )}
 
-        <TabsContent value="season-review" className="space-y-6 mt-6">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold mb-4">Season Review</h3>
-            <p className="text-muted-foreground mb-6">
-              View comprehensive statistics and achievements for the {pool.season} season
-            </p>
-            <Button 
-              onClick={() => router.push(`/season-review/${pool.id}/${pool.season}`)}
-              className="flex items-center gap-2"
-            >
-              <Trophy className="h-4 w-4" />
-              View Season Review
-            </Button>
-          </div>
-        </TabsContent>
+          {/* Season Review */}
+          {activeTab === 'season-review' && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center' }}>
+              <Trophy style={{ width: 40, height: 40, color: gold, margin: '0 auto 1rem' }} />
+              <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Season Review</h3>
+              <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.5rem' }}>
+                View comprehensive statistics and achievements for the {pool.season} season
+              </p>
+              <button
+                onClick={() => router.push(`/season-review/${pool.id}/${pool.season}`)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.6rem 1.1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                <Trophy style={{ width: 13, height: 13 }} /> View Season Review
+              </button>
+            </div>
+          )}
 
-        <TabsContent value="emails" className="space-y-6 mt-6">
-          <EnhancedEmailManagement 
-            poolId={pool.id}
-            weekNumber={currentWeek}
-            adminId={user?.id || ''} // This should be dynamic based on logged in admin
-            poolName={pool.name}
-          />
-        </TabsContent>
+          {/* Emails */}
+          {activeTab === 'emails' && (
+            <EnhancedEmailManagement
+              poolId={pool.id}
+              weekNumber={currentWeek}
+              adminId={user?.id || ''}
+              poolName={pool.name}
+            />
+          )}
 
-        <TabsContent value="settings" className="space-y-6 mt-6">
-          <PoolSettings 
-            poolId={pool.id} 
-            poolName={pool.name}
-            onPoolDeleted={() => router.push(createPageUrl('adminpools'))}
-          />
-        </TabsContent>
+          {/* Export */}
+          {activeTab === 'export' && (
+            <ExportData
+              poolId={pool.id}
+              poolName={pool.name}
+              currentWeek={currentWeek}
+              currentSeason={pool.season}
+            />
+          )}
 
+          {/* Settings */}
+          {activeTab === 'settings' && (
+            <PoolSettings
+              poolId={pool.id}
+              poolName={pool.name}
+              onPoolDeleted={() => router.push(createPageUrl('adminpools'))}
+            />
+          )}
 
-      </Tabs>
+          {/* Test Picks (dev only) */}
+          {process.env.NODE_ENV === 'development' && activeTab === 'test-picks' && (
+            <TestPicks
+              poolId={pool.id}
+              poolName={pool.name}
+              weekNumber={currentWeek}
+              seasonType={currentSeasonType}
+            />
+          )}
+
+        </div>
+      </section>
+
+      <Footer pageName="Pool Management" />
     </div>
   );
 }

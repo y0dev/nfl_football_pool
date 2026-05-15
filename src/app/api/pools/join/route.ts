@@ -4,7 +4,7 @@ import { emailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
-    const { poolId, name, email } = await request.json();
+    const { poolId, name, email, password } = await request.json();
 
     if (!poolId || !name || !email) {
       return NextResponse.json(
@@ -15,10 +15,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // First, check if the pool exists and is active
+    // Check if the pool exists and is active
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, is_active')
+      .select('id, name, is_active, join_password')
       .eq('id', poolId)
       .single();
 
@@ -34,6 +34,16 @@ export async function POST(request: NextRequest) {
         { error: 'This pool is currently inactive and not accepting new participants' },
         { status: 400 }
       );
+    }
+
+    // Verify join password if the pool requires one
+    if (pool.join_password) {
+      if (!password || password !== pool.join_password) {
+        return NextResponse.json(
+          { error: 'Incorrect pool password. Please check with your commissioner.' },
+          { status: 403 }
+        );
+      }
     }
 
     // Check if participant already exists

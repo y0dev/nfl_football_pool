@@ -30,9 +30,8 @@ export async function loadPool(poolId: string) {
       .from('pools')
       .select('*')
       .eq('id', poolId)
-      .eq('is_active', true)
-      .single();
-
+      .maybeSingle();
+    console.log(`Loaded pool ${poolId}:`, data, error);
     if (error) throw error;
     return data;
   } catch (error) {

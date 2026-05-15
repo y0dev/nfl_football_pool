@@ -614,15 +614,15 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
       .from('pools')
       .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer, monday_night_game_id')
       .eq('id', poolId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 
     return {
-      method: pool.tie_breaker_method || 'total_points',
-      question: pool.tie_breaker_question,
-      answer: pool.tie_breaker_answer,
-      monday_night_game_id: pool.monday_night_game_id
+      method: pool?.tie_breaker_method || 'total_points',
+      question: pool?.tie_breaker_question,
+      answer: pool?.tie_breaker_answer,
+      monday_night_game_id: pool?.monday_night_game_id
     };
   } catch (error) {
     console.error('Error getting tie-breaker settings:', error);

@@ -7,6 +7,7 @@ export async function updatePool(poolId: string, updates: {
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
+  season_scope?: number[];
 }) {
   try {
     const supabase = getSupabaseServiceClient();

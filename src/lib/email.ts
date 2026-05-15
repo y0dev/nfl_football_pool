@@ -91,37 +91,84 @@ class EmailService {
 
   // Template for commissioner account creation notification
   async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
-    const subject = 'Welcome! Your Commissioner Account Has Been Created';
+    const subject = 'Welcome to Sunday Huddle — Your Commissioner Account Is Ready';
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const dashboardUrl = `${baseUrl}/admin/dashboard`;
-    
+    const loginUrl = `${baseUrl}/login`;
+
     const content = `
       <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
         Hi ${adminName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Your commissioner account has been successfully created! You now have full access to manage pools and participants in the NFL Confidence Pool system.
+        Your Sunday Huddle commissioner account has been created. You can sign in right away using a magic link — no password required.
       </p>
-      
+
       ${createInfoBox(`
-        <strong>Account Details:</strong><br>
+        <strong>Your Account:</strong><br>
         Email: ${adminEmail}<br>
         Name: ${adminName}<br>
         Created: ${new Date().toLocaleString()}
       `, 'info')}
-      
-      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
-        You can now log in and start creating pools, managing participants, and sending invitations.
+
+      <p style="margin: 20px 0 8px; color: #1f2937; font-size: 15px; font-weight: 600;">How to sign in:</p>
+      <ol style="margin: 0 0 20px; padding-left: 20px; color: #374151; font-size: 15px; line-height: 1.8;">
+        <li>Click "Sign In to Your Dashboard" below</li>
+        <li>Enter your email address: <strong>${adminEmail}</strong></li>
+        <li>Click <strong>Send Magic Link</strong></li>
+        <li>Check your inbox and click the link — you'll be signed in instantly</li>
+      </ol>
+
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        As a commissioner you can create pools, invite participants, track weekly submissions, and manage standings.
       </p>
     `;
 
     const html = createResponsiveEmailTemplate({
-      title: 'Commissioner Account Created',
+      title: 'Welcome, Commissioner',
       content,
-      buttonText: 'Go to Dashboard',
-      buttonUrl: dashboardUrl,
-      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+      buttonText: 'Sign In to Your Dashboard',
+      buttonUrl: loginUrl,
+      footerText: 'This is an automated notification from Sunday Huddle. If you did not expect this email, please ignore it.'
+    });
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject,
+      html
+    });
+  }
+
+  // Template for password reset notification
+  async sendPasswordResetNotification(adminEmail: string, adminName: string): Promise<boolean> {
+    const subject = 'Your Sunday Huddle Password Has Been Reset';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const loginUrl = `${baseUrl}/login`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+
+      <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+        Your Sunday Huddle commissioner account password was reset by a system administrator on ${new Date().toLocaleString()}.
+      </p>
+
+      ${createInfoBox(`
+        If you did not request this change, contact your system administrator immediately and do not use the new credentials.
+      `, 'warning')}
+
+      <p style="margin: 20px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        You can sign in at any time using the magic link option. Just visit the sign-in page, enter your email, and we'll send you a secure one-time link — no password needed.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Password Reset',
+      content,
+      buttonText: 'Sign In',
+      buttonUrl: loginUrl,
+      footerText: 'This is a security notification from Sunday Huddle.'
     });
 
     return this.sendEmail({
@@ -141,7 +188,7 @@ class EmailService {
       </p>
       
       <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        You've been invited to join <strong style="color: #1f2937;">${poolName}</strong> in our NFL Confidence Pool!
+        You've been invited to join <strong style="color: #1f2937;">${poolName}</strong> in our Sunday Huddle!
       </p>
       
       ${createInfoBox(`
@@ -200,7 +247,7 @@ class EmailService {
       content,
       buttonText: 'Make Your Picks Now',
       buttonUrl: poolLink,
-      footerText: 'This is an automated reminder from your NFL Confidence Pool.'
+      footerText: 'This is an automated reminder from your Sunday Huddle.'
     });
 
     return this.sendEmail({
@@ -342,7 +389,7 @@ class EmailService {
       content,
       buttonText: 'View Pool',
       buttonUrl: poolUrl,
-      footerText: 'This is an automated notification from the NFL Confidence Pool system.'
+      footerText: 'This is an automated notification from the Sunday Huddle system.'
     });
 
     return this.sendEmail({
@@ -402,6 +449,35 @@ class EmailService {
       subject,
       html
     });
+  }
+
+  async sendMagicLink(
+    email: string,
+    displayName: string,
+    magicUrl: string
+  ): Promise<boolean> {
+    const subject = 'Your Sunday Huddle Sign-In Link';
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:8px 0 0;font-size:26px;font-weight:900;color:#f1f5f9;letter-spacing:0.03em;text-transform:uppercase;">Your Sign-In Link</h1>
+        </div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.6;margin:0 0 24px;">
+          Hi ${displayName}, click the button below to sign in to your commissioner dashboard. This link expires in <strong style="color:#f1f5f9;">15 minutes</strong>.
+        </p>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${magicUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+            Sign In to Dashboard
+          </a>
+        </div>
+        <p style="color:#64748b;font-size:13px;line-height:1.6;margin:24px 0 0;text-align:center;">
+          If you did not request this link, you can safely ignore this email.<br>
+          This link can only be used once.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: email, subject, html });
   }
 }
 

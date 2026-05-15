@@ -1,15 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { sendPickReminders, getParticipantsWithoutPicks, testEmailConfiguration } from '@/actions/emailActions';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const amber   = 'oklch(72% 0.16 60)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
+const inputStyle = { ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box' as const, fontSize: '0.875rem' };
 
 interface EmailManagementProps {
   poolId: string;
@@ -24,76 +34,38 @@ export function EmailManagement({ poolId, weekNumber, adminId, poolName }: Email
   const [deadline, setDeadline] = useState('Sunday at kickoff');
   const [customMessage, setCustomMessage] = useState('');
   const [participantsWithoutPicks, setParticipantsWithoutPicks] = useState<any[]>([]);
-  const [emailStatus, setEmailStatus] = useState<{
-    sent: number;
-    failed: number;
-    total: number;
-    message: string;
-  } | null>(null);
+  const [emailStatus, setEmailStatus] = useState<{ sent: number; failed: number; total: number; message: string } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  
   const { toast } = useToast();
 
-  // Handle SSR - only run on client side
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  useEffect(() => { setIsMounted(true); }, []);
 
   const loadParticipantsWithoutPicks = async () => {
     try {
       const participants = await getParticipantsWithoutPicks(poolId, weekNumber);
       setParticipantsWithoutPicks(participants);
-    } catch (error) {
-      console.error('Error loading participants:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load participants',
-        variant: 'destructive',
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
     }
   };
 
   const handleSendReminders = async () => {
     setIsLoading(true);
     setEmailStatus(null);
-
     try {
       const result = await sendPickReminders({
-        poolId,
-        weekNumber,
-        adminId,
-        deadline,
-        poolUrl: `${window.location.origin}/picks?pool=${poolId}&week=${weekNumber}`
+        poolId, weekNumber, adminId, deadline,
+        poolUrl: `${window.location.origin}/picks?pool=${poolId}&week=${weekNumber}`,
       });
-
-      setEmailStatus({
-        sent: result.sent,
-        failed: result.failed,
-        total: result.total,
-        message: result.message
-      });
-
+      setEmailStatus({ sent: result.sent, failed: result.failed, total: result.total, message: result.message });
       if (result.success) {
-        toast({
-          title: 'Reminders Sent',
-          description: result.message,
-        });
-        // Reload participants list
+        toast({ title: 'Reminders Sent', description: result.message });
         await loadParticipantsWithoutPicks();
       } else {
-        toast({
-          title: 'Error',
-          description: result.message,
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: result.message, variant: 'destructive' });
       }
-    } catch (error) {
-      console.error('Error sending reminders:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to send reminders',
-        variant: 'destructive',
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to send reminders', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -101,181 +73,121 @@ export function EmailManagement({ poolId, weekNumber, adminId, poolName }: Email
 
   const handleTestEmail = async () => {
     setIsTesting(true);
-
     try {
       const result = await testEmailConfiguration();
-      
-      if (result.success) {
-        toast({
-          title: 'Test Email Sent',
-          description: result.message,
-        });
-      } else {
-        toast({
-          title: 'Test Failed',
-          description: result.message,
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Error testing email:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to send test email',
-        variant: 'destructive',
-      });
+      if (result.success) toast({ title: 'Test Email Sent', description: result.message });
+      else toast({ title: 'Test Failed', description: result.message, variant: 'destructive' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to send test email', variant: 'destructive' });
     } finally {
       setIsTesting(false);
     }
   };
 
-  // Load participants on component mount (client side only)
   useEffect(() => {
-    if (isMounted) {
-      loadParticipantsWithoutPicks();
-    }
+    if (isMounted) loadParticipantsWithoutPicks();
   }, [isMounted, poolId, weekNumber]);
 
-  // Don't render until mounted to prevent hydration errors
   if (!isMounted) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>📧 Email Reminders</CardTitle>
-            <CardDescription>Loading...</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            </div>
-          </CardContent>
-        </Card>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={cardStyle}>
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📧 Email Reminders</p>
+          <div style={{ marginTop: '0.85rem' }}>
+            <div style={{ height: 12, background: surface, borderRadius: 4, marginBottom: '0.5rem', width: '75%' }} />
+            <div style={{ height: 12, background: surface, borderRadius: 4, width: '50%' }} />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            📧 Email Reminders
-          </CardTitle>
-          <CardDescription>
-            Send pick reminders to participants who haven't submitted their picks for Week {weekNumber}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="deadline">Deadline</Label>
-              <Input
-                id="deadline"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                placeholder="e.g., Sunday at kickoff"
-              />
-            </div>
-            <div>
-              <Label htmlFor="customMessage">Custom Message (Optional)</Label>
-              <Textarea
-                id="customMessage"
-                value={customMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                placeholder="Add a custom message to the email..."
-                rows={2}
-              />
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Reminders card */}
+      <div style={cardStyle}>
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>📧 Email Reminders</p>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
+          Send pick reminders to participants who haven&apos;t submitted picks for Week {weekNumber}
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+          <div>
+            <label style={labelStyle}>Deadline</label>
+            <input value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="e.g., Sunday at kickoff" style={inputStyle} />
           </div>
-
-          <div className="flex gap-2">
-            <Button
-              onClick={handleSendReminders}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              {isLoading ? 'Sending...' : `Send Reminders (${participantsWithoutPicks.length})`}
-            </Button>
-            <Button
-              onClick={handleTestEmail}
-              disabled={isTesting}
-              variant="outline"
-            >
-              {isTesting ? 'Testing...' : 'Test Email'}
-            </Button>
+          <div>
+            <label style={labelStyle}>Custom Message (Optional)</label>
+            <Textarea value={customMessage} onChange={(e) => setCustomMessage(e.target.value)} placeholder="Add a custom message..." rows={2} style={{ ...inputStyle, resize: 'vertical' as const }} />
           </div>
+        </div>
 
-          {emailStatus && (
-            <div className={`p-4 rounded-lg ${
-              emailStatus.failed > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'
-            }`}>
-              <h4 className="font-medium mb-2">
-                {emailStatus.failed > 0 ? '⚠️ Reminders Sent with Errors' : '✅ Reminders Sent Successfully'}
-              </h4>
-              <p className="text-sm">
-                {emailStatus.message}
-              </p>
-              <div className="flex gap-4 mt-2 text-sm">
-                <span>📤 Sent: {emailStatus.sent}</span>
-                <span>❌ Failed: {emailStatus.failed}</span>
-                <span>📊 Total: {emailStatus.total}</span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={handleSendReminders} disabled={isLoading} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.55rem', background: isLoading ? border : green, color: isLoading ? textDim : text, border: 'none', borderRadius: 6, cursor: isLoading ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {isLoading ? 'Sending...' : `Send Reminders (${participantsWithoutPicks.length})`}
+          </button>
+          <button onClick={handleTestEmail} disabled={isTesting} style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 0.85rem', background: 'transparent', color: isTesting ? textDim : textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: isTesting ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {isTesting ? 'Testing...' : 'Test Email'}
+          </button>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Participants Without Picks</CardTitle>
-          <CardDescription>
-            These participants haven't submitted their picks for Week {weekNumber}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {participantsWithoutPicks.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>🎉 All participants have submitted their picks!</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {participantsWithoutPicks.map((participant) => (
-                <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">{participant.name}</p>
-                    <p className="text-sm text-gray-600">{participant.email}</p>
-                  </div>
-                  <Badge variant="secondary">No Picks</Badge>
-                </div>
+        {emailStatus && (
+          <div style={{ marginTop: '0.85rem', padding: '0.75rem 1rem', background: `color-mix(in oklch, ${emailStatus.failed > 0 ? amber : greenHi} 10%, ${surface})`, border: `1px solid color-mix(in oklch, ${emailStatus.failed > 0 ? amber : greenHi} 30%, ${border})`, borderRadius: 6 }}>
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.8rem', color: emailStatus.failed > 0 ? amber : greenHi, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
+              {emailStatus.failed > 0 ? '⚠️ Sent with Errors' : '✅ Sent Successfully'}
+            </p>
+            <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.35rem' }}>{emailStatus.message}</p>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              {[`📤 Sent: ${emailStatus.sent}`, `❌ Failed: ${emailStatus.failed}`, `📊 Total: ${emailStatus.total}`].map(s => (
+                <span key={s} style={{ ...b, fontSize: '0.75rem', color: textDim }}>{s}</span>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Email Template Preview</CardTitle>
-          <CardDescription>
-            This is what participants will receive
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <div className="space-y-2 text-sm">
-              <p><strong>Subject:</strong> 🏈 NFL Confidence Pool - Week {weekNumber} Picks Due!</p>
-              <Separator />
-              <p><strong>Recipients:</strong> {participantsWithoutPicks.length} participants</p>
-              <p><strong>Pool:</strong> {poolName}</p>
-              <p><strong>Week:</strong> {weekNumber}</p>
-              <p><strong>Deadline:</strong> {deadline}</p>
-              <p><strong>Games:</strong> {participantsWithoutPicks.length > 0 ? '16' : '0'} games to pick</p>
-            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      {/* Participants without picks */}
+      <div style={cardStyle}>
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>Participants Without Picks</p>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Haven&apos;t submitted picks for Week {weekNumber}</p>
+        {participantsWithoutPicks.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.25rem' }}>
+            <p style={{ ...b, fontSize: '0.85rem', color: greenHi }}>🎉 All participants have submitted their picks!</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {participantsWithoutPicks.map((p) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
+                <div>
+                  <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{p.name}</p>
+                  <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>{p.email}</p>
+                </div>
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.15rem 0.5rem', background: surface, border: `1px solid ${border}`, borderRadius: 4, color: textDim }}>No Picks</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Email preview */}
+      <div style={cardStyle}>
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>Email Template Preview</p>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.85rem' }}>This is what participants will receive</p>
+        <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.85rem' }}>
+          {[
+            ['Subject', `🏈 Sunday Huddle — Week ${weekNumber} Picks Due!`],
+            ['Recipients', `${participantsWithoutPicks.length} participants`],
+            ['Pool', poolName],
+            ['Week', String(weekNumber)],
+            ['Deadline', deadline],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', gap: '0.5rem', padding: '0.3rem 0', borderBottom: `1px solid ${border}` }}>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em', minWidth: 80, flexShrink: 0 }}>{k}:</span>
+              <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

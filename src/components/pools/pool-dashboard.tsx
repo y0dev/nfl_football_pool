@@ -291,8 +291,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
               <Link href={`/pool/${pool.id}`}>
                 <Button variant="outline" size="sm" className="flex items-center gap-2 min-w-0">
                   <Settings className="h-4 w-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">Details</span>
-                  <span className="sm:hidden">Details</span>
+                  Details
                 </Button>
               </Link>
               {showJoinButton && (
@@ -310,8 +309,7 @@ function PoolGrid({ pools, onPoolJoined, showJoinButton = true, user }: PoolGrid
                     className="flex items-center gap-2 min-w-0 border-orange-300 text-orange-700 hover:bg-orange-50"
                   >
                     <Shield className="h-4 w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Override</span>
-                    <span className="sm:hidden">Override</span>
+                    Override
                   </Button>
                 </Link>
               )}

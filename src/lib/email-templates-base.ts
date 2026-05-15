@@ -22,7 +22,7 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
     content,
     buttonText,
     buttonUrl,
-    footerText = 'This is an automated notification from the NFL Confidence Pool system.',
+    footerText = 'This is an automated notification from the Sunday Huddle system.',
     backgroundColor = '#ffffff',
     accentColor = '#3b82f6'
   } = options;
@@ -92,7 +92,7 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
           <tr>
             <td style="padding: 20px 0; text-align: center;">
               <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-                © ${new Date().getFullYear()} NFL Confidence Pool. All rights reserved.
+                © ${new Date().getFullYear()} Sunday Huddle. All rights reserved.
               </p>
             </td>
           </tr>
