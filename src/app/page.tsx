@@ -14,6 +14,8 @@ interface Game {
   id: string;
   home_team: string;
   away_team: string;
+  home_team_id: string;
+  away_team_id: string;
   home_score: number;
   away_score: number;
   status: string;
@@ -122,7 +124,21 @@ function LandingPage() {
     return `${game.away_score} – ${game.home_score}`;
   };
 
-  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+  // Derive title from actual loaded data, not the calendar-based isOffseason() check
+  const getDisplayTitle = () => {
+    if (currentSeasonType === 0) return 'Offseason';
+    if (currentSeasonType === 3) {
+      const rounds: Record<number, string> = { 1: 'Wild Card', 2: 'Divisional', 3: 'Championship', 4: 'Super Bowl' };
+      return `${rounds[currentWeek] ?? `Playoff Week ${currentWeek}`} Games`;
+    }
+    if (currentSeasonType === 1) return `Preseason Week ${currentWeek} Games`;
+    return `Week ${currentWeek} Games`;
+  };
+
+  // Filter out malformed entries (e.g. Hall of Fame Game stored without a real away team)
+  const validGames = games.filter(
+    g => (g.away_team_id || g.away_team) && (g.home_team_id || g.home_team)
+  );
 
   const features = [
     { icon: Trophy,   label: 'Weekly Competition', body: 'Compete weekly with friends and family in confidence pools',        accent: gold },
@@ -359,7 +375,7 @@ function LandingPage() {
               ...bc, fontWeight: 800, fontSize: '1.25rem',
               letterSpacing: '0.06em', color: text, textTransform: 'uppercase',
             }}>
-              {getWeekTitle() == "Offseason" ? "Offseason" : `${getWeekTitle()} Games`}
+              {getDisplayTitle()}
             </h3>
           </div>
 
@@ -375,7 +391,7 @@ function LandingPage() {
                   <div key={i} className="animate-pulse" style={{ height: 44, background: card, borderRadius: 6 }} />
                 ))}
               </div>
-            ) : games.length > 0 ? (
+            ) : validGames.length > 0 ? (
               <div>
                 {/* .lp-sb-header: hidden on mobile, flex on 640px+ */}
                 <div
@@ -386,18 +402,18 @@ function LandingPage() {
                     <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Status</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Matchup</span>
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Game</span>
                   </div>
                   <div className="lp-game-score">
                     <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>Score</span>
                   </div>
                 </div>
 
-                {games.map((game, idx) => (
+                {validGames.map((game, idx) => (
                   <div
                     key={game.id}
                     className="lp-game-row"
-                    style={{ borderBottom: idx < games.length - 1 ? `1px solid ${border}` : 'none' }}
+                    style={{ borderBottom: idx < validGames.length - 1 ? `1px solid ${border}` : 'none' }}
                   >
                     {/* Status */}
                     <div className="lp-game-status">
@@ -428,21 +444,27 @@ function LandingPage() {
                     </div>
 
                     {/* Matchup */}
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{
-                        ...bc, fontWeight: 700, fontSize: '0.93rem',
-                        letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {game.away_team}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden' }}>
+                      <span
+                        title={game.away_team}
+                        style={{
+                          ...bc, fontWeight: 700, fontSize: '0.93rem',
+                          letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
+                          whiteSpace: 'nowrap', flexShrink: 0,
+                        }}
+                      >
+                        {game.away_team_id || game.away_team}
                       </span>
                       <span style={{ ...b, fontSize: '0.75rem', color: textDim, flexShrink: 0 }}>@</span>
-                      <span style={{
-                        ...bc, fontWeight: 700, fontSize: '0.93rem',
-                        letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {game.home_team}
+                      <span
+                        title={game.home_team}
+                        style={{
+                          ...bc, fontWeight: 700, fontSize: '0.93rem',
+                          letterSpacing: '0.03em', color: text, textTransform: 'uppercase',
+                          whiteSpace: 'nowrap', flexShrink: 0,
+                        }}
+                      >
+                        {game.home_team_id || game.home_team}
                       </span>
                     </div>
 
@@ -460,7 +482,7 @@ function LandingPage() {
                   </div>
                 ))}
               </div>
-            ) : currentSeasonType === 0 ? (
+            ) : currentSeasonType === 0 || games.length === 0 ? (
               <OffseasonBanner />
             ) : (
               <div style={{ padding: '3rem', textAlign: 'center' }}>
