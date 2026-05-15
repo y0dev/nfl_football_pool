@@ -182,6 +182,7 @@ function PoolPicksContent() {
   const [weekEnded, setWeekEnded] = useState(false);
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   const [isOffseasonState, setIsOffseasonState] = useState(false);
+  const [isPoolClosed, setIsPoolClosed] = useState(false);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -502,15 +503,24 @@ function PoolPicksContent() {
         try {
           const upcomingWeek = await getUpcomingWeek();
           if (upcomingWeek.seasonType === 0) {
-            setIsOffseasonState(true);
-            setIsLoading(false);
-            return;
+            let resolvedWeek = 0;
+            let resolvedSeasonType = 0;
+            for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
+              try {
+                const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
+                if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+              } catch {}
+            }
+            if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
+            weekToUse = resolvedWeek;
+            seasonTypeToUse = resolvedSeasonType;
+          } else {
+            weekToUse = upcomingWeek.week;
+            seasonTypeToUse = upcomingWeek.seasonType;
           }
-          weekToUse = upcomingWeek.week;
-          seasonTypeToUse = upcomingWeek.seasonType;
           setCurrentWeek(weekToUse);
           setCurrentSeasonType(seasonTypeToUse);
-          setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
+          setUpcomingWeek({ week: weekToUse, seasonType: seasonTypeToUse });
           const newUrl = `/pool/${poolId}/picks?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
           router.replace(newUrl, { scroll: false });
           debugLog('Pool picks page: Invalid season type, using current week - week:', weekToUse, 'season type:', seasonTypeToUse);
@@ -548,24 +558,36 @@ function PoolPicksContent() {
       } else {
         const upcomingWeek = await getUpcomingWeek();
         if (upcomingWeek.seasonType === 0) {
-          setIsOffseasonState(true);
-          setIsLoading(false);
-          return;
+          let resolvedWeek = 0;
+          let resolvedSeasonType = 0;
+          for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
+            try {
+              const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
+              if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+            } catch {}
+          }
+          if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
+          weekToUse = resolvedWeek;
+          seasonTypeToUse = resolvedSeasonType;
+        } else {
+          weekToUse = upcomingWeek.week;
+          seasonTypeToUse = upcomingWeek.seasonType;
         }
-        weekToUse = upcomingWeek.week;
-        seasonTypeToUse = upcomingWeek.seasonType;
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
-        setUpcomingWeek({week: upcomingWeek.week, seasonType: upcomingWeek.seasonType});
+        setUpcomingWeek({ week: weekToUse, seasonType: seasonTypeToUse });
 
         debugLog('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
 
         toast({
           title: "Week not specified",
-          description: `Showing upcoming week (Week ${upcomingWeek.week})`,
+          description: `Showing upcoming week (Week ${weekToUse})`,
           duration: 3000,
         });
       }
+
+      // Track pool season locally so games API can use it (state setter is async)
+      let localPoolSeason = DEFAULT_POOL_SEASON;
 
       // Load pool information
       try {
@@ -575,10 +597,12 @@ function PoolPicksContent() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+        console.log('Fetching pool information with URL:', apiUrl);
         const response = await fetch(apiUrl, {
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
         });
+        console.log('API response for pool information:', response);
 
         clearTimeout(timeoutId);
 
@@ -593,8 +617,14 @@ function PoolPicksContent() {
             }
 
             const seasonValue = pool.season || DEFAULT_POOL_SEASON;
+            localPoolSeason = seasonValue;
             setPoolName(pool.name);
             setPoolSeason(seasonValue);
+
+            if (!pool.is_active) {
+              setIsPoolClosed(true);
+              return; // redirect handled via useEffect, skip loading games
+            }
 
             if (seasonTypeToUse === 3) {
               try {
@@ -682,7 +712,7 @@ function PoolPicksContent() {
       try {
         debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
 
-        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}&season=${localPoolSeason}`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -837,6 +867,13 @@ function PoolPicksContent() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId, weekParam]);
+
+  useEffect(() => {
+    if (isPoolClosed && poolId) {
+      router.replace(`/pool/${poolId}/history?week=${currentWeek || 1}&seasonType=${currentSeasonType || 2}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPoolClosed]);
 
   useEffect(() => {
     loadParticipantStats();
@@ -1125,6 +1162,18 @@ function PoolPicksContent() {
               <p><strong>Season Type:</strong> {seasonTypeParam || 'undefined'}</p>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── HISTORICAL POOL — redirect to /history ────────────────────────────────────
+  if (isPoolClosed) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Redirecting to season history…</p>
         </div>
       </div>
     );

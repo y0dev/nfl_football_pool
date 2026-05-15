@@ -213,11 +213,13 @@ function CommissionerDashboardContent() {
 
       const activities: any[] = [];
       const now = new Date();
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const { data: pools } = await supabase
         .from('pools')
         .select('id, name, created_at')
         .eq('created_by', user.email)
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(3);
 
@@ -236,6 +238,7 @@ function CommissionerDashboardContent() {
         .from('participants')
         .select('id, name, created_at, pool_id')
         .eq('is_active', true)
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -263,6 +266,7 @@ function CommissionerDashboardContent() {
       const { data: picks } = await supabase
         .from('picks')
         .select('created_at, participant_id, pool_id')
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -436,13 +440,14 @@ function CommissionerDashboardContent() {
     {
       label: 'Create Pool',
       icon: Plus,
-      desc: 'Start a new Confidence Pool',
+      desc: currentSeasonType === 2 ? 'Pool creation is disabled while the season is in progress.' : 'Start a new Confidence Pool',
       action: () => {
+        if (currentSeasonType === 2) return;
         const event = new CustomEvent('openCreatePoolDialog');
         document.dispatchEvent(event);
       },
-      btnLabel: 'Create Pool',
-      disabled: false,
+      btnLabel: currentSeasonType === 2 ? 'Season In Progress' : 'Create Pool',
+      disabled: currentSeasonType === 2,
     },
     {
       label: 'Pool Management',

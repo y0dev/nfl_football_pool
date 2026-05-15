@@ -1,14 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Share2, Copy, Check, Smartphone, Mail, Calendar } from 'lucide-react';
-import { getUpcomingWeek, loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { useToast } from '@/hooks/use-toast';
+
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const labelSt: React.CSSProperties = { ...bc, fontSize: '0.68rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
+const inputSt: React.CSSProperties = { ...b, background: surface, border: `1px solid ${border}`, color: textMid, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.78rem' };
+const btnBase: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' };
 
 interface SharePoolButtonProps {
   poolId: string;
@@ -34,14 +47,8 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
         setCurrentSeasonType(seasonType);
         setSelectedWeek(week);
         setSelectedSeasonType(seasonType);
-        
-        // Generate available weeks based on season type
-        const maxWeeks = seasonType === 1 ? 4 : seasonType === 3 ? 4 : 18;
-        const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
-        setAvailableWeeks(weeks);
-      } catch (error) {
-        console.error('Error loading current week:', error);
-        // Fallback to week 1, regular season
+        setAvailableWeeks(Array.from({ length: getMaxWeeks(seasonType) }, (_, i) => i + 1));
+      } catch {
         setCurrentWeek(1);
         setCurrentSeasonType(2);
         setSelectedWeek(1);
@@ -53,57 +60,31 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   }, []);
 
   useEffect(() => {
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
-    setShareUrl(url);
+    if (typeof window !== 'undefined') {
+      setShareUrl(`${window.location.origin}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`);
+    }
   }, [poolId, selectedWeek, selectedSeasonType]);
 
-  const getSeasonTypeName = (seasonType: number) => {
-    switch (seasonType) {
-      case 1: return 'Preseason';
-      case 2: return 'Regular Season';
-      case 3: return 'Postseason';
-      default: return 'Unknown';
-    }
-  };
+  const getSeasonTypeName = (st: number) =>
+    st === 1 ? 'Preseason' : st === 2 ? 'Regular Season' : st === 3 ? 'Postseason' : 'Unknown';
 
-  const getMaxWeeksForSeason = (seasonType: number) => {
-    switch (seasonType) {
-      case 1: return 4; // Preseason
-      case 2: return 18; // Regular Season
-      case 3: return 4; // Postseason
-      default: return 18;
-    }
-  };
+  const getMaxWeeks = (st: number) => (st === 1 || st === 3 ? 4 : 18);
 
-  const handleSeasonTypeChange = (seasonType: number) => {
-    setSelectedSeasonType(seasonType);
-    const maxWeeks = getMaxWeeksForSeason(seasonType);
-    const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
-    setAvailableWeeks(weeks);
-    
-    // Reset week to 1 if current week is beyond the new season's max weeks
-    if (selectedWeek > maxWeeks) {
-      setSelectedWeek(1);
-    }
+  const handleSeasonTypeChange = (st: number) => {
+    setSelectedSeasonType(st);
+    const max = getMaxWeeks(st);
+    setAvailableWeeks(Array.from({ length: max }, (_, i) => i + 1));
+    if (selectedWeek > max) setSelectedWeek(1);
   };
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      toast({
-        title: "Copied!",
-        description: `${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek} pool link copied to clipboard`,
-      });
+      toast({ title: 'Copied!', description: `${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek} link copied` });
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-      toast({
-        title: "Error",
-        description: "Failed to copy link",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy link', variant: 'destructive' });
     }
   };
 
@@ -111,37 +92,22 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`,
-          text: `Join my confidence pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!`,
+          title: `Join ${poolName} — ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`,
+          text: 'Join my confidence pool!',
           url: shareUrl,
         });
-      } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Error sharing:', error);
-          toast({
-            title: "Error",
-            description: "Failed to share",
-            variant: "destructive",
-          });
-        }
+      } catch (e) {
+        if (e instanceof Error && e.name !== 'AbortError') handleCopy();
       }
     } else {
-      // Fallback to copy
       handleCopy();
     }
   };
 
   const handleEmailShare = () => {
-    const subject = encodeURIComponent(`Join ${poolName} - ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`);
-    const body = encodeURIComponent(
-      `Hi!\n\nI'd like to invite you to join my confidence pool for ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}!\n\nClick this link to join: ${shareUrl}\n\nSee you there!`
-    );
-    const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
-    window.open(mailtoUrl);
-  };
-
-  const handleTestPicks = () => {
-    window.open(shareUrl, '_blank');
+    const subject = encodeURIComponent(`Join ${poolName} — ${getSeasonTypeName(selectedSeasonType)} Week ${selectedWeek}`);
+    const body = encodeURIComponent(`Hi!\n\nJoin my confidence pool!\n\n${shareUrl}`);
+    window.open(`mailto:?subject=${subject}&body=${body}`);
   };
 
   return (
@@ -151,153 +117,117 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
             padding: '0.35rem 0.75rem',
-            background: 'transparent',
-            border: '1px solid oklch(0.35 0.01 250)',
-            borderRadius: 6,
-            color: 'oklch(0.85 0.01 250)',
-            fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-            whiteSpace: 'nowrap',
+            background: 'transparent', border: `1px solid ${border}`,
+            borderRadius: 6, color: textMid,
+            fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
           }}
         >
           <Share2 style={{ width: 14, height: 14, flexShrink: 0 }} />
           <span>Share</span>
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+
+      <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
         <DialogHeader>
-          <DialogTitle>Share Pool</DialogTitle>
-          <DialogDescription>
+          <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Share Pool
+          </DialogTitle>
+          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
             Share this link with participants to join {poolName}
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4">
-          {/* Season Type Selector */}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.25rem' }}>
+
+          {/* Season Type */}
           <div>
-            <Label htmlFor="season-type-select">Season Type</Label>
-            <Select value={selectedSeasonType.toString()} onValueChange={(value) => handleSeasonTypeChange(parseInt(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select season type" />
+            <p style={labelSt}>Season Type</p>
+            <Select value={selectedSeasonType.toString()} onValueChange={(v) => handleSeasonTypeChange(parseInt(v))}>
+              <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
+                <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent style={{ background: card, border: `1px solid ${border}`, zIndex: 9999 }}>
                 <SelectItem value="1">Preseason</SelectItem>
                 <SelectItem value="2">Regular Season</SelectItem>
                 <SelectItem value="3">Postseason</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500 mt-1">
-              {getSeasonTypeName(selectedSeasonType)} (Weeks {availableWeeks[0]} - {availableWeeks[availableWeeks.length - 1]})
+            <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>
+              {getSeasonTypeName(selectedSeasonType)} · Weeks 1–{getMaxWeeks(selectedSeasonType)}
             </p>
           </div>
 
-          {/* Week Selector */}
+          {/* Week */}
           <div>
-            <Label htmlFor="week-select">Select Week</Label>
-            <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a week" />
+            <p style={labelSt}>Week</p>
+            <Select value={selectedWeek.toString()} onValueChange={(v) => setSelectedWeek(parseInt(v))}>
+              <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
+                <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {availableWeeks && availableWeeks.length > 0 ? (
-                  availableWeeks.map((week) => (
-                    <SelectItem key={week} value={week.toString()}>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Week {week}
-                        {week === currentWeek && (
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Current</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="1">Week 1</SelectItem>
-                )}
+              <SelectContent style={{ background: card, border: `1px solid ${border}`, zIndex: 9999 }}>
+                {availableWeeks.map(w => (
+                  <SelectItem key={w} value={w.toString()}>
+                    Week {w}{w === currentWeek && selectedSeasonType === currentSeasonType ? ' (Current)' : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Pool Link */}
+          {/* URL row */}
           <div>
-            <Label htmlFor="share-url">Pool Link for {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}</Label>
-            <div className="flex gap-2">
-              <Input
-                id="share-url"
-                value={shareUrl}
-                readOnly
-                className="flex-1"
-              />
-              <Button
+            <p style={labelSt}>Pool Link — {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}</p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input value={shareUrl} readOnly style={{ ...inputSt, flex: 1 }} />
+              <button
                 onClick={handleCopy}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
+                style={{ ...btnBase, background: copied ? green : surface, color: copied ? text : textMid, flexShrink: 0 }}
               >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" />
-                    Copy
-                  </>
-                )}
-              </Button>
+                {copied
+                  ? <><Check style={{ width: 13, height: 13 }} />Copied</>
+                  : <><Copy style={{ width: 13, height: 13 }} />Copy</>}
+              </button>
             </div>
           </div>
 
-          {/* Test Picks Button */}
+          {/* Preview */}
+          <button
+            onClick={() => window.open(shareUrl, '_blank')}
+            style={{ ...btnBase, width: '100%', background: surface, color: textMid }}
+          >
+            <Calendar style={{ width: 13, height: 13 }} />
+            Preview {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek} Picks
+          </button>
+
+          {/* Share via */}
           <div>
-            <Button
-              onClick={handleTestPicks}
-              variant="secondary"
-              className="w-full flex items-center gap-2"
-            >
-              <Calendar className="h-4 w-4" />
-              Test {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek} Picks
-            </Button>
-          </div>
-
-          {/* Share Options */}
-          <div className="space-y-2">
-            <Label>Share via:</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={handleNativeShare}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Smartphone className="h-4 w-4" />
+            <p style={labelSt}>Share via</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <button onClick={handleNativeShare} style={{ ...btnBase, background: surface, color: textMid }}>
+                <Smartphone style={{ width: 13, height: 13 }} />
                 Native Share
-              </Button>
-              <Button
-                onClick={handleEmailShare}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Mail className="h-4 w-4" />
+              </button>
+              <button onClick={handleEmailShare} style={{ ...btnBase, background: surface, color: textMid }}>
+                <Mail style={{ width: 13, height: 13 }} />
                 Email
-              </Button>
+              </button>
             </div>
           </div>
 
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Note:</strong> This link will take participants directly to {getSeasonTypeName(selectedSeasonType)} Week {selectedWeek} picks for {poolName}.
-              {selectedWeek === currentWeek && selectedSeasonType === currentSeasonType && " (Current Week)"}
+          {/* Note */}
+          <div style={{ padding: '0.65rem 0.85rem', background: `color-mix(in oklch, ${greenHi} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${greenHi} 25%, ${border})`, borderRadius: 6 }}>
+            <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+              Takes participants directly to <strong style={{ color: text }}>{getSeasonTypeName(selectedSeasonType)} Week {selectedWeek}</strong> picks for {poolName}.
+              {selectedWeek === currentWeek && selectedSeasonType === currentSeasonType ? ' (Current week)' : ''}
             </p>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+          <button onClick={() => setIsOpen(false)} style={{ ...btnBase, background: 'transparent', color: textMid }}>
             Close
-          </Button>
-        </DialogFooter>
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   );

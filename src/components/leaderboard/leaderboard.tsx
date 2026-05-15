@@ -35,6 +35,14 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   const [mondayNightScores, setMondayNightScores] = useState<Map<string, number>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const loadMondayNightScores = async (poolId: string, weekNumber: number, season: number) => {
     debugLog('loadMondayNightScores called with:', { poolId, weekNumber, season, PERIOD_WEEKS });
@@ -135,6 +143,86 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
     padding: '0.625rem 0.75rem', background: surface,
     borderBottom: `1px solid ${border}`, textAlign: 'left',
   };
+
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {leaderboardData.map((entry, index) => {
+          const score = mondayNightScores.get(entry.participant_id);
+          const rankColor = index === 0 ? gold : index === 1 ? textMid : index === 2 ? amber : textDim;
+          return (
+            <div
+              key={entry.participant_id || index}
+              style={{
+                background: card, border: `1px solid ${border}`,
+                borderLeft: `3px solid ${rankColor}`,
+                borderRadius: 8, padding: '0.9rem 1rem',
+                display: 'flex', flexDirection: 'column', gap: '0.5rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
+                  {index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
+                  {index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: rankColor, letterSpacing: '0.05em' }}>
+                    #{index + 1}
+                  </span>
+                  <span style={{ ...b, fontWeight: 700, fontSize: '0.92rem', color: text }}>
+                    {entry.participant_name || 'Unknown'}
+                  </span>
+                </div>
+                <span style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', color: greenHi }}>
+                  {entry.total_points || 0}
+                  <span style={{ ...b, fontWeight: 400, fontSize: '0.7rem', color: textDim, marginLeft: '0.25rem' }}>pts</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                  {entry.correct_picks || 0}/{entry.total_picks || 0} correct
+                </span>
+                {isPeriodWeek && score !== undefined && (
+                  <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>
+                    Mon Night: {score}
+                  </span>
+                )}
+              </div>
+              {entry.picks && entry.picks.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.1rem' }}>
+                  {games.map((game, gameIndex) => {
+                    const status = game.status?.toLowerCase() || '';
+                    const pick = entry.picks?.find(p => p.game_id === game.id);
+                    const isGameFinal = status === 'final' || status === 'post';
+                    const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
+                    const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
+                    const pickColor = isGameInProgress
+                      ? 'oklch(65% 0.12 240)'
+                      : !isGameFinal ? amber : isCorrect ? greenHi : liveRed;
+                    return (
+                      <span
+                        key={game.id || gameIndex}
+                        title={pick?.predicted_winner ? `${getTeamAbbreviation(game.away_team || '')} @ ${getTeamAbbreviation(game.home_team || '')}: ${getTeamAbbreviation(pick.predicted_winner)} (${pick.confidence_points})` : 'No pick'}
+                        style={{
+                          ...bc, fontSize: '0.6rem', fontWeight: 700,
+                          padding: '0.15rem 0.35rem', borderRadius: 3,
+                          background: pick ? `${pickColor}22` : 'oklch(26% 0.03 255)',
+                          color: pick ? pickColor : textDim,
+                          border: `1px solid ${pick ? `${pickColor}44` : border}`,
+                        }}
+                      >
+                        {pick?.predicted_winner ? getTeamAbbreviation(pick.predicted_winner) : '—'}
+                        {pick?.confidence_points ? ` ${pick.confidence_points}` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div style={{ overflowX: 'auto', width: '100%' }}>

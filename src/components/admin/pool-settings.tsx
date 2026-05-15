@@ -36,8 +36,6 @@ const poolSettingsSchema = z.object({
   is_active: z.boolean(),
   season_scope: z.string(),
   tie_breaker_method: z.string().optional(),
-  tie_breaker_question: z.string().optional(),
-  tie_breaker_answer: z.number().optional(),
 });
 
 type PoolSettingsData = z.infer<typeof poolSettingsSchema>;
@@ -66,8 +64,6 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       is_active: true,
       season_scope: 'regular',
       tie_breaker_method: 'none',
-      tie_breaker_question: '',
-      tie_breaker_answer: undefined,
     },
   });
 
@@ -83,8 +79,6 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             is_active: pool.is_active,
             season_scope: seasonTypesToScopeValue(pool.season_scope ?? [2]),
             tie_breaker_method: pool.tie_breaker_method || 'none',
-            tie_breaker_question: pool.tie_breaker_question || '',
-            tie_breaker_answer: pool.tie_breaker_answer || undefined,
           });
         }
       } catch (error) {
@@ -107,8 +101,6 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         is_active: data.is_active,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         tie_breaker_method: data.tie_breaker_method,
-        tie_breaker_question: data.tie_breaker_question,
-        tie_breaker_answer: data.tie_breaker_answer,
       });
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {

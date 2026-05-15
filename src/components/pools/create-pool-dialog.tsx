@@ -28,7 +28,7 @@ const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
-  pool_type: z.enum(['normal', 'knockout']),
+  pool_type: z.literal('normal'),
   season_scope: z.string(),
   join_password: z.string().optional(),
 });
@@ -123,9 +123,11 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                   <FormLabel style={labelStyle}>Season Scope</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select season scope" /></SelectTrigger>
+                      <SelectTrigger style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, height: '2.25rem', fontSize: '0.875rem', marginTop: '0.35rem' }}>
+                        <SelectValue placeholder="Select season scope" />
+                      </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent style={{ background: card, border: `1px solid ${border}`, color: text, zIndex: 9999 }}>
                       {SEASON_SCOPE_OPTIONS.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -149,15 +151,16 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                   <FormLabel style={labelStyle}>Pool Type</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select pool type" /></SelectTrigger>
+                      <SelectTrigger style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, height: '2.25rem', fontSize: '0.875rem', marginTop: '0.35rem' }}>
+                        <SelectValue placeholder="Select pool type" />
+                      </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent style={{ background: card, border: `1px solid ${border}`, color: text, zIndex: 9999 }}>
                       <SelectItem value="normal">Normal Pool</SelectItem>
-                      <SelectItem value="knockout">Knockout Pool</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
-                    Normal pools use tie-breakers only in weeks {PERIOD_WEEKS.join(', ')} and Super Bowl. Knockout pools always use tie-breakers.
+                    Uses tie-breakers in weeks {PERIOD_WEEKS.join(', ')} and the Super Bowl.
                   </FormDescription>
                   <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
                 </FormItem>

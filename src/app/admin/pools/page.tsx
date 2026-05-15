@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Trophy, Users, Plus, LogOut, RefreshCw, Search,
-  ChevronRight, ShieldCheck, ShieldOff,
+  ChevronRight, ShieldCheck, ShieldOff, Share2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -54,6 +54,8 @@ function AdminPoolsContent() {
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [createOpen, setCreateOpen]     = useState(false);
+  const [currentWeek, setCurrentWeek]   = useState(1);
+  const [seasonType, setSeasonType]     = useState(2);
 
   const loadPools = async () => {
     try {
@@ -69,10 +71,37 @@ function AdminPoolsContent() {
   useEffect(() => {
     const init = async () => {
       await loadPools();
+      try {
+        const res = await fetch('/api/admin/season-games/current');
+        const data = await res.json();
+        if (data.success) {
+          setCurrentWeek(data.week ?? 1);
+          setSeasonType(data.seasonType ?? 2);
+        }
+      } catch { /* use defaults */ }
       setIsLoading(false);
     };
     init();
   }, []);
+
+  const handleShare = async (poolId: string, poolName: string) => {
+    const isOffseason = seasonType !== 2;
+    const shareWeek = isOffseason ? 1 : currentWeek;
+    const shareUrl = `${window.location.origin}/pool/${poolId}?week=${shareWeek}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Join my pool: ${poolName}`, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({ title: 'Link Copied', description: 'Pool link copied to clipboard.' });
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({ title: 'Link Copied', description: 'Pool link copied to clipboard.' });
+      }
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -279,13 +308,22 @@ function AdminPoolsContent() {
                         </div>
                       </div>
 
-                      {/* action */}
-                      <button
-                        onClick={() => router.push(`/admin/pool/${pool.id}`)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-                      >
-                        Manage Pool <ChevronRight style={{ width: 13, height: 13 }} />
-                      </button>
+                      {/* actions */}
+                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleShare(pool.id, pool.name)}
+                          title="Share pool link"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          <Share2 style={{ width: 12, height: 12 }} /> Share
+                        </button>
+                        <button
+                          onClick={() => router.push(`/admin/pool/${pool.id}`)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          Manage Pool <ChevronRight style={{ width: 13, height: 13 }} />
+                        </button>
+                      </div>
 
                     </div>
                   </div>

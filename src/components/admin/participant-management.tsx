@@ -63,7 +63,15 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => { loadParticipants(); }, [poolId]);
 
@@ -322,7 +330,86 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
         )}
       </div>
 
+      {/* ── Mobile cards ── */}
+      {isMobile && !isLoading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {activeParticipants.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', background: card, border: `1px solid ${border}`, borderRadius: 8 }}>
+              <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+              <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.4rem' }}>
+                {searchTerm ? 'No participants match your search.' : 'No participants yet.'}
+              </p>
+              {!searchTerm && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+                  <AddUserDialog poolId={poolId} poolName={poolName} onUserAdded={loadParticipants} />
+                  <button style={btnBase} onClick={() => setBulkAddDialogOpen(true)}>
+                    <Upload style={{ width: 12, height: 12 }} />
+                    Bulk Add
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : activeParticipants.map((participant) => (
+            <div
+              key={participant.id}
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.9rem 1rem' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {editingParticipant === participant.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                      <Input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        style={{ height: 30, ...b, fontSize: '0.82rem', background: surface, border: `1px solid ${border}`, color: text, flex: 1 }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          else if (e.key === 'Escape') handleCancelEdit();
+                        }}
+                        autoFocus
+                      />
+                      <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleSaveEdit} disabled={isUpdating}>
+                        {isUpdating ? <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} /> : <Save style={{ width: 12, height: 12 }} />}
+                      </button>
+                      <button style={{ ...btnGhost, padding: '0.2rem 0.35rem' }} onClick={handleCancelEdit}>
+                        <X style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                      <span style={{ ...b, fontWeight: 700, fontSize: '0.9rem', color: text }}>{participant.name}</span>
+                      <button style={{ ...btnGhost, padding: '0.15rem 0.25rem' }} onClick={() => handleStartEdit(participant)}>
+                        <Edit style={{ width: 11, height: 11 }} />
+                      </button>
+                    </div>
+                  )}
+                  <p style={{ ...b, fontSize: '0.78rem', color: participant.email ? textMid : textDim, marginBottom: '0.35rem' }}>
+                    {participant.email || <em style={{ fontStyle: 'italic' }}>No email</em>}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.15rem 0.45rem', borderRadius: 4, background: 'oklch(46% 0.14 155 / 0.15)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.3)` }}>
+                      Active
+                    </span>
+                    <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                      {new Date(participant.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.55rem', background: 'oklch(50% 0.22 25 / 0.12)', color: 'oklch(65% 0.18 25)', border: `1px solid oklch(50% 0.22 25 / 0.35)`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                  onClick={() => handleRemoveParticipant(participant.id, participant.name)}
+                >
+                  <Trash2 style={{ width: 10, height: 10 }} />
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Table ── */}
+      {(!isMobile || isLoading) && (
       <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
         {isLoading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', gap: '0.5rem' }}>
@@ -458,6 +545,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

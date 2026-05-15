@@ -6,13 +6,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim() || '';
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50);
+    const mode = searchParams.get('mode') || 'active'; // 'active' | 'history'
 
     const supabase = getSupabaseServiceClient();
 
     let query = supabase
       .from('pools')
-      .select('id, name, season, join_password')
-      .eq('is_active', true)
+      .select('id, name, season, join_password, is_active')
+      .eq('is_active', mode === 'history' ? false : true)
+      .order('season', { ascending: false })
       .order('name')
       .limit(limit);
 
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
           season: pool.season,
           participant_count: count || 0,
           requires_password: Boolean(pool.join_password),
+          is_closed: !pool.is_active,
         };
       })
     );

@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Save, X, Users, Trophy, Calendar, Settings, BarChart3, RefreshCw, Shield, LogOut } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Calendar, Settings, BarChart3, RefreshCw, Shield, LogOut, Download, ExternalLink, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SharePoolButton } from '@/components/pools/share-pool-button';
 import { ParticipantManagement } from '@/components/admin/participant-management';
@@ -14,12 +11,13 @@ import { TestPicks } from '@/components/admin/test-picks';
 import { ParticipantLinks } from '@/components/admin/participant-links';
 import { PoolSettings } from '@/components/admin/pool-settings';
 import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
+import { ExportData } from '@/components/admin/export-data';
 
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { DEFAULT_POOL_SEASON, DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl, PERIOD_WEEKS } from '@/lib/utils';
+import { DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
@@ -47,18 +45,16 @@ interface Pool {
   description?: string;
   pool_type?: 'normal' | 'knockout';
   tie_breaker_method?: string;
-  tie_breaker_question?: string;
-  tie_breaker_answer?: number;
 }
 
 const TABS = [
-  { id: 'overview',       label: 'Overview',       icon: BarChart3 },
-  { id: 'participants',   label: 'Participants',    icon: Users },
-  { id: 'links',          label: 'Links',           icon: ArrowLeft },
-  { id: 'playoffs',       label: 'Playoffs',        icon: Trophy },
-  { id: 'season-review',  label: 'Season Review',   icon: Calendar },
-  { id: 'emails',         label: 'Emails',          icon: Settings },
-  { id: 'settings',       label: 'Settings',        icon: Settings },
+  { id: 'participants',  label: 'Participants',  icon: Users },
+  { id: 'links',         label: 'Links',         icon: ExternalLink },
+  { id: 'emails',        label: 'Emails',        icon: Mail },
+  { id: 'playoffs',      label: 'Playoffs',      icon: Trophy },
+  { id: 'season-review', label: 'Season Review', icon: Calendar },
+  { id: 'export',        label: 'Export',        icon: Download },
+  { id: 'settings',      label: 'Settings',      icon: Settings },
   ...(process.env.NODE_ENV === 'development' ? [{ id: 'test-picks', label: 'Test Picks', icon: BarChart3 }] : []),
 ];
 
@@ -70,23 +66,10 @@ function PoolDetailsContent() {
 
   const [pool, setPool] = useState<Pool | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
   const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE);
-  const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('participants');
   const { toast } = useToast();
-
-  const [editForm, setEditForm] = useState({
-    name: '',
-    season: DEFAULT_POOL_SEASON,
-    is_active: true,
-    description: '',
-    pool_type: 'normal' as 'normal' | 'knockout',
-    tie_breaker_method: '',
-    tie_breaker_question: '',
-    tie_breaker_answer: 0
-  });
 
   useEffect(() => {
     loadPoolData();
@@ -98,19 +81,8 @@ function PoolDetailsContent() {
       setIsLoading(true);
       const response = await fetch(`/api/admin/pools/${poolId}`);
       const result = await response.json();
-
       if (result.success) {
         setPool(result.pool);
-        setEditForm({
-          name: result.pool.name,
-          season: result.pool.season,
-          is_active: result.pool.is_active,
-          description: result.pool.description || '',
-          pool_type: result.pool.pool_type || 'normal',
-          tie_breaker_method: result.pool.tie_breaker_method || '',
-          tie_breaker_question: result.pool.tie_breaker_question || '',
-          tie_breaker_answer: result.pool.tie_breaker_answer || 0
-        });
       } else {
         toast({ title: 'Error', description: 'Failed to load pool details', variant: 'destructive' });
       }
@@ -129,47 +101,6 @@ function PoolDetailsContent() {
       setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE);
     } catch (error) {
       console.error('Error loading current week:', error);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-
-      if (!editForm.name.trim()) {
-        toast({ title: 'Error', description: 'Pool name is required', variant: 'destructive' });
-        return;
-      }
-
-      if (editForm.season < 2020 || editForm.season > 2030) {
-        toast({ title: 'Error', description: 'Season must be between 2020 and 2030', variant: 'destructive' });
-        return;
-      }
-
-      console.log('Saving pool data:', editForm);
-
-      const response = await fetch(`/api/admin/pools/${poolId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      });
-
-      const result = await response.json();
-      console.log('Save response:', result);
-
-      if (result.success) {
-        toast({ title: 'Success', description: 'Pool updated successfully' });
-        setPool(result.pool);
-        setIsEditing(false);
-        await loadPoolData();
-      } else {
-        toast({ title: 'Error', description: result.error || 'Failed to update pool', variant: 'destructive' });
-      }
-    } catch (error) {
-      console.error('Error updating pool:', error);
-      toast({ title: 'Error', description: 'Failed to update pool', variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -198,17 +129,9 @@ function PoolDetailsContent() {
           <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>The pool you&apos;re looking for doesn&apos;t exist.</p>
           <button
             onClick={() => router.push(createPageUrl('adminpools'))}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-              width: '100%', padding: '0.6rem 1rem',
-              background: green, color: text,
-              border: 'none', borderRadius: 6,
-              ...bc, fontWeight: 700, fontSize: '0.8rem',
-              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
-            }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', padding: '0.6rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
-            <ArrowLeft style={{ width: 13, height: 13 }} />
-            Back to Pools
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Pools
           </button>
         </div>
       </div>
@@ -219,29 +142,15 @@ function PoolDetailsContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* NAV */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
                 onClick={() => router.push(createPageUrl('adminpools'))}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.6rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
-                <ArrowLeft style={{ width: 12, height: 12 }} />
-                Pools
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Pools
               </button>
               <div style={{ width: 1, height: 20, background: border }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -255,29 +164,16 @@ function PoolDetailsContent() {
             </div>
             <button
               onClick={handleSignOut}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.35rem 0.7rem',
-                background: 'transparent', color: textMid,
-                border: `1px solid ${border}`, borderRadius: 5,
-                ...bc, fontWeight: 600, fontSize: '0.72rem',
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
-              <LogOut style={{ width: 11, height: 11 }} />
-              Sign Out
+              <LogOut style={{ width: 11, height: 11 }} /> Sign Out
             </button>
           </div>
         </div>
       </nav>
 
       {/* HERO */}
-      <section style={{
-        background: bg,
-        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
-        padding: 'clamp(2rem, 4vw, 3rem) 0',
-      }}>
+      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
         <div className="lp-inner">
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
@@ -288,21 +184,13 @@ function PoolDetailsContent() {
             {pool.name.split(' ').length > 1 && <span style={{ color: gold }}>{pool.name.split(' ').slice(-1)[0]}</span>}
           </h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <span style={{
-              ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-              padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
-              background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)',
-              color: pool.is_active ? greenHi : textDim,
-              border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
-            }}>{pool.is_active ? 'Active' : 'Inactive'}</span>
-            <span style={{
-              ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-              padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase',
-              background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}`,
-            }}>Season {pool.season}</span>
-            <span style={{
-              ...b, fontSize: '0.75rem', color: textDim,
-            }}>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)', color: pool.is_active ? greenHi : textDim, border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}` }}>
+              {pool.is_active ? 'Active' : 'Inactive'}
+            </span>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+              Season {pool.season}
+            </span>
+            <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
               Created by {pool.created_by}
             </span>
           </div>
@@ -311,191 +199,17 @@ function PoolDetailsContent() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
             <SharePoolButton poolId={pool.id} poolName={pool.name} />
             <button
-              onClick={() => setIsEditing(!isEditing)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.4rem 0.75rem',
-                background: isEditing ? 'oklch(26% 0.03 255)' : 'transparent',
-                color: isEditing ? text : textMid,
-                border: `1px solid ${border}`, borderRadius: 5,
-                ...bc, fontWeight: 600, fontSize: '0.72rem',
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
+              onClick={() => setActiveTab('settings')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: activeTab === 'settings' ? 'oklch(26% 0.03 255)' : 'transparent', color: activeTab === 'settings' ? text : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
-              {isEditing ? <X style={{ width: 12, height: 12 }} /> : <Edit style={{ width: 12, height: 12 }} />}
-              {isEditing ? 'Cancel' : 'Edit Pool'}
+              <Settings style={{ width: 12, height: 12 }} /> Settings
             </button>
-            {isEditing && (
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
-                  background: green, color: text,
-                  border: `1px solid ${green}`, borderRadius: 5,
-                  ...bc, fontWeight: 700, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: isSaving ? 'not-allowed' : 'pointer',
-                  opacity: isSaving ? 0.6 : 1,
-                }}
-              >
-                <Save style={{ width: 12, height: 12 }} />
-                {isSaving ? 'Saving…' : 'Save'}
-              </button>
-            )}
           </div>
         </div>
       </section>
 
       {/* green rule */}
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
-
-      {/* EDIT FORM */}
-      {isEditing && (
-        <section style={{ background: surface, borderBottom: `1px solid ${border}`, padding: '2rem 0' }}>
-          <div className="lp-inner">
-            <p style={{ ...bc, fontWeight: 800, fontSize: '0.8rem', color: text, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Settings style={{ width: 13, height: 13, color: greenHi }} />
-              Edit Pool Details
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-
-              {/* Name + Season row */}
-              <div className="admin-2col-grid" style={{ marginBottom: 0 }}>
-                <div>
-                  <Label htmlFor="name" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pool Name</Label>
-                  <input
-                    id="name"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="season" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Season</Label>
-                  <input
-                    id="season"
-                    type="number"
-                    value={editForm.season}
-                    onChange={(e) => setEditForm({ ...editForm, season: parseInt(e.target.value) })}
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
-                  />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <Label htmlFor="description" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Description</Label>
-                <Textarea
-                  id="description"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  rows={3}
-                  placeholder="Enter pool description..."
-                  style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', resize: 'none' }}
-                />
-              </div>
-
-              {/* Pool Type */}
-              <div>
-                <Label htmlFor="pool_type" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pool Type</Label>
-                <div style={{ marginTop: '0.35rem' }}>
-                  <Select
-                    value={editForm.pool_type}
-                    onValueChange={(value: 'normal' | 'knockout') => setEditForm({ ...editForm, pool_type: value })}
-                  >
-                    <SelectTrigger style={{ background: card, border: `1px solid ${border}`, color: text }}>
-                      <SelectValue placeholder="Select pool type" />
-                    </SelectTrigger>
-                    <SelectContent style={{ background: card, border: `1px solid ${border}`, color: text }}>
-                      <SelectItem value="normal">Normal Pool</SelectItem>
-                      <SelectItem value="knockout">Knockout Pool</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
-                  Normal pools disable tie breakers during regular weeks (tie breakers only used in tie-breaker weeks {PERIOD_WEEKS.join(', ')}, and Super Bowl in playoffs).
-                  Knockout pools always use tie breakers.
-                </p>
-              </div>
-
-              {/* Tie Breaker fields */}
-              <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
-                <div>
-                  <Label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Method</Label>
-                  <div style={{ marginTop: '0.35rem' }}>
-                    <Select
-                      value={editForm.tie_breaker_method}
-                      onValueChange={(value) => setEditForm({ ...editForm, tie_breaker_method: value })}
-                    >
-                      <SelectTrigger style={{ background: card, border: `1px solid ${border}`, color: text }}>
-                        <SelectValue placeholder="Select tie breaker method" />
-                      </SelectTrigger>
-                      <SelectContent style={{ background: card, border: `1px solid ${border}`, color: text }}>
-                        <SelectItem value="total_points">Total Points</SelectItem>
-                        <SelectItem value="correct_picks">Correct Picks</SelectItem>
-                        <SelectItem value="confidence_points">Confidence Points</SelectItem>
-                        <SelectItem value="monday_night_total">Monday Night Total</SelectItem>
-                        <SelectItem value="highest_scoring_game">Highest Scoring Game</SelectItem>
-                        <SelectItem value="lowest_scoring_game">Lowest Scoring Game</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="tie_breaker_question" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Question</Label>
-                  <input
-                    id="tie_breaker_question"
-                    value={editForm.tie_breaker_question}
-                    onChange={(e) => setEditForm({ ...editForm, tie_breaker_question: e.target.value })}
-                    placeholder={
-                      editForm.tie_breaker_method === 'monday_night_total'
-                        ? "e.g., What will be the total points scored in Monday night's game?"
-                        : editForm.tie_breaker_method === 'highest_scoring_game'
-                        ? "e.g., What will be the total points in the highest scoring game?"
-                        : editForm.tie_breaker_method === 'lowest_scoring_game'
-                        ? "e.g., What will be the total points in the lowest scoring game?"
-                        : editForm.tie_breaker_method === 'custom'
-                        ? "Enter your custom tie breaker question"
-                        : "e.g., Enter tie breaker question"
-                    }
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tie_breaker_answer" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tie Breaker Answer</Label>
-                  <input
-                    id="tie_breaker_answer"
-                    type="number"
-                    value={editForm.tie_breaker_answer}
-                    onChange={(e) => setEditForm({ ...editForm, tie_breaker_answer: parseInt(e.target.value) })}
-                    placeholder="0"
-                    style={{ background: card, border: `1px solid ${border}`, color: text, marginTop: '0.35rem', padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
-                  />
-                </div>
-              </div>
-
-              {/* Active toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={editForm.is_active}
-                  onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
-                  style={{ accentColor: green, width: 15, height: 15 }}
-                />
-                <Label htmlFor="is_active" style={{ ...bc, fontSize: '0.75rem', fontWeight: 700, color: textMid, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
-                  Pool is active
-                </Label>
-              </div>
-
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* TABS */}
       <section style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
@@ -507,19 +221,7 @@ function PoolDetailsContent() {
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.5rem 0.85rem',
-                    background: active ? green : 'transparent',
-                    color: active ? text : textMid,
-                    border: `1px solid ${active ? green : 'transparent'}`,
-                    borderBottom: active ? `1px solid ${green}` : `1px solid transparent`,
-                    borderRadius: '6px 6px 0 0',
-                    ...bc, fontWeight: 700, fontSize: '0.72rem',
-                    letterSpacing: '0.07em', textTransform: 'uppercase',
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                    marginBottom: -1,
-                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.85rem', background: active ? green : 'transparent', color: active ? text : textMid, border: `1px solid ${active ? green : 'transparent'}`, borderBottom: active ? `1px solid ${green}` : '1px solid transparent', borderRadius: '6px 6px 0 0', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1 }}
                 >
                   <Icon style={{ width: 12, height: 12 }} />
                   {label}
@@ -534,42 +236,9 @@ function PoolDetailsContent() {
       <section style={{ background: bg, padding: '2.5rem 0', minHeight: '50vh' }}>
         <div className="lp-inner">
 
-          {/* Overview */}
-          {activeTab === 'overview' && (
-            <div>
-              <div className="admin-2col-grid">
-                {[
-                  { label: 'Pool Name', value: pool.name },
-                  { label: 'Season', value: String(pool.season) },
-                  { label: 'Status', value: pool.is_active ? 'Active' : 'Inactive', accent: pool.is_active ? greenHi : textDim },
-                  { label: 'Created By', value: pool.created_by },
-                ].map(({ label, value, accent }) => (
-                  <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.1rem 1.25rem' }}>
-                    <p style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      {label}
-                    </p>
-                    <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: accent || text, lineHeight: 1.2 }}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Participants */}
           {activeTab === 'participants' && (
             <ParticipantManagement poolId={pool.id} poolName={pool.name} />
-          )}
-
-          {/* Test Picks (dev only) */}
-          {process.env.NODE_ENV === 'development' && activeTab === 'test-picks' && (
-            <TestPicks
-              poolId={pool.id}
-              poolName={pool.name}
-              weekNumber={currentWeek}
-              seasonType={currentSeasonType}
-            />
           )}
 
           {/* Links */}
@@ -598,18 +267,9 @@ function PoolDetailsContent() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button
                     onClick={() => router.push(`/pool/${pool.id}/playoffs`)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.5rem 0.9rem',
-                      background: green, color: text,
-                      border: 'none', borderRadius: 6,
-                      ...bc, fontWeight: 700, fontSize: '0.75rem',
-                      letterSpacing: '0.07em', textTransform: 'uppercase',
-                      cursor: 'pointer',
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                   >
-                    <Trophy style={{ width: 12, height: 12 }} />
-                    Manage Playoff Confidence Points
+                    <Trophy style={{ width: 12, height: 12 }} /> Manage Playoff Confidence Points
                   </button>
                 </div>
               </div>
@@ -621,26 +281,15 @@ function PoolDetailsContent() {
           {activeTab === 'season-review' && (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center' }}>
               <Trophy style={{ width: 40, height: 40, color: gold, margin: '0 auto 1rem' }} />
-              <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                Season Review
-              </h3>
+              <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Season Review</h3>
               <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.5rem' }}>
                 View comprehensive statistics and achievements for the {pool.season} season
               </p>
               <button
                 onClick={() => router.push(`/season-review/${pool.id}/${pool.season}`)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.6rem 1.1rem',
-                  background: green, color: text,
-                  border: 'none', borderRadius: 6,
-                  ...bc, fontWeight: 700, fontSize: '0.78rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.6rem 1.1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
-                <Trophy style={{ width: 13, height: 13 }} />
-                View Season Review
+                <Trophy style={{ width: 13, height: 13 }} /> View Season Review
               </button>
             </div>
           )}
@@ -655,6 +304,16 @@ function PoolDetailsContent() {
             />
           )}
 
+          {/* Export */}
+          {activeTab === 'export' && (
+            <ExportData
+              poolId={pool.id}
+              poolName={pool.name}
+              currentWeek={currentWeek}
+              currentSeason={pool.season}
+            />
+          )}
+
           {/* Settings */}
           {activeTab === 'settings' && (
             <PoolSettings
@@ -664,10 +323,19 @@ function PoolDetailsContent() {
             />
           )}
 
+          {/* Test Picks (dev only) */}
+          {process.env.NODE_ENV === 'development' && activeTab === 'test-picks' && (
+            <TestPicks
+              poolId={pool.id}
+              poolName={pool.name}
+              weekNumber={currentWeek}
+              seasonType={currentSeasonType}
+            />
+          )}
+
         </div>
       </section>
 
-      {/* FOOTER */}
       <Footer pageName="Pool Management" />
     </div>
   );
