@@ -269,6 +269,7 @@ function AdminDashboardContent() {
     { icon: Mail,     accent: green,                   title: 'Email Management',     desc: 'Send emails and manage communications',       label: 'Email Management',     onClick: () => router.push(createPageUrl('adminreminders')) },
     { icon: Trophy,   accent: gold,                    title: 'Playoff Management',   desc: 'Manage playoff teams and games',              label: 'Manage Playoffs',      onClick: () => router.push('/admin/playoffs') },
     { icon: Calendar, accent: green,                   title: 'NFL Sync',             desc: 'Synchronize NFL game data',                  label: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
+    { icon: Calendar, accent: 'oklch(65% 0.12 290)',  title: 'Season Games',         desc: 'Import and manage full season schedules',    label: 'Season Games',         onClick: () => router.push('/admin/season-games') },
     { icon: BarChart3, accent: 'oklch(62% 0.12 270)', title: 'Season Review',        desc: 'Review each pool by week',                   label: 'Season Review',        onClick: () => router.push('/season-review') },
     { icon: Plus,     accent: green,                   title: 'Create Pool',          desc: 'Create a new confidence pool',               label: 'Create Pool',          onClick: () => { document.dispatchEvent(new CustomEvent('openCreatePoolDialog')); } },
   ];
