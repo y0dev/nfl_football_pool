@@ -12,10 +12,10 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'welcome-new-participants',
     name: 'Welcome New Participants',
-    subject: 'Welcome to {poolName} - NFL Confidence Pool!',
+    subject: 'Welcome to {poolName} - Sunday Huddle!',
     body: `Hi {participantName}!
 
-Welcome to {poolName}! We're excited to have you join our NFL Confidence Pool for the {season} season.
+Welcome to {poolName}! We're excited to have you join our Confidence Pool for the {season} season.
 
 Here's what you need to know:
 • Pool Link: {poolUrl}

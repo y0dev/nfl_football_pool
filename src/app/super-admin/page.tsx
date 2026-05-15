@@ -1,19 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Plus, LogOut } from 'lucide-react';
+import { Shield, Plus, LogOut, RefreshCw } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 function SuperAdminContent() {
   const [isLoading, setIsLoading] = useState(true);
@@ -22,14 +33,14 @@ function SuperAdminContent() {
   const router = useRouter();
   const { user } = useAuth();
 
-      // Redirect if user is not logged in or not an admin
+  // Redirect if user is not logged in or not an admin
   useEffect(() => {
     if (user && !user.is_super_admin) {
       router.push('/admin/dashboard');
     }
   }, [user, router]);
 
-      // Form states for creating admin
+  // Form states for creating admin
   const [superAdminForm, setSuperAdminForm] = useState({
     email: '',
     password: '',
@@ -74,7 +85,7 @@ function SuperAdminContent() {
           description: 'Admin account created successfully!',
         });
         setSuperAdminForm({ email: '', password: '', confirmPassword: '', fullName: '' });
-        
+
         // Redirect to admin dashboard after a short delay
         setTimeout(() => {
           window.location.href = '/admin/dashboard';
@@ -87,7 +98,7 @@ function SuperAdminContent() {
         });
       }
     } catch (error) {
-              console.error('Error creating admin:', error);
+      console.error('Error creating admin:', error);
       toast({
         title: 'Error',
         description: 'Failed to create admin',
@@ -109,117 +120,211 @@ function SuperAdminContent() {
     }
   };
 
+  const isFormValid =
+    !!superAdminForm.email &&
+    !!superAdminForm.password &&
+    !!superAdminForm.fullName &&
+    superAdminForm.password === superAdminForm.confirmPassword;
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', border: `3px solid ${border}`, borderTopColor: green, animation: 'spin 1s linear infinite', margin: '0 auto 0.75rem' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading…</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* NAV */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Shield style={{ width: 14, height: 14, color: text }} />
               </div>
-              <p className="text-sm sm:text-base text-gray-600">Manage commissioner accounts and system settings</p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  Admin
-                </Badge>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
-                >
-                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
-                </Button>
-              </div>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Admin HQ
+              </span>
             </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.7rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 5,
+                ...bc, fontWeight: 600, fontSize: '0.72rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} />
+              Logout
+            </button>
           </div>
         </div>
+      </nav>
 
-        <div className="space-y-4 sm:space-y-6">
-            <Card>
-              <CardHeader className="pb-4 sm:pb-6">
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Create Admin
-                </CardTitle>
-                <CardDescription className="text-sm sm:text-base">
-                  Create a new administrator account
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-                <div className="space-y-4 sm:space-y-6">
-                  <div>
-                    <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={superAdminForm.fullName}
-                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, fullName: e.target.value })}
-                      placeholder="Enter full name"
-                      className="h-10 sm:h-11 text-sm sm:text-base"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={superAdminForm.email}
-                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, email: e.target.value })}
-                      placeholder="superadmin@example.com"
-                      className="h-10 sm:h-11 text-sm sm:text-base"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={superAdminForm.password}
-                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, password: e.target.value })}
-                      placeholder="Enter password (min 8 characters)"
-                      className="h-10 sm:h-11 text-sm sm:text-base"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={superAdminForm.confirmPassword}
-                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, confirmPassword: e.target.value })}
-                      placeholder="Confirm password"
-                      className="h-10 sm:h-11 text-sm sm:text-base"
-                    />
-                  </div>
-                  
-                  <Button
-                    onClick={createSuperAdmin}
-                    disabled={isCreatingSuperAdmin || !superAdminForm.email || !superAdminForm.password || !superAdminForm.fullName || superAdminForm.password !== superAdminForm.confirmPassword}
-                    className="w-full h-10 sm:h-11 text-sm sm:text-base font-medium"
-                  >
-                    {isCreatingSuperAdmin ? 'Creating...' : 'Create Admin'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+      {/* HERO */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2rem, 4vw, 3rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Super Admin
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            Admin <span style={{ color: gold }}>Dashboard</span>
+          </h1>
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid }}>
+            Manage commissioner accounts and system settings
+          </p>
         </div>
-      </div>
+      </section>
+
+      {/* green rule */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* CONTENT */}
+      <section style={{ background: bg, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+
+          {/* Create Admin Card */}
+          <div style={{
+            background: card,
+            border: `1px solid ${border}`,
+            borderRadius: 10,
+            padding: '1.75rem',
+            maxWidth: 540,
+          }}>
+            {/* Card header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <Plus style={{ width: 15, height: 15, color: greenHi, flexShrink: 0 }} />
+              <p style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Create Admin
+              </p>
+            </div>
+            <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.5rem' }}>
+              Create a new administrator account
+            </p>
+
+            {/* Form */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+
+              {/* Full Name */}
+              <div>
+                <Label htmlFor="fullName" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  Full Name
+                </Label>
+                <Input
+                  id="fullName"
+                  value={superAdminForm.fullName}
+                  onChange={(e) => setSuperAdminForm({ ...superAdminForm, fullName: e.target.value })}
+                  placeholder="Enter full name"
+                  style={{ background: surface, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <Label htmlFor="email" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={superAdminForm.email}
+                  onChange={(e) => setSuperAdminForm({ ...superAdminForm, email: e.target.value })}
+                  placeholder="admin@example.com"
+                  style={{ background: surface, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <Label htmlFor="password" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={superAdminForm.password}
+                  onChange={(e) => setSuperAdminForm({ ...superAdminForm, password: e.target.value })}
+                  placeholder="Enter password (min 8 characters)"
+                  style={{ background: surface, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                />
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <Label htmlFor="confirmPassword" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  Confirm Password
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={superAdminForm.confirmPassword}
+                  onChange={(e) => setSuperAdminForm({ ...superAdminForm, confirmPassword: e.target.value })}
+                  placeholder="Confirm password"
+                  style={{ background: surface, border: `1px solid ${border}`, color: text, marginTop: '0.35rem' }}
+                />
+                {superAdminForm.confirmPassword && superAdminForm.password !== superAdminForm.confirmPassword && (
+                  <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(62% 0.22 25)', marginTop: '0.35rem' }}>
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={createSuperAdmin}
+                disabled={isCreatingSuperAdmin || !isFormValid}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                  width: '100%', padding: '0.65rem 1rem',
+                  background: isCreatingSuperAdmin || !isFormValid ? 'oklch(20% 0.02 255)' : green,
+                  color: isCreatingSuperAdmin || !isFormValid ? textDim : text,
+                  border: `1px solid ${isCreatingSuperAdmin || !isFormValid ? border : green}`,
+                  borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.8rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: isCreatingSuperAdmin || !isFormValid ? 'not-allowed' : 'pointer',
+                  marginTop: '0.25rem',
+                }}
+              >
+                {isCreatingSuperAdmin ? (
+                  <>
+                    <RefreshCw style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} />
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <Plus style={{ width: 13, height: 13 }} />
+                    Create Admin
+                  </>
+                )}
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
     </div>
   );
 }

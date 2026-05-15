@@ -3,9 +3,6 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
@@ -24,6 +21,25 @@ import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+const liveRed = 'oklch(62% 0.22 25)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 // Helper functions for period calculations
 function getPeriodName(seasonType: number, week: number): string {
@@ -53,13 +69,86 @@ function getPeriodWeeks(seasonType: number, week: number): number[] {
   return [];
 }
 
+// Shared nav bar component
+function PicksNav({ isAdmin, onLogout, router }: { isAdmin: boolean; onLogout: () => void; router: ReturnType<typeof useRouter> }) {
+  return (
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 50,
+      background: 'oklch(13% 0.025 255 / 0.95)',
+      backdropFilter: 'blur(14px)',
+      borderBottom: `1px solid ${border}`,
+    }}>
+      <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {isAdmin && (
+              <Link href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none' }}>
+                <ArrowLeft style={{ width: 12, height: 12 }} />
+                Dashboard
+              </Link>
+            )}
+            {isAdmin && <div style={{ width: 1, height: 20, background: border }} />}
+            <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+              Sunday Huddle
+            </span>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={onLogout}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} />
+              Log Out
+            </button>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// Week navigation bar (inline buttons)
+function WeekNav({
+  currentWeek,
+  currentSeasonType,
+  upcomingWeek,
+  onPrev,
+  onCurrent,
+  onNext,
+}: {
+  currentWeek: number;
+  currentSeasonType: number;
+  upcomingWeek: { week: number; seasonType: number };
+  onPrev: () => void;
+  onCurrent: () => void;
+  onNext: () => void;
+}) {
+  const isCurrentWeek = currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType;
+  const prevDisabled = currentSeasonType === 1 && currentWeek <= 1;
+  const nextDisabled = currentSeasonType === 3 && currentWeek >= 4;
+  const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <button onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>
+        <ChevronLeft style={{ width: 13, height: 13 }} /> Prev
+      </button>
+      <button onClick={onCurrent} style={{ ...btnBase, background: isCurrentWeek ? green : 'transparent', color: isCurrentWeek ? text : textMid, borderColor: isCurrentWeek ? green : border }}>
+        <Calendar style={{ width: 12, height: 12 }} /> Current
+      </button>
+      <button onClick={onNext} disabled={nextDisabled} style={{ ...btnBase, background: 'transparent', color: nextDisabled ? textDim : textMid, opacity: nextDisabled ? 0.4 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}>
+        Next <ChevronRight style={{ width: 13, height: 13 }} />
+      </button>
+    </div>
+  );
+}
+
 function PoolPicksContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const poolId = params.id as string;
   const weekParam = searchParams.get('week');
   const seasonTypeParam = searchParams.get('seasonType');
-  
+
   const [poolName, setPoolName] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
@@ -92,37 +181,23 @@ function PoolPicksContent() {
   const [weekHasPicks, setWeekHasPicks] = useState(false);
   const [weekEnded, setWeekEnded] = useState(false);
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
-  
+  const [isOffseasonState, setIsOffseasonState] = useState(false);
+  const [isPoolClosed, setIsPoolClosed] = useState(false);
+
   const { toast } = useToast();
   const router = useRouter();
 
   // Helper function to get week/round title based on season type
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
-  // Helper function to get current user's submission status
-  // const getCurrentUserSubmissionStatus = () => {
-  //   if (!selectedUser) return false;
-  //   return hasSubmitted[selectedUser.id]?.submitted || false;
-  // };
-
-  // Helper function to get the most recently submitted user
-  // const getMostRecentSubmittedUser = () => {
-  //   const submittedUsers = Object.entries(hasSubmitted)
-  //     .filter(([_, data]) => data.submitted)
-  //     .map(([userId, data]) => ({ id: userId, name: data.name }));
-  //   return submittedUsers.length > 0 ? submittedUsers[0] : null;
-  // };
-
   // Check if all participants have submitted playoff confidence points
   const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
     if (!poolId) return false;
-    
-    // Use provided season or fetch it from pool
+
     let seasonToUse = season || poolSeason;
-    
+
     if (!seasonToUse) {
       try {
-        // Fetch pool season if not available
         const response = await fetch(`/api/pools/${poolId}`);
         const data = await response.json();
         if (data.success && data.pool?.season) {
@@ -135,11 +210,11 @@ function PoolPicksContent() {
         return false;
       }
     }
-    
+
     try {
       const response = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonToUse}`);
       const data = await response.json();
-      
+
       if (data.success) {
         return data.allSubmitted || false;
       }
@@ -156,56 +231,41 @@ function PoolPicksContent() {
     let targetSeasonType = seasonType;
     const maxWeeks = getMaxWeeksForSeason(seasonType);
 
-    debugLog('Navigate to week:', {
-      week,
-      seasonType,
-      targetWeek,
-      targetSeasonType,
-      maxWeeks
-    });
+    debugLog('Navigate to week:', { week, seasonType, targetWeek, targetSeasonType, maxWeeks });
 
-    // Handle season transitions at boundaries
-    // Previous week navigation - go to previous season type at week 1
     if (week < 1) {
-      if (seasonType === 1) { // Preseason week 1 - can't go before
+      if (seasonType === 1) {
         return;
-      } else if (seasonType === 2) { // Regular Season week 1 -> Preseason week 4
+      } else if (seasonType === 2) {
         targetSeasonType = 1;
-        targetWeek = getMaxWeeksForSeason(1); // 18
-      } else if (seasonType === 3) { // Playoffs week 1 -> Regular Season week 18
+        targetWeek = getMaxWeeksForSeason(1);
+      } else if (seasonType === 3) {
         targetSeasonType = 2;
-        targetWeek = getMaxWeeksForSeason(2); // 4
+        targetWeek = getMaxWeeksForSeason(2);
       }
-    }
-    // Next week navigation - go to next season type at max week
-    else if (week > maxWeeks) {
-      if (seasonType === 1) { // Preseason week 4 -> Regular Season week 1
+    } else if (week > maxWeeks) {
+      if (seasonType === 1) {
         targetSeasonType = 2;
         targetWeek = 1;
-      } else if (seasonType === 2) { // Regular Season week 18 -> Playoffs week 1
+      } else if (seasonType === 2) {
         const allSubmitted = await checkPlayoffConfidencePointsSubmission();
         if (!allSubmitted) {
-          // Redirect to confidence points page if not all participants have submitted
           window.location.href = `/pool/${poolId}/playoffs`;
           return;
         }
         targetSeasonType = 3;
         targetWeek = 1;
-      } else if (seasonType === 3) { // Super Bowl week 4 - can't go after
+      } else if (seasonType === 3) {
         return;
       }
-    }
-    // Within valid range, but check for playoff confidence points if going to playoffs
-    else if (targetSeasonType === 3) {
+    } else if (targetSeasonType === 3) {
       const allSubmitted = await checkPlayoffConfidencePointsSubmission();
       if (!allSubmitted) {
-        // Redirect to confidence points page if not all participants have submitted
         window.location.href = `/pool/${poolId}/playoffs`;
         return;
       }
     }
 
-    // Navigate to the new week
     const newUrl = `/pool/${poolId}/picks?week=${targetWeek}&seasonType=${targetSeasonType}`;
     window.location.href = newUrl;
   };
@@ -214,17 +274,12 @@ function PoolPicksContent() {
   const navigateToCurrentWeek = async () => {
     try {
       const upcomingWeek = await getUpcomingWeek();
-      // If current week is a playoff week, navigate to picks page with playoff seasonType
       if (upcomingWeek.seasonType === 3) {
-        // Check if confidence points are submitted first
         const allSubmitted = await checkPlayoffConfidencePointsSubmission();
         if (!allSubmitted) {
-          // Redirect to confidence points page if not all participants have submitted
           window.location.href = `/pool/${poolId}/playoffs`;
           return;
         }
-        // All have submitted, navigate to playoff round on picks page
-        // For playoffs, week number maps directly to round number (week 1 = round 1, etc.)
         const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=3`;
         window.location.href = newUrl;
         return;
@@ -233,7 +288,6 @@ function PoolPicksContent() {
       window.location.href = newUrl;
     } catch (error) {
       console.error('Error getting current week:', error);
-      // Fallback to week 1 regular season
       const newUrl = `/pool/${poolId}/picks?week=1&seasonType=2&season=${poolSeason}`;
       window.location.href = newUrl;
     }
@@ -242,63 +296,44 @@ function PoolPicksContent() {
   // Check if week has ended and load winner
   const checkWeekStatus = async () => {
     if (games.length === 0) return;
-    
-    // Check if all games are properly finished (including tie games)
+
     const allGamesEnded = games.every(game => {
       const status = game.status?.toLowerCase();
       const hasWinner = game.winner && game.winner.trim() !== '';
       const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
-      
-      // For tie games, check if scores are equal and game is finished
-      const isTieGame = game.home_score !== null && game.away_score !== null && 
+      const isTieGame = game.home_score !== null && game.away_score !== null &&
                        game.home_score === game.away_score;
-      
       const gameEnded = isFinished && (hasWinner || isTieGame);
-      
+
       debugLog('Week status check for game:', {
         game: `${game.away_team} @ ${game.home_team}`,
-        status: game.status,
-        winner: game.winner,
-        home_score: game.home_score,
-        away_score: game.away_score,
-        isFinished,
-        hasWinner,
-        isTieGame,
-        gameEnded
+        status: game.status, winner: game.winner,
+        home_score: game.home_score, away_score: game.away_score,
+        isFinished, hasWinner, isTieGame, gameEnded
       });
-      
+
       return gameEnded;
     });
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.log('Week status result:', {
-        allGamesEnded,
-        gamesCount: games.length,
-        gamesStatus: games.map(g => ({ 
-          game: `${g.away_team} @ ${g.home_team}`, 
-          status: g.status, 
-          winner: g.winner 
-        }))
+        allGamesEnded, gamesCount: games.length,
+        gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
       });
     }
-    
+
     setWeekEnded(allGamesEnded);
     if (allGamesEnded) {
       debugLog('Week status result setWeekEnded if allGamesEnded:', {
-        poolId,
-        weekNumber: currentWeek,
-        seasonType: currentSeasonType,
-        season: poolSeason
+        poolId, weekNumber: currentWeek, seasonType: currentSeasonType, season: poolSeason
       });
       try {
-        // First check if winner already exists in database
         const winnerCheckResponse = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
-        
+
         if (winnerCheckResponse.ok) {
           const winnerCheck = await winnerCheckResponse.json();
-          
+
           if (winnerCheck.winnerExists && winnerCheck.winner) {
-            // Winner already exists in database, use it
             debugLog('Using existing winner from database:', winnerCheck.winner);
             setWeekWinner({
               participant_name: winnerCheck.winner.winner_name,
@@ -307,11 +342,10 @@ function PoolPicksContent() {
             });
             setWeekHasPicks(true);
             setShowLeaderboard(true);
-            return; // Exit early since we have the winner
+            return;
           }
         }
-        
-        // No winner in database, calculate from leaderboard
+
         debugLog('No existing winner found, calculating from leaderboard');
         const response = await fetch(`/api/leaderboard?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
         debugLog('Week status result setWeekEnded if allGamesEnded:', response);
@@ -319,7 +353,7 @@ function PoolPicksContent() {
           const result = await response.json();
           if (result.success && result.leaderboard && result.leaderboard.length > 0) {
             debugLog('Leaderboard result:', result);
-            const winner = result.leaderboard[0]; // First place
+            const winner = result.leaderboard[0];
             debugLog('Winner from leaderboard:', winner);
             setWeekWinner({
               participant_name: winner.participant_name,
@@ -327,22 +361,15 @@ function PoolPicksContent() {
               correct_picks: winner.correct_picks
             });
             setWeekHasPicks(true);
-            // Automatically show leaderboard when week ends
             setShowLeaderboard(true);
-            
-            // If winner has valid points and picks, add to weekly_winners table
+
             if (winner.total_points > 0 && winner.correct_picks > 0) {
               try {
                 const addWinnerResponse = await fetch('/api/admin/week-winner', {
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    poolId,
-                    week: currentWeek,
-                    season: poolSeason,
-                    seasonType: currentSeasonType,
+                    poolId, week: currentWeek, season: poolSeason, seasonType: currentSeasonType,
                     winnerParticipantId: winner.participant_id,
                     winnerName: winner.participant_name,
                     winnerPoints: winner.total_points,
@@ -350,7 +377,7 @@ function PoolPicksContent() {
                     totalParticipants: result.totalParticipants || 0
                   }),
                 });
-                
+
                 if (addWinnerResponse.ok) {
                   const addResult = await addWinnerResponse.json();
                   debugLog('Winner added to database:', addResult);
@@ -370,7 +397,6 @@ function PoolPicksContent() {
             }
           } else {
             setWeekHasPicks(false);
-            // Still show leaderboard even if no picks, but indicate no results
             setShowLeaderboard(true);
           }
         }
@@ -382,10 +408,10 @@ function PoolPicksContent() {
   };
 
   const handleLogout = async () => {
-          try {
+    try {
       const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-        await supabase.auth.signOut();
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
       router.push('/admin/login');
     } catch (error) {
       console.error('Error logging out:', error);
@@ -401,17 +427,17 @@ function PoolPicksContent() {
       const gameTime = new Date(firstGame.kickoff_time);
       const now = new Date();
       const timeDiff = gameTime.getTime() - now.getTime();
-      
+
       if (timeDiff <= 0) {
         setCountdown('Games Started');
         return;
       }
-      
+
       const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
-      
+
       if (days > 0) {
         setCountdown(`${days}d ${hours}h ${minutes}m`);
       } else if (hours > 0) {
@@ -441,10 +467,8 @@ function PoolPicksContent() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Clean up expired sessions immediately
     userSessionManager.cleanupExpiredSessions();
 
-    // Set up periodic cleanup every 5 minutes
     const cleanupInterval = setInterval(() => {
       userSessionManager.cleanupExpiredSessions();
     }, SESSION_CLEANUP_INTERVAL);
@@ -456,43 +480,47 @@ function PoolPicksContent() {
     try {
       setIsLoading(true);
 
-      // Validate poolId first
       if (!poolId) {
         notFound();
         return;
       }
-      
-      // Validate pool ID format (should be a valid UUID)
+
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(poolId)) {
         notFound();
         return;
       }
 
-      debugLog('Pool picks page: Starting data load with:', {
-        poolId,
-        weekParam,
-        seasonTypeParam,
-        currentWeek,
-        currentSeasonType
-      });
+      debugLog('Pool picks page: Starting data load with:', { poolId, weekParam, seasonTypeParam, currentWeek, currentSeasonType });
 
-      // Use the week and season type from URL parameters
       let weekToUse: number;
       let seasonTypeToUse: number;
       const validSeasonTypes = [1, 2, 3] as const;
       const parsedSeasonType = seasonTypeParam ? parseInt(seasonTypeParam, 10) : 2;
       const isSeasonTypeValid = validSeasonTypes.includes(parsedSeasonType as 1 | 2 | 3);
 
-      // If season_type is not one of the 3 (preseason, regular, postseason), default to current week
       if (!isSeasonTypeValid) {
         try {
           const upcomingWeek = await getUpcomingWeek();
-          weekToUse = upcomingWeek.week;
-          seasonTypeToUse = upcomingWeek.seasonType;
+          if (upcomingWeek.seasonType === 0) {
+            let resolvedWeek = 0;
+            let resolvedSeasonType = 0;
+            for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
+              try {
+                const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
+                if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+              } catch {}
+            }
+            if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
+            weekToUse = resolvedWeek;
+            seasonTypeToUse = resolvedSeasonType;
+          } else {
+            weekToUse = upcomingWeek.week;
+            seasonTypeToUse = upcomingWeek.seasonType;
+          }
           setCurrentWeek(weekToUse);
           setCurrentSeasonType(seasonTypeToUse);
-          setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
+          setUpcomingWeek({ week: weekToUse, seasonType: seasonTypeToUse });
           const newUrl = `/pool/${poolId}/picks?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
           router.replace(newUrl, { scroll: false });
           debugLog('Pool picks page: Invalid season type, using current week - week:', weekToUse, 'season type:', seasonTypeToUse);
@@ -509,24 +537,15 @@ function PoolPicksContent() {
         seasonTypeToUse = parsedSeasonType;
         const maxWeeks = getMaxWeeksForSeason(seasonTypeToUse);
 
-        // If week is greater than max for this season type, go to last week of that season type
         if (weekToUse > maxWeeks) {
           weekToUse = maxWeeks;
           const newUrl = `/pool/${poolId}/picks?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
           router.replace(newUrl, { scroll: false });
         }
 
-        // For playoffs (seasonType === 3), check if confidence points are submitted
-        if (seasonTypeToUse === 3) {
-          // We need to load pool season first, then check confidence points
-          // This check will happen after pool data is loaded (see below)
-          // For now, continue loading - we'll check after pool season is available
-        }
-        
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
 
-        // Also get the upcoming week for comparison
         try {
           const upcomingWeek = await getUpcomingWeek();
           setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
@@ -537,97 +556,107 @@ function PoolPicksContent() {
 
         debugLog('Pool picks page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
-        // Fallback to upcoming week only if no valid week in URL
         const upcomingWeek = await getUpcomingWeek();
-        weekToUse = upcomingWeek.week;
-        seasonTypeToUse = upcomingWeek.seasonType;
+        if (upcomingWeek.seasonType === 0) {
+          let resolvedWeek = 0;
+          let resolvedSeasonType = 0;
+          for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
+            try {
+              const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
+              if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+            } catch {}
+          }
+          if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
+          weekToUse = resolvedWeek;
+          seasonTypeToUse = resolvedSeasonType;
+        } else {
+          weekToUse = upcomingWeek.week;
+          seasonTypeToUse = upcomingWeek.seasonType;
+        }
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
-        setUpcomingWeek({week: upcomingWeek.week, seasonType: upcomingWeek.seasonType});
-        
+        setUpcomingWeek({ week: weekToUse, seasonType: seasonTypeToUse });
+
         debugLog('Pool picks page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
-        
-        // Show a helpful message for empty week parameter
+
         toast({
           title: "Week not specified",
-          description: `Showing upcoming week (Week ${upcomingWeek.week})`,
+          description: `Showing upcoming week (Week ${weekToUse})`,
           duration: 3000,
         });
       }
 
-      // Load pool information using the public API endpoint
+      // Track pool season locally so games API can use it (state setter is async)
+      let localPoolSeason = DEFAULT_POOL_SEASON;
+
+      // Load pool information
       try {
         const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
         debugLog('Pool picks page: Fetching from API:', apiUrl);
-        
-        // Add timeout to fetch request
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        console.log('Fetching pool information with URL:', apiUrl);
         const response = await fetch(apiUrl, {
           signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
-        
+        console.log('API response for pool information:', response);
+
         clearTimeout(timeoutId);
-        
+
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.pool) {
             const pool = result.pool;
-              
-              // Validate that we have a valid pool with a name
-              if (!pool.name || pool.name.trim() === '') {
-                notFound();
-                return;
-              }
-              
+
+            if (!pool.name || pool.name.trim() === '') {
+              notFound();
+              return;
+            }
+
             const seasonValue = pool.season || DEFAULT_POOL_SEASON;
+            localPoolSeason = seasonValue;
             setPoolName(pool.name);
             setPoolSeason(seasonValue);
-            
-            // For playoffs (seasonType === 3), check if confidence points are submitted
+
+            if (!pool.is_active) {
+              setIsPoolClosed(true);
+              return; // redirect handled via useEffect, skip loading games
+            }
+
             if (seasonTypeToUse === 3) {
               try {
                 const confidenceResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonValue}`);
                 const confidenceData = await confidenceResponse.json();
-                
+
                 if (confidenceData.success && !confidenceData.allSubmitted) {
-                  // Not all participants have submitted confidence points, redirect to confidence points page
                   window.location.href = `/pool/${poolId}/playoffs`;
                   return;
                 }
-                // All have submitted (or no participants), continue loading the picks page
               } catch (error) {
                 console.error('Error checking playoff confidence points:', error);
-                // Continue loading if there's an error
               }
             }
-            
-            // Set participant stats from the API response
+
             setParticipantCount(pool.participant_count || 0);
             setIsTestMode(pool.is_test_mode || false);
-            
-            // Set picks status if available
+
             if (pool.picks_status) {
-              // hasPicks is deprecated in this component; only track submitted count
               setSubmittedCount(pool.picks_status.submittedCount || 0);
             }
           } else {
-              // Pool not found - redirect to 404 page
-              notFound();
+            notFound();
           }
         } else {
           const errorText = await response.text();
           console.error('API response error:', response.status, errorText);
-          
-          // If it's a 404 error, redirect to 404 page
+
           if (response.status === 404) {
             notFound();
           } else {
-          setError(`Failed to load pool information (${response.status}). Please try again.`);
+            setError(`Failed to load pool information (${response.status}). Please try again.`);
           }
         }
       } catch (error) {
@@ -645,32 +674,30 @@ function PoolPicksContent() {
         }
       }
 
-      // Check admin status directly using the user session
+      // Check admin status
       try {
         const { getSupabaseClient } = await import('@/lib/supabase');
         const supabase = getSupabaseClient();
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session) {
-          // Check if user is an admin
           const { data: admin } = await supabase
             .from('admins')
             .select('id, is_super_admin')
             .eq('id', session.user.id)
             .single();
-          
+
           if (admin) {
             setIsAdmin(true);
             setIsSuperAdmin(admin.is_super_admin);
-            
-            // Check if user is the pool commissioner (created the pool)
+
             if (poolId) {
               const { data: poolData } = await supabase
                 .from('pools')
                 .select('created_by')
                 .eq('id', poolId)
                 .single();
-              
+
               if (poolData && poolData.created_by === session.user.email) {
                 setIsPoolAdmin(true);
               }
@@ -679,193 +706,118 @@ function PoolPicksContent() {
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
-        // Continue without admin status - user can still use the page
       }
 
-      // Load games for the week using the new API route
+      // Load games
       try {
         debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
-        
-        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
-        
-        // Add timeout to fetch request
+
+        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}&season=${localPoolSeason}`;
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const response = await fetch(gamesApiUrl, {
           signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
             let gamesData = result.games;
-            
-            // Load team records for the season if games exist
+
             if (gamesData && gamesData.length > 0) {
               const season = gamesData[0].season || poolSeason;
-              
+
               try {
                 const recordsResponse = await fetch(`/api/team-records?season=${season}`, {
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
+                  headers: { 'Content-Type': 'application/json' },
                 });
-                
+
                 if (recordsResponse.ok) {
                   const recordsResult = await recordsResponse.json();
                   if (recordsResult.success && recordsResult.records) {
-                    // Create a map of team_id (database UUID) to team record
                     const recordsMapById = new Map<string, any>();
-                    // Also create a fallback map by abbreviation
                     const recordsMapByAbbr = new Map<string, any>();
-                    
+
                     recordsResult.records.forEach((record: any) => {
                       const recordData = {
-                        wins: record.wins || 0,
-                        losses: record.losses || 0,
-                        ties: record.ties || 0,
-                        home_wins: record.home_wins,
-                        home_losses: record.home_losses,
-                        home_ties: record.home_ties,
-                        road_wins: record.road_wins,
-                        road_losses: record.road_losses,
-                        road_ties: record.road_ties
+                        wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0,
+                        home_wins: record.home_wins, home_losses: record.home_losses, home_ties: record.home_ties,
+                        road_wins: record.road_wins, road_losses: record.road_losses, road_ties: record.road_ties
                       };
-                      
-                      // Map by team_id (database UUID) - primary lookup
-                      if (record.team_id) {
-                        recordsMapById.set(record.team_id, recordData);
-                      }
-                      
-                      // Map by abbreviation as fallback
-                      if (record.team_abbreviation) {
-                        recordsMapByAbbr.set(record.team_abbreviation.toLowerCase(), recordData);
-                      }
+                      if (record.team_id) recordsMapById.set(record.team_id, recordData);
+                      if (record.team_abbreviation) recordsMapByAbbr.set(record.team_abbreviation.toLowerCase(), recordData);
                     });
-                    
-                    // Attach team records to games
+
                     gamesData = gamesData.map((game: Game) => {
-                      // Try to match by team_id (database UUID) first
                       let homeRecord = game.home_team_id ? recordsMapById.get(game.home_team_id.toString()) : undefined;
                       let awayRecord = game.away_team_id ? recordsMapById.get(game.away_team_id.toString()) : undefined;
-                      
-                      // Fallback to abbreviation matching if UUID match failed
-                      if (!homeRecord && game.home_team_id) {
-                        const homeAbbr = game.home_team_id.toString().toLowerCase();
-                        homeRecord = recordsMapByAbbr.get(homeAbbr);
-                      }
-                      if (!homeRecord && game.home_team) {
-                        homeRecord = recordsMapByAbbr.get(game.home_team.toLowerCase());
-                      }
-                      
-                      if (!awayRecord && game.away_team_id) {
-                        const awayAbbr = game.away_team_id.toString().toLowerCase();
-                        awayRecord = recordsMapByAbbr.get(awayAbbr);
-                      }
-                      if (!awayRecord && game.away_team) {
-                        awayRecord = recordsMapByAbbr.get(game.away_team.toLowerCase());
-                      }
-                      
-                      return {
-                        ...game,
-                        home_team_record: homeRecord,
-                        away_team_record: awayRecord
-                      };
+
+                      if (!homeRecord && game.home_team_id) homeRecord = recordsMapByAbbr.get(game.home_team_id.toString().toLowerCase());
+                      if (!homeRecord && game.home_team) homeRecord = recordsMapByAbbr.get(game.home_team.toLowerCase());
+                      if (!awayRecord && game.away_team_id) awayRecord = recordsMapByAbbr.get(game.away_team_id.toString().toLowerCase());
+                      if (!awayRecord && game.away_team) awayRecord = recordsMapByAbbr.get(game.away_team.toLowerCase());
+
+                      return { ...game, home_team_record: homeRecord, away_team_record: awayRecord };
                     });
-                    
+
                     debugLog('Attached team records to games');
                   }
                 }
               } catch (recordsError) {
                 console.error('Error loading team records:', recordsError);
-                // Continue without team records if fetch fails
               }
             }
-            
+
             setGames(gamesData);
-            
-            debugLog('Loaded games:',
-                gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-            
-            
-            // Check if any games have started (with buffer time)
+            debugLog('Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+
             const now = new Date();
             const validGames = gamesData.filter((game: Game) => {
               const gameTime = new Date(game.kickoff_time);
-              
-              // Skip games with obviously invalid dates (like test data)
               const currentYear = now.getFullYear();
               const gameYear = gameTime.getFullYear();
-              
-              // Check for common test data patterns
-              const isTestData = 
-                Math.abs(currentYear - gameYear) > 1 || // Different year
-                (gameYear === 2025 && gameTime.getMonth() === 7 && gameTime.getDate() === 1) || // August 1, 2025
-                gameTime.getTime() < new Date('2024-01-01').getTime(); // Before 2024
-              
+              const isTestData =
+                Math.abs(currentYear - gameYear) > 1 ||
+                (gameYear === 2025 && gameTime.getMonth() === 7 && gameTime.getDate() === 1) ||
+                gameTime.getTime() < new Date('2024-01-01').getTime();
+
               if (isTestData) {
-                debugLog('Skipping game with test/invalid date:', {
-                  game: `${game.away_team} @ ${game.home_team}`,
-                  gameYear,
-                  currentYear,
-                  kickoff: gameTime.toISOString(),
-                  isTestData: true
-                }); 
-                
+                debugLog('Skipping game with test/invalid date:', { game: `${game.away_team} @ ${game.home_team}`, gameYear, currentYear, kickoff: gameTime.toISOString(), isTestData: true });
                 return false;
               }
               return true;
             });
-            
+
             debugLog('Valid games count:', validGames.length, 'out of', gamesData.length);
-            
-            // Only check game start status if we have valid games
+
             let hasStarted = false;
             if (validGames.length > 0) {
               hasStarted = validGames.some((game: Game) => {
                 const gameTime = new Date(game.kickoff_time);
-                
-                // Consider game started only after kickoff + buffer time (e.g., 1 hour)
-                const bufferTime = 60 * 60 * 1000; // 1 hour in milliseconds
+                const bufferTime = 60 * 60 * 1000;
                 const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
-                
-                debugLog('Game status check:', {
-                    game: `${game.away_team} @ ${game.home_team}`,
-                    kickoff: gameTime.toISOString(),
-                    now: now.toISOString(),
-                    bufferTime: bufferTime / (1000 * 60 * 60), // hours
-                    gameStarted
-                  });
-                
+                debugLog('Game status check:', { game: `${game.away_team} @ ${game.home_team}`, kickoff: gameTime.toISOString(), now: now.toISOString(), bufferTime: bufferTime / (1000 * 60 * 60), gameStarted });
                 return gameStarted;
               });
             } else {
-              // If all games are test data, don't start games
               hasStarted = false;
               debugLog('All games are test data, setting gamesStarted to false');
             }
-            
+
             setGamesStarted(hasStarted);
-            
             debugLog('Overall games started status:', hasStarted);
-            
-            // Automatically show leaderboard when games start
+
             if (hasStarted) {
               setShowLeaderboard(true);
             }
           } else {
             console.error('API returned error:', result.error);
-            toast({
-              title: "Warning",
-              description: "Could not load games data",
-              variant: "destructive",
-            });
+            toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
           }
         } else {
           const errorText = await response.text();
@@ -876,42 +828,26 @@ function PoolPicksContent() {
         console.error('Error loading games:', e);
         if (e instanceof Error) {
           if (e.name === 'AbortError') {
-            toast({
-              title: "Warning",
-              description: "Games request timed out",
-              variant: "destructive",
-            });
+            toast({ title: "Warning", description: "Games request timed out", variant: "destructive" });
           } else {
-            toast({
-              title: "Warning",
-              description: `Could not load games data: ${e.message}`,
-              variant: "destructive",
-            });
+            toast({ title: "Warning", description: `Could not load games data: ${e.message}`, variant: "destructive" });
           }
         } else {
-          toast({
-            title: "Warning",
-            description: "Could not load games data",
-            variant: "destructive",
-          });
+          toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
         }
       }
 
       // Check if there's a saved user session for this pool
       if (poolId) {
         try {
-          // Clean up expired sessions before checking for valid ones
           userSessionManager.cleanupExpiredSessions();
-          
+
           const allSessions = userSessionManager.getAllSessions();
           const poolSession = allSessions.find(session => session.poolId === poolId);
-          
+
           if (poolSession && poolSession.userId) {
             debugLog('Restoring user session:', poolSession);
-            setSelectedUser({
-              id: poolSession.userId,
-              name: poolSession.userName,
-            });
+            setSelectedUser({ id: poolSession.userId, name: poolSession.userName });
           }
         } catch {
           debugLog('No saved user session found for pool:', poolId);
@@ -921,7 +857,7 @@ function PoolPicksContent() {
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading pool picks data:', error);
-              setError('Failed to load pool information. Please try again or contact the pool commissioner.');
+      setError('Failed to load pool information. Please try again or contact the pool commissioner.');
     } finally {
       setIsLoading(false);
     }
@@ -931,6 +867,13 @@ function PoolPicksContent() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId, weekParam]);
+
+  useEffect(() => {
+    if (isPoolClosed && poolId) {
+      router.replace(`/pool/${poolId}/history?week=${currentWeek || 1}&seasonType=${currentSeasonType || 2}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPoolClosed]);
 
   useEffect(() => {
     loadParticipantStats();
@@ -945,7 +888,7 @@ function PoolPicksContent() {
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    setError(''); // Clear any previous errors
+    setError('');
     await loadData();
   };
 
@@ -957,69 +900,53 @@ function PoolPicksContent() {
   const handleUserSelected = (userId: string, userName: string) => {
     const user = { id: userId, name: userName };
     setSelectedUser(user);
-    
-    // Load picks from localStorage if they exist
     loadPicksFromLocalStorage(userId, poolId!, currentWeek);
   };
 
   const loadPicksFromLocalStorage = async (participantId: string, poolId: string, week: number) => {
     try {
       const { pickStorage } = await import('@/lib/pick-storage');
-      
-      // Check if there are stored picks for this user, pool, and week
+
       if (pickStorage.hasValidPicks(participantId, poolId, week)) {
         const storedPicks = pickStorage.loadPicks(participantId, poolId, week);
-        
+
         if (storedPicks && storedPicks.length > 0) {
-          // Show a toast to inform the user about restored picks
           toast({
             title: "Picks Restored",
             description: `Found ${storedPicks.length} saved picks from your previous session. You can review and submit them.`,
             duration: 5000,
           });
-          
           debugLog('Loaded picks from localStorage:', storedPicks);
         }
       } else {
         debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
-      } catch (err) {
-        console.error('Error loading picks from localStorage:', err);
-      toast({
-        title: "Warning",
-        description: "Could not load saved picks from previous session",
-        variant: "destructive",
-      });
+    } catch (err) {
+      console.error('Error loading picks from localStorage:', err);
+      toast({ title: "Warning", description: "Could not load saved picks from previous session", variant: "destructive" });
     }
   };
 
   const handlePicksSubmitted = async () => {
-    // Show success dialog
     setShowSuccessDialog(true);
-    
-    // Update the submission status for the current user
+
     if (selectedUser) {
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: true, name: selectedUser.name } }));
     }
-    
-    // Refresh the page data when picks are submitted
+
     await loadData();
     await loadParticipantStats();
     await checkUserSubmissionStatus();
-    
-    // Clear the selected user so they can select a different user or see the user selection interface
+
     setSelectedUser(null);
-    
     debugLog('Picks submitted successfully, clearing user selection to allow new user selection');
   };
 
   const handleUserChangeRequested = () => {
     debugLog('User change requested. Current user:', selectedUser);
-    
-    // Clear the selected user to show the user selection interface
+
     setSelectedUser(null);
-    
-    // Clear any stored picks for the previous user
+
     if (selectedUser) {
       const clearStoredPicks = async () => {
         try {
@@ -1031,64 +958,41 @@ function PoolPicksContent() {
       };
       clearStoredPicks();
     }
-    
-    // Reset submission status
-    setHasSubmitted({});
-    
-    // Clean up expired sessions when user changes
-    userSessionManager.cleanupExpiredSessions();
 
+    setHasSubmitted({});
+    userSessionManager.cleanupExpiredSessions();
     debugLog('User selection interface should now be visible');
-    
-    toast({
-      title: "User Changed",
-      description: "Please select a new user to make picks",
-    });
+
+    toast({ title: "User Changed", description: "Please select a new user to make picks" });
   };
 
   const handleShare = async () => {
     const url = window.location.href;
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: `${poolName} - Week ${currentWeek} Picks`,
-          text: `Join me in making picks for ${poolName} Week ${currentWeek}!`,
-          url: url,
-        });
+        await navigator.share({ title: `${poolName} - Week ${currentWeek} Picks`, text: `Join me in making picks for ${poolName} Week ${currentWeek}!`, url });
       } else {
         await navigator.clipboard.writeText(url);
-        toast({
-          title: "Link Copied",
-          description: "Pool link copied to clipboard",
-        });
+        toast({ title: "Link Copied", description: "Pool link copied to clipboard" });
       }
-      } catch (e) {
+    } catch (e) {
       console.error('Error sharing:', e);
     }
   };
 
   const loadParticipantStats = async () => {
-    // Stats are now loaded from the pool API endpoint
-    // This function is kept for compatibility but no longer makes database calls
     debugLog('Participant stats loaded from API endpoint');
   };
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
-    
-    try {
-      debugLog('Checking submission status for:', {
-        participantId: selectedUser.id,
-        poolId,
-        currentWeek,
-        currentSeasonType
-      });
 
-      // Use service role client to bypass RLS policies
+    try {
+      debugLog('Checking submission status for:', { participantId: selectedUser.id, poolId, currentWeek, currentSeasonType });
+
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
-      
-      // First, get the games for this week and season type
+
       const { data: gamesForWeek, error: gamesError } = await supabase
         .from('games')
         .select('id')
@@ -1108,12 +1012,11 @@ function PoolPicksContent() {
       }
 
       const gameIds = gamesForWeek.map(g => g.id);
-      
-      // Check if THIS SPECIFIC USER has submitted picks for these games
+
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('id, game_id')
-        .eq('participant_id', selectedUser.id)  // Only check for the current user
+        .eq('participant_id', selectedUser.id)
         .eq('pool_id', poolId)
         .in('game_id', gameIds);
 
@@ -1124,114 +1027,79 @@ function PoolPicksContent() {
 
       debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
-      // User has submitted if they have picks for all games in this week
-      const hasSubmitted = picks && picks.length > 0 && picks.length === gameIds.length;
-      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmitted, name: selectedUser.name } }));
+      const hasSubmittedPicks = picks && picks.length > 0 && picks.length === gameIds.length;
+      setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmittedPicks, name: selectedUser.name } }));
 
-      debugLog('Submission status updated for current user:', { hasSubmitted, picksCount: picks?.length || 0, gamesCount: gameIds.length });
+      debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedPicks, picksCount: picks?.length || 0, gamesCount: gameIds.length });
     } catch (error) {
       console.error('Error checking submission status:', error);
     }
   };
 
   const checkWeekPicksStatus = async () => {
-    // Picks status is now loaded from the pool API endpoint
-    // This function is kept for compatibility but no longer makes database calls
     debugLog('Week picks status loaded from API endpoint');
   };
 
   const checkAdminPermissions = async () => {
-    // Admin permissions are now loaded from the pool API endpoint
-    // This function is kept for compatibility but no longer makes database calls
     debugLog('Admin permissions loaded from API endpoint');
   };
 
   const unlockParticipantPicks = async (participantId: string) => {
     if (!isPoolAdmin && !isSuperAdmin) {
-      toast({
-        title: "Permission Denied",
-        description: "Only pool commissioners or admins can unlock picks",
-        variant: "destructive",
-      });
+      toast({ title: "Permission Denied", description: "Only pool commissioners or admins can unlock picks", variant: "destructive" });
       return;
     }
 
     try {
-      // Use service role client for admin operations
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
-      
-      // Delete the picks for this participant for this week
+
       const { error } = await supabase
         .from('picks')
         .delete()
         .eq('participant_id', participantId)
         .eq('pool_id', poolId)
         .in('game_id', games.map(g => g.id));
-      
-      if (error) {
-        throw error;
-      }
 
-      // Log the unlock action
+      if (error) throw error;
+
       await supabase
         .from('audit_logs')
         .insert({
           action: 'unlock_participant_picks',
-          admin_id: null, // Service role doesn't have specific admin ID
+          admin_id: null,
           entity: 'participant_picks',
           entity_id: participantId,
-          details: { 
-            participant_id: participantId, 
-            pool_id: poolId,
-            week: currentWeek, 
-            season_type: currentSeasonType,
+          details: {
+            participant_id: participantId, pool_id: poolId,
+            week: currentWeek, season_type: currentSeasonType,
             unlocked_by: isSuperAdmin ? 'admin' : 'pool_commissioner'
           }
         });
 
-      toast({
-        title: "Picks Unlocked",
-        description: "Participant can now make new picks",
-      });
-
-      // Reset the submission status for this specific user
+      toast({ title: "Picks Unlocked", description: "Participant can now make new picks" });
       setHasSubmitted(prev => ({ ...prev, [participantId]: { submitted: false, name: '' } }));
-
-      // Refresh the submission status
       await checkUserSubmissionStatus();
       await loadParticipantStats();
     } catch (error) {
       console.error('Error unlocking picks:', error);
-      toast({
-        title: "Error",
-        description: "Failed to unlock picks",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to unlock picks", variant: "destructive" });
     }
   };
 
   const getGameStatusStats = () => {
     if (games.length === 0) return null;
-    
+
     const now = new Date();
-    const stats = {
-      total: games.length,
-      upcoming: 0,
-      inProgress: 0,
-      finished: 0,
-      locked: 0
-    };
+    const stats = { total: games.length, upcoming: 0, inProgress: 0, finished: 0, locked: 0 };
 
     games.forEach(game => {
       const gameTime = new Date(game.kickoff_time);
       const timeDiff = gameTime.getTime() - now.getTime();
-      
+
       if (timeDiff > 0) {
         stats.upcoming++;
-        if (timeDiff <= 24 * 60 * 60 * 1000) { // Within 24 hours
-          stats.locked++;
-        }
+        if (timeDiff <= 24 * 60 * 60 * 1000) stats.locked++;
       } else if (game.status === 'finished' || game.status === 'final' || game.winner) {
         stats.finished++;
       } else {
@@ -1242,1115 +1110,619 @@ function PoolPicksContent() {
     return stats;
   };
 
-  // Check if week has ended and no picks were submitted
+  const seasonTypeNames: Record<number, string> = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
+
+  // ── LOADING ──────────────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2rem', width: '100%', maxWidth: 400, textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading pool picks…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── OFFSEASON ─────────────────────────────────────────────────────────────────
+  if (isOffseasonState) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+        <section style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+          <div className="lp-inner">
+            <OffseasonBanner />
+          </div>
+        </section>
+        <Footer pageName="Pool Picks" />
+      </div>
+    );
+  }
+
+  // ── ERROR ─────────────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${liveRed}`, borderRadius: 10, padding: '2rem', width: '100%', maxWidth: 440, textAlign: 'center' }}>
+          <AlertTriangle style={{ width: 36, height: 36, color: liveRed, margin: '0 auto 0.75rem' }} />
+          <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Error Loading Pool</h2>
+          <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.25rem' }}>{error}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <button onClick={handleRetry} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              <RefreshCw style={{ width: 13, height: 13 }} /> Retry
+            </button>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none' }}>
+              <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Home
+            </Link>
+          </div>
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '1rem', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 5, textAlign: 'left' }}>
+              <p><strong>Pool ID:</strong> {poolId || 'undefined'}</p>
+              <p><strong>Week:</strong> {weekParam || 'undefined'}</p>
+              <p><strong>Season Type:</strong> {seasonTypeParam || 'undefined'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── HISTORICAL POOL — redirect to /history ────────────────────────────────────
+  if (isPoolClosed) {
+    return (
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Redirecting to season history…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── WEEK ENDED — NO PICKS ─────────────────────────────────────────────────────
   if (process.env.NODE_ENV === 'development') {
     console.log('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
   }
-  
+
   if (weekEnded && !weekHasPicks) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="container mx-auto p-4 md:p-6">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-              <div className="flex items-center gap-4">
-                {isAdmin && (
-                  <Link href="/admin/dashboard">
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Back to Dashboard</span>
-                      <span className="sm:hidden">Back</span>
-                    </Button>
-                  </Link>
-                )}
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-6 w-6 text-blue-600" />
-                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
-                </div>
-              </div>
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+
+        {/* Hero */}
+        <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+          <div className="lp-inner">
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+              {poolName}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: text, textTransform: 'uppercase' }}>
+                {getWeekTitle()} <span style={{ color: gold }}>Picks</span>
+              </h1>
+              <WeekNav
+                currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+                onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
+                onCurrent={navigateToCurrentWeek}
+                onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+              />
             </div>
-            
-            {/* Pool Info */}
-            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-              <div className="space-y-4">
-                {/* Pool Header Row */}
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <Users className="h-5 w-5 text-gray-500" />
-                    <span className="font-semibold text-xl">{poolName}</span>
-                  </div>
-                  
-                  {/* Week Navigation - Centered horizontal layout */}
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { navigateToWeek(currentWeek - 1, currentSeasonType); }}
-                      disabled={currentSeasonType === 1 && currentWeek <= 1} // Only disabled at preseason week 1
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={
-                        currentSeasonType === 1 && currentWeek <= 1 ? "Already at earliest preseason week" :
-                        "Go to previous week/round"
-                      }
-                    >
-                      <ChevronLeft className="h-3 w-3" />
-                      <span className="hidden xs:inline">Previous Week</span>
-                      <span className="xs:hidden">Prev</span>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={navigateToCurrentWeek}
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title="Go to current/upcoming week"
-                    >
-                      <Calendar className="h-3 w-3" />
-                      <span className="hidden xs:inline">Current Week</span>
-                      <span className="xs:hidden">Current</span>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { navigateToWeek(currentWeek + 1, currentSeasonType); }}
-                      disabled={currentSeasonType === 3 && currentWeek >= 4} // Only disabled at Super Bowl (playoffs week 4)
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={
-                        currentSeasonType === 3 && currentWeek >= 4 ? "Already at latest playoff round (Super Bowl)" :
-                        "Go to next week/round"
-                      }
-                    >
-                      <span className="hidden xs:inline">Next Week</span>
-                      <span className="xs:hidden">Next</span>
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Week Info Row */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
-                  </div>
-                  <span className="text-sm text-gray-600">
-                      {games.length} games
-                    </span>
-                  {(() => {
-                      
-                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                        return (
-                      <Badge variant="secondary" className="text-xs px-2 py-1">
-                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                        </Badge>
-                      );
-                      })()}
-                </div>
-              </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{seasonTypeNames[seasonTypeParam ? parseInt(seasonTypeParam) : 2] || 'Regular'}</span>
             </div>
           </div>
+        </section>
+        <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-          {/* No Picks Available Message */}
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-8 w-8 text-gray-400" />
-              </div>
-              <CardTitle className="text-gray-900">Week {currentWeek} Not Available</CardTitle>
-              <CardDescription className="text-gray-600">
-                No picks were submitted for this week in {poolName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <div className="text-sm text-gray-500 space-y-2">
-                <p>This week has already ended, but no participants submitted picks.</p>
-                <p>This could happen if:</p>
-                <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
+        <section style={{ background: bg, padding: '2rem 0' }}>
+          <div className="lp-inner">
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+              <Calendar style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Week {currentWeek} Not Available</h2>
+              <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.5rem' }}>No picks were submitted for this week in {poolName}.</p>
+              <div style={{ ...b, fontSize: '0.82rem', color: textDim, textAlign: 'left', marginBottom: '1.5rem' }}>
+                <p style={{ marginBottom: '0.5rem' }}>This week has already ended, but no participants submitted picks. This could happen if:</p>
+                <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', listStyle: 'disc' }}>
                   <li>The pool was created after this week</li>
                   <li>No participants joined the pool for this week</li>
                   <li>All picks were deleted by an admin</li>
                 </ul>
               </div>
-              
-              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-                <Link href="/">
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Home
-                  </Button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <Link href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none' }}>
+                  <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Home
                 </Link>
                 {isAdmin && (
-                  <Link href="/admin/dashboard">
-                    <Button className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4" />
-                      Go to Dashboard
-                    </Button>
+                  <Link href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none' }}>
+                    <Trophy style={{ width: 13, height: 13 }} /> Go to Dashboard
                   </Link>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
 
-  // Show week winner when week has ended and there are picks
+  // ── WEEK ENDED — WITH WINNER ──────────────────────────────────────────────────
   debugLog('Early return check 2:', { weekEnded, weekHasPicks, weekWinner: !!weekWinner, condition: weekEnded && weekHasPicks && weekWinner });
   if (weekEnded && weekHasPicks && weekWinner) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="container mx-auto p-4 md:p-6">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-              <div className="flex items-center gap-4">
-                {isAdmin && (
-                  <Link href="/admin/dashboard">
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Back to Dashboard</span>
-                      <span className="sm:hidden">Back</span>
-                    </Button>
-                  </Link>
-                )}
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-6 w-6 text-blue-600" />
-                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
-                </div>
-              </div>
-            </div>
-            
-            {/* Pool Info */}
-            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-              <div className="space-y-4">
-                {/* Pool Header Row */}
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <Users className="h-5 w-5 text-gray-500" />
-                    <span className="font-semibold text-xl">{poolName}</span>
-                  </div>
-                  
-                  {/* Week Navigation - Centered horizontal layout */}
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { navigateToWeek(currentWeek - 1, currentSeasonType); }}
-                      disabled={
-                        (currentSeasonType === 1 && currentWeek <= 1)  // Preseason: can't go before week 1
-                      }
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={
-                        (currentSeasonType === 1 && currentWeek <= 1) ? "Already at earliest preseason week" :
-                        "Go to previous week/round"
-                      }
-                    >
-                      <ChevronLeft className="h-3 w-3" />
-                      <span className="hidden xs:inline">Previous Week</span>
-                      <span className="xs:hidden">Prev</span>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={navigateToCurrentWeek}
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title="Go to current/upcoming week"
-                    >
-                      <Calendar className="h-3 w-3" />
-                      <span className="hidden xs:inline">Current Week</span>
-                      <span className="xs:hidden">Current</span>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { navigateToWeek(currentWeek + 1, currentSeasonType); }}
-                      disabled={currentSeasonType === 3 && currentWeek >= 4}     // Playoffs: max round 4
-                      className="flex items-center gap-1 px-3 py-2 h-9"
-                      title={
-                        (currentSeasonType === 3 && currentWeek >= 4) ? "Already at latest playoff round" :
-                        "Go to next week/round"
-                      }
-                    >
-                      <span className="hidden xs:inline">Next Week</span>
-                      <span className="xs:hidden">Next</span>
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                                  {/* Week Info Row */}
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                      <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {games.length} games
-                    </span>
-                    {(() => {
-                        const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
-                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                        return (
-                        <Badge variant="secondary" className="text-xs px-2 py-1">
-                          {seasonTypeNames[seasonType as keyof typeof seasonTypeNames] || 'Unknown'}
-                        </Badge>
-                      );
-                      })()}
-                  </div>
-                  
-                  {/* Last Updated Timestamp */}
-                  <div className="text-center">
-                    <span className="text-xs text-gray-500">
-                      Last updated: {new Date().toLocaleTimeString()}
-                    </span>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
 
-          {/* Week Winner Announcement */}
-          <Card className="max-w-2xl mx-auto bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Crown className="h-10 w-10 text-yellow-600" />
-              </div>
-              <CardTitle className="text-yellow-900 text-2xl">Week {currentWeek} Winner!</CardTitle>
-              <CardDescription className="text-yellow-700 text-lg">
-                Congratulations to this week&apos;s winner!
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <div className="bg-white rounded-lg p-6 border border-yellow-200">
-                <div className="text-3xl font-bold text-yellow-800 mb-2">
-                  {weekWinner.participant_name}
-                </div>
-                <div className="text-lg text-yellow-700 mb-4">
-                  {weekWinner.points} points
-                </div>
-                <div className="text-sm text-gray-600">
-                  {weekWinner.correct_picks} correct picks out of {games.length} games
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Full Leaderboard */}
-          {showLeaderboard && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-600" />
-                  {getWeekTitle()} Final Results
-                </CardTitle>
-                <CardDescription>
-                  Complete standings for {poolName} - {getWeekTitle()}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Quarter Leaderboard - default visible */}
-          <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <Trophy className="h-6 w-6 text-blue-600" />
-                Current Quarter Standings
-              </CardTitle>
-              <CardDescription className="text-blue-700">
-                Live totals for the current period based on completed games
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <QuarterLeaderboard 
-                poolId={poolId}
-                season={poolSeason}
-                currentWeek={currentWeek}
-                seasonType={currentSeasonType}
+        {/* Hero */}
+        <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+          <div className="lp-inner">
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+              {poolName}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: text, textTransform: 'uppercase' }}>
+                {getWeekTitle()} <span style={{ color: gold }}>Final Results</span>
+              </h1>
+              <WeekNav
+                currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+                onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
+                onCurrent={navigateToCurrentWeek}
+                onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
               />
-            </CardContent>
-          </Card>
-
-          {/* Season Leaderboard - toggled */}
-          <div className="mt-4">
-            <details>
-              <summary className="cursor-pointer text-sm text-blue-800 hover:underline">Show Season Standings</summary>
-              <Card className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-900">
-                    <Trophy className="h-6 w-6 text-blue-600" />
-                    Season {poolSeason} Overall Standings
-                  </CardTitle>
-                  <CardDescription className="text-blue-700">
-                    Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <SeasonLeaderboard 
-                    poolId={poolId} 
-                    season={poolSeason} 
-                    currentWeek={currentWeek}
-                    currentSeasonType={currentSeasonType}
-                  />
-                </CardContent>
-              </Card>
-            </details>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
+              {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </div>
           </div>
+        </section>
+        <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
 
-          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
-          {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
-            <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-purple-900">
-                  <Crown className="h-6 w-6 text-purple-600" />
-                  Quarter Leaderboard
-                </CardTitle>
-                <CardDescription className="text-purple-700">
-                  {getWeekTitle()} is a tie-breaker week! View the complete quarter standings and winners.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType,currentWeek)}?seasonType=${currentSeasonType}`}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
-                  </Link>
-                  <div className="text-sm text-purple-600 flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} includes weeks: {getPeriodWeeks(currentSeasonType,currentWeek).join(', ')}
-                  </div>
+        <section style={{ background: bg, padding: '2rem 0' }}>
+          <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+            {/* Winner card */}
+            <div style={{ background: `linear-gradient(135deg, oklch(20% 0.04 72 / 0.6), oklch(18% 0.03 255))`, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderTop: `3px solid ${gold}`, borderRadius: 12, padding: '2rem', textAlign: 'center' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: `oklch(74% 0.16 72 / 0.15)`, border: `2px solid oklch(74% 0.16 72 / 0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                <Crown style={{ width: 32, height: 32, color: gold }} />
+              </div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Week {currentWeek} Winner</p>
+              <h2 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: text, textTransform: 'uppercase', lineHeight: 0.95, marginBottom: '0.75rem' }}>
+                {weekWinner.participant_name}
+              </h2>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 900, fontSize: '2rem', color: greenHi, lineHeight: 1 }}>{weekWinner.points}</div>
+                  <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>Points</div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600">Loading pool picks...</p>
+                <div style={{ width: 1, background: border, alignSelf: 'stretch' }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 900, fontSize: '2rem', color: greenHi, lineHeight: 1 }}>{weekWinner.correct_picks}</div>
+                  <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>Correct Picks / {games.length}</div>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-red-600">Error</CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button onClick={handleRetry} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
-              <Link href="/">
-                <Button>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Home
-                </Button>
-              </Link>
-            </div>
-            {process.env.NODE_ENV === 'development' && (
-              <div className="text-xs text-gray-500 mt-4 p-2 bg-gray-100 rounded">
-                <p><strong>Debug Info:</strong></p>
-                <p>Pool ID: {poolId || 'undefined'}</p>
-                <p>Week: {weekParam || 'undefined'}</p>
-                <p>Season Type: {seasonTypeParam || 'undefined'}</p>
+            {/* Full Leaderboard */}
+            {showLeaderboard && (
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Trophy style={{ width: 16, height: 16, color: gold }} />
+                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{getWeekTitle()} Final Results</span>
+                </div>
+                <div style={{ padding: '1.25rem' }}>
+                  <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+
+            {/* Quarter Leaderboard */}
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Trophy style={{ width: 16, height: 16, color: greenHi }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Quarter Standings</span>
+              </div>
+              <div style={{ padding: '1.25rem' }}>
+                <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+              </div>
+            </div>
+
+            {/* Season Leaderboard toggle */}
+            <details style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <summary style={{ padding: '1rem 1.25rem', cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Trophy style={{ width: 14, height: 14 }} /> Show Season {poolSeason} Standings
+              </summary>
+              <div style={{ borderTop: `1px solid ${border}`, padding: '1.25rem' }}>
+                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+              </div>
+            </details>
+
+            {/* Period leaderboard link */}
+            {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+              <div style={{ background: `oklch(65% 0.12 290 / 0.08)`, border: `1px solid oklch(65% 0.12 290 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <Crown style={{ width: 16, height: 16, color: purple }} />
+                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quarter Leaderboard</span>
+                </div>
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.75rem' }}>
+                  {getWeekTitle()} is a tie-breaker week! View the complete {currentSeasonType === 2 ? 'quarter' : 'playoffs'} standings.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <Link
+                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType, currentWeek)}?seasonType=${currentSeasonType}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: purple, color: text, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}
+                  >
+                    <ExternalLink style={{ width: 13, height: 13 }} />
+                    View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
+                  </Link>
+                  <span style={{ ...b, fontSize: '0.75rem', color: textDim, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Info style={{ width: 12, height: 12 }} />
+                    Includes weeks: {getPeriodWeeks(currentSeasonType, currentWeek).join(', ')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     );
   }
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Floating Back Button for Mobile - Only show if admin */}
-                {isAdmin && (
-      <div className="fixed top-4 left-4 z-50 sm:hidden">
-                  <Link href="/admin/dashboard">
-          <Button variant="outline" size="sm" className="shadow-lg">
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-      )}
 
-      {/* Floating Leaderboard Button for Mobile - Show when week has ended */}
-      {weekEnded && (
-        <div className="fixed top-4 right-4 z-50 sm:hidden">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowLeaderboard(!showLeaderboard)}
-            className="shadow-lg"
-          >
-            <BarChart3 className="h-4 w-4" />
-                  </Button>
-            </div>
-      )}
-      
-        <div className="container mx-auto p-4 md:p-6">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-              <div className="flex items-center gap-4">
-                {isAdmin && (
-                  <Link href="/admin/dashboard">
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Back to Dashboard</span>
-                      <span className="sm:hidden">Back</span>
-                    </Button>
-                  </Link>
-                )}
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-6 w-6 text-blue-600" />
-                  <h1 className="text-xl sm:text-2xl font-bold">NFL Confidence Pool</h1>
-                </div>
-              </div>
-            </div>
-            
-            {/* Pool Info */}
-            <div className="bg-white rounded-lg p-4 md:p-6 shadow-sm border">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span className="font-semibold text-lg">{poolName}</span>
-                  {isTestMode && (
-                    <Badge variant="secondary" className="text-xs">Test Mode</Badge>
-                  )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <Badge variant="outline" className="px-3 py-1">{getWeekTitle()}</Badge>
-                    <span className="text-sm text-gray-500">
-                      {games.length} games
-                    </span>
-                    {(() => {
-                      // Default to regular season for display
-                        const seasonTypeNames = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
-                        return (
-                        <Badge variant="secondary" className="text-xs">
-                          {seasonTypeNames[(seasonTypeParam ? parseInt(seasonTypeParam) : 2) as keyof typeof seasonTypeNames] || 'Unknown'}
-                        </Badge>
-                      );
-                      })()}
+  // ── MAIN PICKS PAGE ───────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: '100vh', background: bg }}>
+      <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+
+      {/* Hero */}
+      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            {poolName}
+            {isTestMode && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.08em', padding: '0.1rem 0.4rem', borderRadius: 4, background: `oklch(72% 0.16 60 / 0.2)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.4)`, textTransform: 'uppercase' }}>Test Mode</span>}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: text, textTransform: 'uppercase' }}>
+              {getWeekTitle()} <span style={{ color: gold }}>Picks</span>
+            </h1>
+            <WeekNav
+              currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+              onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
+              onCurrent={navigateToCurrentWeek}
+              onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+            />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{seasonTypeNames[seasonTypeParam ? parseInt(seasonTypeParam) : 2] || 'Regular'}</span>
+            {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
 
-                {/* Week Navigation - Always visible for all weeks */}
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
-                    disabled={currentSeasonType === 1 && currentWeek <= 1} // Only disabled at preseason week 1
-                    className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentSeasonType === 1 && currentWeek <= 1 ? "Already at earliest preseason week" : "Go to previous week/round"}
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                    <span className="hidden xs:inline">Previous Week</span>
-                    <span className="xs:hidden">Prev</span>
-                  </Button>
-                  
-                  <Button
-                    variant={currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType ? "default" : "outline"}
-                    size="sm"
-                    onClick={navigateToCurrentWeek}
-                    className={`flex items-center gap-1 px-3 py-2 h-9 ${
-                      currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType 
-                        ? "bg-blue-600 text-white hover:bg-blue-700" 
-                        : ""
-                    }`}
-                    title="Go to current/upcoming week"
-                  >
-                    <Calendar className="h-3 w-3" />
-                    <span className="hidden xs:inline">Current Week</span>
-                    <span className="xs:hidden">Current</span>
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
-                    disabled={currentSeasonType === 3 && currentWeek >= 4} // Only disabled at Super Bowl (playoffs week 4)
-                    className="flex items-center gap-1 px-3 py-2 h-9"
-                    title={currentSeasonType === 3 && currentWeek >= 4 ? "Already at latest playoff round (Super Bowl)" : "Go to next week/round"}
-                  >
-                    <span className="hidden xs:inline">Next Week</span>
-                    <span className="xs:hidden">Next</span>
-                    <ChevronRight className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                {lastUpdated && (
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    Last updated: {lastUpdated.toLocaleTimeString()}
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex flex-col lg:flex-row items-center gap-4">
-                {currentWeek === 1 && currentSeasonType === 2 && (
-                <div className="text-sm text-gray-600 text-center lg:text-right">
-                  <p>Welcome to the pool!</p>
-                  <p>Make your picks below to participate.</p>
-                </div>
-                )}
-                <div className="flex flex-wrap justify-center gap-2 max-w-full px-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleShare}
-                    className="flex items-center gap-2 min-w-fit px-3 py-2"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    <span className="hidden md:inline">Share</span>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowGameDetails(!showGameDetails);
-                      if (!showGameDetails) {
-                        setShowLeaderboard(false);
-                      }
-                    }}
-                    className="flex items-center gap-2 min-w-fit px-3 py-2"
-                  >
-                    {showGameDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    <span className="hidden md:inline">Game Details</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowQuickStats(!showQuickStats)}
-                    className="flex items-center gap-2 min-w-fit px-3 py-2"
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="hidden md:inline">Stats</span>
-                    </Button>
-                  {currentSeasonType === 3 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/pool/${poolId}/playoffs`)}
-                      className="flex items-center gap-2 min-w-fit px-3 py-2"
-                    >
-                      <Target className="h-4 w-4" />
-                      <span className="hidden md:inline">Confidence Points</span>
-                    </Button>
-                  )}
-
-                  {weekEnded && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowLeaderboard(!showLeaderboard)}
-                      className="flex items-center gap-2 min-w-fit px-3 py-2"
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                      <span className="hidden md:inline">{showLeaderboard ? 'Hide' : 'Show'} Leaderboard</span>
-                    </Button>
-                  )}
-
-                  {isAdmin && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleLogout}
-                      className="flex items-center gap-2 min-w-fit px-3 py-2"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span className="hidden md:inline">Log Out</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
+            {[
+              { label: 'Share', icon: Share2, onClick: handleShare },
+              { label: showGameDetails ? 'Hide Details' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => { setShowGameDetails(!showGameDetails); if (!showGameDetails) setShowLeaderboard(false); } },
+              { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
+              ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
+              ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard', icon: BarChart3, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
+            ].map(({ label, icon: Icon, onClick }) => (
+              <button key={label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <Icon style={{ width: 12, height: 12 }} /> {label}
+              </button>
+            ))}
           </div>
-
         </div>
+      </section>
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-        {/* Main Content */}
-        <div className="space-y-6">
+      {/* Main content */}
+      <section style={{ background: bg, padding: '1.5rem 0 3rem' }}>
+        <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
           {/* Quick Stats */}
           {showQuickStats && (
-            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-900">
-                  <Users className="h-5 w-5" />
-                  Pool Statistics
-                </CardTitle>
-                <CardDescription className="text-green-700">
-                  Current participation and submission status
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{participantCount}</div>
-                    <div className="text-sm text-green-700">Total Participants</div>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Users style={{ width: 15, height: 15, color: greenHi }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pool Statistics</span>
+              </div>
+              <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                {[
+                  { label: 'Total Participants', value: participantCount, color: greenHi },
+                  { label: 'Submitted', value: submittedCount, color: 'oklch(58% 0.15 250)' },
+                  { label: 'Pending', value: participantCount - submittedCount, color: amber },
+                  { label: 'Completion', value: `${participantCount > 0 ? Math.round((submittedCount / participantCount) * 100) : 0}%`, color: purple },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ textAlign: 'center' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{label}</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{submittedCount}</div>
-                    <div className="text-sm text-blue-700">Submitted Picks</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">{participantCount - submittedCount}</div>
-                    <div className="text-sm text-orange-700">Pending</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {participantCount > 0 ? Math.round((submittedCount / participantCount) * 100) : 0}%
-                    </div>
-                    <div className="text-sm text-purple-700">Completion Rate</div>
-                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '0 1.25rem 1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...b, fontSize: '0.75rem', color: textDim, marginBottom: '0.4rem' }}>
+                  <span>Submission Progress</span>
+                  <span style={{ color: textMid }}>{submittedCount} of {participantCount}</span>
                 </div>
-                <div className="mt-4 p-3 bg-white rounded-lg border">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Submission Progress:</span>
-                    <span className="font-medium">
-                      {submittedCount} of {participantCount} participants
-                    </span>
-                  </div>
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%` }}
-                    ></div>
-                  </div>
+                <div style={{ height: 6, background: 'oklch(26% 0.03 255)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: `linear-gradient(90deg, ${green}, oklch(58% 0.15 250))`, borderRadius: 3, width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%`, transition: 'width 0.3s ease' }} />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Game Stats */}
           {(() => {
             const stats = getGameStatusStats();
             if (!stats) return null;
-            
             return (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="text-center">
-                  <CardContent className="p-4">
-                    <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                    <div className="text-sm text-gray-600">Total Games</div>
-                  </CardContent>
-                </Card>
-                <Card className="text-center">
-                  <CardContent className="p-4">
-                    <div className="text-2xl font-bold text-green-600">{stats.upcoming}</div>
-                    <div className="text-sm text-gray-600">Upcoming</div>
-                  </CardContent>
-                </Card>
-                <Card className="text-center">
-                  <CardContent className="p-4">
-                    <div className="text-2xl font-bold text-orange-600">{stats.inProgress}</div>
-                    <div className="text-sm text-gray-600">In Progress</div>
-                  </CardContent>
-                </Card>
-                <Card className="text-center">
-                  <CardContent className="p-4">
-                    <div className="text-2xl font-bold text-gray-600">{stats.finished}</div>
-                    <div className="text-sm text-gray-600">Finished</div>
-                  </CardContent>
-                </Card>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                {[
+                  { label: 'Total', value: stats.total, color: 'oklch(58% 0.15 250)' },
+                  { label: 'Upcoming', value: stats.upcoming, color: greenHi },
+                  { label: 'In Progress', value: stats.inProgress, color: amber },
+                  { label: 'Finished', value: stats.finished, color: textMid },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem', textAlign: 'center' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{label}</div>
+                  </div>
+                ))}
               </div>
             );
           })()}
 
           {/* Countdown Timer */}
           {countdown && countdown !== 'Games Started' && (
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-center gap-3">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-900">
-                      Picks Close In: {countdown}
-                    </div>
-                    <div className="text-sm text-blue-700">
-                      Make sure to submit your picks before kickoff
-                    </div>
-                  </div>
+            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.3)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                <Clock style={{ width: 18, height: 18, color: 'oklch(68% 0.12 250)', flexShrink: 0 }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: 'oklch(75% 0.12 250)' }}>Picks Close In: {countdown}</div>
+                  <div style={{ ...b, fontSize: '0.78rem', color: textMid }}>Make sure to submit your picks before kickoff</div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Games Started Warning */}
           {countdown === 'Games Started' && (
-            <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-red-900">
-                      Games Have Started!
-                    </div>
-                    <div className="text-sm text-red-700">
-                      All picks are now locked
-                    </div>
-                  </div>
+            <div style={{ background: `oklch(62% 0.22 25 / 0.1)`, border: `1px solid oklch(62% 0.22 25 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                <AlertTriangle style={{ width: 18, height: 18, color: liveRed, flexShrink: 0 }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: liveRed }}>Games Have Started!</div>
+                  <div style={{ ...b, fontSize: '0.78rem', color: textMid }}>All picks are now locked</div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Game Details Toggle */}
           {showGameDetails && games.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Week {currentWeek} Game Details
-                </CardTitle>
-                <CardDescription>
-                  Detailed view of all games and their status
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {games.map((game, index) => {
-                    const gameTime = new Date(game.kickoff_time);
-                    const now = new Date();
-                    const timeDiff = gameTime.getTime() - now.getTime();
-                    const isLocked = timeDiff <= 0;
-                    const isUpcoming = timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
-                    
-                    return (
-                      <div key={game.id} className={`p-3 border rounded-lg ${isLocked ? 'bg-gray-50' : isUpcoming ? 'bg-orange-50' : 'bg-green-50'}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold text-sm">Game {index + 1}</span>
-                              {isLocked && <Badge variant="secondary" className="text-xs">Locked</Badge>}
-                              {isUpcoming && <Badge variant="secondary" className="text-xs text-orange-600">Upcoming</Badge>}
-                              {!isLocked && !isUpcoming && <Badge variant="secondary" className="text-xs text-green-600">Available</Badge>}
-                            </div>
-                            <div className="text-sm font-medium">
-                              {game.away_team} @ {game.home_team}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {game.winner && (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
-                                Winner: {game.winner}
-                              </Badge>
-                            )}
-                          </div>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Target style={{ width: 15, height: 15, color: textMid }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Game Details</span>
+              </div>
+              <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {games.map((game, index) => {
+                  const gameTime = new Date(game.kickoff_time);
+                  const now = new Date();
+                  const timeDiff = gameTime.getTime() - now.getTime();
+                  const isLocked = timeDiff <= 0;
+                  const isUpcoming = timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
+
+                  return (
+                    <div key={game.id} style={{ background: surface, border: `1px solid ${isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                          <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim }}>Game {index + 1}</span>
+                          {isLocked && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`, textTransform: 'uppercase' }}>Locked</span>}
+                          {isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase' }}>Upcoming</span>}
+                          {!isLocked && !isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(46% 0.14 155 / 0.15)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, textTransform: 'uppercase' }}>Available</span>}
                         </div>
+                        <div style={{ ...b, fontWeight: 600, fontSize: '0.85rem', color: text }}>{game.away_team} @ {game.home_team}</div>
+                        <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>{gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                      {game.winner && (
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: `oklch(46% 0.14 155 / 0.2)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, textTransform: 'uppercase', flexShrink: 0 }}>
+                          Winner: {game.winner}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
-          {/* Debug Info - Only show in development */}
+          {/* Debug Info */}
           {process.env.NODE_ENV === 'development' && (
-            <Card className="bg-blue-50 border-blue-200">
-              <CardHeader>
-                <CardTitle className="text-blue-900 text-sm">Debug Info</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-blue-800 space-y-1">
-                <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'}</p>
-                <p><strong>Games Count:</strong> {games.length}</p>
-                <p><strong>Current Time:</strong> {new Date().toISOString()}</p>
-                <p><strong>First Game Time:</strong> {games.length > 0 ? new Date(games[0].kickoff_time).toISOString() : 'N/A'}</p>
-                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'}</p>
-                <p><strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
-                <p><strong>Show Leaderboard:</strong> {showLeaderboard ? 'Yes' : 'No'}</p>
-                <p><strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'}</p>
-                <p><strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
-                <p><strong>Week Winner:</strong> {weekWinner ? `${weekWinner.participant_name} (${weekWinner.points} pts)` : 'None'}</p>
-                <p><strong>Is Loading:</strong> {isLoading ? 'Yes' : 'No'}</p>
-                <p><strong>Error:</strong> {error || 'None'}</p>
-                <p><strong>Pool ID:</strong> {poolId || 'None'}</p>
-                <p><strong>Week:</strong> {currentWeek}</p>
-                <p><strong>Season Type:</strong> {currentSeasonType}</p>
-                <p><strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}</p>
-              </CardContent>
-            </Card>
+            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
+              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'} | <strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'} | <strong>Games:</strong> {games.length}</p>
+                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'} | <strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
+                <p><strong>Leaderboard:</strong> {showLeaderboard ? 'Shown' : 'Hidden'} | <strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
+                <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
+              </div>
+            </div>
           )}
 
-
-          {/* Show Leaderboard when games have started, otherwise show picks */}
+          {/* Dev main section reached */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800">
+            <div style={{ background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
+              <p style={{ ...b, fontSize: '0.78rem', color: greenHi }}>
                 <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}, Week ended: {weekEnded ? 'Yes' : 'No'}
               </p>
             </div>
           )}
-          
-          {/* Show Leaderboard when week has ended */}
+
+          {/* Week Ended: Final Results */}
           {weekEnded && (
-            <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center gap-2 text-yellow-900 text-2xl">
-                  <Crown className="h-6 w-6" />
-                  Week {currentWeek} Final Results
-                </CardTitle>
-                <CardDescription className="text-yellow-700 text-lg">
-                  {weekHasPicks 
+            <div style={{ background: `linear-gradient(135deg, oklch(20% 0.04 72 / 0.4), oklch(18% 0.03 255))`, border: `1px solid oklch(74% 0.16 72 / 0.3)`, borderTop: `3px solid ${gold}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1.25rem', textAlign: 'center', borderBottom: `1px solid oklch(74% 0.16 72 / 0.2)` }}>
+                <Crown style={{ width: 28, height: 28, color: gold, margin: '0 auto 0.5rem' }} />
+                <h2 style={{ ...bc, fontWeight: 900, fontSize: '1.25rem', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Week {currentWeek} Final Results</h2>
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                  {weekHasPicks
                     ? `The week has ended! Here are the final standings for ${poolName}`
-                    : `Week ${currentWeek} has ended. No picks were submitted for this week.`
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+                    : `Week ${currentWeek} has ended. No picks were submitted for this week.`}
+                </p>
+              </div>
+              <div style={{ padding: '1.25rem' }}>
                 {weekHasPicks ? (
                   <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Calendar className="h-12 w-12 mx-auto mb-2" />
-                    <p className="text-lg font-medium">No Results Available</p>
-                    <p className="text-sm">This week ended without any submitted picks</p>
+                  <div style={{ textAlign: 'center', padding: '2rem', color: textDim }}>
+                    <Calendar style={{ width: 40, height: 40, margin: '0 auto 0.5rem', color: textDim }} />
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid, textTransform: 'uppercase' }}>No Results Available</p>
+                    <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>This week ended without any submitted picks</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
-          {/* Season Leaderboard - Show accumulated scores across all weeks */}
+          {/* Week Ended: Season Leaderboard */}
           {weekEnded && (
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-900">
-                  <Trophy className="h-6 w-6 text-blue-600" />
-                  Season {poolSeason} Overall Standings
-                </CardTitle>
-                <CardDescription className="text-blue-700">
-                  Total accumulated scores up to Week {currentWeek} ({currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason'})
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SeasonLeaderboard 
-                  poolId={poolId} 
-                  season={poolSeason} 
-                  currentWeek={currentWeek}
-                  currentSeasonType={currentSeasonType}
-                />
-              </CardContent>
-            </Card>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Trophy style={{ width: 15, height: 15, color: greenHi }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Season {poolSeason} Overall Standings</span>
+                <span style={{ ...b, fontSize: '0.75rem', color: textDim, marginLeft: 'auto' }}>Up to Week {currentWeek}</span>
+              </div>
+              <div style={{ padding: '1.25rem' }}>
+                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+              </div>
+            </div>
           )}
 
-          {/* Manual Leaderboard Toggle - Show when week has ended and user wants to see it */}
+          {/* Week Ended: Leaderboard (manual toggle) */}
           {weekEnded && showLeaderboard && weekHasPicks && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-600" />
-                  Week {currentWeek} Leaderboard
-                </CardTitle>
-                <CardDescription>
-                  Final standings for {poolName} - Week {currentWeek}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Trophy style={{ width: 15, height: 15, color: gold }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Leaderboard</span>
+              </div>
+              <div style={{ padding: '1.25rem' }}>
                 <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
-          {/* Period Leaderboard Link - Show when current week is a tie-breaker week */}
+          {/* Period Leaderboard Link */}
           {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
-            <Card className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-purple-900">
-                  <Crown className="h-6 w-6 text-purple-600" />
-                  Quarter Leaderboard
-                </CardTitle>
-                  <CardDescription className="text-purple-700">
-                    {currentSeasonType === 3
-                      ? 'Super Bowl'
-                      : `Week ${currentWeek}`
-                    } is a tie-breaker week! View the complete {currentSeasonType === 2 ? 'quarter' : 'playoffs'} standings and winners.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link 
-                    href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType,currentWeek)}?seasonType=${currentSeasonType}`}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
-                  </Link>
-                  <div className="text-sm text-purple-600 flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} includes weeks: {getPeriodWeeks(currentSeasonType,currentWeek).join(', ')}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div style={{ background: `oklch(65% 0.12 290 / 0.08)`, border: `1px solid oklch(65% 0.12 290 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <Crown style={{ width: 15, height: 15, color: purple }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quarter Leaderboard</span>
+              </div>
+              <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.75rem' }}>
+                {currentSeasonType === 3 ? 'Super Bowl' : `Week ${currentWeek}`} is a tie-breaker week! View the complete {currentSeasonType === 2 ? 'quarter' : 'playoffs'} standings and winners.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <Link
+                  href={`/periods/${poolId}/${poolSeason}/${getPeriodNumber(currentSeasonType, currentWeek)}?seasonType=${currentSeasonType}`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.9rem', background: purple, color: text, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}
+                >
+                  <ExternalLink style={{ width: 12, height: 12 }} />
+                  View {currentSeasonType === 2 ? 'Quarter' : 'Playoffs'} Leaderboard
+                </Link>
+                <span style={{ ...b, fontSize: '0.73rem', color: textDim, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Info style={{ width: 12, height: 12 }} />
+                  Includes weeks: {getPeriodWeeks(currentSeasonType, currentWeek).join(', ')}
+                </span>
+              </div>
+            </div>
           )}
-          
+
+          {/* ── GAMES STARTED — not ended ─────────────────────────────── */}
           {gamesStarted && !weekEnded ? (
             <>
-              {/* Leaderboard Section - Only show when everyone has submitted */}
               {submittedCount >= participantCount ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-yellow-600" />
-                      Week {currentWeek} Leaderboard
-                    </CardTitle>
-                    <CardDescription>
-                      Current standings for {poolName} - Games are in progress
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Leaderboard
-                      poolId={poolId}
-                      weekNumber={currentWeek}
-                      seasonType={currentSeasonType}
-                      season={poolSeason}
-                    />
-                  </CardContent>
-                </Card>
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Trophy style={{ width: 15, height: 15, color: gold }} />
+                    <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Leaderboard</span>
+                    <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto' }}>Games in progress</span>
+                  </div>
+                  <div style={{ padding: '1.25rem' }}>
+                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                  </div>
+                </div>
               ) : (
-                <Card className="bg-orange-50 border-orange-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-800">
-                      <Clock className="h-5 w-5" />
-                      Waiting for All Submissions
-                    </CardTitle>
-                    <CardDescription className="text-orange-700">
-                      {submittedCount} of {participantCount} participants have submitted picks
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-4">
-                      <p className="text-orange-600 mb-3">
-                        The leaderboard will be available once all participants submit their picks
-                      </p>
-                      <div className="w-full bg-orange-200 rounded-full h-2">
-                        <div
-                          className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%`,
-                          }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-orange-600 mt-2">
-                        {participantCount - submittedCount} participants still need to submit
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div style={{ background: `oklch(72% 0.16 60 / 0.08)`, border: `1px solid oklch(72% 0.16 60 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <Clock style={{ width: 15, height: 15, color: amber }} />
+                    <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Waiting for All Submissions</span>
+                  </div>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.85rem' }}>{submittedCount} of {participantCount} participants have submitted picks</p>
+                  <div style={{ height: 6, background: 'oklch(26% 0.03 255)', borderRadius: 3, overflow: 'hidden', marginBottom: '0.4rem' }}>
+                    <div style={{ height: '100%', background: amber, borderRadius: 3, width: `${participantCount > 0 ? (submittedCount / participantCount) * 100 : 0}%`, transition: 'width 0.3s ease' }} />
+                  </div>
+                  <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                    The leaderboard will be available once all participants submit. {participantCount - submittedCount} still pending.
+                  </p>
+                </div>
               )}
             </>
+
           ) : !weekEnded && !gamesStarted ? (
             <>
               {submittedCount >= participantCount ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-yellow-600" />
-                      Week {currentWeek} Leaderboard
-                    </CardTitle>
-                    <CardDescription>
-                      Current standings for {poolName} - Games are in progress
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Leaderboard
-                      poolId={poolId}
-                      weekNumber={currentWeek}
-                      seasonType={currentSeasonType}
-                      season={poolSeason}
-                    />
-                  </CardContent>
-                </Card>
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Trophy style={{ width: 15, height: 15, color: gold }} />
+                    <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Leaderboard</span>
+                    <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto' }}>Games in progress</span>
+                  </div>
+                  <div style={{ padding: '1.25rem' }}>
+                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                  </div>
+                </div>
               ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-blue-600" />
-                      Week {currentWeek} Picks
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedUser && hasSubmitted[selectedUser.id]?.submitted
-                        ? "You have already submitted your picks for this week. Only admins can unlock your picks to make changes."
-                        : "Select the winner for each game and assign confidence points"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                /* ── MAIN PICKS CARD ─────────────────────────────────── */
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Zap style={{ width: 15, height: 15, color: greenHi }} />
+                    <div>
+                      <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Week {currentWeek} Picks</span>
+                      <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                        {selectedUser && hasSubmitted[selectedUser.id]?.submitted
+                          ? 'You have already submitted your picks for this week. Only admins can unlock your picks to make changes.'
+                          : 'Select the winner for each game and assign confidence points'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ padding: '1.25rem' }}>
                     {selectedUser ? (
                       hasSubmitted[selectedUser.id]?.submitted ? (
-                        <div className="text-center py-8">
-                          <div className="text-gray-500 mb-4">
-                            <Lock className="h-12 w-12 mx-auto mb-2" />
-                            <p className="text-lg font-medium">Picks Submitted</p>
-                            <p className="text-sm">Your picks are locked for this week</p>
-                          </div>
+                        <div style={{ textAlign: 'center', padding: '2rem' }}>
+                          <Lock style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+                          <p style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Picks Submitted</p>
+                          <p style={{ ...b, fontSize: '0.82rem', color: textDim, marginBottom: '1.25rem' }}>Your picks are locked for this week</p>
                           {(isPoolAdmin || isSuperAdmin) && (
-                            <Button
+                            <button
                               onClick={() => unlockParticipantPicks(selectedUser.id)}
-                              variant="outline"
-                              className="flex items-center gap-2"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                             >
-                              <Unlock className="h-4 w-4" />
-                              Unlock Picks
-                            </Button>
+                              <Unlock style={{ width: 13, height: 13 }} /> Unlock Picks
+                            </button>
                           )}
                         </div>
                       ) : games.length > 0 ? (
                         <div>
-                          {process.env.NODE_ENV === "development" && (
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div className="text-sm text-blue-800">
-                                <span className="font-bold">User Selected:</span>{" "}
-                                {selectedUser.name} (ID: {selectedUser.id})
-                              </div>
-                              <div className="text-sm text-blue-700">
-                                Pool: {poolId} | Week: {currentWeek} | Season Type:{" "}
-                                {currentSeasonType}
-                              </div>
-                              <div className="text-sm text-blue-600">
-                                <span className="font-bold">Submission Status:</span>{" "}
-                                {hasSubmitted[selectedUser.id]?.submitted
-                                  ? "Submitted"
-                                  : "Not Submitted"}
-                              </div>
-                              <div className="text-sm text-blue-800">
-                                <span className="font-bold">All Users Status:</span>{" "}
-                                {JSON.stringify(hasSubmitted)}
+                          {process.env.NODE_ENV === 'development' && (
+                            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 6 }}>
+                              <div style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <p><strong>User:</strong> {selectedUser.name} (ID: {selectedUser.id})</p>
+                                <p><strong>Pool:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
+                                <p><strong>Submission Status:</strong> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}</p>
+                                <p><strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}</p>
                               </div>
                             </div>
                           )}
@@ -2366,34 +1738,27 @@ function PoolPicksContent() {
                           />
                         </div>
                       ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          No games found for Week {currentWeek}
+                        <div style={{ textAlign: 'center', padding: '2rem', color: textDim }}>
+                          <p style={{ ...b, fontSize: '0.85rem' }}>No games found for Week {currentWeek}</p>
                         </div>
                       )
                     ) : (
                       <div>
                         {Object.keys(hasSubmitted).length > 0 && (
-                          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="text-sm text-green-800 text-center mb-3">
-                              <span className="font-bold">Picks submitted successfully!</span>{" "}
-                              Best of luck this week!
-                            </div>
-                            <div className="flex flex-col items-center gap-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
+                          <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1rem', background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: 8 }}>
+                            <p style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: greenHi, textAlign: 'center', marginBottom: '0.6rem' }}>
+                              Picks submitted successfully! Best of luck this week!
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <button
                                 onClick={() => setShowLeaderboard(true)}
-                                className="text-xs"
                                 disabled={submittedCount < participantCount}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: 'transparent', color: submittedCount < participantCount ? textDim : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: submittedCount < participantCount ? 'not-allowed' : 'pointer', opacity: submittedCount < participantCount ? 0.5 : 1 }}
                               >
-                                <BarChart3 className="h-3 w-3 mr-1" />
+                                <BarChart3 style={{ width: 12, height: 12 }} />
                                 View Leaderboard
-                                {submittedCount < participantCount && (
-                                  <span className="ml-1 text-xs">
-                                    ({submittedCount}/{participantCount})
-                                  </span>
-                                )}
-                              </Button>
+                                {submittedCount < participantCount && ` (${submittedCount}/${participantCount})`}
+                              </button>
                             </div>
                           </div>
                         )}
@@ -2405,24 +1770,21 @@ function PoolPicksContent() {
                         />
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
 
-              {/* Your Picks Section - Show when games haven't started and user has picks */}
+              {/* Submitted picks viewer */}
               {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Eye className="h-5 w-5 text-blue-600" />
-                      Your Picks for Week {currentWeek}
-                    </CardTitle>
-                    <CardDescription>
-                      Review your submitted picks for this week (picks are locked until
-                      games start)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Eye style={{ width: 15, height: 15, color: 'oklch(58% 0.15 250)' }} />
+                    <div>
+                      <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Your Picks for Week {currentWeek}</span>
+                      <span style={{ ...b, fontSize: '0.73rem', color: textDim }}>Review your submitted picks (locked until games start)</span>
+                    </div>
+                  </div>
+                  <div style={{ padding: '1.25rem' }}>
                     <RecentPicksViewer
                       poolId={poolId}
                       participantId={selectedUser.id}
@@ -2433,96 +1795,73 @@ function PoolPicksContent() {
                       canUnlock={isPoolAdmin || isSuperAdmin}
                       onUnlock={unlockParticipantPicks}
                     />
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
             </>
           ) : null}
 
-
-          {/* Week Ended Message - Show when week has ended */}
+          {/* Week Ended Message */}
           {weekEnded && (
-            <Card className="bg-gray-50 border-gray-200">
-              <CardContent className="p-6 text-center">
-                <div className="text-gray-500 mb-4">
-                  <Calendar className="h-12 w-12 mx-auto mb-2" />
-                  <p className="text-lg font-medium">Week {currentWeek} Has Ended</p>
-                  <p className="text-sm">Picks are no longer available for this week</p>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p>The leaderboard above shows the final results for this week.</p>
-                  <p>Check back next week for new picks!</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.5rem', textAlign: 'center' }}>
+              <Calendar style={{ width: 36, height: 36, color: textDim, margin: '0 auto 0.6rem' }} />
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Week {currentWeek} Has Ended</p>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Picks are no longer available for this week. Check back next week for new picks!</p>
+            </div>
           )}
         </div>
-      </div>
+      </section>
 
-
-
-      {/* Recent Picks Section - Show when requested */}
+      {/* Recent Picks Dialog */}
       {showRecentPicks && (
         <Dialog open={showRecentPicks} onOpenChange={setShowRecentPicks}>
-          <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent style={{ background: card, border: `1px solid ${border}`, maxWidth: '56rem', maxHeight: '80vh', overflowY: 'auto' }}>
             <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
-                <Eye className="h-5 w-5 text-blue-600" />
-                {selectedUser && hasSubmitted[selectedUser.id]?.submitted 
+              <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Eye style={{ width: 16, height: 16, color: 'oklch(58% 0.15 250)' }} />
+                {selectedUser && hasSubmitted[selectedUser.id]?.submitted
                   ? `${selectedUser.name}'s Submitted Picks for Week ${currentWeek}`
-                  : `Submitted Picks for Week ${currentWeek}`
-                }
+                  : `Submitted Picks for Week ${currentWeek}`}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription style={{ ...b, fontSize: '0.82rem', color: textDim }}>
                 {selectedUser && hasSubmitted[selectedUser.id]?.submitted
                   ? `Review ${selectedUser.name}'s picks for this week`
-                  : "Review all submitted picks for this week"
-                }
+                  : 'Review all submitted picks for this week'}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {selectedUser && hasSubmitted[selectedUser.id]?.submitted ? (
-                // Show picks for the currently selected user
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-semibold mb-2">User: {selectedUser.name}</h3>
+                <div style={{ padding: '1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
+                  <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.75rem' }}>User: {selectedUser.name}</h3>
                   <RecentPicksViewer
-                    poolId={poolId}
-                    participantId={selectedUser.id}
-                    participantName={selectedUser.name}
-                    weekNumber={currentWeek}
-                    seasonType={currentSeasonType}
-                    games={games}
-                    canUnlock={isPoolAdmin || isSuperAdmin}
-                    onUnlock={unlockParticipantPicks}
+                    poolId={poolId} participantId={selectedUser.id} participantName={selectedUser.name}
+                    weekNumber={currentWeek} seasonType={currentSeasonType} games={games}
+                    canUnlock={isPoolAdmin || isSuperAdmin} onUnlock={unlockParticipantPicks}
                   />
                 </div>
               ) : (
-                // Show all submitted picks
                 Object.entries(hasSubmitted).map(([userId, data]) => {
                   if (!data.submitted) return null;
-                  
                   return (
-                    <div key={userId} className="p-4 border rounded-lg">
-                      <h3 className="font-semibold mb-2">User: {data.name}</h3>
+                    <div key={userId} style={{ padding: '1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
+                      <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.75rem' }}>User: {data.name}</h3>
                       <RecentPicksViewer
-                        poolId={poolId}
-                        participantId={userId}
-                        participantName={data.name}
-                        weekNumber={currentWeek}
-                        seasonType={currentSeasonType}
-                        games={games}
-                        canUnlock={isPoolAdmin || isSuperAdmin}
-                        onUnlock={unlockParticipantPicks}
+                        poolId={poolId} participantId={userId} participantName={data.name}
+                        weekNumber={currentWeek} seasonType={currentSeasonType} games={games}
+                        canUnlock={isPoolAdmin || isSuperAdmin} onUnlock={unlockParticipantPicks}
                       />
                     </div>
                   );
                 })
               )}
             </div>
-            <div className="flex justify-end pt-4">
-              <Button onClick={() => setShowRecentPicks(false)}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem' }}>
+              <button
+                onClick={() => setShowRecentPicks(false)}
+                style={{ padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
                 Close
-              </Button>
+              </button>
             </div>
           </DialogContent>
         </Dialog>
@@ -2530,20 +1869,23 @@ function PoolPicksContent() {
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, maxWidth: '28rem' }}>
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-green-500" />
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Trophy style={{ width: 16, height: 16, color: greenHi }} />
               Picks Submitted Successfully!
             </DialogTitle>
-            <DialogDescription className="text-sm sm:text-base">
+            <DialogDescription style={{ ...b, fontSize: '0.85rem', color: textMid }}>
               Your picks for Week {currentWeek} have been submitted. Best of luck!
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end">
-            <Button onClick={() => setShowSuccessDialog(false)}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
+            <button
+              onClick={() => setShowSuccessDialog(false)}
+              style={{ padding: '0.5rem 1.25rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
               Close
-            </Button>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
@@ -2554,18 +1896,15 @@ function PoolPicksContent() {
 export default function PoolPicksPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600">Loading...</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div style={{ minHeight: '100vh', background: 'oklch(13% 0.025 255)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 10, padding: '2rem', width: '100%', maxWidth: 400, textAlign: 'center' }}>
+          <div style={{ width: 32, height: 32, border: '3px solid oklch(46% 0.14 155)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 0.75rem' }} />
+          <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>Loading…</p>
+        </div>
       </div>
     }>
       <PoolPicksContent />
+      <Footer pageName='Pick Selection' />
     </Suspense>
   );
 }

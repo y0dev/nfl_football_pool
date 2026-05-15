@@ -13,9 +13,10 @@ export async function GET(
       pool: DUMMY_POOL
     });
   }
-  
+
   try {
     const { id: poolId } = await params;
+    console.log(`Received request for pool ID: ${poolId}`);
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
@@ -27,7 +28,6 @@ export async function GET(
       .from('pools')
       .select('id, name, season, is_active, created_by, created_at, tie_breaker_method, tie_breaker_question, tie_breaker_answer')
       .eq('id', poolId)
-      .eq('is_active', true)
       .single();
 
     if (poolError) {
@@ -74,7 +74,7 @@ export async function GET(
         console.error('Error fetching picks:', error);
       }
     }
-
+    
     // Only return public pool information (exclude sensitive fields)
     const publicPool = {
       id: pool.id,

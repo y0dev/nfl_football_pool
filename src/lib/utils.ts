@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Returns true when the current date falls in the NFL offseason.
+ * Offseason: February 10 (day after the Super Bowl window closes) through July 31.
+ * In-season: August 1 through February 9.
+ */
+export function isOffseason(date: Date = new Date()): boolean {
+  const month = date.getMonth() + 1; // convert 0-indexed to 1-indexed
+  const day = date.getDate();
+  return (month === 2 && day >= 10) || (month >= 3 && month <= 7);
+}
+
 // Rank icon and color utilities for leaderboards
 export const getRankIcon = (index: number) => {
   switch (index) {
@@ -49,7 +60,7 @@ export function createPageUrl(page: string): string {
     case "admindashboard":
       return "/admin/dashboard";
     case "adminpools":
-      return "/pools";
+      return "/admin/pools";
     case "adminnflsync":
       return "/admin/nfl-sync";
     case "overridepicks":
@@ -62,7 +73,7 @@ export function createPageUrl(page: string): string {
     case "register":
       return "/register";
     case "adminlogin":
-      return "/admin/login";
+      return "/login";
     case "invite":
       return "/invite";
     case "login":
@@ -136,6 +147,24 @@ export function getNFLSeasonYear(): number {
 export const DEFAULT_POOL_SEASON = getNFLSeasonYear();
 export const DEFAULT_POOL_IS_ACTIVE = true;
 export const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
+
+export const SEASON_SCOPE_OPTIONS = [
+  { value: 'regular',           label: 'Regular Season Only',    desc: 'Weeks 1–18',                     types: [2] },
+  { value: 'preseason',         label: 'Preseason Only',         desc: 'Weeks 1–4 preseason',            types: [1] },
+  { value: 'playoffs',          label: 'Playoffs Only',          desc: 'Postseason bracket',             types: [3] },
+  { value: 'preseason_regular', label: 'Preseason + Regular',    desc: 'All preseason + weeks 1–18',    types: [1, 2] },
+  { value: 'regular_playoffs',  label: 'Regular + Playoffs',     desc: 'Weeks 1–18 + postseason',       types: [2, 3] },
+  { value: 'full',              label: 'Full Season',            desc: 'Preseason, regular, & playoffs', types: [1, 2, 3] },
+] as const;
+
+export type SeasonScopeValue = typeof SEASON_SCOPE_OPTIONS[number]['value'];
+
+export function seasonTypesToScopeValue(types: number[]): SeasonScopeValue {
+  const sorted = [...types].sort((a, b) => a - b);
+  return SEASON_SCOPE_OPTIONS.find(
+    o => JSON.stringify([...o.types].sort()) === JSON.stringify(sorted)
+  )?.value ?? 'regular';
+}
 
 // Game Configuration
 export const MAX_WEEKS_PRESEASON = 4;
@@ -377,22 +406,27 @@ export function getPlayoffRoundName(week: number): string {
  * @returns A formatted string representing the week/round title
  */
 export function getWeekTitle(week: number, seasonType: number): string {
-  if (seasonType === 3) {
-    // Playoff rounds
-    const roundNames: Record<number, string> = {
-      1: 'Wild Card Round',
-      2: 'Divisional Round',
-      3: 'Conference Championships',
-      4: 'Super Bowl',
-    };
-    return roundNames[week] || `Playoff Round ${week}`;
-  } else if (seasonType === 1) {
-    // Preseason
-    return `Preseason Week ${week}`;
-  } else {
-    // Regular Season
+  if (!isOffseason()) {
+    if (seasonType === 3) {
+      const roundNames: Record<number, string> = {
+        1: "Wild Card Round",
+        2: "Divisional Round",
+        3: "Conference Championships",
+        4: "Super Bowl",
+      };
+
+      return roundNames[week] ?? `Playoff Round ${week}`;
+    }
+
+    if (seasonType === 1) {
+      return `Preseason Week ${week}`;
+    }
+
     return `Week ${week}`;
   }
+
+  return "Offseason";
+  
 }
 
 /**

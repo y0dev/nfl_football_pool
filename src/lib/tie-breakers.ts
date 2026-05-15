@@ -238,8 +238,15 @@ async function applySecondaryTieBreakerCascade(
           rankOffset++;
         } else {
           // Recursively apply tie breakers to this group
+          // Convert TieBreakerResult[] back to participant format for secondary tie breakers
+          const participantsForSecondary = group.map(p => ({
+            participant_id: p.participant_id,
+            participant_name: p.participant_name,
+            points: 0, // We don't have the original points here, but secondary tie breakers don't need them
+            correct_picks: 0
+          }));
           const subResults = await applySecondaryTieBreakerCascade(
-            poolId, week, season, group, settings
+            poolId, week, season, participantsForSecondary, settings
           );
           
           // Assign ranks to sub-results
@@ -262,7 +269,9 @@ async function applySecondaryTieBreakerCascade(
 
   // If all methods fail, assign random ranks (shouldn't happen in practice)
   return tiedParticipants.map((p, index) => ({
-    ...p,
+    participant_id: p.participant_id,
+    participant_name: p.participant_name,
+    tie_breaker_value: 0, // Random, so value doesn't matter
     tie_breaker_rank: index + 1
   }));
 }
@@ -605,15 +614,15 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
       .from('pools')
       .select('tie_breaker_method, tie_breaker_question, tie_breaker_answer, monday_night_game_id')
       .eq('id', poolId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 
     return {
-      method: pool.tie_breaker_method || 'total_points',
-      question: pool.tie_breaker_question,
-      answer: pool.tie_breaker_answer,
-      monday_night_game_id: pool.monday_night_game_id
+      method: pool?.tie_breaker_method || 'total_points',
+      question: pool?.tie_breaker_question,
+      answer: pool?.tie_breaker_answer,
+      monday_night_game_id: pool?.monday_night_game_id
     };
   } catch (error) {
     console.error('Error getting tie-breaker settings:', error);

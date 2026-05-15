@@ -110,7 +110,7 @@ const TEST_CONFIG = {
 };
 
 async function createTestData() {
-  console.log('🧪 Creating test data for NFL Confidence Pool...');
+  console.log('🧪 Creating test data for Sunday Huddle...');
   console.log('');
 
   try {

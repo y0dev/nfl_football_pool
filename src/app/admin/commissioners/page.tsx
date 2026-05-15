@@ -1,750 +1,329 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  ArrowLeft,
-  Search,
-  Users,
-  Shield,
-  Eye,
-  EyeOff,
-  Trash2,
-  Mail,
-  RefreshCw,
-  Key,
-  UserX,
-  UserCheck,
-  AlertTriangle
+import {
+  ArrowLeft, Search, Users, Eye, EyeOff,
+  RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, Admin } from '@/lib/admin-service';
-import { debugLog } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Footer } from '@/components/layout/Footer';
+import { useAdminDomain } from '@/lib/admin-domain.client';
+import { AdminUser } from '@/lib/admin-domain.types';
+import { AdminDomainRules } from '@/lib/admin-domain.rules';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const inputStyle = {
+  ...b, background: surface, border: `1px solid ${border}`, color: text,
+  padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6,
+  boxSizing: 'border-box' as const, fontSize: '0.875rem',
+};
 
 function CommissionersManagementContent() {
-  const { user, verifyAdminStatus } = useAuth();
+  const { signOut } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [commissioners, setCommissioners] = useState<Admin[]>([]);
-  const [filteredCommissioners, setFilteredCommissioners] = useState<Admin[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [stats, setStats] = useState({
-    totalCommissioners: 0,
-    activeCommissioners: 0,
-    inactiveCommissioners: 0
-  });
-  const [selectedCommissioner, setSelectedCommissioner] = useState<Admin | null>(null);
-  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
-  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { commissioners, stats, isLoading, refresh, actions } = useAdminDomain();
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Check admin status
-        if (user) {
-          debugLog('Checking admin status for user:', user.email);
-          const superAdminStatus = await verifyAdminStatus(true);
-          setIsSuperAdmin(superAdminStatus);
-          debugLog('Super admin status:', superAdminStatus);
-          
-          // Only super admins can access this page
-          if (!superAdminStatus) {
-            router.push('/dashboard');
-            return;
-          }
-          
-          // Load commissioners data
-          await loadCommissioners();
-          await loadStats();
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const [searchTerm, setSearchTerm]                   = useState('');
+  const [isLoggingOut, setIsLoggingOut]               = useState(false);
+  const [isProcessing, setIsProcessing]               = useState(false);
+  const [selected, setSelected]                       = useState<AdminUser | null>(null);
+  const [resetOpen, setResetOpen]                     = useState(false);
+  const [newPassword, setNewPassword]                 = useState('');
+  const [showPassword, setShowPassword]               = useState(false);
+  const [passwordError, setPasswordError]             = useState('');
 
-    loadData();
-  }, [user, verifyAdminStatus, router]);
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return commissioners;
+    return commissioners.filter(c =>
+      c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
+    );
+  }, [commissioners, searchTerm]);
 
-  const loadCommissioners = async () => {
-    try {
-      if (!user?.email) return;
-      
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      
-      // Get all admins (both super admins and commissioners)
-      const { data: adminsData, error: adminsError } = await supabase
-        .from('admins')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (adminsError) throw adminsError;
-      
-      // Filter to only show commissioners (non-super admins)
-      const commissionersData = adminsData?.filter(admin => !admin.is_super_admin) || [];
-      setCommissioners(commissionersData);
-      setFilteredCommissioners(commissionersData);
-      
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Commissioners loaded:', {
-          userRole: 'admin',
-          userEmail: user.email,
-          totalCommissioners: commissionersData.length,
-          commissionersData: commissionersData.map(c => ({
-            id: c.id,
-            email: c.email,
-            full_name: c.full_name,
-            is_active: c.is_active,
-            created_at: c.created_at
-          }))
-        });
-      }
-      
-    } catch (error) {
-      console.error('Error loading commissioners:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load commissioners data',
-        variant: 'destructive',
-      });
-    }
+  const handleToggle = async (c: AdminUser) => {
+    setIsProcessing(true);
+    await actions.toggle(c);
+    setIsProcessing(false);
   };
 
-  const loadStats = async () => {
-    try {
-      if (!user?.email) return;
-      
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      
-      // Get commissioners stats
-      const { data: commissionersData } = await supabase
-        .from('admins')
-        .select('is_active')
-        .eq('is_super_admin', false);
-      
-      const totalCommissioners = commissionersData?.length || 0;
-      const activeCommissioners = commissionersData?.filter(c => c.is_active).length || 0;
-      const inactiveCommissioners = totalCommissioners - activeCommissioners;
-      
-      setStats({
-        totalCommissioners,
-        activeCommissioners,
-        inactiveCommissioners
-      });
-      
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-    if (!term.trim()) {
-      setFilteredCommissioners(commissioners);
-    } else {
-      const filtered = commissioners.filter(commissioner => 
-        commissioner.full_name?.toLowerCase().includes(term.toLowerCase()) ||
-        commissioner.email.toLowerCase().includes(term.toLowerCase())
-      );
-      setFilteredCommissioners(filtered);
-    }
+  const handleDelete = async (c: AdminUser) => {
+    setIsProcessing(true);
+    await actions.remove(c);
+    setIsProcessing(false);
   };
 
   const handleResetPassword = async () => {
-    if (!selectedCommissioner || !newPassword.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a new password',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    if (!selected) return;
+    const err = AdminDomainRules.validatePassword(newPassword.trim());
+    if (err) { setPasswordError(err); return; }
+    setPasswordError('');
     setIsProcessing(true);
-    try {
-      // Get the current session token
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
-
-      const response = await fetch('/api/admin/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          adminId: selectedCommissioner.id,
-          newPassword: newPassword.trim()
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: 'Password Reset Successfully',
-          description: `Password has been reset for ${selectedCommissioner.email}`,
-        });
-        setResetPasswordModalOpen(false);
-        setNewPassword('');
-        setSelectedCommissioner(null);
-      } else {
-        throw new Error(result.error || 'Failed to reset password');
-      }
-    } catch (error) {
-      console.error('Password reset error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to reset password. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleToggleStatus = async (commissioner: Admin) => {
-    setIsProcessing(true);
-    try {
-      // Get the current session token
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
-
-      const response = await fetch('/api/admin/toggle-status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          adminId: commissioner.id,
-          isActive: !commissioner.is_active
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: 'Status Updated',
-          description: `${commissioner.email} has been ${commissioner.is_active ? 'deactivated' : 'activated'}`,
-        });
-        // Reload commissioners to get updated data
-        await loadCommissioners();
-        await loadStats();
-      } else {
-        throw new Error(result.error || 'Failed to update status');
-      }
-    } catch (error) {
-      console.error('Status update error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update status. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDeleteCommissioner = async () => {
-    if (!selectedCommissioner) return;
-
-    setIsProcessing(true);
-    try {
-      // Get the current session token
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
-
-      const response = await fetch('/api/admin/delete-commissioner', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          adminId: selectedCommissioner.id
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: 'Commissioner Deleted',
-          description: `${selectedCommissioner.email} has been permanently deleted`,
-        });
-        setDeleteModalOpen(false);
-        setSelectedCommissioner(null);
-        // Reload commissioners to get updated data
-        await loadCommissioners();
-        await loadStats();
-      } else {
-        throw new Error(result.error || 'Failed to delete commissioner');
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete commissioner. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    await actions.resetPassword(selected, newPassword.trim());
+    setIsProcessing(false);
+    setResetOpen(false);
+    setNewPassword('');
+    setSelected(null);
   };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
-      await signOut();
-      router.push('/admin/login');
-    } catch (error) {
-      console.error('Error logging out:', error);
-      setIsLoggingOut(false);
-    }
+    try { await signOut(); router.push('/admin/login'); }
+    catch { setIsLoggingOut(false); }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div className="animate-spin rounded-full h-16 w-16" style={{ borderWidth: '3px', borderStyle: 'solid', borderColor: border, borderTopColor: green }} />
       </div>
     );
   }
 
+  const statItems = [
+    { label: 'Total',    value: stats.commissioners, color: gold,    sub: 'All time' },
+    { label: 'Active',   value: stats.active,        color: greenHi, sub: 'Currently active' },
+    { label: 'Inactive', value: stats.inactive,      color: liveRed, sub: 'Deactivated' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.push('/admin/dashboard')}
-                  className="p-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Commissioners Management</h1>
-              </div>
-              <p className="text-sm sm:text-base text-gray-600">
-                Manage all commissioner accounts in the system
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  System Admin
-                </Badge>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
-                >
-                  <Trash2 className="h-3 w-3 sm:h-4 sm:h-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
-                </Button>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+              <button onClick={() => router.push('/admin/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <div style={{ width: 1, height: 20, background: border }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Users style={{ width: 14, height: 14, color: text }} />
+                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Commissioners</span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                onClick={() => router.push('/admin/create-commissioner')}
-                className="flex items-center gap-2"
-              >
-                <Users className="h-4 w-4" />
-                Add Commissioner
-              </Button>
+            <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+              <button onClick={refresh} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <RefreshCw style={{ width: 12, height: 12 }} /> Refresh
+              </button>
+              <button onClick={() => router.push('/admin/create-commissioner')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <Users style={{ width: 12, height: 12 }} /> Add Commissioner
+              </button>
+              <button onClick={handleLogout} disabled={isLoggingOut} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.6 : 1 }}>
+                <LogOut style={{ width: 12, height: 12 }} /> Logout
+              </button>
             </div>
           </div>
         </div>
+      </nav>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Commissioners</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCommissioners}</div>
-              <p className="text-xs text-muted-foreground">
-                All time
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Active</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.activeCommissioners}</div>
-              <p className="text-xs text-muted-foreground">
-                Currently active
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Inactive</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.inactiveCommissioners}</div>
-              <p className="text-xs text-muted-foreground">
-                Deactivated
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search and Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Search Commissioners
-            </CardTitle>
-            <CardDescription>
-              Find commissioners by name or email
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input
-              placeholder="Search commissioners..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="max-w-md"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Commissioners List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              All Commissioners ({filteredCommissioners.length})
-            </CardTitle>
-            <CardDescription>
-              Manage commissioner accounts, reset passwords, and control access
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {filteredCommissioners.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {searchTerm ? 'No commissioners found matching your search.' : 'No commissioners created yet.'}
+      {/* ── STATS ── */}
+      <section style={{ background: surface, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
+            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>Overview</h2>
+          </div>
+          <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
+            {statItems.map(({ label, value, color, sub }) => (
+              <div key={label} style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: '1.25rem' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</div>
+                <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.3rem' }}>{label}</div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.15rem' }}>{sub}</div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredCommissioners.map((commissioner) => (
-                  <div key={commissioner.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <Shield className="h-8 w-8 text-blue-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate">
-                              {commissioner.full_name || 'Unnamed Commissioner'}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              {commissioner.email}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                              <Badge variant={commissioner.is_active ? "default" : "secondary"}>
-                                {commissioner.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
-                              <Badge variant="outline">
-                                Commissioner
-                              </Badge>
-                              <Badge variant="outline">
-                                Created: {new Date(commissioner.created_at).toLocaleDateString()}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── LIST ── */}
+      <section style={{ background: bg, padding: '3rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
+            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              All Commissioners ({filtered.length})
+            </h3>
+          </div>
+
+          <div style={{ marginBottom: '1.25rem', maxWidth: 400 }}>
+            <div style={{ position: 'relative' }}>
+              <Search style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: textDim }} />
+              <Input
+                placeholder="Search by name or email…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.85rem', paddingLeft: '2.25rem' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
+                <Users style={{ width: 40, height: 40, color: textDim, margin: '0 auto 1rem' }} />
+                <p style={{ ...b, color: textDim, fontSize: '0.9rem' }}>
+                  {searchTerm ? 'No commissioners match your search.' : 'No commissioners created yet.'}
+                </p>
+              </div>
+            ) : filtered.map((c) => (
+              <div key={c.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, oklch(46% 0.14 155), oklch(62% 0.12 270))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ ...bc, fontWeight: 900, fontSize: '1rem', color: text }}>
+                        {(c.name?.charAt(0) || c.email.charAt(0)).toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: text }}>{c.name || 'Unnamed Commissioner'}</span>
+                        <span style={{ ...bc, fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.1em', color: c.isActive ? greenHi : liveRed, background: c.isActive ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(50% 0.22 25 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                          {c.isActive ? 'Active' : 'Inactive'}
+                        </span>
                       </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          onClick={() => {
-                            setSelectedCommissioner(commissioner);
-                            setResetPasswordModalOpen(true);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Key className="h-4 w-4" />
-                          Reset Password
-                        </Button>
-                        
-                        <Button
-                          onClick={() => handleToggleStatus(commissioner)}
-                          variant={commissioner.is_active ? "destructive" : "default"}
-                          size="sm"
-                          className="flex items-center gap-2"
-                          disabled={isProcessing}
-                        >
-                          {commissioner.is_active ? (
-                            <>
-                              <UserX className="h-4 w-4" />
-                              Deactivate
-                            </>
-                          ) : (
-                            <>
-                              <UserCheck className="h-4 w-4" />
-                              Activate
-                            </>
-                          )}
-                        </Button>
-                        
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              disabled={isProcessing}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-red-600" />
-                                Delete Commissioner
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to permanently delete {selectedCommissioner?.full_name || selectedCommissioner?.email}? 
-                                This action cannot be undone and will remove all their access to the system.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => {
-                                  setSelectedCommissioner(commissioner);
-                                  setDeleteModalOpen(true);
-                                }}
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Delete Permanently
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
+                      <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{c.email}</p>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
+                        Created {new Date(c.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Reset Password Modal */}
-      <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Reset Password
-            </DialogTitle>
-            <DialogDescription>
-              Set a new password for {selectedCommissioner?.full_name || selectedCommissioner?.email}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="new-password" className="text-sm font-medium">
-                New Password
-              </Label>
-              <div className="relative mt-2">
-                <Input
-                  id="new-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="pr-12"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => { setSelected(c); setResetOpen(true); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                    >
+                      <Key style={{ width: 11, height: 11 }} /> Reset Password
+                    </button>
 
-            <div className="text-xs text-gray-500">
-              <p>• Password should be at least 8 characters long</p>
-              <p>• The commissioner will need to use this password to log in</p>
-              <p>• Consider using a secure password generator</p>
-            </div>
+                    {AdminDomainRules.canToggle(c) && (
+                      <button
+                        onClick={() => handleToggle(c)}
+                        disabled={isProcessing}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: c.isActive ? 'oklch(50% 0.22 25 / 0.15)' : 'oklch(46% 0.14 155 / 0.15)', color: c.isActive ? liveRed : greenHi, border: `1px solid ${c.isActive ? liveRed : greenHi}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                      >
+                        {c.isActive
+                          ? <><UserX style={{ width: 11, height: 11 }} /> Deactivate</>
+                          : <><UserCheck style={{ width: 11, height: 11 }} /> Activate</>}
+                      </button>
+                    )}
 
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setResetPasswordModalOpen(false);
-                  setNewPassword('');
-                  setSelectedCommissioner(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleResetPassword}
-                disabled={!newPassword.trim() || isProcessing}
-                className="flex items-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Resetting...
-                  </>
-                ) : (
-                  <>
-                    <Key className="h-4 w-4" />
-                    Reset Password
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <Trash2 className="h-5 w-5" />
-              Confirm Deletion
-            </DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. Are you absolutely sure you want to delete this commissioner?
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {selectedCommissioner && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <h4 className="font-medium text-sm text-red-800 mb-2">Commissioner Details</h4>
-                <div className="space-y-1 text-sm text-red-700">
-                  <p><span className="font-medium">Name:</span> {selectedCommissioner.full_name || 'Unnamed'}</p>
-                  <p><span className="font-medium">Email:</span> {selectedCommissioner.email}</p>
-                  <p><span className="font-medium">Status:</span> {selectedCommissioner.is_active ? 'Active' : 'Inactive'}</p>
-                  <p><span className="font-medium">Created:</span> {new Date(selectedCommissioner.created_at).toLocaleDateString()}</p>
+                    {AdminDomainRules.canDelete(c) && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            disabled={isProcessing}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'oklch(50% 0.22 25 / 0.15)', color: liveRed, border: `1px solid ${liveRed}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isProcessing ? 'not-allowed' : 'pointer', opacity: isProcessing ? 0.6 : 1 }}
+                          >
+                            <Trash2 style={{ width: 11, height: 11 }} /> Delete
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: liveRed, ...bc, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                              <AlertTriangle style={{ width: 16, height: 16 }} /> Delete Commissioner
+                            </AlertDialogTitle>
+                            <AlertDialogDescription style={{ color: textMid }}>
+                              Permanently delete <strong style={{ color: text }}>{c.name || c.email}</strong>? This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(c)}
+                              disabled={isProcessing}
+                              style={{ background: 'oklch(50% 0.22 25 / 0.2)', color: liveRed, border: `1px solid ${liveRed}`, opacity: isProcessing ? 0.6 : 1 }}
+                            >
+                              {isProcessing ? 'Deleting…' : 'Delete Permanently'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <div className="text-xs text-red-600">
-              <p>⚠️ This will permanently remove the commissioner from the system</p>
-              <p>⚠️ All their pool access will be revoked</p>
-              <p>⚠️ This action cannot be undone</p>
+      <Footer pageName="Commissioner HQ" />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) { setNewPassword(''); setSelected(null); setPasswordError(''); } }}>
+        <DialogContent style={{ maxWidth: '26rem' }}>
+          <DialogHeader>
+            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Key style={{ width: 16, height: 16, color: greenHi }} /> Reset Password
+            </DialogTitle>
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Set a new password for <strong style={{ color: text }}>{selected?.name || selected?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="e.g. MyPass1!"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                style={{ ...inputStyle, border: `1px solid ${passwordError ? liveRed : border}` }}
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', color: textDim, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+              </button>
             </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDeleteModalOpen(false);
-                  setSelectedCommissioner(null);
-                }}
-              >
+            <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '-0.5rem' }}>
+              Min {AdminDomainRules.passwordMinLength()} chars · uppercase · lowercase · number · special character
+            </p>
+            {passwordError && (
+              <p style={{ ...b, fontSize: '0.78rem', color: liveRed, background: `oklch(62% 0.22 25 / 0.08)`, border: `1px solid oklch(62% 0.22 25 / 0.3)`, borderRadius: 5, padding: '0.4rem 0.65rem', marginTop: '-0.25rem' }}>
+                {passwordError}
+              </p>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button onClick={() => { setResetOpen(false); setNewPassword(''); setSelected(null); setPasswordError(''); }} style={{ padding: '0.45rem 0.875rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: textMid, cursor: 'pointer' }}>
                 Cancel
-              </Button>
-              <Button
-                onClick={handleDeleteCommissioner}
-                variant="destructive"
-                disabled={isProcessing}
-                className="flex items-center gap-2"
+              </button>
+              <button
+                onClick={handleResetPassword}
+                disabled={!newPassword || isProcessing}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (!newPassword || isProcessing) ? 'not-allowed' : 'pointer', opacity: (!newPassword || isProcessing) ? 0.6 : 1 }}
               >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    Delete Permanently
-                  </>
-                )}
-              </Button>
+                {isProcessing
+                  ? <><RefreshCw style={{ width: 12, height: 12, animation: 'spin 0.8s linear infinite' }} /> Resetting…</>
+                  : <><Key style={{ width: 12, height: 12 }} /> Reset Password</>}
+              </button>
             </div>
           </div>
         </DialogContent>

@@ -1,14 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Trophy, 
-  Mail, 
-  Calendar,
+import {
+  Trophy,
+  Mail,
   LogOut,
   BarChart3,
   Plus,
@@ -16,7 +12,9 @@ import {
   TrendingUp,
   Edit,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw,
+  Shield,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +26,25 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { loadWeekGames } from '@/actions/loadWeekGames';
+import { Footer } from '@/components/layout/Footer';
+import { OffseasonBanner } from '@/components/ui/offseason-banner';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const liveRed = 'oklch(62% 0.22 25)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 function CommissionerDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
@@ -74,21 +91,18 @@ function CommissionerDashboardContent() {
         const { week, seasonType } = await getUpcomingWeek();
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
-        
-        // Check admin status
+
         if (user) {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
           setIsSuperAdmin(superAdminStatus);
           debugLog('Super admin status:', superAdminStatus);
-          
-          // Redirect super admins to admin dashboard
+
           if (superAdminStatus) {
             router.push(createPageUrl('admindashboard'));
             return;
           }
-          
-          // Only load data for regular admins (commissioners)
+
           await loadDashboardStats();
           generateNotifications();
           loadRecentActivity();
@@ -104,20 +118,16 @@ function CommissionerDashboardContent() {
     loadData();
   }, [user, verifyAdminStatus, router]);
 
-  // Listen for custom event to open create pool dialog
   useEffect(() => {
     const handleOpenCreatePool = () => {
       setCreatePoolDialogOpen(true);
     };
-
     document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
-    
     return () => {
       document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
     };
   }, []);
 
-  // Countdown timer effect
   useEffect(() => {
     if (games.length === 0) return;
 
@@ -126,17 +136,17 @@ function CommissionerDashboardContent() {
       const gameTime = new Date(firstGame.kickoff_time);
       const now = new Date();
       const timeDiff = gameTime.getTime() - now.getTime();
-      
+
       if (timeDiff <= 0) {
         setCountdown('Games Started');
         return;
       }
-      
+
       const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
-      
+
       if (days > 0) {
         setCountdown(`${days}d ${hours}h ${minutes}m`);
       } else if (hours > 0) {
@@ -149,7 +159,6 @@ function CommissionerDashboardContent() {
     return () => clearInterval(timer);
   }, [games]);
 
-  // Reload games when week or season type changes
   useEffect(() => {
     if (currentWeek && currentSeasonType) {
       loadGames();
@@ -159,20 +168,19 @@ function CommissionerDashboardContent() {
   const loadDashboardStats = async () => {
     try {
       if (!user?.email) return;
-      
+
       const stats = await adminService.getDashboardStats(
         currentWeek,
         currentSeasonType,
         user.email,
-        false // isSuperAdmin = false for commissioners
+        false
       );
-      
+
       setDashboardStats(stats);
-      
-      // Also load available pools for the pool selection
+
       const pools = await adminService.getActivePools(
         user.email,
-        false // isSuperAdmin = false for commissioners
+        false
       );
       debugLog('stats pools', pools);
       setAvailablePools(pools);
@@ -200,21 +208,21 @@ function CommissionerDashboardContent() {
     try {
       if (!user?.email) return;
 
-      // Get real recent activity data from the database
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
-      
-      const activities = [];
+
+      const activities: any[] = [];
       const now = new Date();
-      
-      // Get pools created by this commissioner
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
       const { data: pools } = await supabase
         .from('pools')
         .select('id, name, created_at')
         .eq('created_by', user.email)
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(3);
-      
+
       if (pools) {
         pools.forEach(pool => {
           activities.push({
@@ -225,25 +233,24 @@ function CommissionerDashboardContent() {
           });
         });
       }
-      
-      // Get recent participant joins
+
       const { data: participants } = await supabase
         .from('participants')
         .select('id, name, created_at, pool_id')
         .eq('is_active', true)
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(5);
-      
+
       if (participants) {
-        // Get pool names for participants
         const poolIds = [...new Set(participants.map(p => p.pool_id))];
         const { data: poolNames } = await supabase
           .from('pools')
           .select('id, name')
           .in('id', poolIds);
-        
+
         const poolNameMap = new Map(poolNames?.map(p => [p.id, p.name]) || []);
-        
+
         participants.forEach(participant => {
           const poolName = poolNameMap.get(participant.pool_id) || 'Unknown Pool';
           activities.push({
@@ -255,16 +262,15 @@ function CommissionerDashboardContent() {
           });
         });
       }
-      
-      // Get recent picks submissions
+
       const { data: picks } = await supabase
         .from('picks')
         .select('created_at, participant_id, pool_id')
+        .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(10);
-      
+
       if (picks && picks.length > 0) {
-        // Group picks by pool and count submissions
         const poolSubmissions = new Map<string, Set<string>>();
         picks.forEach(pick => {
           if (!poolSubmissions.has(pick.pool_id)) {
@@ -272,16 +278,15 @@ function CommissionerDashboardContent() {
           }
           poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
         });
-        
-        // Get pool names for picks
+
         const pickPoolIds = [...new Set(picks.map(p => p.pool_id))];
         const { data: pickPoolNames } = await supabase
           .from('pools')
           .select('id, name')
           .in('id', pickPoolIds);
-        
+
         const pickPoolNameMap = new Map(pickPoolNames?.map(p => [p.id, p.name]) || []);
-        
+
         poolSubmissions.forEach((participants, poolId) => {
           const poolName = pickPoolNameMap.get(poolId) || 'Unknown Pool';
           const participantCount = participants.size;
@@ -294,23 +299,19 @@ function CommissionerDashboardContent() {
           }
         });
       }
-      
-      // Sort activities by timestamp (most recent first) and take top 5
+
       const sortedActivities = activities
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 5);
-      
+
       setRecentActivity(sortedActivities);
-      
     } catch (error) {
       console.error('Error loading recent activity:', error);
-      // Fallback to empty array if there's an error
       setRecentActivity([]);
     }
   };
 
   const handlePoolCreated = async () => {
-    // Refresh dashboard stats after pool creation
     await loadDashboardStats();
     await loadRecentActivity();
     toast({
@@ -321,35 +322,33 @@ function CommissionerDashboardContent() {
 
   const generateNotifications = () => {
     const newNotifications: string[] = [];
-    
-    // Only show notifications if admin has pools to manage
+
     if (dashboardStats.totalPools === 0) {
       newNotifications.push('You haven\'t created any pools yet. Create your first pool to get started!');
       setNotifications(newNotifications);
       return;
     }
-    
+
     if (dashboardStats.pendingSubmissions > 0) {
       newNotifications.push(`${dashboardStats.pendingSubmissions} participants haven't submitted picks for Week ${currentWeek}`);
     }
-    
+
     if (dashboardStats.totalGames === 0) {
       newNotifications.push('No games scheduled for the current week');
     }
-    
+
     if (dashboardStats.activePools === 0) {
       newNotifications.push('All your pools are currently inactive');
     }
-    
-    // Add admin-specific notifications
+
     if (dashboardStats.totalParticipants === 0) {
       newNotifications.push('No participants have joined your pools yet');
     }
-    
+
     if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0) {
       newNotifications.push('All participants have submitted their picks for this week!');
     }
-    
+
     setNotifications(newNotifications);
   };
 
@@ -361,17 +360,10 @@ function CommissionerDashboardContent() {
       generateNotifications();
       loadRecentActivity();
       setLastRefresh(new Date());
-      toast({
-        title: 'Dashboard Refreshed',
-        description: 'All data has been updated',
-      });
+      toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
     } catch (error) {
       console.error('Error refreshing dashboard:', error);
-      toast({
-        title: 'Refresh Failed',
-        description: 'Failed to refresh dashboard data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Refresh Failed', description: 'Failed to refresh dashboard data', variant: 'destructive' });
     } finally {
       setIsRefreshing(false);
     }
@@ -423,383 +415,367 @@ function CommissionerDashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading dashboard…</p>
+        </div>
       </div>
     );
   }
 
+  const completionRate = dashboardStats.totalParticipants > 0
+    ? Math.round((dashboardStats.completedSubmissions / dashboardStats.totalParticipants) * 100)
+    : 0;
+
+  const statsCards = [
+    { label: 'Total Pools', value: dashboardStats.totalPools, sub: `${dashboardStats.activePools} active`, big: true },
+    { label: 'Participants', value: dashboardStats.totalParticipants, sub: 'Across all pools', big: true },
+    { label: 'Pending', value: dashboardStats.pendingSubmissions, sub: 'Need picks', big: true, accent: amber },
+    { label: 'Completed', value: dashboardStats.completedSubmissions, sub: 'Picks submitted', big: true, accent: greenHi },
+    { label: 'Completion', value: `${completionRate}%`, sub: 'Rate', big: false, accent: 'oklch(59% 0.18 230)' },
+  ];
+
+  const quickActions = [
+    {
+      label: 'Create Pool',
+      icon: Plus,
+      desc: currentSeasonType === 2 ? 'Pool creation is disabled while the season is in progress.' : 'Start a new Confidence Pool',
+      action: () => {
+        if (currentSeasonType === 2) return;
+        const event = new CustomEvent('openCreatePoolDialog');
+        document.dispatchEvent(event);
+      },
+      btnLabel: currentSeasonType === 2 ? 'Season In Progress' : 'Create Pool',
+      disabled: currentSeasonType === 2,
+    },
+    {
+      label: 'Pool Management',
+      icon: Trophy,
+      desc: isSuperAdmin ? 'Manage all pools and participants' : 'Manage your pools and participants',
+      action: () => router.push(createPageUrl('adminpools')),
+      btnLabel: isSuperAdmin ? 'Manage All Pools' : 'Manage My Pools',
+      disabled: false,
+    },
+    {
+      label: 'Leaderboards',
+      icon: BarChart3,
+      desc: isSuperAdmin ? 'View standings for all pools' : 'View standings for your pools',
+      action: () => router.push(createPageUrl('leaderboard')),
+      btnLabel: isSuperAdmin ? 'View All Leaderboards' : 'View My Leaderboards',
+      disabled: false,
+    },
+    {
+      label: 'Season Review',
+      icon: Trophy,
+      desc: 'View comprehensive season statistics and achievements',
+      action: () => router.push(createPageUrl('adminpools')),
+      btnLabel: 'Select Pool for Review',
+      disabled: false,
+    },
+    {
+      label: 'Send Reminders',
+      icon: Mail,
+      desc: 'Remind participants to submit picks',
+      action: () => router.push(createPageUrl('adminreminders')),
+      btnLabel: `Send Reminders (${dashboardStats.pendingSubmissions})`,
+      disabled: dashboardStats.pendingSubmissions === 0,
+    },
+    {
+      label: 'Override Picks',
+      icon: Edit,
+      desc: isSuperAdmin ? 'Override picks for any pool' : 'Override picks for your pools',
+      action: () => router.push(createPageUrl('overridepicks')),
+      btnLabel: isSuperAdmin ? 'Override All Picks' : 'Override My Picks',
+      disabled: false,
+    },
+  ];
+
+  const activityAccent = (type: string) => {
+    if (type === 'pool_created') return greenHi;
+    if (type === 'participant_joined') return 'oklch(59% 0.18 230)';
+    if (type === 'picks_submitted') return 'oklch(62% 0.16 300)';
+    return textDim;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50">
-      <div className="container mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
-                <h1 className="text-2xl sm:text-3xl font-bold">Commissioner Dashboard</h1>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* NAV */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Trophy style={{ width: 14, height: 14, color: text }} />
               </div>
-              <p className="text-sm sm:text-base text-gray-600">
-                Manage your NFL Confidence Pools and participants
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs">
-                  Commissioner
-                </Badge>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2 h-7 sm:h-8 text-xs"
-                >
-                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
-                </Button>
-              </div>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Sunday Huddle
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {user && (
+                <span style={{ ...b, fontSize: '0.78rem', color: textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '16ch' }}>
+                  {user.email}
+                </span>
+              )}
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.7rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                  opacity: isLoggingOut ? 0.5 : 1,
+                }}
+              >
+                <LogOut style={{ width: 11, height: 11 }} />
+                {isLoggingOut ? 'Logging out…' : 'Logout'}
+              </button>
             </div>
           </div>
         </div>
+      </nav>
 
-        
-        {/* Countdown Timer */}
-        {countdown && countdown !== 'Games Started' && (
-          <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 mb-6 sm:mb-8">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-center gap-3">
-                <Clock className="h-5 w-5 text-blue-600" />
-                <div className="text-center">
-                  <div className="text-lg font-bold text-blue-900">
-                    Picks Close In: {countdown}
-                  </div>
-                  <div className="text-sm text-blue-700">
-                    Make sure participants submit their picks before kickoff
-                  </div>
+      {/* HERO */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(3rem, 6vw, 5rem) 0',
+      }}>
+        <div className="lp-inner">
+          <div className="lp-hero-row">
+
+            {/* Left: title + description */}
+            <div className="lp-hero-text">
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.67rem', letterSpacing: '0.28em', color: greenHi, textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
+                Commissioner HQ
+              </p>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(3rem, 7vw, 4.5rem)', lineHeight: 0.92, letterSpacing: '-0.01em', color: text, textTransform: 'uppercase', marginBottom: '1.5rem' }}>
+                Commissioner<br /><span style={{ color: gold }}>Dashboard</span>
+              </h1>
+              <p style={{ ...b, fontSize: '0.95rem', lineHeight: 1.72, color: textMid, maxWidth: '36ch' }}>
+                Manage your Sunday Huddles and participants.
+              </p>
+              <p style={{ ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim, marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Week {currentWeek} · Refreshed {lastRefresh.toLocaleTimeString()}
+              </p>
+            </div>
+
+            {/* Right: commissioner access overview */}
+            <div className="lp-hero-card">
+              <div style={{ background: surface, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '1.75rem' }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.24em', color: greenHi, textTransform: 'uppercase', marginBottom: '1.25rem' }}>
+                  Commissioner Access
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {[
+                    { label: 'Status', value: 'Active', sub: 'Account standing' },
+                    { label: 'Pools', value: String(dashboardStats.totalPools), sub: `${dashboardStats.activePools} active` },
+                    { label: 'Members', value: String(dashboardStats.totalParticipants), sub: 'Across all pools' },
+                  ].map(({ label, value, sub }) => (
+                    <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' }}>
+                      <div style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: gold, lineHeight: 1, letterSpacing: '0.02em' }}>
+                        {value}
+                      </div>
+                      <div style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.3rem' }}>
+                        {label}
+                      </div>
+                      <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '0.15rem' }}>
+                        {sub}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
 
-        {/* Games Started Warning */}
-        {countdown === 'Games Started' && (
-          <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200 mb-6 sm:mb-8">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-900">
-                    Games Have Started!
-                  </div>
-                  <div className="text-sm text-red-700">
-                    All picks are now locked for Week {currentWeek}
-                  </div>
+          </div>
+        </div>
+      </section>
+
+      {/* green rule */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      <section style={{ background: bg, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+
+          {/* Offseason Banner */}
+          {currentSeasonType === 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <OffseasonBanner message="The NFL season has ended. Your pools and historical data remain accessible below." />
+            </div>
+          )}
+
+          {/* Countdown Timer */}
+          {currentSeasonType !== 0 && countdown && countdown !== 'Games Started' && (
+            <div style={{
+              background: 'oklch(20% 0.04 230)',
+              border: `1px solid oklch(30% 0.06 230)`,
+              borderRadius: 8,
+              padding: '1rem 1.25rem',
+              marginBottom: '2rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
+            }}>
+              <Clock style={{ width: 18, height: 18, color: 'oklch(59% 0.18 230)', flexShrink: 0 }} />
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: 'oklch(82% 0.12 230)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Picks Close In: {countdown}
+                </p>
+                <p style={{ ...b, fontSize: '0.78rem', color: 'oklch(62% 0.1 230)', marginTop: '0.2rem' }}>
+                  Make sure participants submit their picks before kickoff
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Games Started Warning */}
+          {currentSeasonType !== 0 && countdown === 'Games Started' && (
+            <div style={{
+              background: 'oklch(18% 0.04 25)',
+              border: `1px solid oklch(30% 0.08 25)`,
+              borderRadius: 8,
+              padding: '1rem 1.25rem',
+              marginBottom: '2rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
+            }}>
+              <AlertTriangle style={{ width: 18, height: 18, color: liveRed, flexShrink: 0 }} />
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: 'oklch(82% 0.14 25)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Games Have Started!
+                </p>
+                <p style={{ ...b, fontSize: '0.78rem', color: 'oklch(62% 0.1 25)', marginTop: '0.2rem' }}>
+                  All picks are now locked for Week {currentWeek}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Stats Overview */}
+          <div className="admin-actions-grid" style={{ marginBottom: '2.5rem' }}>
+            {statsCards.map(({ label, value, sub, big, accent }) => (
+              <div key={label} style={{
+                background: card, border: `1px solid ${border}`,
+                borderRadius: 8, padding: '1.1rem 1.25rem',
+              }}>
+                <p style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                  {label}
+                </p>
+                <p style={{ ...bc, fontWeight: 900, fontSize: big ? '2rem' : '1.5rem', color: accent || greenHi, lineHeight: 1.1 }}>
+                  {String(value)}
+                </p>
+                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Actions */}
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase', marginBottom: '1rem' }}>
+            Quick Actions
+          </p>
+          <div className="admin-3col-grid" style={{ marginBottom: '2.5rem' }}>
+            {quickActions.map(({ label, icon: Icon, desc, action, btnLabel, disabled }) => (
+              <div key={label} style={{
+                background: card, border: `1px solid ${border}`,
+                borderRadius: 8, padding: '1.1rem 1.25rem',
+                display: 'flex', flexDirection: 'column', gap: '0.75rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Icon style={{ width: 14, height: 14, color: greenHi, flexShrink: 0 }} />
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {label}
+                  </p>
                 </div>
+                <p style={{ ...b, fontSize: '0.78rem', color: textMid, flexGrow: 1 }}>{desc}</p>
+                <button
+                  onClick={action}
+                  disabled={disabled}
+                  style={{
+                    padding: '0.5rem 0.9rem',
+                    background: disabled ? 'oklch(20% 0.02 255)' : green,
+                    color: disabled ? textDim : text,
+                    border: `1px solid ${disabled ? border : green}`,
+                    borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.75rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    width: '100%',
+                  }}
+                >
+                  {btnLabel}
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ))}
+          </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Pools</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalPools}</div>
-              <p className="text-xs text-muted-foreground">
-                {dashboardStats.activePools} active
+          {/* Recent Activity */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <TrendingUp style={{ width: 14, height: 14, color: greenHi }} />
+              <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Recent Activity
               </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Participants</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalParticipants}</div>
-              <p className="text-xs text-muted-foreground">
-                Across all pools
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pendingSubmissions}</div>
-              <p className="text-xs text-muted-foreground">
-                Need picks
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{dashboardStats.completedSubmissions}</div>
-              <p className="text-xs text-muted-foreground">
-                Picks submitted
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Completion</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {dashboardStats.totalParticipants > 0 ? Math.round((dashboardStats.completedSubmissions / dashboardStats.totalParticipants) * 100) : 0}%
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Rate
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Plus className="h-4 w-4" />
-                Create Pool
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Start a new NFL Confidence Pool
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => {
-                  const event = new CustomEvent('openCreatePoolDialog');
-                  document.dispatchEvent(event);
-                }}
-                className="w-full"
-                size="sm"
-              >
-                Create Pool
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Trophy className="h-4 w-4" />
-                Pool Management
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isSuperAdmin ? 'Manage all pools and participants' : 'Manage your pools and participants'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => router.push(createPageUrl('adminpools'))}
-                className="w-full"
-                size="sm"
-              >
-                {isSuperAdmin ? 'Manage All Pools' : 'Manage My Pools'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="h-4 w-4" />
-                Leaderboards
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isSuperAdmin ? 'View standings for all pools' : 'View standings for your pools'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => router.push(createPageUrl('leaderboard'))}
-                className="w-full"
-                size="sm"
-              >
-                {isSuperAdmin ? 'View All Leaderboards' : 'View My Leaderboards'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Trophy className="h-4 w-4" />
-                Season Review
-              </CardTitle>
-              <CardDescription className="text-xs">
-                View comprehensive season statistics and achievements
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => router.push(createPageUrl('adminpools'))}
-                className="w-full"
-                size="sm"
-                variant="outline"
-              >
-                Select Pool for Review
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Mail className="h-4 w-4" />
-                Send Reminders
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Remind participants to submit picks
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => router.push(createPageUrl('adminreminders'))}
-                className="w-full"
-                size="sm"
-                disabled={dashboardStats.pendingSubmissions === 0}
-              >
-                Send Reminders ({dashboardStats.pendingSubmissions})
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Edit className="h-4 w-4" />
-                Override Picks
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isSuperAdmin ? 'Override picks for any pool' : 'Override picks for your pools'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button 
-                onClick={() => router.push(createPageUrl('overridepicks'))}
-                className="w-full"
-                size="sm"
-              >
-                {isSuperAdmin ? 'Override All Picks' : 'Override My Picks'}
-              </Button>
-            </CardContent>
-          </Card>
-
-
-        </div>
-
-        {/* Recent Activity */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription>
+            </div>
+            <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
               Latest updates and notifications
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {recentActivity.length > 0 ? (
                 recentActivity.map((activity, index) => (
-                  <div key={index} className={`flex items-center gap-3 p-3 rounded-lg ${
-                    activity.type === 'pool_created' ? 'bg-green-50' :
-                    activity.type === 'participant_joined' ? 'bg-blue-50' :
-                    activity.type === 'picks_submitted' ? 'bg-purple-50' :
-                    'bg-gray-50'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                      activity.type === 'pool_created' ? 'bg-green-500' :
-                      activity.type === 'participant_joined' ? 'bg-blue-500' :
-                      activity.type === 'picks_submitted' ? 'bg-purple-500' :
-                      'bg-gray-500'
-                    }`}></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.description}</p>
-                      <p className="text-xs text-gray-600">
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem',
+                      padding: '0.75rem 1rem',
+                      background: surface, border: `1px solid ${border}`,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: activityAccent(activity.type),
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ ...b, fontSize: '0.82rem', color: text, fontWeight: 600 }}>
+                        {activity.description}
+                      </p>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.15rem' }}>
                         {new Date(activity.timestamp).toLocaleString()}
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Bell className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                  <p>No recent activity</p>
+                <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                  <Bell style={{ width: 36, height: 36, color: textDim, margin: '0 auto 0.75rem' }} />
+                  <p style={{ ...b, fontSize: '0.85rem', color: textDim }}>No recent activity</p>
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Role Information - Only visible in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Your Commissioner Access
-              </CardTitle>
-              <CardDescription>
-                Current permissions and pool access
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Role:</span>
-                  <Badge variant="outline">
-                    Commissioner
-                  </Badge>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Pool Access:</span>
-                  <span className="text-sm text-gray-600">
-                    {dashboardStats.totalPools} pools
-                  </span>
-                </div>
+        </div>
+      </section>
 
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Status:</span>
-                  <Badge variant="default">
-                    Active
-                  </Badge>
-                </div>
+      {/* FOOTER */}
+      <Footer pageName="Commissioner HQ" />
 
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Last Activity:</span>
-                  <span className="text-sm text-gray-600">
-                    {lastRefresh.toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Create Pool Dialog */}
-        <CreatePoolDialog 
-          open={createPoolDialogOpen} 
-          onOpenChange={setCreatePoolDialogOpen}
-          onPoolCreated={handlePoolCreated}
-        />
-      </div>
+      {/* Create Pool Dialog */}
+      <CreatePoolDialog
+        open={createPoolDialogOpen}
+        onOpenChange={setCreatePoolDialogOpen}
+        onPoolCreated={handlePoolCreated}
+      />
     </div>
   );
 }

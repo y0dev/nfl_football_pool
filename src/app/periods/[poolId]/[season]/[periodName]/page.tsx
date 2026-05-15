@@ -2,14 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { debugLog, getRankColor } from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PeriodWinner {
   id: string;
@@ -62,12 +75,12 @@ export default function PeriodLeaderboardPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  
+
   const poolId = params.poolId as string;
   const season = params.season as string;
   const periodNumber = parseInt(params.periodName as string);
   const seasonType = parseInt(searchParams.get('seasonType') ?? '2', 10);
-  
+
   // Convert period number to period name
   const getPeriodNameFromNumber = (num: number): string => {
     switch (num) {
@@ -79,7 +92,7 @@ export default function PeriodLeaderboardPage() {
       default: return 'Unknown Period';
     }
   };
-  
+
   const periodName = getPeriodNameFromNumber(periodNumber);
 
   const [periodWinner, setPeriodWinner] = useState<PeriodWinner | null>(null);
@@ -93,6 +106,7 @@ export default function PeriodLeaderboardPage() {
   const [games, setGames] = useState<any[]>([]);
   const [tieBreakerInfo, setTieBreakerInfo] = useState<any>(null);
   const [showTieBreakerInfo, setShowTieBreakerInfo] = useState(false);
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'weekly' | 'chart'>('leaderboard');
 
   useEffect(() => {
     loadPeriodData();
@@ -101,7 +115,6 @@ export default function PeriodLeaderboardPage() {
   // Initialize selected participants when leaderboard data loads
   useEffect(() => {
     if (leaderboard && leaderboard.length > 0 && selectedParticipants.length === 0) {
-      // Select all participants by default
       setSelectedParticipants(leaderboard.map(p => p.name));
     }
   }, [leaderboard, selectedParticipants.length]);
@@ -110,19 +123,18 @@ export default function PeriodLeaderboardPage() {
   useEffect(() => {
     if (periodInfo && games.length > 0) {
       const completedWeeks = periodInfo.weeks.filter(week => {
-        // A week is completed if all games for that week are finished
         const weekGames = games.filter(game => game.week === week);
-        if (weekGames.length === 0) return false; // No games for this week
-        
+        if (weekGames.length === 0) return false;
+
         const allGamesFinished = weekGames.every(game => {
           const status = game.status?.toLowerCase() || '';
           return status === 'final' || status === 'post';
         });
-        
+
         debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
         return allGamesFinished;
       });
-      
+
       const allCompleted = completedWeeks.length === periodInfo.weeks.length;
       setAllWeeksCompleted(allCompleted);
       debugLog('Completed weekss:', completedWeeks, 'All weeks:', periodInfo.weeks, 'All completed:', allCompleted);
@@ -132,15 +144,14 @@ export default function PeriodLeaderboardPage() {
   const loadPeriodData = async () => {
     setIsLoading(true);
     try {
-      // Fetch period data and pool name in parallel
       const [periodResponse, poolResponse] = await Promise.all([
         fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&seasonType=${seasonType}&periodName=${encodeURIComponent(periodName)}`),
         fetch(`/api/pools/${poolId}`)
       ]);
-      
+
       const periodResult = await periodResponse.json();
       const poolResult = await poolResponse.json();
-      
+
       debugLog('Period data loaded:', periodResult);
       debugLog('Pool data loaded:', poolResult);
       debugLog('Weekly winners count:', periodResult.data?.weeklyWinners?.length || 0);
@@ -148,11 +159,10 @@ export default function PeriodLeaderboardPage() {
       debugLog('Period winner data:', periodResult.data?.periodWinner);
       debugLog('Leaderboard data:', periodResult.data?.leaderboard);
       debugLog('Weekly winners data:', periodResult.data?.weeklyWinners);
-      
+
       if (periodResult.success) {
-        // Check if we actually have data, or if it's empty
         const hasData = periodResult.data && (
-          periodResult.data.periodWinner || 
+          periodResult.data.periodWinner ||
           (periodResult.data.leaderboard && periodResult.data.leaderboard.length > 0) ||
           (periodResult.data.weeklyWinners && periodResult.data.weeklyWinners.length > 0)
         );
@@ -163,9 +173,8 @@ export default function PeriodLeaderboardPage() {
           leaderboardLength: periodResult.data?.leaderboard?.length || 0,
           weeklyWinnersLength: periodResult.data?.weeklyWinners?.length || 0
         });
-        
+
         if (hasData) {
-          // Map API data to expected interface format
           const mappedPeriodWinner = periodResult.data.periodWinner ? {
             id: periodResult.data.periodWinner.id || '',
             pool_id: periodResult.data.periodWinner.pool_id || poolId,
@@ -190,7 +199,6 @@ export default function PeriodLeaderboardPage() {
             total_participants: winner.total_participants || 0
           }));
 
-          
           const mappedLeaderboard = (periodResult.data.leaderboard || []).map((entry: Record<string, unknown>) => ({
             participant_id: entry.participant_id || '',
             name: entry.name || 'Unknown',
@@ -220,7 +228,6 @@ export default function PeriodLeaderboardPage() {
           setGames(periodResult.data.games || []);
           setTieBreakerInfo(periodResult.data.tieBreakerInfo || null);
         } else {
-          // In development, show dummy data if no real data is available
           if (process.env.NODE_ENV === 'development') {
             debugLog('API succeeded but no data found, loading dummy data for development');
             loadDummyData();
@@ -233,7 +240,6 @@ export default function PeriodLeaderboardPage() {
           }
         }
       } else {
-        // In development, show dummy data if no real data is available
         if (process.env.NODE_ENV === 'development') {
           debugLog('API failed, loading dummy data for development');
           loadDummyData();
@@ -254,7 +260,6 @@ export default function PeriodLeaderboardPage() {
       }
     } catch (error) {
       console.error('Error loading period data:', error);
-      // In development, show dummy data if there's an error
       if (process.env.NODE_ENV === 'development') {
         debugLog('Error loading period data, loading dummy data for development');
         loadDummyData();
@@ -272,8 +277,7 @@ export default function PeriodLeaderboardPage() {
 
   const loadDummyData = () => {
     debugLog('Loading dummy data for development');
-    
-    // Generate dummy period weeks based on period number
+
     const getPeriodWeeks = (periodNum: number): number[] => {
       switch (periodNum) {
         case 1: return [1, 2, 3, 4];
@@ -285,8 +289,7 @@ export default function PeriodLeaderboardPage() {
     };
 
     const dummyWeeks = getPeriodWeeks(periodNumber);
-    
-    // Dummy period winner
+
     const dummyPeriodWinner: PeriodWinner = {
       id: 'dummy-winner-1',
       pool_id: poolId,
@@ -301,7 +304,6 @@ export default function PeriodLeaderboardPage() {
       created_at: new Date().toISOString()
     };
 
-    // Dummy weekly winners
     const dummyWeeklyWinners: WeeklyWinner[] = dummyWeeks.map((week, index) => ({
       week: week,
       winner_name: ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'][index % 5],
@@ -311,7 +313,6 @@ export default function PeriodLeaderboardPage() {
       total_participants: 8
     }));
 
-    // Dummy leaderboard
     const dummyLeaderboard: LeaderboardEntry[] = [
       {
         participant_id: 'dummy-participant-1',
@@ -390,7 +391,6 @@ export default function PeriodLeaderboardPage() {
       }
     ];
 
-    // Dummy period info
     const dummyPeriodInfo: PeriodInfo = {
       name: periodName,
       weeks: dummyWeeks,
@@ -401,31 +401,29 @@ export default function PeriodLeaderboardPage() {
     debugLog('Setting dummy weekly winners:', dummyWeeklyWinners);
     debugLog('Setting dummy leaderboard:', dummyLeaderboard);
     debugLog('Setting dummy period info:', dummyPeriodInfo);
-    
+
     setPeriodWinner(dummyPeriodWinner);
     setWeeklyWinners(dummyWeeklyWinners);
     setLeaderboard(dummyLeaderboard);
     setPeriodInfo(dummyPeriodInfo);
     setPoolName(`Development Pool (${poolId.slice(0, 8)}...)`);
-    
+
     debugLog('Dummy data set successfully');
   };
 
   const renderRankIcon = (index: number) => {
     switch (index) {
       case 0:
-        return <Trophy className="h-5 w-5 text-yellow-500" />;
+        return <Trophy style={{ width: 20, height: 20, color: gold }} />;
       case 1:
-        return <Medal className="h-5 w-5 text-gray-400" />;
+        return <Medal style={{ width: 20, height: 20, color: textMid }} />;
       case 2:
-        return <Award className="h-5 w-5 text-amber-600" />;
+        return <Award style={{ width: 20, height: 20, color: amber }} />;
       default:
-        return <span className="text-sm font-medium text-gray-500">#{index + 1}</span>;
+        return <span style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', color: textDim }}>#{index + 1}</span>;
     }
   };
 
-  // Prepare chart data for points per week using selected participants
-  // Function to handle participant selection
   const handleParticipantSelection = (action: 'select-all' | 'clear-all') => {
     if (action === 'select-all') {
       setSelectedParticipants(leaderboard.map(p => p.name));
@@ -439,16 +437,13 @@ export default function PeriodLeaderboardPage() {
     debugLog('Chart data preparation - selectedParticipants:', selectedParticipants);
     debugLog('Chart data preparation - periodInfo:', periodInfo);
 
-    // Use leaderboard data as primary source (contains all participants)
     if (leaderboard && leaderboard.length > 0 && selectedParticipants.length > 0) {
       debugLog('Using leaderboard data for chart (selected participants)');
-      
-      // Get weeks from periodInfo or create fallback
+
       let weeks: number[] = [];
       if (periodInfo && periodInfo.weeks && periodInfo.weeks.length > 0) {
         weeks = periodInfo.weeks;
       } else {
-        // Collect weeks from leaderboard weekly_scores
         const weeksFromScores = new Set<number>();
         leaderboard.forEach(participant => {
           participant.weekly_scores?.forEach(score => {
@@ -457,38 +452,36 @@ export default function PeriodLeaderboardPage() {
         });
         weeks = Array.from(weeksFromScores).sort((a, b) => a - b);
       }
-      
-      // If still no weeks, use default
+
       if (weeks.length === 0) {
         weeks = [1, 2, 3, 4];
       }
-      
+
       debugLog('Weeks for chart:', weeks);
       debugLog('Selected participants for chart:', selectedParticipants);
-      
+
       const chartData: Array<{ week: string; [key: string]: number | string }> = [];
-      
+
       weeks.forEach(week => {
         const weekData: { week: string; [key: string]: number | string } = { week: `Week ${week}` };
-        
-        // Only include selected participants
+
         leaderboard
           .filter(participant => selectedParticipants.includes(participant.name))
           .forEach(participant => {
             const weeklyScore = participant.weekly_scores?.find(score => score.week === week);
             const points = weeklyScore ? weeklyScore.points || 0 : 0;
             weekData[participant.name] = points;
-            
+
             debugLog(`Week ${week} - ${participant.name}: ${points} points`);
           });
-        
+
         chartData.push(weekData);
       });
-      
+
       debugLog('Chart data from leaderboard:', chartData);
       return chartData;
     }
-    
+
     debugLog('No leaderboard data or selected participants available for chart');
     return [];
   };
@@ -498,484 +491,538 @@ export default function PeriodLeaderboardPage() {
   debugLog('Current leaderboard state:', leaderboard);
   debugLog('Current periodInfo state:', periodInfo);
 
+  // ── Loading state ──
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p>Loading period leaderboard...</p>
-          </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 32, height: 32, border: `3px solid ${border}`, borderTopColor: greenHi, borderRadius: '50%', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading period leaderboard...</p>
         </div>
       </div>
     );
   }
 
+  const TABS = [
+    { id: 'leaderboard' as const, label: 'Leaderboard', icon: Users },
+    { id: 'weekly' as const, label: 'Weekly Winners', icon: Calendar },
+    { id: 'chart' as const, label: 'Points Chart', icon: BarChart3 },
+  ];
+
+  const chartColors = [
+    'oklch(59% 0.15 155)',  // greenHi
+    'oklch(62% 0.22 25)',   // liveRed
+    'oklch(74% 0.16 72)',   // gold
+    'oklch(72% 0.16 60)',   // amber
+    'oklch(65% 0.12 290)',  // purple
+    'oklch(72% 0.015 255)', // textMid
+    'oklch(59% 0.18 200)',  // cyan-ish
+    'oklch(66% 0.18 30)',   // orange-ish
+    'oklch(64% 0.14 330)',  // pink-ish
+    'oklch(50% 0.018 255)', // textDim
+  ];
+
   return (
-    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-      {/* Development Dummy Data Banner */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <p className="text-blue-800 font-medium">Development Mode</p>
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.back()}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <div style={{ width: 1, height: 20, background: border }} />
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Sunday Huddle</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadDummyData}
-              className="text-blue-700 border-blue-300 hover:bg-blue-100 w-full sm:w-auto"
-            >
-              Load Dummy Data
-            </Button>
+            {tieBreakerInfo && tieBreakerInfo.wasUsed && (
+              <button
+                onClick={() => setShowTieBreakerInfo(!showTieBreakerInfo)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: showTieBreakerInfo ? green : 'transparent', color: showTieBreakerInfo ? text : textMid, border: `1px solid ${showTieBreakerInfo ? green : border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                <Trophy style={{ width: 11, height: 11 }} />
+                {showTieBreakerInfo ? 'Hide' : 'Show'} Tie-Breaker
+              </button>
+            )}
           </div>
-          <p className="text-blue-700 text-sm mt-1">
-            {(!periodWinner || periodWinner.id.startsWith('dummy-')) 
-              ? 'Showing dummy data for development. No real period data is available.'
-              : 'Click "Load Dummy Data" to test with sample data.'
-            }
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Season {season} {periodName !== 'Playoffs' ? 'Quarter' : 'Playoffs'}
           </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            {periodName.split(' ')[0]}{' '}
+            <span style={{ color: gold }}>{periodName.split(' ').slice(1).join(' ') || 'Standings'}</span>
+          </h1>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+              {poolName || `Pool ${poolId.slice(0, 8)}...`}
+            </span>
+            {periodInfo && (
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                {periodInfo.totalWeeks} weeks
+              </span>
+            )}
+            {allWeeksCompleted && (
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(46% 0.14 155 / 0.2)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)` }}>
+                Final
+              </span>
+            )}
+          </div>
         </div>
-      )}
+      </section>
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      {/* Header */}
-      <div className="space-y-4 mb-6 sm:mb-8">
-        {/* Buttons Row */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.back()}
-            className="flex items-center gap-2 w-fit"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          {tieBreakerInfo && tieBreakerInfo.wasUsed && (
-            <Button
-              variant={showTieBreakerInfo ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowTieBreakerInfo(!showTieBreakerInfo)}
-              className="flex items-center gap-2 w-fit"
-            >
-              <Trophy className="h-4 w-4" />
-              {showTieBreakerInfo ? 'Hide' : 'Show'} Tie-Breaker Details
-            </Button>
-          )}
-        </div>
-        
-        {/* Title Row */}
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold truncate">{periodName} Leaderboard</h1>
-          <p className="text-gray-600 text-sm sm:text-base truncate">Season {season} • {poolName || `Pool ${poolId.slice(0, 8)}...`}</p>
-        </div>
-      </div>
+      {/* ── MAIN CONTENT ── */}
+      <section style={{ background: bg, padding: '2rem 0', minHeight: '50vh' }}>
+        <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-      {/* Period Winner */}
-      {periodWinner && (
-        <Card className="mb-6 sm:mb-8 border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-800">
-              <Trophy className="h-6 w-6" />
-              {allWeeksCompleted ? 'Quarter Winner' : 'Current Leader of Quarter'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xl sm:text-2xl font-bold text-yellow-900 truncate">{periodWinner.winner_name}</h3>
-                <p className="text-yellow-700 text-sm sm:text-base">
-                  {periodWinner.winner_points} points • {periodWinner.winner_correct_picks} correct picks
-                </p>
-                {periodWinner.tie_breaker_used && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Badge variant="secondary">
-                      Tie Breaker Used
-                    </Badge>
-                    {!showTieBreakerInfo && (
-                      <button
-                        onClick={() => setShowTieBreakerInfo(true)}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline"
-                      >
-                        View Details
-                      </button>
-                    )}
-                  </div>
-                )}
+          {/* Development banner */}
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ padding: '0.85rem 1rem', background: 'oklch(46% 0.14 155 / 0.08)', border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: 8, height: 8, background: greenHi, borderRadius: '50%' }} />
+                  <p style={{ ...b, fontWeight: 600, fontSize: '0.8rem', color: greenHi }}>Development Mode</p>
+                </div>
+                <button
+                  onClick={loadDummyData}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.7rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  Load Dummy Data
+                </button>
               </div>
-              <div className="text-center sm:text-right">
-                <p className="text-sm text-yellow-600">Total Participants</p>
-                <p className="text-xl sm:text-2xl font-bold text-yellow-900">{periodWinner.total_participants}</p>
+              <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.35rem' }}>
+                {(!periodWinner || periodWinner.id.startsWith('dummy-'))
+                  ? 'Showing dummy data for development. No real period data is available.'
+                  : 'Click "Load Dummy Data" to test with sample data.'
+                }
+              </p>
+            </div>
+          )}
+
+          {/* Period Winner card */}
+          {periodWinner && (
+            <div style={{ background: 'oklch(74% 0.16 72 / 0.07)', border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 10, padding: '1.25rem 1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <Trophy style={{ width: 20, height: 20, color: gold }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: gold, textTransform: 'uppercase' }}>
+                  {allWeeksCompleted ? `${periodName === 'Playoffs' ? 'Playoffs' : 'Quarter'} Winner` : `Current Leader — ${periodName}`}
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)', color: text, textTransform: 'uppercase', marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {periodWinner.winner_name}
+                  </h3>
+                  <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>
+                    <span style={{ color: greenHi, fontWeight: 700 }}>{periodWinner.winner_points}</span> pts &nbsp;•&nbsp; <span style={{ color: textMid }}>{periodWinner.winner_correct_picks}</span> correct picks
+                  </p>
+                  {periodWinner.tie_breaker_used && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.07em', padding: '0.12rem 0.45rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(65% 0.12 290 / 0.15)', color: purple, border: `1px solid oklch(65% 0.12 290 / 0.4)` }}>
+                        Tie Breaker Used
+                      </span>
+                      {!showTieBreakerInfo && (
+                        <button
+                          onClick={() => setShowTieBreakerInfo(true)}
+                          style={{ background: 'none', border: 'none', padding: 0, ...b, fontSize: '0.72rem', color: textMid, textDecoration: 'underline', cursor: 'pointer' }}
+                        >
+                          View Details
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginBottom: '0.2rem' }}>Total Participants</p>
+                  <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: gold, lineHeight: 1.1 }}>{periodWinner.total_participants}</p>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {/* Tie-Breaker Information */}
-      {tieBreakerInfo && tieBreakerInfo.wasUsed && showTieBreakerInfo && (
-        <Card className="mb-6 sm:mb-8 border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-800">
-              <Trophy className="h-5 w-5" />
-              Tie-Breaker Applied
-            </CardTitle>
-            <CardDescription className="text-blue-700">
-              Monday Night Score Tie-Breaker used for Week {tieBreakerInfo.tieBreakerWeek} 
-              (Actual Score: {tieBreakerInfo.poolAnswer})
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <h4 className="font-semibold text-blue-900">Participants Involved:</h4>
-              <div className="space-y-2">
-                {tieBreakerInfo.participantsInvolved.map((participant: any, index: number) => (
-                  <div key={participant.participant_id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-blue-600">#{participant.finalPosition}</span>
+          {/* Tie-Breaker Details */}
+          {tieBreakerInfo && tieBreakerInfo.wasUsed && showTieBreakerInfo && (
+            <div style={{ background: 'oklch(65% 0.12 290 / 0.07)', border: `1px solid oklch(65% 0.12 290 / 0.35)`, borderRadius: 10, padding: '1.25rem 1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <Trophy style={{ width: 18, height: 18, color: purple }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: purple, textTransform: 'uppercase' }}>Tie-Breaker Applied</p>
+              </div>
+              <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
+                Monday Night Score Tie-Breaker used for Week {tieBreakerInfo.tieBreakerWeek}
+                {' '}(Actual Score: {tieBreakerInfo.poolAnswer})
+              </p>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Participants Involved:</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {tieBreakerInfo.participantsInvolved.map((participant: any) => (
+                  <div key={participant.participant_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8, gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: 32, height: 32, background: 'oklch(65% 0.12 290 / 0.15)', border: `1px solid oklch(65% 0.12 290 / 0.4)`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ ...bc, fontWeight: 800, fontSize: '0.72rem', color: purple }}>#{participant.finalPosition}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-blue-900">{participant.name}</p>
-                        <p className="text-sm text-blue-600">{participant.points} points</p>
+                        <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{participant.name}</p>
+                        <p style={{ ...b, fontSize: '0.72rem', color: textMid }}>{participant.points} pts</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-blue-600">Monday Night Score</p>
-                      <p className="font-medium text-blue-900">
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>Monday Night Score</p>
+                      <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>
                         {participant.mondayNightAnswer !== null ? participant.mondayNightAnswer : 'N/A'}
                       </p>
-                      <p className="text-xs text-blue-500">
-                        Difference: {participant.mondayNightDifference !== Infinity ? participant.mondayNightDifference : 'N/A'}
+                      <p style={{ ...b, fontSize: '0.68rem', color: textDim }}>
+                        Diff: {participant.mondayNightDifference !== Infinity ? participant.mondayNightDifference : 'N/A'}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {/* Tabs */}
-      <Tabs defaultValue="leaderboard" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3">
-          <TabsTrigger value="leaderboard" className="text-xs sm:text-sm">Leaderboard</TabsTrigger>
-          <TabsTrigger value="weekly" className="text-xs sm:text-sm">Weekly Winners</TabsTrigger>
-          <TabsTrigger value="chart" className="hidden md:flex text-xs sm:text-sm">Points Chart</TabsTrigger>
-        </TabsList>
-
-        {/* Leaderboard Tab */}
-        <TabsContent value="leaderboard" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                {periodName === 'Playoffs' ? 'Playoffs' : 'Quarter'} Leaderboard
-              </CardTitle>
-              <CardDescription>
-              {periodInfo &&
-                (periodName === 'Playoffs'
-                  ? `Playoff Rounds: ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
-                  : `Weeks ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
-                )
-              }
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6">
-              <div className="space-y-3">
-                {leaderboard.map((participant, index) => (
-                  <div
-                    key={participant.participant_id}
-                    className={`p-3 sm:p-4 rounded-lg border ${getRankColor(index)}`}
+          {/* ── TABS ── */}
+          <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, overflow: 'hidden' }}>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', borderBottom: `1px solid ${border}`, background: surface }}>
+              {TABS.map(({ id, label, icon: Icon }) => {
+                const active = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    style={{
+                      flex: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                      padding: '0.65rem 0.5rem',
+                      background: active ? card : 'transparent',
+                      color: active ? text : textDim,
+                      border: 'none',
+                      borderBottom: active ? `2px solid ${green}` : '2px solid transparent',
+                      ...bc, fontWeight: 700, fontSize: '0.72rem',
+                      letterSpacing: '0.07em', textTransform: 'uppercase',
+                      cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
                   >
-                    {/* Mobile-first layout */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      {/* Participant info */}
-                      <div className="flex items-center gap-4">
-                        {renderRankIcon(index)}
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-semibold truncate">{participant.name}</h4>
-                          {/* <p className="text-sm text-gray-600 truncate">{participant.email}</p> */}
-                        </div>
-                      </div>
-                      
-                      {/* Stats - responsive grid layout */}
-                      <div className="grid grid-cols-3 gap-4 sm:flex sm:items-center sm:gap-6">
-                        <div className="text-center sm:text-right">
-                          <p className="text-xs sm:text-sm text-gray-600">Points</p>
-                          <p className="text-lg sm:text-xl font-bold">{participant.total_points}</p>
-                        </div>
-                        <div className="text-center sm:text-right">
-                          <p className="text-xs sm:text-sm text-gray-600">Weeks Won</p>
-                          <p className="text-lg sm:text-xl font-bold">{participant.weeks_won}</p>
-                        </div>
-                        <div className="text-center sm:text-right">
-                          <p className="text-xs sm:text-sm text-gray-600">Record</p>
-                          <p className="text-lg sm:text-xl font-bold">
-                            {participant.total_correct}-{participant.total_picks}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <Icon style={{ width: 12, height: 12 }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tab content */}
+            <div style={{ background: bg, padding: '1.5rem' }}>
+
+              {/* ── LEADERBOARD TAB ── */}
+              {activeTab === 'leaderboard' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <Users style={{ width: 16, height: 16, color: greenHi }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase' }}>
+                      {periodName === 'Playoffs' ? 'Playoffs' : 'Quarter'} Leaderboard
+                    </p>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1.25rem' }}>
+                    {periodInfo && (
+                      periodName === 'Playoffs'
+                        ? `Playoff Rounds: ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
+                        : `Weeks ${periodInfo.weeks.join(', ')} • ${periodInfo.totalWeeks} weeks`
+                    )}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {leaderboard.map((participant, index) => {
+                      const isFirst = index === 0;
+                      const isSecond = index === 1;
+                      const isThird = index === 2;
+                      const rowBg = isFirst
+                        ? 'oklch(74% 0.16 72 / 0.07)'
+                        : isSecond
+                          ? 'oklch(72% 0.015 255 / 0.06)'
+                          : isThird
+                            ? 'oklch(72% 0.16 60 / 0.06)'
+                            : surface;
+                      const rowBorder = isFirst
+                        ? 'oklch(74% 0.16 72 / 0.35)'
+                        : isSecond
+                          ? 'oklch(72% 0.015 255 / 0.25)'
+                          : isThird
+                            ? 'oklch(72% 0.16 60 / 0.25)'
+                            : border;
 
-        {/* Weekly Winners Tab */}
-        <TabsContent value="weekly" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Weekly Winners
-              </CardTitle>
-              <CardDescription>
-                Winners for each week in {periodName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6">
-              <div className="space-y-3">
-                {periodInfo && periodInfo.weeks.map((week) => {
-                  const winner = weeklyWinners.find(w => w.week === week);
-                  const weekGames = games.filter(game => game.week === week);
-                  
-                  // Determine week status
-                  let weekStatus = 'not-started';
-                  let statusText = 'Not Started';
-                  let statusColor = 'bg-gray-100 text-gray-600';
-                  
-                  if (weekGames.length > 0) {
-                    const finishedGames = weekGames.filter(game => {
-                      const status = game.status?.toLowerCase() || '';
-                      return status === 'final' || status === 'post';
-                    });
-                    
-                    if (finishedGames.length === weekGames.length) {
-                      weekStatus = 'completed';
-                      statusText = 'Completed';
-                      statusColor = 'bg-green-100 text-green-600';
-                    } else if (finishedGames.length > 0) {
-                      weekStatus = 'in-progress';
-                      statusText = 'In Progress';
-                      statusColor = 'bg-yellow-100 text-yellow-600';
-                    } else {
-                      weekStatus = 'not-started';
-                      statusText = 'Not Started';
-                      statusColor = 'bg-gray-100 text-gray-600';
-                    }
-                  }
-                  
-                  debugLog(`Week ${week} status: ${weekStatus}, games: ${weekGames.length}, winner:`, winner);
-                  
-                  return (
-                    <div key={week} className="p-3 sm:p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        {/* Week indicator and winner info */}
-                        <div className="flex items-start gap-3 sm:gap-4">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-sm font-bold text-blue-600">W{week}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            {weekStatus === 'completed' && winner ? (
-                              <>
-                                <h4 className="font-semibold text-base sm:text-lg truncate">{winner.winner_name}</h4>
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
-                                  <span className="text-sm text-gray-600">
-                                    <span className="font-medium text-blue-600">{winner.winner_points}</span> points
-                                  </span>
-                                  <span className="hidden sm:inline text-gray-400">•</span>
-                                  <span className="text-sm text-gray-600">
-                                    <span className="font-medium text-green-600">{winner.winner_correct_picks}</span> correct picks
-                                  </span>
-                                </div>
-                              </>
-                            ) : weekStatus === 'in-progress' ? (
-                              <>
-                                <h4 className="font-semibold text-base sm:text-lg text-yellow-700">Games In Progress</h4>
-                                <p className="text-sm text-yellow-600 mt-1">
-                                  {weekGames.filter(game => {
-                                    const status = game.status?.toLowerCase() || '';
-                                    return status === 'final' || status === 'post';
-                                  }).length} of {weekGames.length} games finished
+                      return (
+                        <div key={participant.participant_id} style={{ background: rowBg, border: `1px solid ${rowBorder}`, borderRadius: 8, padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                            {/* Name + rank */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                              <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {renderRankIcon(index)}
+                              </div>
+                              <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {participant.name}
+                              </p>
+                            </div>
+                            {/* Stats */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.1rem' }}>Points</p>
+                                <p style={{ ...bc, fontWeight: 900, fontSize: '1.2rem', color: isFirst ? gold : greenHi, lineHeight: 1 }}>{participant.total_points}</p>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.1rem' }}>Weeks Won</p>
+                                <p style={{ ...bc, fontWeight: 900, fontSize: '1.2rem', color: textMid, lineHeight: 1 }}>{participant.weeks_won}</p>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.1rem' }}>Record</p>
+                                <p style={{ ...bc, fontWeight: 900, fontSize: '1.2rem', color: textMid, lineHeight: 1 }}>
+                                  {participant.total_correct}-{participant.total_picks}
                                 </p>
-                              </>
-                            ) : (
-                              <>
-                                <h4 className="font-semibold text-base sm:text-lg text-gray-500">Week Not Started</h4>
-                                <p className="text-sm text-gray-500 mt-1">
-                                  {weekGames.length} games scheduled
-                                </p>
-                              </>
-                            )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        
-                        {/* Status badge and tie breaker badge */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-                          {/* Status badge */}
-                          <Badge className={`text-xs sm:text-sm ${statusColor}`}>
-                            {statusText}
-                          </Badge>
-                          
-                          {/* Tie breaker badge */}
-                          {winner?.tie_breaker_used && (
-                            <Badge variant="secondary" className="text-xs sm:text-sm">
-                              Tie Breaker Used
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Points Chart Tab - Only visible on iPad and larger screens */}
-        <TabsContent value="chart" className="space-y-4 hidden md:block">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Points Per Week Chart
-              </CardTitle>
-              <CardDescription>
-                Visual representation of each participant&apos;s points throughout {periodName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6">
-              {/* Participant Selection */}
-              <div className="mb-6">
-                <h4 className="text-sm font-medium mb-3">Select Participants to Display:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {leaderboard.map((participant) => (
-                    <label
-                      key={participant.participant_id}
-                      className="flex items-center space-x-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedParticipants.includes(participant.name)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedParticipants(prev => [...prev, participant.name]);
-                          } else {
-                            setSelectedParticipants(prev => prev.filter(name => name !== participant.name));
-                          }
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{participant.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => handleParticipantSelection('select-all')}
-                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    onClick={() => handleParticipantSelection('clear-all')}
-                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                  >
-                    Clear All
-                  </button>
-                </div>
-              </div>
-              
-              {chartData.length > 0 ? (
-                <div className="h-96 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={chartData}
-                      margin={{
-                        top: 20,
-                        right: 30,
-                        left: 20,
-                        bottom: 20,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="week" 
-                        tick={{ fontSize: 12 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={60}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 12 }}
-                        label={{ value: 'Points', angle: -90, position: 'insideLeft' }}
-                      />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: 'white',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                        }}
-                        formatter={(value: number, name: string) => [value, name]}
-                        labelFormatter={(label: string) => label}
-                      />
-                      <Legend />
-                      {leaderboard.map((participant, index) => {
-                        // Generate colors for each participant
-                        const colors = [
-                          '#3b82f6', // blue
-                          '#ef4444', // red
-                          '#10b981', // green
-                          '#f59e0b', // yellow
-                          '#8b5cf6', // purple
-                          '#06b6d4', // cyan
-                          '#84cc16', // lime
-                          '#f97316', // orange
-                          '#ec4899', // pink
-                          '#6b7280', // gray
-                        ];
-                        const color = colors[index % colors.length];
-                        
-                        return (
-                          <Line
-                            key={participant.participant_id}
-                            type="monotone"
-                            dataKey={participant.name}
-                            stroke={color}
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                            activeDot={{ r: 6 }}
-                            connectNulls={false}
-                          />
-                        );
-                      })}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : selectedParticipants.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No participants selected</p>
-                  <p className="text-sm">Select participants above to display their points on the chart</p>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No chart data available</p>
-                  <p className="text-sm">Chart will appear when leaderboard data is loaded</p>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+
+              {/* ── WEEKLY WINNERS TAB ── */}
+              {activeTab === 'weekly' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <Calendar style={{ width: 16, height: 16, color: greenHi }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase' }}>Weekly Winners</p>
+                  </div>
+                  <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1.25rem' }}>
+                    Winners for each week in {periodName}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {periodInfo && periodInfo.weeks.map((week) => {
+                      const winner = weeklyWinners.find(w => w.week === week);
+                      const weekGames = games.filter(game => game.week === week);
+
+                      let weekStatus = 'not-started';
+                      let statusText = 'Not Started';
+                      let statusBg = 'oklch(26% 0.03 255)';
+                      let statusColor = textDim;
+                      let statusBorder = border;
+
+                      if (weekGames.length > 0) {
+                        const finishedGames = weekGames.filter(game => {
+                          const status = game.status?.toLowerCase() || '';
+                          return status === 'final' || status === 'post';
+                        });
+
+                        if (finishedGames.length === weekGames.length) {
+                          weekStatus = 'completed';
+                          statusText = 'Completed';
+                          statusBg = 'oklch(46% 0.14 155 / 0.15)';
+                          statusColor = greenHi;
+                          statusBorder = 'oklch(46% 0.14 155 / 0.4)';
+                        } else if (finishedGames.length > 0) {
+                          weekStatus = 'in-progress';
+                          statusText = 'In Progress';
+                          statusBg = 'oklch(72% 0.16 60 / 0.1)';
+                          statusColor = amber;
+                          statusBorder = 'oklch(72% 0.16 60 / 0.35)';
+                        }
+                      }
+
+                      debugLog(`Week ${week} status: ${weekStatus}, games: ${weekGames.length}, winner:`, winner);
+
+                      return (
+                        <div key={week} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                              {/* Week badge */}
+                              <div style={{ width: 36, height: 36, background: 'oklch(46% 0.14 155 / 0.12)', border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <span style={{ ...bc, fontWeight: 800, fontSize: '0.72rem', color: greenHi }}>W{week}</span>
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                {weekStatus === 'completed' && winner ? (
+                                  <>
+                                    <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner.winner_name}</p>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                                      <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                                        <span style={{ color: greenHi, fontWeight: 700 }}>{winner.winner_points}</span> pts
+                                      </span>
+                                      <span style={{ color: textDim, fontSize: '0.7rem' }}>•</span>
+                                      <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                                        <span style={{ fontWeight: 700 }}>{winner.winner_correct_picks}</span> correct
+                                      </span>
+                                    </div>
+                                  </>
+                                ) : weekStatus === 'in-progress' ? (
+                                  <>
+                                    <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: amber }}>Games In Progress</p>
+                                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.2rem' }}>
+                                      {weekGames.filter(game => {
+                                        const status = game.status?.toLowerCase() || '';
+                                        return status === 'final' || status === 'post';
+                                      }).length} of {weekGames.length} games finished
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: textDim }}>Week Not Started</p>
+                                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.2rem' }}>
+                                      {weekGames.length} games scheduled
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                              <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.07em', padding: '0.12rem 0.45rem', borderRadius: 4, textTransform: 'uppercase', background: statusBg, color: statusColor, border: `1px solid ${statusBorder}` }}>
+                                {statusText}
+                              </span>
+                              {winner?.tie_breaker_used && (
+                                <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.07em', padding: '0.12rem 0.45rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(65% 0.12 290 / 0.1)', color: purple, border: `1px solid oklch(65% 0.12 290 / 0.35)` }}>
+                                  Tie Breaker
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── CHART TAB ── */}
+              {activeTab === 'chart' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <BarChart3 style={{ width: 16, height: 16, color: greenHi }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase' }}>Points Per Week</p>
+                  </div>
+                  <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1.25rem' }}>
+                    Visual representation of each participant&apos;s points throughout {periodName}
+                  </p>
+
+                  {/* Participant selection */}
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.6rem' }}>Select Participants to Display:</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      {leaderboard.map((participant) => {
+                        const checked = selectedParticipants.includes(participant.name);
+                        return (
+                          <label
+                            key={participant.participant_id}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', padding: '0.25rem 0.6rem', background: checked ? 'oklch(46% 0.14 155 / 0.12)' : surface, border: `1px solid ${checked ? 'oklch(46% 0.14 155 / 0.4)' : border}`, borderRadius: 5 }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedParticipants(prev => [...prev, participant.name]);
+                                } else {
+                                  setSelectedParticipants(prev => prev.filter(name => name !== participant.name));
+                                }
+                              }}
+                              style={{ accentColor: green, width: 13, height: 13 }}
+                            />
+                            <span style={{ ...b, fontSize: '0.8rem', color: checked ? text : textMid }}>{participant.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => handleParticipantSelection('select-all')}
+                        style={{ padding: '0.25rem 0.65rem', background: 'oklch(46% 0.14 155 / 0.12)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, borderRadius: 4, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => handleParticipantSelection('clear-all')}
+                        style={{ padding: '0.25rem 0.65rem', background: surface, color: textMid, border: `1px solid ${border}`, borderRadius: 4, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {chartData.length > 0 ? (
+                    <div style={{ height: 384, width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={chartData}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke={border} />
+                          <XAxis
+                            dataKey="week"
+                            tick={{ fontSize: 12, fill: textMid, fontFamily: 'var(--font-barlow-condensed)' }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
+                            axisLine={{ stroke: border }}
+                            tickLine={{ stroke: border }}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: textMid, fontFamily: 'var(--font-barlow-condensed)' }}
+                            label={{ value: 'Points', angle: -90, position: 'insideLeft', fill: textDim, fontFamily: 'var(--font-barlow-condensed)', fontSize: 12 }}
+                            axisLine={{ stroke: border }}
+                            tickLine={{ stroke: border }}
+                          />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: card, border: `1px solid ${border}`, borderRadius: 8, fontFamily: 'var(--font-barlow)', fontSize: 13, color: text }}
+                            labelStyle={{ color: textMid, fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.06em' }}
+                            formatter={(value: number, name: string) => [value, name]}
+                            labelFormatter={(label: string) => label}
+                          />
+                          <Legend
+                            wrapperStyle={{ fontFamily: 'var(--font-barlow)', fontSize: 13, color: textMid }}
+                          />
+                          {leaderboard.map((participant, index) => (
+                            <Line
+                              key={participant.participant_id}
+                              type="monotone"
+                              dataKey={participant.name}
+                              stroke={chartColors[index % chartColors.length]}
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: chartColors[index % chartColors.length] }}
+                              activeDot={{ r: 6 }}
+                              connectNulls={false}
+                            />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : selectedParticipants.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                      <BarChart3 style={{ width: 48, height: 48, color: textDim, margin: '0 auto 0.75rem' }} />
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>No Participants Selected</p>
+                      <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Select participants above to display their points on the chart</p>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                      <BarChart3 style={{ width: 48, height: 48, color: textDim, margin: '0 auto 0.75rem' }} />
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>No Chart Data Available</p>
+                      <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Chart will appear when leaderboard data is loaded</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
+
+        </div>
+      </section>
     </div>
   );
 }

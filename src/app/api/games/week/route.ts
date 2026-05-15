@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, isOffseason } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,6 +29,20 @@ export async function GET(request: NextRequest) {
     }
 
     debugLog('Parsed parameters:', { weekNumber, seasonTypeNumber });
+
+    // During offseason, check whether any games exist in the DB before querying.
+    // This lets pre-loaded upcoming-season games surface without showing stale data.
+    if (isOffseason()) {
+      const supabaseCheck = getSupabaseServiceClient();
+      const { data: futureGames } = await supabaseCheck
+        .from('games')
+        .select('id')
+        .gte('kickoff_time', new Date().toISOString())
+        .limit(1);
+      if (!futureGames || futureGames.length === 0) {
+        return NextResponse.json({ success: true, games: [], offseason: true });
+      }
+    }
 
     // Return dummy playoff games if in dummy data mode and season type is postseason (3)
     if (isDummyData() && seasonTypeNumber === 3) {

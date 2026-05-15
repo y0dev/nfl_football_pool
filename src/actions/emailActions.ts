@@ -109,7 +109,7 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
     // Filter to get participants without picks
     const participants = allParticipants.filter(p => !participantsWithPicks.has(p.id));
 
-    if (participantsError) {
+    if (allParticipantsError) {
       return {
         success: false,
         sent: 0,

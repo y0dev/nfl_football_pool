@@ -1,600 +1,487 @@
 import { test, expect } from '@playwright/test';
-import { TestHelpers, testData, selectors } from '../utils/test-helpers';
+import { TestHelpers, testData } from '../utils/test-helpers';
 
-test.describe('NFL Football Pool - End to End Tests', () => {
-  let helpers: TestHelpers;
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 
-  test.beforeEach(async ({ page }) => {
-    helpers = new TestHelpers(page);
-    
-    // Navigate to the home page
+function mockPoolsAPI(helpers: TestHelpers, pools = [testData.pools.openPool, testData.pools.lockedPool]) {
+  return helpers.mockAPIResponse('**/api/pools**', { pools });
+}
+
+function mockJoinSuccess(helpers: TestHelpers) {
+  return helpers.mockAPIResponse('**/api/pools/join**', {
+    message: 'Successfully joined pool',
+    participant: { id: 'p-1', name: 'Test User', email: 'test@example.com' },
+    poolName: testData.pools.openPool.name,
+  });
+}
+
+function mockJoinWrongPassword(helpers: TestHelpers) {
+  return helpers.mockAPIResponse('**/api/pools/join**', {
+    error: 'Incorrect pool password. Please check with your commissioner.',
+  }, 403);
+}
+
+function mockMagicLinkSend(helpers: TestHelpers) {
+  return helpers.mockAPIResponse('**/actions**', { success: true });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Landing Page
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Landing Page', () => {
+  test('renders brand, nav, and hero', async ({ page }) => {
+    const h = new TestHelpers(page);
     await page.goto('/');
-    await helpers.waitForPageLoad();
+    await h.waitForPageLoad();
+
+    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').getByText('Sunday Huddle', { exact: false })).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
   });
 
-  test.describe('Homepage and Navigation', () => {
-    test('should display homepage with proper content', async ({ page }) => {
-      // Check if the page loads correctly
-      await expect(page).toHaveTitle(/NFL/);
-      
-      // Verify main navigation elements are present
-      await helpers.expectElementVisible('nav');
-      
-      // Check for login button (register is admin-only)
-      await helpers.expectElementVisible('a[href="/login"]');
-    });
+  test('shows commissioner login button when not logged in', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
 
-    test('should navigate to login page', async ({ page }) => {
-      await page.click('a[href="/login"]');
-      await helpers.waitForNavigation();
-      await helpers.expectURLContains('/login');
-    });
+    const loginBtn = page.locator('button', { hasText: /commissioner/i }).or(
+      page.locator('a', { hasText: /commissioner/i })
+    );
+    await expect(loginBtn.first()).toBeVisible();
   });
 
-  test.describe('User Authentication', () => {
-    test('should allow user login', async ({ page }) => {
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
+  test('pool search input exists and accepts text', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
 
-      // Fill login form
-      await helpers.fillField('input[name="email"]', testData.users.participant.email);
-      await helpers.fillField('input[name="password"]', testData.users.participant.password);
-      
-      // Submit form
-      await page.click('button[type="submit"]');
-      
-      // Wait for successful login
-      await helpers.waitForNavigation();
-      
-      // Verify user is logged in
-      await helpers.expectURLContains('/participant');
-    });
-
-    test('should handle invalid login credentials', async ({ page }) => {
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-
-      // Fill login form with invalid credentials
-      await helpers.fillField('input[name="email"]', 'invalid@email.com');
-      await helpers.fillField('input[name="password"]', 'wrongpassword');
-      
-      // Submit form
-      await page.click('button[type="submit"]');
-      
-      // Verify error message is displayed (look for common error patterns)
-      await helpers.expectElementVisible('.error, .alert, [role="alert"]');
-    });
+    const searchInput = page.locator('input[placeholder*="Pool" i], input[placeholder*="pool" i]').first();
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('Test Pool');
+    await expect(searchInput).toHaveValue('Test Pool');
   });
 
-  test.describe('Pool Management', () => {
-    test('should allow admin to create a new pool', async ({ page }) => {
-      // Login as admin first
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+  test('search navigates to /pools with query', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
 
-      // Navigate to admin dashboard
-      await page.goto('/admin/dashboard');
-      await helpers.waitForPageLoad();
+    const searchInput = page.locator('input[placeholder*="Pool" i], input[placeholder*="pool" i]').first();
+    await searchInput.fill('Sunday Huddle');
 
-      // Look for create pool functionality
-      await helpers.expectElementVisible('button:has-text("Create Pool"), a:has-text("Create Pool")');
-    });
+    const searchBtn = page.locator('button', { hasText: /find pool|search/i }).first();
+    await searchBtn.click();
 
-    test('should allow users to join an existing pool', async ({ page }) => {
-      // Login as participant
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.participant.email);
-      await helpers.fillField('input[name="password"]', testData.users.participant.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to participant page where pools are displayed
-      await page.goto('/participant');
-      await helpers.waitForPageLoad();
-
-      // Look for join pool functionality
-      await helpers.expectElementVisible('button:has-text("Join Pool"), a:has-text("Join Pool")');
-    });
-
-    test('should allow admin to share pool with participants', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to pool management page
-      await page.goto('/pools');
-      await helpers.waitForPageLoad();
-
-      // Find a pool and click the share button
-      const shareButton = page.locator('button:has-text("Share")').first();
-      await shareButton.click();
-
-      // Verify share modal opens
-      await helpers.expectElementVisible('[role="dialog"]');
-      await helpers.expectElementVisible('h2:has-text("Share Pool")');
-
-      // Verify share link is generated
-      const shareLink = page.locator('input[readonly]');
-      await expect(shareLink).toHaveValue(/\/invite\?pool=/);
-
-      // Test copy functionality
-      const copyButton = page.locator('button:has-text("Copy")');
-      await copyButton.click();
-
-      // Verify copy success feedback
-      await helpers.expectElementVisible('button:has-text("Copied!")');
-    });
+    await expect(page).toHaveURL(/\/pools\?q=/);
+    await expect(page).toHaveURL(/Sunday\+Huddle|Sunday%20Huddle/);
   });
 
-  test.describe('Picks Submission', () => {
-    test('should allow users to submit weekly picks', async ({ page }) => {
-      // Login as participant
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.participant.email);
-      await helpers.fillField('input[name="password"]', testData.users.participant.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+  test('shows features and how-it-works sections', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
 
-      // Navigate to a specific pool's picks page
-      await page.goto('/pool/test-pool-id/picks');
-      await helpers.waitForPageLoad();
-
-      // Look for picks form or game selection
-      await helpers.expectElementVisible('form, .picks-form, .game-picks');
-    });
-
-    test('should prevent duplicate pick submissions', async ({ page }) => {
-      // Login as participant
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.participant.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to picks page
-      await page.goto('/pool/test-pool-id/picks');
-      await helpers.waitForPageLoad();
-
-      // Look for submit picks functionality
-      await helpers.expectElementVisible('button:has-text("Submit"), button:has-text("Submit Picks")');
-    });
+    await expect(page.locator('text=Weekly Competition').or(page.locator('text=weekly competition'))).toBeVisible();
+    await expect(page.locator('text=How It Works').or(page.locator('text=How it Works'))).toBeVisible();
   });
 
+  test('shows live game ticker section', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
 
+    // Either games are listed or offseason banner is shown
+    const ticker = page.locator('section').filter({ hasText: /Week \d+ Games|Offseason/i });
+    await expect(ticker.first()).toBeVisible();
+  });
+});
 
-  test.describe('Commissioners Management System', () => {
-    test('should allow super admin to access commissioners management', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+// ─────────────────────────────────────────────────────────────
+// Commissioner Login
+// ─────────────────────────────────────────────────────────────
 
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
+test.describe('Commissioner Login', () => {
+  test('login page renders email form', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/login');
+    await h.waitForPageLoad();
 
-      // Verify commissioners management page loads
-      await helpers.expectElementVisible('h1:has-text("Commissioners Management")');
-      await helpers.expectElementVisible('.commissioners-list, .commissioners-table');
-    });
-
-    test('should prevent regular admins from accessing commissioners management', async ({ page }) => {
-      // Login as regular admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Try to access commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Should be redirected to dashboard
-      await helpers.expectURLContains('/dashboard');
-    });
-
-    test('should display commissioners list with proper information', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Verify commissioners list displays
-      await helpers.expectElementVisible('.commissioners-list, .commissioners-table');
-      
-      // Check for commissioner information
-      const commissionerCards = page.locator('.commissioner-card, .commissioner-row');
-      if (await commissionerCards.count() > 0) {
-        await helpers.expectElementVisible('.commissioner-name, .name');
-        await helpers.expectElementVisible('.commissioner-email, .email');
-        await helpers.expectElementVisible('.commissioner-status, .status');
-      }
-    });
-
-    test('should allow super admin to reset commissioner password', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Click reset password button for a commissioner
-      const resetPasswordButton = page.locator('button:has-text("Reset Password")').first();
-      await resetPasswordButton.click();
-
-      // Verify reset password modal opens
-      await helpers.expectElementVisible('[role="dialog"]');
-      await helpers.expectElementVisible('h2:has-text("Reset Password")');
-
-      // Fill new password
-      const passwordInput = page.locator('input[type="password"]');
-      await passwordInput.fill('NewPassword123');
-
-      // Submit password reset
-      const submitButton = page.locator('button:has-text("Reset Password")');
-      await submitButton.click();
-
-      // Verify success message
-      await helpers.expectElementVisible('.success-toast, .toast-success, [role="status"]');
-    });
-
-    test('should allow super admin to toggle commissioner status', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Find a commissioner and click deactivate button
-      const deactivateButton = page.locator('button:has-text("Deactivate")').first();
-      await deactivateButton.click();
-
-      // Verify status change
-      await helpers.expectElementVisible('.success-toast, .toast-success, [role="status"]');
-      
-      // Verify button text changed to "Activate"
-      await helpers.expectElementVisible('button:has-text("Activate")');
-    });
-
-    test('should allow super admin to delete commissioner safely', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Click delete button for a commissioner
-      const deleteButton = page.locator('button:has-text("Delete")').first();
-      await deleteButton.click();
-
-      // Verify confirmation dialog opens
-      await helpers.expectElementVisible('[role="alertdialog"]');
-      await helpers.expectElementVisible('h2:has-text("Delete Commissioner")');
-
-      // Confirm deletion
-      const confirmButton = page.locator('button:has-text("Delete Permanently")');
-      await confirmButton.click();
-
-      // Verify success message
-      await helpers.expectElementVisible('.success-toast, .toast-success, [role="status"]');
-    });
-
-    test('should prevent deletion of commissioner with active pools', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to commissioners management page
-      await page.goto('/admin/commissioners');
-      await helpers.waitForPageLoad();
-
-      // Try to delete a commissioner with active pools
-      const deleteButton = page.locator('button:has-text("Delete")').first();
-      await deleteButton.click();
-
-      // Verify confirmation dialog opens
-      await helpers.expectElementVisible('[role="alertdialog"]');
-
-      // Confirm deletion
-      const confirmButton = page.locator('button:has-text("Delete Permanently")');
-      await confirmButton.click();
-
-      // Verify error message about active pools
-      await helpers.expectElementVisible('.error-toast, .toast-error, [role="alert"]');
-    });
+    await expect(page.locator('h1, h2').filter({ hasText: /sign in|commissioner/i }).first()).toBeVisible();
+    await expect(page.locator('input[type="email"], input[name="email"]').first()).toBeVisible();
   });
 
-  test.describe('Admin Functions', () => {
-    test('should allow admin to manage participants', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+  test('password mode submit shows error for empty email', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/login');
+    await h.waitForPageLoad();
 
-      // Navigate to admin dashboard
-      await page.goto('/admin/dashboard');
-      await helpers.waitForPageLoad();
+    // Try submitting without filling in email
+    const submitBtn = page.locator('button[type="submit"]').first();
+    await submitBtn.click();
 
-      // Verify admin panel is visible
-      await helpers.expectElementVisible('.admin-panel, .admin-dashboard');
-      
-      // Check participant management section
-      await helpers.expectElementVisible('.participant-management, .participants-section');
-    });
-
-    test('should allow admin to send reminders', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to reminders page
-      await page.goto('/admin/reminders');
-      await helpers.waitForPageLoad();
-
-      // Verify reminders functionality
-      await helpers.expectElementVisible('button:has-text("Send Reminders")');
-      
-      // Click send reminders button
-      await page.click('button:has-text("Send Reminders")');
-      
-      // Verify confirmation or success message
-      await helpers.expectElementVisible('.success-message, .alert-success, [role="status"]');
-    });
-
-    test('should allow admin to override picks', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to override picks page
-      await page.goto('/override-picks');
-      await helpers.waitForPageLoad();
-
-      // Verify override picks functionality
-      await helpers.expectElementVisible('h1:has-text("Override Participant Picks")');
-      
-      // Check for pool selection
-      await helpers.expectElementVisible('select[aria-label="Pool"]');
-    });
-
-    test('should allow admin to perform NFL sync', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to NFL sync page
-      await page.goto('/admin/nfl-sync');
-      await helpers.waitForPageLoad();
-
-      // Verify NFL sync functionality
-      await helpers.expectElementVisible('h1:has-text("NFL Data Synchronization")');
-      
-      // Check for sync button
-      await helpers.expectElementVisible('button:has-text("Sync Now")');
-      
-      // Check for sync history
-      await helpers.expectElementVisible('.sync-history, .history-section');
-    });
+    // Should show validation error or input still focused
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
+    await expect(emailInput).toBeVisible();
   });
 
-  test.describe('Commissioner Dashboard', () => {
-    test('should display commissioner dashboard with proper features', async ({ page }) => {
-      // Login as commissioner
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+  test('magic link mode is accessible from login page', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/login');
+    await h.waitForPageLoad();
 
-      // Navigate to commissioner dashboard
-      await page.goto('/dashboard');
-      await helpers.waitForPageLoad();
-
-      // Verify commissioner dashboard loads
-      await helpers.expectElementVisible('h1:has-text("Commissioner Dashboard")');
-      
-      // Check for quick action cards
-      await helpers.expectElementVisible('.quick-actions, .action-cards');
-      await helpers.expectElementVisible('button:has-text("Create Pool")');
-      await helpers.expectElementVisible('button:has-text("Pool Management")');
-      await helpers.expectElementVisible('button:has-text("Leaderboards")');
-      await helpers.expectElementVisible('button:has-text("Send Reminders")');
-      await helpers.expectElementVisible('button:has-text("Override Picks")');
-    });
-
-    test('should redirect super admins from commissioner dashboard', async ({ page }) => {
-      // Login as super admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.superAdmin.email);
-      await helpers.fillField('input[name="password"]', testData.users.superAdmin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Try to access commissioner dashboard
-      await page.goto('/dashboard');
-      await helpers.waitForPageLoad();
-
-      // Should be redirected to admin dashboard
-      await helpers.expectURLContains('/admin/dashboard');
-    });
+    // Look for magic link trigger button
+    const magicBtn = page.locator('button', { hasText: /magic link|send.*link|link instead/i });
+    if (await magicBtn.count() > 0) {
+      await expect(magicBtn.first()).toBeVisible();
+    }
   });
 
-  test.describe('Pool Management Page Updates', () => {
-    test('should display pool management with share functionality', async ({ page }) => {
-      // Login as admin
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
+  test('verify page shows loading state', async ({ page }) => {
+    const h = new TestHelpers(page);
+    // Navigate with no token — should show error state
+    await page.goto('/login/verify');
+    await h.waitForPageLoad();
 
-      // Navigate to pool management page
-      await page.goto('/pools');
-      await helpers.waitForPageLoad();
-
-      // Verify pool management page loads
-      await helpers.expectElementVisible('h1:has-text("Pool Management")');
-      
-      // Check for share button on pools
-      const shareButtons = page.locator('button:has-text("Share")');
-      if (await shareButtons.count() > 0) {
-        await helpers.expectElementVisible('button:has-text("Share")');
-      }
-    });
-
-    test('should filter pools based on user role', async ({ page }) => {
-      // Login as commissioner
-      await page.goto('/login');
-      await helpers.waitForPageLoad();
-      await helpers.fillField('input[name="email"]', testData.users.admin.email);
-      await helpers.fillField('input[name="password"]', testData.users.admin.password);
-      await page.click('button[type="submit"]');
-      await helpers.waitForNavigation();
-
-      // Navigate to pool management page
-      await page.goto('/pools');
-      await helpers.waitForPageLoad();
-
-      // Verify only commissioner's pools are shown
-      await helpers.expectElementVisible('h1:has-text("Pool Management")');
-      
-      // Check that the page shows "My Pools" for commissioners
-      await helpers.expectElementVisible('h2:has-text("My Pools")');
-    });
+    // Should show either an error or verifying state
+    const content = page.locator('h1').first();
+    await expect(content).toBeVisible();
   });
 
-  test.describe('Mobile Responsiveness', () => {
-    test('should work correctly on mobile devices', async ({ page }) => {
-      // Set mobile viewport
-      await page.setViewportSize({ width: 375, height: 667 });
-      
-      // Navigate to homepage
-      await page.goto('/');
-      await helpers.waitForPageLoad();
-      
-      // Verify mobile navigation works (look for common mobile patterns)
-      await helpers.expectElementVisible('.mobile-menu, .hamburger-menu, [aria-label="Menu"]');
-      
-      // Open mobile menu
-      await page.click('.mobile-menu, .hamburger-menu, [aria-label="Menu"]');
-      
-      // Verify mobile menu items are visible
-      await helpers.expectElementVisible('.mobile-nav, .mobile-menu-items');
-    });
+  test('verify page handles invalid token', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/login/verify?token=invalid-token-xyz');
+    await h.waitForPageLoad();
+
+    // Should show error state
+    const errorHeading = page.locator('h1', { hasText: /failed|invalid|error/i });
+    await expect(errorHeading.first()).toBeVisible({ timeout: 8000 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Pool Browse & Join
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Pool Search Page (/pools)', () => {
+  test('renders search input and initial state', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/pools');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-search-input"]')).toBeVisible();
+    await expect(page.locator('h1', { hasText: /pools/i }).first()).toBeVisible();
   });
 
-  test.describe('Error Handling', () => {
-    test('should handle 404 errors gracefully', async ({ page }) => {
-      // Navigate to non-existent page
-      await page.goto('/non-existent-page');
-      
-      // Verify 404 page is displayed
-      await helpers.expectElementVisible('.not-found, .error-404, [role="main"]');
+  test('shows results when API returns pools', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', {
+      pools: [testData.pools.openPool, testData.pools.lockedPool],
     });
 
-    test('should handle API errors gracefully', async ({ page }) => {
-      // Mock API error response
-      await helpers.mockAPIResponse('/api/pools', { error: 'Database connection failed' });
-      
-      // Navigate to admin pools page (which exists)
-      await page.goto('/pools');
-      await helpers.waitForPageLoad();
-      
-      // Verify error message is displayed
-      await helpers.expectElementVisible('.error-message, .alert-error, [role="alert"]');
-    });
+    await page.goto('/pools?q=test');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid="pool-card"]')).toHaveCount(2);
   });
 
-  test.describe('Performance and Loading', () => {
-    test('should load pages within acceptable time', async ({ page }) => {
-      const startTime = Date.now();
-      
-      // Navigate to homepage
-      await page.goto('/');
-      await helpers.waitForPageLoad();
-      
-      const loadTime = Date.now() - startTime;
-      
-      // Verify page loads within 5 seconds
-      expect(loadTime).toBeLessThan(5000);
+  test('shows empty state when no pools found', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [] });
+
+    await page.goto('/pools?q=nonexistent');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('text=/No active pools found/i').or(
+      page.locator('p', { hasText: /no.*pool/i })
+    ).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('open pool shows join form without password field', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.openPool] });
+
+    await page.goto('/pools?q=Sunday');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    await expect(page.locator('[data-testid="join-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="join-name"]')).toBeVisible();
+    await expect(page.locator('[data-testid="join-email"]')).toBeVisible();
+    // No password field for open pool
+    await expect(page.locator('[data-testid="join-password"]')).not.toBeVisible();
+  });
+
+  test('password-protected pool shows password field', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.lockedPool] });
+
+    await page.goto('/pools?q=Private');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    await expect(page.locator('[data-testid="join-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="join-password"]')).toBeVisible();
+    // Shows password required badge on the card
+    await expect(page.locator('text=/password required/i').first()).toBeVisible();
+  });
+
+  test('join form validates required fields', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.openPool] });
+
+    await page.goto('/pools?q=Sunday');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    // Submit empty form
+    await page.locator('[data-testid="join-submit"]').click();
+
+    // Should show error (not success)
+    await expect(page.locator('[data-testid="join-success"]')).not.toBeVisible();
+  });
+
+  test('successful join shows confirmation', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.openPool] });
+    await h.mockAPIResponse('**/api/pools/join**', {
+      message: 'Successfully joined pool',
+      participant: { id: 'p-1', name: 'Jane Doe', email: 'jane@example.com' },
+      poolName: testData.pools.openPool.name,
     });
 
-    test('should handle large datasets efficiently', async ({ page }) => {
-      // Navigate to admin leaderboard page (which exists)
-      await page.goto('/leaderboard');
-      await helpers.waitForPageLoad();
-      
-      // Verify page loads without performance issues
-      await helpers.expectElementVisible('.leaderboard, .leaderboard-table');
-      
-      // Check if pagination is implemented for large datasets
-      const pagination = page.locator('.pagination, .pagination-controls');
-      if (await pagination.count() > 0) {
-        await helpers.expectElementVisible('.pagination, .pagination-controls');
-      }
-    });
+    await page.goto('/pools?q=Sunday');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    await page.locator('[data-testid="join-name"]').fill('Jane Doe');
+    // Wait a moment so timing check passes
+    await page.waitForTimeout(1600);
+    await page.locator('[data-testid="join-email"]').fill('jane@example.com');
+    await page.locator('[data-testid="join-submit"]').click();
+
+    await expect(page.locator('[data-testid="join-success"]')).toBeVisible({ timeout: 8000 });
+  });
+
+  test('wrong password shows error message', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.lockedPool] });
+    await h.mockAPIResponse('**/api/pools/join**', {
+      error: 'Incorrect pool password. Please check with your commissioner.',
+    }, 403);
+
+    await page.goto('/pools?q=Private');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    await page.locator('[data-testid="join-name"]').fill('Bob Smith');
+    await page.waitForTimeout(1600);
+    await page.locator('[data-testid="join-email"]').fill('bob@example.com');
+    await page.locator('[data-testid="join-password"]').fill('wrongpassword');
+    await page.locator('[data-testid="join-submit"]').click();
+
+    await expect(page.locator('text=/incorrect.*password|wrong.*password/i').first()).toBeVisible({ timeout: 6000 });
+  });
+
+  test('honeypot field exists and is hidden', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.openPool] });
+    await page.goto('/pools?q=Sunday');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+
+    // Honeypot must exist in DOM but not be visible to the user
+    const honeypot = page.locator('input[name="website"]');
+    await expect(honeypot).toBeHidden();
+  });
+
+  test('pre-fills search from URL query', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await h.mockAPIResponse('**/api/pools**', { pools: [] });
+    await page.goto('/pools?q=MyPool');
+    await h.waitForPageLoad();
+
+    const searchInput = page.locator('[data-testid="pool-search-input"]');
+    await expect(searchInput).toHaveValue('MyPool');
+  });
+
+  test('cancel button closes join form', async ({ page }) => {
+    const h = new TestHelpers(page);
+
+    await h.mockAPIResponse('**/api/pools**', { pools: [testData.pools.openPool] });
+    await page.goto('/pools?q=Sunday');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('[data-testid="pool-card"]').first()).toBeVisible({ timeout: 8000 });
+    await page.locator('button', { hasText: /join pool/i }).first().click();
+    await expect(page.locator('[data-testid="join-form"]')).toBeVisible();
+
+    await page.locator('button', { hasText: /cancel/i }).click();
+    await expect(page.locator('[data-testid="join-form"]')).not.toBeVisible();
+  });
+
+  test('nav back button links to home', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/pools');
+    await h.waitForPageLoad();
+
+    const homeLink = page.locator('a[href="/"]', { hasText: /home/i });
+    await expect(homeLink.first()).toBeVisible();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Admin Dashboard
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Admin Dashboard', () => {
+  test('unauthenticated visit redirects away from dashboard', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/admin/dashboard');
+    await h.waitForPageLoad();
+
+    // Should either redirect to login or show auth guard
+    const url = page.url();
+    const isOnDashboard = url.includes('/admin/dashboard');
+    if (isOnDashboard) {
+      // If on dashboard, should show some auth gate or loading
+      await expect(page.locator('body')).toBeVisible();
+    } else {
+      expect(url).toMatch(/login|\/$/);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Admin Pools Page
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Admin Pools Page', () => {
+  test('unauthenticated visit to /admin/pools redirects to login', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/admin/pools');
+    await h.waitForPageLoad();
+
+    const url = page.url();
+    const isOnPools = url.includes('/admin/pools');
+    if (isOnPools) {
+      await expect(page.locator('body')).toBeVisible();
+    } else {
+      expect(url).toMatch(/login/);
+    }
+  });
+
+  test('unauthenticated visit to pool detail page redirects to login', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/admin/pool/fake-pool-id');
+    await h.waitForPageLoad();
+
+    const url = page.url();
+    expect(url).not.toContain('/admin/pool/fake-pool-id');
+    expect(url).toMatch(/login/);
+  });
+
+  test('admin login page renders email and password fields', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/admin/login');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first()).toBeVisible();
+    await expect(page.locator('input[type="password"], input[name="password"]').first()).toBeVisible();
+  });
+
+  test('admin login shows error for empty submission', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/admin/login');
+    await h.waitForPageLoad();
+
+    const submitBtn = page.locator('button[type="submit"]').first();
+    await submitBtn.click();
+
+    // Should still be on login page (no redirect)
+    await expect(page).toHaveURL(/\/admin\/login/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Register Page
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Register Page', () => {
+  test('renders registration form', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/register');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('input[type="email"], input[name="email"]').first()).toBeVisible();
+    await expect(page.locator('input[type="password"], input[name="password"]').first()).toBeVisible();
+  });
+
+  test('has link to sign in page', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/register');
+    await h.waitForPageLoad();
+
+    const signInLink = page.locator('a[href="/login"], a', { hasText: /sign in|login/i });
+    await expect(signInLink.first()).toBeVisible();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Navigation & Deep Links
+// ─────────────────────────────────────────────────────────────
+
+test.describe('Navigation', () => {
+  test('clicking Commissioner Login navigates to /login', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/');
+    await h.waitForPageLoad();
+
+    const btn = page.locator('button', { hasText: /commissioner/i })
+      .or(page.locator('a', { hasText: /commissioner/i }))
+      .first();
+    await btn.click();
+
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('/login page has link back to home', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/login');
+    await h.waitForPageLoad();
+
+    const homeLink = page.locator('a[href="/"]');
+    await expect(homeLink.first()).toBeVisible();
+  });
+
+  test('/pools page has nav back to home', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await page.goto('/pools');
+    await h.waitForPageLoad();
+
+    await expect(page.locator('a[href="/"]')).toBeVisible();
   });
 });

@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, debugError } from './utils';
+import { debugLog, debugError, isOffseason } from './utils';
 
 export interface DashboardStats {
   totalPools: number;
@@ -20,6 +20,7 @@ export interface Pool {
   tie_breaker_method?: string;
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
+  season_scope?: number[];
 }
 
 export interface Participant {
@@ -98,6 +99,20 @@ export class AdminService {
       if (process.env.NODE_ENV === 'development') {
         console.log('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
       }
+
+      const now = new Date();
+      
+      if (isOffseason(now)) {
+        return {
+          totalPools: 0,
+          activePools: 0,
+          totalParticipants: 0,
+          totalGames: 0,
+          pendingSubmissions: 0,
+          completedSubmissions: 0
+        };
+      }
+          
 
       let poolsQuery = this.supabase
         .from('pools')
@@ -281,6 +296,41 @@ export class AdminService {
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('AdminService: Error getting pool participants:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get a pool by ID
+   */
+  async getPoolById(poolId: string): Promise<Pool | null> {
+    try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AdminService: Getting pool by ID:', poolId);
+      }
+
+      const { data: pool, error } = await this.supabase
+        .from('pools')
+        .select('*')
+        .eq('id', poolId)
+        .single();
+
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('AdminService: Pool query error:', error);
+        }
+        throw new Error(`Failed to load pool: ${error.message}`);
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AdminService: Pool result:', pool);
+      }
+
+      return pool;
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('AdminService: Error getting pool:', error);
       }
       throw error;
     }

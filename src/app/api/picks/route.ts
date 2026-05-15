@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       }
       if (games) {
         const gameIds = games.map(g => g.id);
-        filteredPicks = picks?.filter(pick => gameIds.includes(pick.game_id)) || [];
+        filteredPicks = picks?.filter((pick: any) => gameIds.includes(pick.game_id)) || [];
       }
     }
     if (process.env.NODE_ENV === 'development') {

@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
         const existingKey = `${game.week}_${game.away_team}_${game.home_team}`;
         if (existingMap.has(existingKey)) {
           // Same teams but different ID - update existing game with new ID and data
-          toUpdate.push({ id: existingMap.get(existingKey)!, ...gameData, id: game.id });
+          toUpdate.push({ id: existingMap.get(existingKey)!, ...gameData });
         } else {
           // Completely new game with ID
           toInsert.push(gameData);

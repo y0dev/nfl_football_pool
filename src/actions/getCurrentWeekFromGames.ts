@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
+import { isOffseason } from '@/lib/utils';
 
 /**
  * Determines the current week based on game kickoff times
@@ -9,6 +10,19 @@ export async function getCurrentWeekFromGames() {
   try {
     const supabase = getSupabaseClient();
     const now = new Date();
+
+    if (isOffseason(now)) {
+      // Check whether the admin has already loaded upcoming-season games into the DB.
+      // If they have, fall through to normal week detection so those games surface.
+      const { data: futureGames } = await supabase
+        .from('games')
+        .select('id')
+        .gte('kickoff_time', now.toISOString())
+        .limit(1);
+      if (!futureGames || futureGames.length === 0) {
+        return { week: 1, seasonType: 0 }; // True offseason — no upcoming games in DB yet
+      }
+    }
     
     // Get all games ordered by kickoff time
     const { data: games, error } = await supabase

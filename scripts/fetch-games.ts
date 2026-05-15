@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { nflAPI } from '../src/lib/nfl-api';
 import fs from 'fs';
+import { debugError, debugInfo, debugWarn } from '@/lib/utils';
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -12,16 +13,16 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const apiKey = process.env.API_SPORTS_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing required environment variables:');
-  console.error('   SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
-  console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅ Set' : '❌ Missing');
-  console.error('');
-  console.error('Please check your .env.local file and ensure these variables are set.');
+  debugError('Missing required environment variables:');
+  debugError('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  debugError('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'Set' : 'Missing');
+  debugError('');
+  debugError('Please check your .env.local file and ensure these variables are set.');
   process.exit(1);
 }
 
 if (!apiKey) {
-  console.error('⚠️  API_SPORTS_KEY not set. Using mock data for demonstration.');
+  debugError('API_SPORTS_KEY not set. Using mock data for demonstration.');
 }
 
 // Create Supabase client using the service role key for admin operations
@@ -58,41 +59,41 @@ for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   
   if (arg === '--help' || arg === '-h') {
-    console.log('📋 NFL Games Fetcher - Help');
-    console.log('');
-    console.log('Usage: npm run fetch-games [options]');
-    console.log('');
-    console.log('Options:');
-    console.log('  --start-week, -s <week>     Start fetching from specific week (1-22, default: 1)');
-    console.log('  --end-week, -e <week>       End fetching at specific week (1-22, default: 18)');
-    console.log('  --season-type <type>        Specify season type: 1=preseason, 2=regular, 3=postseason');
-    console.log('  --no-playoffs               Exclude playoff games (weeks 19-22)');
-    console.log('  --preseason                 Fetch preseason games only (weeks 1-4)');
-    console.log('  --regular                   Fetch regular season games only (weeks 5-18)');
-    console.log('  --postseason                Fetch postseason games only (weeks 19-22)');
-    console.log('  --help, -h                  Show this help message');
-    console.log('');
-    console.log('Season Types:');
-    console.log('  • Preseason: Weeks 1-4 (Week 1 = Hall of Fame, Weeks 2-4 = Preseason)');
-    console.log('  • Regular Season: Weeks 1-18');
-    console.log('  • Postseason: Weeks 1-4');
-    console.log('');
-    console.log('Database Schema:');
-    console.log('  • season_type column added to games table');
-    console.log('  • 1=Preseason, 2=Regular Season, 3=Postseason');
-    console.log('  • Automatically set based on week number');
-    console.log('');
-    console.log('Examples:');
-    console.log('  npm run fetch-games                                    # Fetch all regular season games');
-    console.log('  npm run fetch-games -- --start-week 1                  # Fetch from week 1 onwards');
-    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch preseason only');
-    console.log('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch postseason only');
-    console.log('  npm run fetch-games -- --preseason                     # Fetch preseason only');
-    console.log('  npm run fetch-games -- --regular                       # Fetch regular season only');
-    console.log('  npm run fetch-games -- --postseason                    # Fetch postseason only');
-    console.log('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
-    console.log('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
-    console.log('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
+    debugInfo('NFL Games Fetcher - Help');
+    debugInfo('');
+    debugInfo('Usage: npm run fetch-games [options]');
+    debugInfo('');
+    debugInfo('Options:');
+    debugInfo('  --start-week, -s <week>     Start fetching from specific week (1-22, default: 1)');
+    debugInfo('  --end-week, -e <week>       End fetching at specific week (1-22, default: 18)');
+    debugInfo('  --season-type <type>        Specify season type: 1=preseason, 2=regular, 3=postseason');
+    debugInfo('  --no-playoffs               Exclude playoff games (weeks 19-22)');
+    debugInfo('  --preseason                 Fetch preseason games only (weeks 1-4)');
+    debugInfo('  --regular                   Fetch regular season games only (weeks 5-18)');
+    debugInfo('  --postseason                Fetch postseason games only (weeks 19-22)');
+    debugInfo('  --help, -h                  Show this help message');
+    debugInfo('');
+    debugInfo('Season Types:');
+    debugInfo('  • Preseason: Weeks 1-4 (Week 1 = Hall of Fame, Weeks 2-4 = Preseason)');
+    debugInfo('  • Regular Season: Weeks 1-18');
+    debugInfo('  • Postseason: Weeks 1-4');
+    debugInfo('');
+    debugInfo('Database Schema:');
+    debugInfo('  • season_type column added to games table');
+    debugInfo('  • 1=Preseason, 2=Regular Season, 3=Postseason');
+    debugInfo('  • Automatically set based on week number');
+    debugInfo('');
+    debugInfo('Examples:');
+    debugInfo('  npm run fetch-games                                    # Fetch all regular season games');
+    debugInfo('  npm run fetch-games -- --start-week 1                  # Fetch from week 1 onwards');
+    debugInfo('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch preseason only');
+    debugInfo('  npm run fetch-games -- --start-week 1 --end-week 4     # Fetch postseason only');
+    debugInfo('  npm run fetch-games -- --preseason                     # Fetch preseason only');
+    debugInfo('  npm run fetch-games -- --regular                       # Fetch regular season only');
+    debugInfo('  npm run fetch-games -- --postseason                    # Fetch postseason only');
+    debugInfo('  npm run fetch-games -- --season-type 1                 # Fetch preseason games');
+    debugInfo('  npm run fetch-games -- --season-type 2                 # Fetch regular season games');
+    debugInfo('  npm run fetch-games -- --season-type 3                 # Fetch postseason games');
     process.exit(0);
   } else if (arg === '--start-week' || arg === '-s') {
     startWeek = parseInt(args[++i]);
@@ -116,7 +117,7 @@ for (let i = 0; i < args.length; i++) {
         endWeek = 4;
       }
     } else {
-      console.error('❌ Season type must be 1, 2, or 3');
+      debugError('Season type must be 1, 2, or 3');
       process.exit(1);
     }
   } else if (arg === '--no-playoffs') {
@@ -142,12 +143,12 @@ for (let i = 0; i < args.length; i++) {
 
 // Validate week ranges
 if (startWeek < 1 || startWeek > 18 || endWeek < 1 || endWeek > 18) {
-  console.error('❌ Week numbers must be between 1 and 18');
+  debugError('Week numbers must be between 1 and 18');
   process.exit(1);
 }
 
 if (startWeek > endWeek) {
-  console.error('❌ Start week cannot be greater than end week');
+  debugError('Start week cannot be greater than end week');
   process.exit(1);
 }
 
@@ -343,35 +344,36 @@ const mockGames: GameData[] = [
 ];
 
 async function main() {
-  console.log('🏈 Starting NFL games fetch and insert...');
+  debugInfo('🏈 Starting NFL games fetch and insert...');
   
   // Get current season
   let currentSeason = 2024; // Default fallback
   try {
     currentSeason = await nflAPI.getCurrentSeason();
   } catch (error) {
-    console.log('⚠️  Could not fetch current season from API, using 2024 as default');
+    debugError('Could not fetch current season from API, using 2024 as default');
   }
-  console.log(`📅 Current season: ${currentSeason}`);
+  debugInfo(`Current season: ${currentSeason}`);
 
   let gamesToInsert: GameData[] = [];
 
   if (apiKey) {
-    console.log('🔑 Using NFL API to fetch games...');
-    console.log(`📅 Season type: ${seasonType} (ID: ${seasonTypeId})`);
-    console.log(`📋 Week range: ${startWeek}-${endWeek}`);
+    debugInfo('Using NFL API to fetch games...');
+    debugInfo(`Season type: ${seasonType} (ID: ${seasonTypeId})`);
+    debugInfo(`Week range: ${startWeek}-${endWeek}`);
     
     // Use the specified season type
     const seasonTypeToFetch = seasonTypeId;
     
     // Fetch games for the specified week range
     for (let week = startWeek; week <= endWeek; week++) {
-      console.log(`📋 Fetching games for Week ${week}...`);
+      debugInfo(`Fetching games for Week ${week}...`);
       
       try {
         
-        const weekGames = await nflAPI.getWeekGames(currentSeason, seasonTypeToFetch, week);
-        console.log(`📊 Week ${week} Games:`, weekGames.length);
+        const { start, end } = nflAPI.weekDateRange(currentSeason, seasonTypeToFetch, week);
+        const weekGames = await nflAPI.getWeekGames(start, end);
+        debugInfo(`📊 Week ${week} Games:`, weekGames.length);
         
         if (weekGames.length > 0) {
           const formattedGames: GameData[] = weekGames.map(game => ({
@@ -395,22 +397,22 @@ async function main() {
           }));
           
           gamesToInsert = [...gamesToInsert, ...formattedGames];
-          console.log(`✅ Found ${weekGames.length} games for Week ${week}`);
+          debugInfo(`Found ${weekGames.length} games for Week ${week}`);
         } else {
-          console.log(`⚠️  No games found for Week ${week}`);
+          debugWarn(`No games found for Week ${week}`);
         }
         
         // Add delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
         
       } catch (error) {
-        console.error(`❌ Error fetching Week ${week} games:`, error);
+        debugError(`Error fetching Week ${week} games:`, error);
       }
     }
     
     // If no games were found from API, fall back to mock data
     if (gamesToInsert.length === 0) {
-      console.log('🎭 No games found from API, falling back to mock data...');
+      debugInfo('🎭 No games found from API, falling back to mock data...');
       gamesToInsert = mockGames
         .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
         .map(game => ({
@@ -420,7 +422,7 @@ async function main() {
     }
     
   } else {
-    console.log('🎭 Using mock data (no API key provided)...');
+    debugInfo('🎭 Using mock data (no API key provided)...');
     gamesToInsert = mockGames
       .filter(game => game.week >= startWeek && game.week <= endWeek && game.season_type === seasonTypeId)
       .map(game => ({
@@ -430,16 +432,16 @@ async function main() {
   }
 
   if (gamesToInsert.length === 0) {
-    console.log('⚠️  No games found to insert for the specified range.');
+    debugWarn('No games found to insert for the specified range.');
     return;
   }
 
-    console.log(`📊 Total games to insert: ${gamesToInsert.length}`);
+    debugInfo(`📊 Total games to insert: ${gamesToInsert.length}`);
     // write gamesToInsert to a file
     fs.writeFileSync('gamesToInsert.json', JSON.stringify(gamesToInsert, null, 2));
 
   // Check for existing games and filter out duplicates
-  console.log(`🔍 Checking for existing games in season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
+  debugInfo(`🔍 Checking for existing games in season ${currentSeason}, weeks ${startWeek}-${endWeek}...`);
   const { data: existingGames, error: existingError } = await supabase
     .from('games')
     .select('id, week, home_team, away_team')
@@ -448,7 +450,7 @@ async function main() {
     .lte('week', endWeek);
 
   if (existingError) {
-    console.error('❌ Error checking existing games:', existingError);
+    debugError('Error checking existing games:', existingError);
     return;
   }
 
@@ -458,7 +460,7 @@ async function main() {
     existingGames?.map(game => `${game.week}-${game.home_team}-${game.away_team}`) || []
   );
 
-  console.log(`📊 Found ${existingGames?.length || 0} existing games in range`);
+  debugInfo(`📊 Found ${existingGames?.length || 0} existing games in range`);
 
   // Filter out games that already exist
   const newGamesToInsert = gamesToInsert.filter(game => {
@@ -466,18 +468,18 @@ async function main() {
     const alreadyExists = existingGameIds.has(game.id) || existingGameKeys.has(gameKey);
     
     if (alreadyExists) {
-      console.log(`⏭️  Skipping existing game: ${game.away_team} @ ${game.home_team} (Week ${game.week})`);
+      debugInfo(`⏭️  Skipping existing game: ${game.away_team} @ ${game.home_team} (Week ${game.week})`);
     }
     
     return !alreadyExists;
   });
 
   if (newGamesToInsert.length === 0) {
-    console.log('✅ All games already exist in database. No new games to insert.');
+    debugInfo('All games already exist in database. No new games to insert.');
     return;
   }
 
-  console.log(`📦 Found ${newGamesToInsert.length} new games to insert (skipped ${gamesToInsert.length - newGamesToInsert.length} existing games)`);
+  debugInfo(`📦 Found ${newGamesToInsert.length} new games to insert (skipped ${gamesToInsert.length - newGamesToInsert.length} existing games)`);
   
   // Update gamesToInsert to only include new games
   gamesToInsert = newGamesToInsert;
@@ -489,7 +491,7 @@ async function main() {
   for (let i = 0; i < gamesToInsert.length; i += batchSize) {
     const batch = gamesToInsert.slice(i, i + batchSize);
     
-    console.log(`📦 Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(gamesToInsert.length / batchSize)}...`);
+    debugInfo(`📦 Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(gamesToInsert.length / batchSize)}...`);
     
     const { data, error } = await supabase
       .from('games')
@@ -497,22 +499,22 @@ async function main() {
       .select('id');
 
     if (error) {
-      console.error('❌ Error inserting games batch:', error);
-      console.error('Failed batch:', batch);
+      debugError('Error inserting games batch:', error);
+      debugError('Failed batch:', batch);
     } else {
       insertedCount += batch.length;
-      console.log(`✅ Inserted ${batch.length} games (Total: ${insertedCount})`);
+      debugInfo(`Inserted ${batch.length} games (Total: ${insertedCount})`);
     }
 
     // Add small delay between batches
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  console.log('');
-  console.log('🎉 Games fetch and insert complete!');
-  console.log(`📈 Total games inserted: ${insertedCount}`);
-  console.log(`📅 Season: ${currentSeason}`);
-  console.log(`📋 Range: Weeks ${startWeek}-${endWeek}`);
+  debugInfo('');
+  debugInfo('🎉 Games fetch and insert complete!');
+  debugInfo(`📈 Total games inserted: ${insertedCount}`);
+  debugInfo(`Season: ${currentSeason}`);
+  debugInfo(`Range: Weeks ${startWeek}-${endWeek}`);
   
   // Show summary by week
   const weekSummary = gamesToInsert.reduce((acc, game) => {
@@ -520,18 +522,18 @@ async function main() {
     return acc;
   }, {} as Record<number, number>);
 
-  console.log('');
-  console.log('📋 Games by Week:');
+  debugInfo('');
+  debugInfo('Games by Week:');
   Object.entries(weekSummary)
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
     .forEach(([week, count]) => {
-      const weekType = parseInt(week) > 18 ? '🏆 Playoff' : '📅 Regular';
-      console.log(`   Week ${week}: ${count} games (${weekType})`);
+      const weekType = parseInt(week) > 18 ? '🏆 Playoff' : 'Regular';
+      debugInfo(`   Week ${week}: ${count} games (${weekType})`);
     });
 }
 
 // Run the main function
 main().catch(error => {
-  console.error('❌ Fatal error during games fetch and insert:', error);
+  debugError('Fatal error during games fetch and insert:', error);
   process.exit(1);
 });

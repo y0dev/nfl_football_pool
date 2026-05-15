@@ -109,6 +109,7 @@ export type Database = {
           tie_breaker_question: string | null
           tie_breaker_answer: number | null
           require_access_code: boolean
+          season_scope: number[]
         }
         Insert: {
           id?: string
@@ -122,6 +123,7 @@ export type Database = {
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
           require_access_code?: boolean
+          season_scope?: number[]
         }
         Update: {
           id?: string
@@ -135,6 +137,7 @@ export type Database = {
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
           require_access_code?: boolean
+          season_scope?: number[]
         }
       }
       admin_pools: {
@@ -654,8 +657,10 @@ CREATE TABLE IF NOT EXISTS pools (
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
   tie_breaker_answer INTEGER,
-  require_access_code BOOLEAN DEFAULT true
+  require_access_code BOOLEAN DEFAULT true,
+  season_scope INTEGER[] DEFAULT '{2}'
 );
+-- Migration: ALTER TABLE pools ADD COLUMN IF NOT EXISTS season_scope INTEGER[] DEFAULT '{2}';
 `;
 
 export const adminPoolsTable = `

@@ -1,15 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Target, Users, Calendar, Edit } from 'lucide-react';
+import { ArrowLeft, Target, Users, Calendar, Edit, Shield, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth';
@@ -17,6 +12,23 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
+import { useAuth } from '@/lib/auth';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface Pool {
   id: string;
@@ -59,6 +71,7 @@ interface WeekInfo {
 function OverridePicksContent() {
   const router = useRouter();
   const { toast } = useToast();
+  const { signOut } = useAuth();
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState<string>('');
   const [weeks, setWeeks] = useState<number[]>([]);
@@ -104,10 +117,9 @@ function OverridePicksContent() {
 
   const loadPools = useCallback(async () => {
     try {
-      // Try both client types
       const supabase = getSupabaseClient();
       const serviceSupabase = getSupabaseServiceClient();
-      
+
       if (!supabase && !serviceSupabase) {
         console.error('❌ No Supabase client available');
         toast({
@@ -118,9 +130,8 @@ function OverridePicksContent() {
         return;
       }
 
-      // Use service client if available, otherwise use regular client
       const client = serviceSupabase || supabase;
-      
+
       const { data: poolsData, error } = await client
         .from('pools')
         .select('id, name, season, is_active')
@@ -154,7 +165,7 @@ function OverridePicksContent() {
       const supabase = getSupabaseClient();
       const serviceSupabase = getSupabaseServiceClient();
       const client = serviceSupabase || supabase;
-      
+
       if (!client) {
         console.error('❌ No Supabase client available for loading picks');
         toast({
@@ -165,7 +176,6 @@ function OverridePicksContent() {
         return;
       }
 
-      // First get games for this week/season/season_type
       const { data: gamesData, error: gamesError } = await client
         .from('games')
         .select('id, week, season, season_type')
@@ -182,12 +192,12 @@ function OverridePicksContent() {
         });
         return;
       }
-      
+
       const gameIds = gamesData?.map(game => game.id) || [];
-      
+
       console.log(`🔍 Loading picks for Week ${week}, Season ${season}, Season Type ${seasonType}`);
       console.log(`🎮 Found ${gameIds.length} games:`, gamesData?.map(g => ({ id: g.id, week: g.week, season: g.season, season_type: g.season_type })));
-      
+
       if (gameIds.length === 0) {
         console.log('❌ No games found for this week/season/season_type combination');
         setPicks([]);
@@ -223,13 +233,12 @@ function OverridePicksContent() {
         return;
       }
 
-      // Transform the data to match our interface
       const transformedPicks = (picksData || []).map(pick => ({
         ...pick,
         participants: Array.isArray(pick.participants) ? pick.participants[0] : pick.participants,
         games: Array.isArray(pick.games) ? pick.games[0] : pick.games
       }));
-      
+
       console.log(`📝 Found ${transformedPicks.length} picks:`, transformedPicks.map(p => ({
         id: p.id,
         participant: p.participants?.name,
@@ -238,7 +247,7 @@ function OverridePicksContent() {
         season: p.games?.season,
         season_type: p.games?.season_type
       })));
-      
+
       setPicks(transformedPicks);
     } catch (error) {
       console.error('❌ Error loading picks:', error);
@@ -258,7 +267,7 @@ function OverridePicksContent() {
       const supabase = getSupabaseClient();
       const serviceSupabase = getSupabaseServiceClient();
       const client = serviceSupabase || supabase;
-      
+
       if (!client) {
         console.error('❌ No Supabase client available for loading games');
         return;
@@ -298,7 +307,7 @@ function OverridePicksContent() {
       const supabase = getSupabaseClient();
       const serviceSupabase = getSupabaseServiceClient();
       const client = serviceSupabase || supabase;
-      
+
       if (!client) {
         console.error('❌ No Supabase client available for loading participants');
         return;
@@ -348,7 +357,7 @@ function OverridePicksContent() {
       const supabase = getSupabaseClient();
       const serviceSupabase = getSupabaseServiceClient();
       const client = serviceSupabase || supabase;
-      
+
       if (!client) {
       toast({
           title: 'Error',
@@ -379,12 +388,10 @@ function OverridePicksContent() {
       return;
     }
 
-      // Refresh picks
       if (selectedPool && selectedWeek && currentSeason) {
         await loadPicks(selectedPool, parseInt(selectedWeek), currentSeason, parseInt(selectedSeasonType || '2'));
       }
 
-      // Reset form
       setShowAddPickDialog(false);
       setSelectedParticipantForNewPick('');
       setNewPickData({
@@ -479,7 +486,6 @@ function OverridePicksContent() {
 
       if (error) {
         console.error('Error loading current week:', error);
-        // Set default values if we can't load from database
         setCurrentSeason(2024);
         const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
         setWeeks(regularWeeks);
@@ -493,12 +499,8 @@ function OverridePicksContent() {
 
       if (game) {
         setCurrentSeason(game.season || 2024);
-        
-        // Generate weeks 1-18 for regular season
         const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
         setWeeks(regularWeeks);
-        
-        // Set season types
         setSeasonTypes([
           { value: 1, label: 'Preseason' },
           { value: 2, label: 'Regular Season' },
@@ -507,7 +509,6 @@ function OverridePicksContent() {
       }
     } catch (error) {
       console.error('Error loading current week:', error);
-      // Set default values on error
       setCurrentSeason(2024);
       const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
       setWeeks(regularWeeks);
@@ -532,7 +533,7 @@ function OverridePicksContent() {
       const seasonType = parseInt(selectedSeasonType);
       const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
       const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE;
-      
+
       setWeekInfo({
         week,
         season: currentSeason,
@@ -541,45 +542,38 @@ function OverridePicksContent() {
         isSuperBowl
       });
 
-      // Load picks for the selected pool, week, and season
       loadPicks(selectedPool, week, currentSeason, seasonType);
-      // Load available games for the week
       loadAvailableGames(week, currentSeason, seasonType);
-      // Load all participants for the pool
       loadAllParticipants(selectedPool);
       } else {
       setWeekInfo(null);
-      setPicks([]); // Clear picks when no selection
-      setAvailableGames([]); // Clear games
-      setAllParticipants([]); // Clear participants
+      setPicks([]);
+      setAvailableGames([]);
+      setAllParticipants([]);
     }
   }, [selectedPool, selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadAllParticipants]);
 
   const selectedPoolData = pools.find(p => p.id === selectedPool);
 
-  // Debug logging (can be removed in production)
-  console.log('🔍 Current state:', { 
-    pools: pools.length, 
-    selectedPool, 
-    selectedWeek, 
-    selectedSeasonType,
-    isLoading,
-    error,
-    picks: picks.length,
-    isLoadingPicks
-  });
-
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
-              Reload Page
-            </Button>
-          </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '2rem', maxWidth: 400, width: '100%', textAlign: 'center' }}>
+          <Shield style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+          <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Error</h2>
+          <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+              width: '100%', padding: '0.6rem 1rem',
+              background: green, color: text, border: 'none', borderRadius: 6,
+              ...bc, fontWeight: 700, fontSize: '0.8rem',
+              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            Reload Page
+          </button>
         </div>
       </div>
     );
@@ -587,158 +581,393 @@ function OverridePicksContent() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p>Loading override picks...</p>
-          </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading override picks…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-          <Button
-            variant="outline"
-            size="sm"
-          onClick={() => router.back()}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          Back
-          </Button>
-                <div>
-          <h1 className="text-3xl font-bold">Override Picks</h1>
-          <p className="text-gray-600">Override participant picks and Monday night scores</p>
-                </div>
-              </div>
+    <div style={{ background: bg, minHeight: '100vh' }}>
 
-      {/* Selection Controls */}
-      <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Select Pool and Week
-            </CardTitle>
-            <CardDescription>
-            Choose the pool and week you want to override picks for
-            </CardDescription>
-          </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="pool">Pool</Label>
-              <Select value={selectedPool} onValueChange={setSelectedPool}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a pool" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pools.map((pool) => (
-                    <SelectItem key={pool.id} value={pool.id}>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        <span>{pool.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {pool.season}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => router.back()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.6rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Shield style={{ width: 13, height: 13, color: text }} />
+                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Commissioner Override
+                </span>
+              </div>
             </div>
+            <button
+              onClick={() => signOut()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.7rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 5,
+                ...bc, fontWeight: 600, fontSize: '0.72rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut style={{ width: 11, height: 11 }} /> Sign Out
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2rem, 4vw, 3rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Commissioner Tools
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+            Override <span style={{ color: gold }}>Picks</span>
+          </h1>
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid, marginTop: '0.75rem' }}>
+            Override participant picks and Monday night scores
+          </p>
+        </div>
+      </section>
+
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── CONTENT ── */}
+      <section style={{ background: bg, padding: '2.5rem 0', minHeight: '50vh' }}>
+        <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Selection Controls */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+              <Target style={{ width: 16, height: 16, color: greenHi }} />
+              <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Select Pool and Week
+              </p>
+            </div>
+            <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.25rem' }}>
+              Choose the pool and week you want to override picks for
+            </p>
+
+            <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
+              <div>
+                <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Pool</label>
+                <Select value={selectedPool} onValueChange={setSelectedPool}>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                    <SelectValue placeholder="Select a pool" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pools.map((pool) => (
+                      <SelectItem key={pool.id} value={pool.id}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Users style={{ width: 13, height: 13 }} />
+                          <span>{pool.name}</span>
+                          <span style={{ ...bc, fontSize: '0.68rem', color: textDim, marginLeft: '0.25rem' }}>{pool.season}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div>
-              <Label htmlFor="week">Week</Label>
-              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a week" />
-                    </SelectTrigger>
-                    <SelectContent>
-                  {weeks.map((week) => {
-                    const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+                <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Week</label>
+                <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                    <SelectValue placeholder="Select a week" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {weeks.map((week) => {
+                      const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+                      return (
+                        <SelectItem key={week} value={week.toString()}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Calendar style={{ width: 13, height: 13 }} />
+                            <span>Week {week}</span>
+                            {isPeriodWeek && (
+                              <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.07em', padding: '0.1rem 0.35rem', borderRadius: 3, textTransform: 'uppercase', background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)` }}>
+                                Tie-breaker
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Season Type</label>
+                <Select value={selectedSeasonType} onValueChange={setSelectedSeasonType}>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                    <SelectValue placeholder="Select season type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasonTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value.toString()}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {selectedPool && selectedWeek && selectedSeasonType && (
+              <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8 }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Selected Configuration</p>
+                <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.68rem', color: textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pool</p>
+                    <p style={{ ...b, fontSize: '0.85rem', color: text, marginTop: '0.2rem' }}>{selectedPoolData?.name}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.68rem', color: textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Week</p>
+                    <p style={{ ...b, fontSize: '0.85rem', color: text, marginTop: '0.2rem' }}>Week {selectedWeek}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.68rem', color: textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Season Type</p>
+                    <p style={{ ...b, fontSize: '0.85rem', color: text, marginTop: '0.2rem' }}>
+                      {seasonTypes.find(t => t.value.toString() === selectedSeasonType)?.label}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Participant Selection and Management */}
+          {weekInfo && selectedPoolData && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                <Users style={{ width: 16, height: 16, color: greenHi }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Manage Participant Picks — Week {weekInfo.week}
+                </p>
+              </div>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.25rem' }}>
+                Select a participant to add picks, override existing picks, or update Monday night scores.
+              </p>
+
+              {/* Participant Selection */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                  Select Participant
+                </label>
+                <Select value={selectedParticipantForManagement} onValueChange={setSelectedParticipantForManagement}>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                    <SelectValue placeholder="Choose a participant to manage" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allParticipants.map(participant => (
+                      <SelectItem key={participant.id} value={participant.id}>
+                        {participant.name} ({participant.email || 'No email'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Participant Actions */}
+              {selectedParticipantForManagement && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {(() => {
+                    const participantPicks = picks.filter(p => p.participant_id === selectedParticipantForManagement);
+                    const participant = allParticipants.find(p => p.id === selectedParticipantForManagement);
+
                     return (
-                      <SelectItem key={week} value={week.toString()}>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>Week {week}</span>
-                          {isPeriodWeek && (
-                            <Badge variant="secondary" className="text-xs">
-                              Tie-breaker Week
-                            </Badge>
+                      <>
+                        <div style={{ padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
+                          <p style={{ ...bc, fontWeight: 800, fontSize: '0.88rem', color: text, marginBottom: '0.3rem' }}>{participant?.name}</p>
+                          <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>
+                            {participantPicks.length > 0
+                              ? `${participantPicks.length} picks submitted for Week ${weekInfo.week}`
+                              : `No picks submitted for Week ${weekInfo.week}`}
+                          </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => setShowAddPickDialog(true)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '0.4rem',
+                              padding: '0.5rem 0.9rem',
+                              background: green, color: text,
+                              border: 'none', borderRadius: 6,
+                              ...bc, fontWeight: 700, fontSize: '0.75rem',
+                              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                            }}
+                          >
+                            <Edit style={{ width: 13, height: 13 }} />
+                            {participantPicks.length > 0 ? 'Override Picks' : 'Add Picks'}
+                          </button>
+
+                          {(weekInfo.isPeriodWeek || weekInfo.isSuperBowl) && (
+                            <button
+                              onClick={() => setShowMondayNightDialog(true)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                padding: '0.5rem 0.9rem',
+                                background: 'transparent', color: textMid,
+                                border: `1px solid ${border}`, borderRadius: 6,
+                                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                              }}
+                            >
+                              <Target style={{ width: 13, height: 13 }} />
+                              Update Monday Night Score
+                            </button>
                           )}
                         </div>
-                        </SelectItem>
+
+                        {/* Show existing picks */}
+                        {participantPicks.length > 0 && (
+                          <div>
+                            <p style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                              Current Picks
+                            </p>
+                            <div className="admin-2col-grid" style={{ marginBottom: 0 }}>
+                              {participantPicks.map(pick => (
+                                <div key={pick.id} style={{ padding: '0.65rem 0.85rem', background: surface, border: `1px solid ${border}`, borderRadius: 6 }}>
+                                  <p style={{ ...b, fontWeight: 600, fontSize: '0.8rem', color: text }}>{pick.games?.away_team} @ {pick.games?.home_team}</p>
+                                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
+                                    Pick: {pick.predicted_winner} ({pick.confidence_points} pts)
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     );
-                  })}
-                    </SelectContent>
-                  </Select>
-              </div>
-
-            <div>
-              <Label htmlFor="seasonType">Season Type</Label>
-              <Select value={selectedSeasonType} onValueChange={setSelectedSeasonType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select season type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasonTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value.toString()}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              </div>
-            </div>
-
-          {selectedPool && selectedWeek && selectedSeasonType && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-semibold text-blue-900 mb-2">Selected Configuration</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
-                  <span className="text-blue-700 font-medium">Pool:</span>
-                  <p className="text-blue-900">{selectedPoolData?.name}</p>
-              </div>
-                <div>
-                  <span className="text-blue-700 font-medium">Week:</span>
-                  <p className="text-blue-900">Week {selectedWeek}</p>
-            </div>
-            <div>
-                  <span className="text-blue-700 font-medium">Season Type:</span>
-                  <p className="text-blue-900">
-                    {seasonTypes.find(t => t.value.toString() === selectedSeasonType)?.label}
-                  </p>
+                  })()}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Additional Actions */}
+          {weekInfo && selectedPoolData && picks.length > 0 && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                <Target style={{ width: 16, height: 16, color: greenHi }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Additional Actions
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => toast({ title: 'Info', description: 'Bulk edit functionality coming soon' })}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.5rem 0.9rem',
+                    background: 'transparent', color: textMid,
+                    border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.75rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                  }}
+                >
+                  <Edit style={{ width: 13, height: 13 }} />
+                  Bulk Edit
+                </button>
+                <button
+                  onClick={() => toast({ title: 'Info', description: 'Export functionality coming soon' })}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.5rem 0.9rem',
+                    background: 'transparent', color: textMid,
+                    border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.75rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                  }}
+                >
+                  <Users style={{ width: 13, height: 13 }} />
+                  Export
+                </button>
               </div>
             </div>
           )}
-          </CardContent>
-        </Card>
 
-      {/* Participant Selection and Management */}
-      {weekInfo && selectedPoolData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-600" />
-              Manage Participant Picks - Week {weekInfo.week}
-            </CardTitle>
-            <CardDescription>
-              Select a participant to add picks, override existing picks, or update Monday night scores.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {/* Empty state */}
+          {!selectedPool && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <p style={{ ...b, fontSize: '0.875rem', color: textDim }}>
+                Please select a pool, week, and season type to begin overriding picks.
+              </p>
+            </div>
+          )}
+
+          {/* Loading picks indicator */}
+          {isLoadingPicks && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem 0' }}>
+              <RefreshCw style={{ width: 16, height: 16, color: textDim, animation: 'spin 1s linear infinite' }} />
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading picks…</p>
+            </div>
+          )}
+
+        </div>
+      </section>
+
+      {/* Add Pick Dialog */}
+      <Dialog open={showAddPickDialog} onOpenChange={setShowAddPickDialog}>
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, maxWidth: 480 }}>
+          <DialogHeader>
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Add Pick for Participant
+            </DialogTitle>
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Submit a pick on behalf of a participant who hasn&apos;t submitted yet.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.5rem' }}>
             {/* Participant Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="participant-select">Select Participant</Label>
-              <Select value={selectedParticipantForManagement} onValueChange={setSelectedParticipantForManagement}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a participant to manage" />
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Participant
+              </Label>
+              <Select
+                value={selectedParticipantForNewPick || selectedParticipantForManagement}
+                onValueChange={setSelectedParticipantForNewPick}
+              >
+                <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                  <SelectValue placeholder="Select a participant" />
                 </SelectTrigger>
                 <SelectContent>
                   {allParticipants.map(participant => (
@@ -748,295 +977,191 @@ function OverridePicksContent() {
                   ))}
                 </SelectContent>
               </Select>
-              </div>
-
-            {/* Participant Actions */}
-            {selectedParticipantForManagement && (
-              <div className="space-y-4">
-                {/* Show participant's current picks for this week */}
-                {(() => {
-                  const participantPicks = picks.filter(p => p.participant_id === selectedParticipantForManagement);
-                  const participant = allParticipants.find(p => p.id === selectedParticipantForManagement);
-                  
-                  return (
-                    <div className="space-y-3">
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <h4 className="font-semibold mb-2">{participant?.name}</h4>
-                        <div className="text-sm text-gray-600">
-                          {participantPicks.length > 0 ? (
-                            <span>{participantPicks.length} picks submitted for Week {weekInfo.week}</span>
-                          ) : (
-                            <span>No picks submitted for Week {weekInfo.week}</span>
-                          )}
-              </div>
-              </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 flex-wrap">
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          onClick={() => setShowAddPickDialog(true)}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          {participantPicks.length > 0 ? 'Override Picks' : 'Add Picks'}
-                        </Button>
-                        
-                        {(weekInfo.isPeriodWeek || weekInfo.isSuperBowl) && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setShowMondayNightDialog(true)}
-                          >
-                            <Target className="h-4 w-4 mr-2" />
-                            Update Monday Night Score
-                          </Button>
-                        )}
-                            </div>
-
-                      {/* Show existing picks in compact format */}
-                      {participantPicks.length > 0 && (
-                        <div className="space-y-2">
-                          <h5 className="font-medium text-sm">Current Picks:</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {participantPicks.map(pick => (
-                              <div key={pick.id} className="p-2 border rounded text-xs">
-                                <div className="font-medium">{pick.games?.away_team} @ {pick.games?.home_team}</div>
-                                <div className="text-gray-600">Pick: {pick.predicted_winner} ({pick.confidence_points} pts)</div>
-                      </div>
-                            ))}
-                        </div>
-                        </div>
-                      )}
-                      </div>
-                  );
-                })()}
-                    </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Additional Actions - Compact */}
-      {weekInfo && selectedPoolData && picks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-green-600" />
-              Additional Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  toast({
-                    title: 'Info',
-                    description: 'Bulk edit functionality coming soon'
-                  });
-                }}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Bulk Edit
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  toast({
-                    title: 'Info',
-                    description: 'Export functionality coming soon'
-                  });
-                }}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Export
-              </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {!selectedPool && (
-        <Alert>
-          <AlertDescription>
-            Please select a pool, week, and season type to begin overriding picks.
-          </AlertDescription>
-        </Alert>
-      )}
+            {/* Game Selection */}
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Game
+              </Label>
+              <Select
+                value={newPickData.gameId}
+                onValueChange={(value) => {
+                  const game = availableGames.find(g => g.id === value);
+                  setNewPickData(prev => ({
+                    ...prev,
+                    gameId: value,
+                    predictedWinner: game ? game.home_team : ''
+                  }));
+                }}
+              >
+                <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                  <SelectValue placeholder="Select a game" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableGames.map(game => (
+                    <SelectItem key={game.id} value={game.id}>
+                      {game.away_team} @ {game.home_team}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* Add Pick Dialog */}
-        <Dialog open={showAddPickDialog} onOpenChange={setShowAddPickDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add Pick for Participant</DialogTitle>
-              <DialogDescription>
-                Submit a pick on behalf of a participant who hasn&apos;t submitted yet.
-              </DialogDescription>
-            </DialogHeader>
-            
-        <div className="space-y-4">
-          {/* Participant Selection - Pre-filled if coming from management */}
-          <div className="space-y-2">
-            <Label htmlFor="participant">Participant</Label>
-                                                                    <Select 
-              value={selectedParticipantForNewPick || selectedParticipantForManagement} 
-              onValueChange={setSelectedParticipantForNewPick}
-                                >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a participant" />
-                                      </SelectTrigger>
-              <SelectContent>
-                {allParticipants.map(participant => (
-                  <SelectItem key={participant.id} value={participant.id}>
-                    {participant.name} ({participant.email || 'No email'})
-                  </SelectItem>
-                ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  
-              {/* Game Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="game">Game</Label>
-                                                                    <Select 
-                  value={newPickData.gameId} 
-                  onValueChange={(value) => {
-                    const game = availableGames.find(g => g.id === value);
-                    setNewPickData(prev => ({
-                      ...prev,
-                      gameId: value,
-                      predictedWinner: game ? game.home_team : ''
-                    }));
-                  }}
+            {/* Predicted Winner */}
+            {newPickData.gameId && (
+              <div>
+                <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                  Predicted Winner
+                </Label>
+                <Select
+                  value={newPickData.predictedWinner}
+                  onValueChange={(value) => setNewPickData(prev => ({ ...prev, predictedWinner: value }))}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a game" />
-                                      </SelectTrigger>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
+                    <SelectValue placeholder="Select winner" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {availableGames.map(game => (
-                      <SelectItem key={game.id} value={game.id}>
-                        {game.away_team} @ {game.home_team}
-                                        </SelectItem>
-                    ))}
-                                      </SelectContent>
-                                    </Select>
-                                </div>
-                                
-              {/* Predicted Winner */}
-              {newPickData.gameId && (
-                <div className="space-y-2">
-                  <Label htmlFor="predictedWinner">Predicted Winner</Label>
-                  <Select 
-                    value={newPickData.predictedWinner} 
-                    onValueChange={(value) => setNewPickData(prev => ({ ...prev, predictedWinner: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select winner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(() => {
-                        const game = availableGames.find(g => g.id === newPickData.gameId);
-                        return game ? (
-                          <>
-                            <SelectItem value={game.home_team}>
-                              {game.home_team}
-                            </SelectItem>
-                            <SelectItem value={game.away_team}>
-                              {game.away_team}
-                            </SelectItem>
-                          </>
-                        ) : null;
-                      })()}
-                    </SelectContent>
-                  </Select>
-                      </div>
-              )}
-
-              {/* Confidence Points */}
-              <div className="space-y-2">
-                <Label htmlFor="confidencePoints">Confidence Points</Label>
-                <Input
-                  id="confidencePoints"
-                  type="number"
-                  min="1"
-                  max="16"
-                  value={newPickData.confidencePoints}
-                  onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
-                />
-                    </div>
-      </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddPickDialog(false)}>
-          Cancel
-        </Button>
-              <Button onClick={submitNewPick} disabled={isSaving}>
-                {isSaving ? 'Submitting...' : 'Submit Pick'}
-            </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    {/* Monday Night Score Dialog */}
-    <Dialog open={showMondayNightDialog} onOpenChange={setShowMondayNightDialog}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Update Monday Night Score</DialogTitle>
-          <DialogDescription>
-            Set the Monday night game score prediction for {allParticipants.find(p => p.id === selectedParticipantForManagement)?.name}.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-4">
-          {/* Monday Night Game Info */}
-          {(() => {
-            const mondayNightGameInfo = getMondayNightGameInfo(availableGames);
-            return mondayNightGameInfo ? (
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium text-sm text-blue-900">Monday Night Game:</span>
-                </div>
-                <div className="text-lg font-semibold text-blue-800">
-                  {mondayNightGameInfo.displayText}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">
-                  Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
-                </div>
+                    {(() => {
+                      const game = availableGames.find(g => g.id === newPickData.gameId);
+                      return game ? (
+                        <>
+                          <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
+                          <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
+                        </>
+                      ) : null;
+                    })()}
+                  </SelectContent>
+                </Select>
               </div>
-            ) : null;
-          })()}
-          
-          <div className="space-y-2">
-            <Label htmlFor="mondayNightScore">Monday Night Score</Label>
-            <Input
-              id="mondayNightScore"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="e.g., 45"
-              value={mondayNightScore}
-              onChange={(e) => setMondayNightScore(e.target.value)}
-            />
-            <p className="text-xs text-gray-500">
-              Enter the predicted total points scored in the Monday night game.
-            </p>
-          </div>
-        </div>
+            )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setShowMondayNightDialog(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submitMondayNightScore} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Score'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {/* Confidence Points */}
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Confidence Points
+              </Label>
+              <input
+                id="confidencePoints"
+                type="number"
+                min="1"
+                max="16"
+                value={newPickData.confidencePoints}
+                onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
+                style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setShowAddPickDialog(false)}
+              style={{
+                padding: '0.5rem 0.9rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitNewPick}
+              disabled={isSaving}
+              style={{
+                padding: '0.5rem 0.9rem',
+                background: isSaving ? textDim : green, color: text,
+                border: 'none', borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isSaving ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSaving ? 'Submitting…' : 'Submit Pick'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Monday Night Score Dialog */}
+      <Dialog open={showMondayNightDialog} onOpenChange={setShowMondayNightDialog}>
+        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, maxWidth: 480 }}>
+          <DialogHeader>
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Update Monday Night Score
+            </DialogTitle>
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Set the Monday night game score prediction for {allParticipants.find(p => p.id === selectedParticipantForManagement)?.name}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.5rem' }}>
+            {/* Monday Night Game Info */}
+            {(() => {
+              const mondayNightGameInfo = getMondayNightGameInfo(availableGames);
+              return mondayNightGameInfo ? (
+                <div style={{ padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                    <Calendar style={{ width: 13, height: 13, color: greenHi }} />
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monday Night Game</span>
+                  </div>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text }}>{mondayNightGameInfo.displayText}</p>
+                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                    Kickoff: {new Date(mondayNightGameInfo.game.kickoff_time).toLocaleString()}
+                  </p>
+                </div>
+              ) : null;
+            })()}
+
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Monday Night Score
+              </Label>
+              <input
+                id="mondayNightScore"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g., 45"
+                value={mondayNightScore}
+                onChange={(e) => setMondayNightScore(e.target.value)}
+                style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
+              />
+              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.35rem' }}>
+                Enter the predicted total points scored in the Monday night game.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setShowMondayNightDialog(false)}
+              style={{
+                padding: '0.5rem 0.9rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitMondayNightScore}
+              disabled={isSaving}
+              style={{
+                padding: '0.5rem 0.9rem',
+                background: isSaving ? textDim : green, color: text,
+                border: 'none', borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.75rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isSaving ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSaving ? 'Saving…' : 'Save Score'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

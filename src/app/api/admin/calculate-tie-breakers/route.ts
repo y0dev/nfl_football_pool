@@ -104,7 +104,20 @@ export async function POST(request: NextRequest) {
 
     if (poolId) {
       // Calculate for specific pool
-      poolsToProcess = [{ id: poolId }];
+      const { data: pool, error: poolError } = await supabase
+        .from('pools')
+        .select('id, name')
+        .eq('id', poolId)
+        .single();
+
+      if (poolError) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch pool' },
+          { status: 500 }
+        );
+      }
+
+      poolsToProcess = [pool];
     } else {
       // Calculate for all pools
       const { data: pools, error: poolsError } = await supabase

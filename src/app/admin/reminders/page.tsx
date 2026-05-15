@@ -1,9 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
@@ -12,11 +9,29 @@ import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createReminderEmail, createSubmissionSummaryEmail } from '@/lib/mailto-utils';
+import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createSubmissionSummaryEmail } from '@/lib/mailto-utils';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { debugLog } from '@/lib/utils';
+import { Footer } from '@/components/layout/Footer';
+
+// Design tokens
+const bg      = 'oklch(13% 0.025 255)';
+const surface = 'oklch(17% 0.028 255)';
+const card    = 'oklch(20% 0.03 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const gold    = 'oklch(74% 0.16 72)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const amber   = 'oklch(72% 0.16 60)';
+const purple  = 'oklch(65% 0.12 290)';
+
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface Participant {
   id: string;
@@ -40,7 +55,7 @@ function RemindersContent() {
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  
+
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,34 +70,25 @@ function RemindersContent() {
   const [isSendingSummary, setIsSendingSummary] = useState(false);
   const [summaryEmail, setSummaryEmail] = useState('');
 
-  // Add debugging
   console.log('RemindersContent rendering with:', { user, isLoading, currentWeek, currentSeasonType });
 
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
-        // Check admin status
         if (user) {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = user.is_super_admin;
-          
-          // Redirect commissioners to their dashboard
           if (!superAdminStatus) {
             router.push('/dashboard');
             return;
           }
-          
-          // Only load data for super admins
           await loadData();
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
       }
     };
-
-    if (user) {
-      checkAdminStatus();
-    }
+    if (user) checkAdminStatus();
   }, [user, router]);
 
   useEffect(() => {
@@ -94,24 +100,14 @@ function RemindersContent() {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
-      // Load current week
       const weekData = await loadCurrentWeek();
       setCurrentWeek(weekData?.week_number || 1);
       setCurrentSeasonType(weekData?.season_type || 2);
-      
-      // Load pools
       await loadPoolsData();
-      
-      // Load participants
       await loadParticipants();
     } catch (error) {
       console.error('Error loading data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load reminder data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load reminder data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -128,119 +124,33 @@ function RemindersContent() {
 
   const loadParticipants = async () => {
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      
-      // Log user info
-      console.log('User info:', {
-        email: user?.email,
-        isSuperAdmin: user?.is_super_admin,
-        userId: user?.id
+      const params = new URLSearchParams({
+        week: String(currentWeek),
+        seasonType: String(currentSeasonType),
+        poolId: selectedPool,
+        adminEmail: user?.email || '',
+        isSuperAdmin: String(user?.is_super_admin || false),
       });
-      
-      // Get participants with basic filtering
-      let participantsQuery = supabase
-        .from('participants')
-        .select('*')
-        .eq('is_active', true);
-
-      // Filter by pool if selected
-      if (selectedPool !== 'all') {
-        participantsQuery = participantsQuery.eq('pool_id', selectedPool);
-      } else if (!user?.is_super_admin) {
-        // For non-admins, only show participants from their pools
-        const userPoolIds = pools.map(p => p.id);
-        if (userPoolIds.length > 0) {
-          participantsQuery = participantsQuery.in('pool_id', userPoolIds);
-        } else {
-          setParticipants([]);
-          return;
-        }
-      }
-
-      const { data: participantsData, error } = await participantsQuery;
-
-      if (error) {
-        console.error('Error loading participants:', error);
-        toast({
-          title: 'Error',
-          description: `Failed to load participants: ${error.message}`,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (!participantsData || participantsData.length === 0) {
-        setParticipants([]);
-        return;
-      }
-
-      // Check submission status for each participant
-      const participantsWithSubmissionStatus = await Promise.all(
-        participantsData.map(async (participant) => {
-          // Get games for this week (simplified - just check if any games exist)
-          const { data: games } = await supabase
-            .from('games')
-            .select('id')
-            .eq('week', currentWeek);
-
-          let has_submitted = false;
-          if (games && games.length > 0) {
-            const gameIds = games.map(g => g.id);
-            const { data: picks } = await supabase
-              .from('picks')
-              .select('id')
-              .eq('participant_id', participant.id)
-              .eq('pool_id', participant.pool_id)
-              .in('game_id', gameIds);
-            
-            has_submitted = Boolean(picks && picks.length === gameIds.length);
-          }
-
-          // Get pool name
-          const { data: poolData } = await supabase
-            .from('pools')
-            .select('name')
-            .eq('id', participant.pool_id)
-            .single();
-
-          return {
-            ...participant,
-            pool_name: poolData?.name || 'Unknown Pool',
-            has_submitted,
-            last_reminder_sent: null // Simplified for now
-          };
-        })
-      );
-
-      setParticipants(participantsWithSubmissionStatus);
-      
-      console.log('Participants loaded:', {
-        total: participantsWithSubmissionStatus.length,
-        selectedPool,
-        userIsSuperAdmin: user?.is_super_admin,
-        poolsCount: pools.length
-      });
+      const res = await fetch(`/api/admin/reminders/participants?${params}`);
+      if (!res.ok) throw new Error('Failed to load participants');
+      const data = await res.json();
+      if (data.success) setParticipants(data.participants);
+      else throw new Error(data.error);
     } catch (error) {
       console.error('Error loading participants:', error);
     }
   };
 
   const filteredParticipants = participants.filter(participant => {
-    // Filter by search term
-    const matchesSearch = searchTerm === '' || 
-                         participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         participant.pool_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Filter by submission status
+    const matchesSearch = searchTerm === '' ||
+      participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      participant.pool_name.toLowerCase().includes(searchTerm.toLowerCase());
+
     let matchesSubmissionFilter = true;
-    if (filterSubmitted === 'submitted') {
-      matchesSubmissionFilter = participant.has_submitted;
-    } else if (filterSubmitted === 'not_submitted') {
-      matchesSubmissionFilter = !participant.has_submitted;
-    }
-    
+    if (filterSubmitted === 'submitted') matchesSubmissionFilter = participant.has_submitted;
+    else if (filterSubmitted === 'not_submitted') matchesSubmissionFilter = !participant.has_submitted;
+
     return matchesSearch && matchesSubmissionFilter;
   });
 
@@ -255,71 +165,44 @@ function RemindersContent() {
 
   const handleSelectParticipant = (participantId: string) => {
     const newSelected = new Set(selectedParticipants);
-    if (newSelected.has(participantId)) {
-      newSelected.delete(participantId);
-    } else {
-      newSelected.add(participantId);
-    }
+    if (newSelected.has(participantId)) newSelected.delete(participantId);
+    else newSelected.add(participantId);
     setSelectedParticipants(newSelected);
   };
 
   const sendReminders = async () => {
     if (selectedParticipants.size === 0) {
-      toast({
-        title: 'No Participants Selected',
-        description: 'Please select at least one participant to send reminders to',
-        variant: 'destructive',
-      });
+      toast({ title: 'No Participants Selected', description: 'Please select at least one participant to send reminders to', variant: 'destructive' });
       return;
     }
-
     setIsSendingReminders(true);
     try {
-      const selectedParticipantsData = participants.filter(p => selectedParticipants.has(p.id));
-      const poolName = pools.find(p => p.id === selectedPool)?.name || 'NFL Pool';
-      
-      // Create reminder email using utility
-      const emailOptions = createReminderEmail(poolName, currentWeek);
-      emailOptions.bcc = selectedParticipantsData.map(p => p.email).join(',');
-      
-      const mailtoUrl = createMailtoUrl(emailOptions);
-
-      // Try to open email client
-      const opened = await openEmailClient(mailtoUrl);
-      
-      if (opened) {
-        toast({
-          title: 'Email Client Opened',
-          description: `Email prepared for ${selectedParticipants.size} participant(s). Your email client should open automatically.`,
-        });
-      } else {
-        // Fallback: copy mailto URL to clipboard
-        const copied = await copyMailtoToClipboard(mailtoUrl);
-        
-        if (copied) {
-          toast({
-            title: 'Email URL Copied',
-            description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
-          });
-        } else {
-          toast({
-            title: 'Manual Action Required',
-            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
-            variant: 'destructive',
-          });
-        }
-      }
-      
-      // Clear selection and refresh data
-      setSelectedParticipants(new Set());
-      await loadParticipants();
-    } catch (error) {
-      console.error('Error preparing reminders:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to prepare reminders',
-        variant: 'destructive',
+      const response = await fetch('/api/admin/send-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantIds: Array.from(selectedParticipants),
+          week: currentWeek,
+          seasonType: currentSeasonType,
+        }),
       });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const { successful, failed } = data.results;
+        toast({
+          title: 'Reminders Sent',
+          description: `Sent ${successful} reminder${successful !== 1 ? 's' : ''}${failed > 0 ? `. ${failed} failed — check SMTP configuration.` : '.'}`,
+        });
+        setSelectedParticipants(new Set());
+        await loadParticipants();
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to send reminders', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error sending reminders:', error);
+      toast({ title: 'Error', description: 'Failed to send reminders', variant: 'destructive' });
     } finally {
       setIsSendingReminders(false);
       setShowConfirmDialog(false);
@@ -328,67 +211,33 @@ function RemindersContent() {
 
   const sendSubmissionSummary = async () => {
     if (!summaryEmail.trim()) {
-      toast({
-        title: 'Email Required',
-        description: 'Please enter an email address to send the summary to',
-        variant: 'destructive',
-      });
+      toast({ title: 'Email Required', description: 'Please enter an email address to send the summary to', variant: 'destructive' });
       return;
     }
-
     setIsSendingSummary(true);
     try {
       const submittedParticipants = participants.filter(p => p.has_submitted);
       const notSubmittedParticipants = participants.filter(p => !p.has_submitted);
       const poolName = pools.find(p => p.id === selectedPool)?.name || 'NFL Pool';
-      
-      // Create submission summary email using utility
-      const emailOptions = createSubmissionSummaryEmail(
-        poolName,
-        currentWeek,
-        participants.length,
-        submittedParticipants.length,
-        submittedParticipants,
-        notSubmittedParticipants
-      );
+      const emailOptions = createSubmissionSummaryEmail(poolName, currentWeek, participants.length, submittedParticipants.length, submittedParticipants, notSubmittedParticipants);
       emailOptions.to = summaryEmail;
-      
       const mailtoUrl = createMailtoUrl(emailOptions);
-
-      // Try to open email client
       const opened = await openEmailClient(mailtoUrl);
-      
+
       if (opened) {
-        toast({
-          title: 'Email Client Opened',
-          description: `Submission summary prepared and sent to ${summaryEmail}. Your email client should open automatically.`,
-        });
+        toast({ title: 'Email Client Opened', description: `Submission summary prepared and sent to ${summaryEmail}. Your email client should open automatically.` });
       } else {
-        // Fallback: copy mailto URL to clipboard
         const copied = await copyMailtoToClipboard(mailtoUrl);
-        
         if (copied) {
-          toast({
-            title: 'Email URL Copied',
-            description: `Email URL copied to clipboard. Paste it in your browser address bar to open your email client.`,
-          });
+          toast({ title: 'Email URL Copied', description: 'Email URL copied to clipboard. Paste it in your browser address bar to open your email client.' });
         } else {
-          toast({
-            title: 'Manual Action Required',
-            description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`,
-            variant: 'destructive',
-          });
+          toast({ title: 'Manual Action Required', description: `Please copy this URL and paste it in your browser: ${mailtoUrl}`, variant: 'destructive' });
         }
       }
-      
       setSummaryEmail('');
     } catch (error) {
       console.error('Error preparing summary:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to prepare summary',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to prepare summary', variant: 'destructive' });
     } finally {
       setIsSendingSummary(false);
     }
@@ -399,140 +248,183 @@ function RemindersContent() {
     const submitted = participants.filter(p => p.has_submitted).length;
     const notSubmitted = total - submitted;
     const selected = selectedParticipants.size;
-    
     return { total, submitted, notSubmitted, selected };
   };
 
   const stats = getStats();
+  const notSubmittedCount = filteredParticipants.filter(p => !p.has_submitted).length;
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw style={{ width: 32, height: 32, color: textDim, margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+          <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading reminders…</p>
         </div>
       </div>
     );
   }
 
-  // Add error boundary
   if (!user) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="text-center py-8">
-          <p className="text-gray-500">Loading user...</p>
-        </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
+        <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading user…</p>
       </div>
     );
   }
 
+  const labelStyle = {
+    ...bc, fontSize: '0.68rem', fontWeight: 700 as const,
+    letterSpacing: '0.08em', color: textDim,
+    textTransform: 'uppercase' as const,
+    display: 'block', marginBottom: '0.4rem',
+  };
+
   return (
-    <div className="container mx-auto p-4">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Button
-                variant="outline"
-                size="sm"
+    <div style={{ background: bg, minHeight: '100vh' }}>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'oklch(13% 0.025 255 / 0.95)',
+        backdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${border}`,
+      }}>
+        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
                 onClick={() => router.push('/admin/dashboard')}
-                className="flex items-center gap-2"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.6rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Button>
+                <ArrowLeft style={{ width: 12, height: 12 }} />
+                Dashboard
+              </button>
+              <div style={{ width: 1, height: 20, background: border }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Mail style={{ width: 14, height: 14, color: text }} />
+                </div>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                  Send Reminders
+                </span>
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Send Reminders</h1>
-            <p className="text-sm sm:text-base text-gray-600">
-              Send email reminders to participants who haven&apos;t submitted their picks for Week {currentWeek}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
+            <button
               onClick={loadData}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.7rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 5,
+                ...bc, fontWeight: 600, fontSize: '0.72rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw style={{ width: 11, height: 11 }} />
               Refresh
-            </Button>
-
+            </button>
           </div>
         </div>
+      </nav>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-blue-600">{stats.total}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total Participants</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <div className="h-6 w-6 sm:h-8 sm:w-8 text-gray-600 mx-auto mb-2">📊</div>
-              <div className="text-lg sm:text-2xl font-bold text-gray-600">{pools.length}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Available Pools</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-green-600">{stats.submitted}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Submitted</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-orange-600">{stats.notSubmitted}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Need Reminders</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-3 sm:p-4">
-              <Mail className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-purple-600">{stats.selected}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Selected</div>
-            </CardContent>
-          </Card>
+      {/* ── HERO ── */}
+      <section style={{
+        background: bg,
+        backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`,
+        padding: 'clamp(2.5rem, 5vw, 4rem) 0',
+      }}>
+        <div className="lp-inner">
+          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+            Week {currentWeek} · Email Outreach
+          </p>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(2rem, 5vw, 3rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+            Pick<br /><span style={{ color: gold }}>Reminders</span>
+          </h1>
+          <p style={{ ...b, fontSize: '0.9rem', color: textMid, maxWidth: '44ch' }}>
+            Send email reminders to participants who haven&apos;t submitted their picks for Week {currentWeek}.
+          </p>
         </div>
+      </section>
 
-        {/* Filters and Actions */}
-        <Card className="mb-6">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters & Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── green rule ── */}
+      <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {/* ── STATS ── */}
+      <section style={{ background: surface, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+          <div className="admin-week-grid">
+            {[
+              { label: 'Total', value: stats.total, icon: Users, color: greenHi },
+              { label: 'Pools', value: pools.length, icon: Filter, color: textMid },
+              { label: 'Submitted', value: stats.submitted, icon: CheckCircle, color: greenHi },
+              { label: 'Need Reminder', value: stats.notSubmitted, icon: AlertTriangle, color: amber },
+              { label: 'Selected', value: stats.selected, icon: Mail, color: purple },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} style={{
+                background: card,
+                border: `1px solid ${border}`,
+                borderRadius: 8,
+                padding: '1.25rem',
+                textAlign: 'center' as const,
+              }}>
+                <Icon style={{ width: 20, height: 20, color, margin: '0 auto 0.5rem' }} />
+                <div style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color, lineHeight: 1 }}>{value}</div>
+                <div style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' as const, marginTop: '0.25rem' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FILTERS ── */}
+      <section style={{ background: bg, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{
+            background: card,
+            border: `1px solid ${border}`,
+            borderLeft: `3px solid ${green}`,
+            borderRadius: 8,
+            padding: '1.75rem',
+            marginBottom: '1.5rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <Filter style={{ width: 16, height: 16, color: greenHi }} />
+              <h2 style={{ ...bc, fontWeight: 700, fontSize: '0.88rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Filters &amp; Actions
+              </h2>
+            </div>
+
+            <div className="admin-stats-grid" style={{ marginBottom: '1.25rem' }}>
               <div>
-                <label className="text-sm font-medium mb-2 block">Pool</label>
+                <label style={labelStyle}>Pool</label>
                 <Select value={selectedPool} onValueChange={setSelectedPool}>
-                  <SelectTrigger>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
                     <SelectValue placeholder="Select pool" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Pools</SelectItem>
                     {pools.map((pool) => (
-                      <SelectItem key={pool.id} value={pool.id}>
-                        {pool.name}
-                      </SelectItem>
+                      <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
-                <label className="text-sm font-medium mb-2 block">Status</label>
+                <label style={labelStyle}>Status</label>
                 <Select value={filterSubmitted} onValueChange={(value: 'all' | 'submitted' | 'not_submitted') => setFilterSubmitted(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -542,174 +434,236 @@ function RemindersContent() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
-                <label className="text-sm font-medium mb-2 block">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <label style={labelStyle}>Search</label>
+                <div style={{ position: 'relative' }}>
+                  <Search style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: textDim }} />
                   <Input
-                    placeholder="Search participants..."
+                    placeholder="Search participants…"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.88rem', paddingLeft: '2.25rem' }}
                   />
                 </div>
               </div>
-              
-              <div className="flex items-end">
-                <Button
+
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button
                   onClick={handleSelectAll}
-                  variant="outline"
-                  className="w-full"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 1rem',
+                    background: 'transparent', color: textMid,
+                    border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 600, fontSize: '0.78rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
                 >
-                  {selectedParticipants.size === filteredParticipants.filter(p => !p.has_submitted).length ? 'Deselect All' : 'Select All'}
-                </Button>
+                  {selectedParticipants.size === notSubmittedCount ? 'Deselect All' : 'Select All'}
+                </button>
               </div>
             </div>
-            
-                         {stats.selected > 0 && (
-               <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                 <div className="flex items-center gap-2">
-                   <Mail className="h-5 w-5 text-blue-600" />
-                   <span className="text-blue-800 font-medium">
-                     {stats.selected} participant{stats.selected !== 1 ? 's' : ''} selected for reminders
-                   </span>
-                 </div>
-                 <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-                   <AlertDialogTrigger asChild>
-                     <Button
-                       onClick={() => setShowConfirmDialog(true)}
-                       disabled={isSendingReminders}
-                       className="flex items-center gap-2"
-                     >
-                       <Send className="h-4 w-4" />
-                       {isSendingReminders ? 'Sending...' : 'Send Reminders'}
-                     </Button>
-                   </AlertDialogTrigger>
-                   <AlertDialogContent>
-                     <AlertDialogHeader>
-                       <AlertDialogTitle>Send Reminders</AlertDialogTitle>
-                       <AlertDialogDescription>
-                         Are you sure you want to send reminder emails to {stats.selected} participant{stats.selected !== 1 ? 's' : ''}? 
-                         This will notify them that they haven&apos;t submitted their picks for Week {currentWeek}.
-                       </AlertDialogDescription>
-                     </AlertDialogHeader>
-                     <AlertDialogFooter>
-                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                       <AlertDialogAction onClick={sendReminders}>
-                         Send Reminders
-                       </AlertDialogAction>
-                     </AlertDialogFooter>
-                   </AlertDialogContent>
-                 </AlertDialog>
-               </div>
-             )}
 
-             {/* Summary Email Section */}
-             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
-               <div className="flex items-center gap-2 flex-1">
-                 <BarChart3 className="h-5 w-5 text-green-600" />
-                 <span className="text-green-800 font-medium">
-                   Send Submission Summary
-                 </span>
-               </div>
-               <div className="flex flex-col sm:flex-row gap-2">
-                 <Input
-                   type="email"
-                   placeholder="Enter email address"
-                   value={summaryEmail}
-                   onChange={(e) => setSummaryEmail(e.target.value)}
-                   className="w-full sm:w-64"
-                 />
-                 <Button
-                   onClick={sendSubmissionSummary}
-                   disabled={isSendingSummary || !summaryEmail.trim()}
-                   className="flex items-center gap-2"
-                 >
-                   <BarChart3 className="h-4 w-4" />
-                   {isSendingSummary ? 'Sending...' : 'Send Summary'}
-                 </Button>
-               </div>
-             </div>
-          </CardContent>
-        </Card>
-
-        {/* Participants List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Participants ({filteredParticipants.length})
-            </CardTitle>
-            <CardDescription>
-              Select participants to send reminder emails
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-500">Loading participants...</p>
+            {/* Send Reminders Banner */}
+            {stats.selected > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.85rem 1rem',
+                background: 'oklch(46% 0.14 155 / 0.12)',
+                border: `1px solid oklch(46% 0.14 155 / 0.4)`,
+                borderRadius: 6,
+                marginBottom: '0.75rem',
+                flexWrap: 'wrap', gap: '0.75rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Mail style={{ width: 16, height: 16, color: greenHi }} />
+                  <span style={{ ...b, fontSize: '0.875rem', color: greenHi, fontWeight: 600 }}>
+                    {stats.selected} participant{stats.selected !== 1 ? 's' : ''} selected for reminders
+                  </span>
                 </div>
-              ) : filteredParticipants.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No participants found matching your filters</p>
+                <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      onClick={() => setShowConfirmDialog(true)}
+                      disabled={isSendingReminders}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.4rem',
+                        padding: '0.45rem 0.9rem',
+                        background: green, color: text,
+                        border: 'none', borderRadius: 6,
+                        ...bc, fontWeight: 700, fontSize: '0.78rem',
+                        letterSpacing: '0.07em', textTransform: 'uppercase',
+                        cursor: isSendingReminders ? 'not-allowed' : 'pointer',
+                        opacity: isSendingReminders ? 0.6 : 1,
+                      }}
+                    >
+                      <Send style={{ width: 12, height: 12 }} />
+                      {isSendingReminders ? 'Sending…' : 'Send Reminders'}
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Send Reminders</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to send reminder emails to {stats.selected} participant{stats.selected !== 1 ? 's' : ''}?
+                        This will notify them that they haven&apos;t submitted their picks for Week {currentWeek}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={sendReminders}>Send Reminders</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+
+            {/* Summary Email */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+              padding: '0.85rem 1rem',
+              background: 'oklch(46% 0.14 155 / 0.07)',
+              border: `1px solid ${border}`,
+              borderRadius: 6,
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 160 }}>
+                <BarChart3 style={{ width: 16, height: 16, color: textMid }} />
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase' }}>
+                  Send Submission Summary
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Input
+                  type="email"
+                  placeholder="Email address"
+                  value={summaryEmail}
+                  onChange={(e) => setSummaryEmail(e.target.value)}
+                  style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.85rem', width: 220 }}
+                />
+                <button
+                  onClick={sendSubmissionSummary}
+                  disabled={isSendingSummary || !summaryEmail.trim()}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.45rem 0.9rem',
+                    background: isSendingSummary || !summaryEmail.trim() ? 'oklch(26% 0.03 255)' : surface,
+                    color: isSendingSummary || !summaryEmail.trim() ? textDim : textMid,
+                    border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 600, fontSize: '0.75rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase',
+                    cursor: isSendingSummary || !summaryEmail.trim() ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <BarChart3 style={{ width: 12, height: 12 }} />
+                  {isSendingSummary ? 'Sending…' : 'Send Summary'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── PARTICIPANT LIST ── */}
+          <div style={{
+            background: card,
+            border: `1px solid ${border}`,
+            borderRadius: 8,
+            overflow: 'hidden',
+          }}>
+            {/* List Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '1rem 1.25rem',
+              borderBottom: `1px solid ${border}`,
+              background: surface,
+            }}>
+              <Users style={{ width: 15, height: 15, color: greenHi }} />
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                Participants
+              </span>
+              <span style={{
+                ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em',
+                color: textDim, background: border,
+                padding: '0.1rem 0.45rem', borderRadius: 4,
+              }}>
+                {filteredParticipants.length}
+              </span>
+              <span style={{ ...b, fontSize: '0.75rem', color: textDim, marginLeft: 'auto' }}>
+                Select participants to send reminder emails
+              </span>
+            </div>
+
+            {/* List Body */}
+            <div style={{ padding: '0.75rem' }}>
+              {filteredParticipants.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                  <Users style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
+                  <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>No participants found matching your filters</p>
                   {participants.length > 0 && (
-                    <p className="text-sm text-gray-400 mt-2">
-                      Try adjusting your search or filter criteria
-                    </p>
+                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.35rem' }}>Try adjusting your search or filter criteria</p>
                   )}
                 </div>
               ) : (
-                filteredParticipants.map((participant) => (
-                  <div
-                    key={participant.id}
-                    className={`flex items-center justify-between p-4 border rounded-lg ${
-                      participant.has_submitted ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Checkbox
-                        checked={selectedParticipants.has(participant.id)}
-                        onCheckedChange={() => handleSelectParticipant(participant.id)}
-                        disabled={participant.has_submitted}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium truncate">{participant.name}</h3>
-                          {participant.has_submitted && (
-                            <Badge variant="default" className="text-xs">Submitted</Badge>
-                          )}
-                          {!participant.has_submitted && (
-                            <Badge variant="destructive" className="text-xs">Not Submitted</Badge>
-                          )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {filteredParticipants.map((participant) => {
+                    const submitted = participant.has_submitted;
+                    return (
+                      <div
+                        key={participant.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '0.85rem 1rem',
+                          background: submitted ? 'oklch(46% 0.14 155 / 0.07)' : 'oklch(72% 0.16 60 / 0.07)',
+                          border: `1px solid ${submitted ? 'oklch(46% 0.14 155 / 0.3)' : 'oklch(72% 0.16 60 / 0.3)'}`,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                          <Checkbox
+                            checked={selectedParticipants.has(participant.id)}
+                            onCheckedChange={() => handleSelectParticipant(participant.id)}
+                            disabled={submitted}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                              <span style={{ ...bc, fontWeight: 700, fontSize: '0.88rem', color: text }}>{participant.name}</span>
+                              <span style={{
+                                ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
+                                padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase',
+                                background: submitted ? 'oklch(46% 0.14 155 / 0.25)' : 'oklch(72% 0.16 60 / 0.25)',
+                                color: submitted ? greenHi : amber,
+                              }}>
+                                {submitted ? 'Submitted' : 'Not Submitted'}
+                              </span>
+                            </div>
+                            <p style={{ ...b, fontSize: '0.78rem', color: textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{participant.email}</p>
+                            <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>Pool: {participant.pool_name}</p>
+                            {participant.last_reminder_sent && (
+                              <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                                Last reminder: {new Date(participant.last_reminder_sent).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 truncate">{participant.email}</p>
-                        <p className="text-xs text-gray-500">Pool: {participant.pool_name}</p>
-                        {participant.last_reminder_sent && (
-                          <p className="text-xs text-gray-500">
-                            Last reminder: {new Date(participant.last_reminder_sent).toLocaleString()}
-                          </p>
-                        )}
+                        <div style={{ paddingLeft: '0.5rem', flexShrink: 0 }}>
+                          {submitted
+                            ? <CheckCircle style={{ width: 18, height: 18, color: greenHi }} />
+                            : <Clock style={{ width: 18, height: 18, color: amber }} />
+                          }
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {participant.has_submitted ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-orange-600" />
-                      )}
-                    </div>
-                  </div>
-                ))
+                    );
+                  })}
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <Footer pageName="Commissioner HQ" />
     </div>
   );
 }

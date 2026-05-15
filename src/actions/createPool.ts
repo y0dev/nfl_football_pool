@@ -8,6 +8,8 @@ export async function createPool(poolData: {
   created_by: string;
   season?: number;
   pool_type?: 'normal' | 'knockout';
+  join_password?: string;
+  season_scope?: number[];
 }) {
   try {
     const supabase = getSupabaseServiceClient();
@@ -18,7 +20,9 @@ export async function createPool(poolData: {
         created_by: poolData.created_by,
         season: poolData.season || DEFAULT_POOL_SEASON,
         pool_type: poolData.pool_type || 'normal',
-        is_active: true
+        is_active: true,
+        season_scope: poolData.season_scope ?? [2],
+        ...(poolData.join_password ? { join_password: poolData.join_password } : {}),
       })
       .select()
       .single();

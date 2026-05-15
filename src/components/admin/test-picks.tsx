@@ -1,16 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink, Share2, Users } from 'lucide-react';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentWeekFromGames } from '@/actions/getCurrentWeekFromGames';
+
+const card    = 'oklch(20% 0.03 255)';
+const surface = 'oklch(17% 0.028 255)';
+const border  = 'oklch(26% 0.03 255)';
+const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
+const text    = 'oklch(95% 0.006 255)';
+const textMid = 'oklch(72% 0.015 255)';
+const textDim = 'oklch(50% 0.018 255)';
+const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
+const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface TestPicksProps {
   poolId: string;
@@ -19,255 +25,165 @@ interface TestPicksProps {
   seasonType?: number;
 }
 
+const seasonTypeOptions = [
+  { value: 1, label: 'Preseason', weeks: [1, 2, 3, 4] },
+  { value: 2, label: 'Regular Season', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
+  { value: 3, label: 'Postseason', weeks: [1, 2, 3, 4] },
+];
+
+const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
+const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
+
 export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPicksProps) {
   const [currentWeek, setCurrentWeek] = useState(weekNumber || 1);
   const [selectedWeek, setSelectedWeek] = useState(weekNumber || 1);
-  const [selectedSeasonType, setSelectedSeasonType] = useState(seasonType || 2); // Default to regular season
+  const [selectedSeasonType, setSelectedSeasonType] = useState(seasonType || 2);
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [testUrl, setTestUrl] = useState('');
   const { toast } = useToast();
-
-  const seasonTypeOptions = [
-    { value: 1, label: 'Preseason', weeks: [1, 2, 3, 4] }, // 1 = Hall of Fame Game, 2-4 = Preseason Weeks
-    { value: 2, label: 'Regular Season', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
-    { value: 3, label: 'Postseason', weeks: [1, 2, 3, 4] }
-  ];
 
   useEffect(() => {
     const loadWeek = async () => {
       try {
         const { week, seasonType } = await getUpcomingWeek();
-        debugLog('TestPicks: Current week:', week);
-        debugLog('TestPicks: Current season type:', seasonType);
         setCurrentWeek(week);
         setSelectedWeek(week);
-        
-        // Set available weeks based on selected season type
-        const currentSeasonType = seasonTypeOptions.find(option => option.value === seasonType);
-        debugLog('TestPicks: Available weeks:', currentSeasonType?.weeks);
-        setAvailableWeeks(currentSeasonType?.weeks || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
-        
-        // Set the season type from the function result
+        const opt = seasonTypeOptions.find(o => o.value === seasonType);
+        setAvailableWeeks(opt?.weeks || seasonTypeOptions[1].weeks);
         setSelectedSeasonType(seasonType);
-      } catch (error) {
-        console.error('Error loading current week:', error);
-        // Fallback to week 1
-        setCurrentWeek(1);
-        setSelectedWeek(1);
-        setAvailableWeeks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      } catch {
+        setCurrentWeek(1); setSelectedWeek(1);
+        setAvailableWeeks(seasonTypeOptions[1].weeks);
       }
     };
     loadWeek();
-  }, []); // Remove selectedSeasonType dependency since we're setting it in the function
+  }, []);
 
   useEffect(() => {
     const baseUrl = window.location.origin;
-    // All season types use the picks route
-    const url = `${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`;
-    setTestUrl(url);
+    setTestUrl(`${baseUrl}/pool/${poolId}/picks?week=${selectedWeek}&seasonType=${selectedSeasonType}`);
   }, [poolId, selectedWeek, selectedSeasonType]);
-
-  const handleTestPicks = () => {
-    window.open(testUrl, '_blank');
-  };
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(testUrl);
-      const seasonTypeLabel = seasonTypeOptions.find(opt => opt.value === selectedSeasonType)?.label;
-      toast({
-        title: "Copied!",
-        description: `${seasonTypeLabel} Week ${selectedWeek} test link copied to clipboard`,
-      });
-    } catch (error) {
-      console.error('Failed to copy:', error);
-      toast({
-        title: "Error",
-        description: "Failed to copy link",
-        variant: "destructive",
-      });
+      const label = seasonTypeOptions.find(o => o.value === selectedSeasonType)?.label;
+      toast({ title: 'Copied!', description: `${label} Week ${selectedWeek} test link copied` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy link', variant: 'destructive' });
     }
   };
 
+  const selectedLabel = seasonTypeOptions.find(o => o.value === selectedSeasonType)?.label || '';
+
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <div>
-          <h3 className="text-lg font-semibold">Test Weekly Picks</h3>
-          <p className="text-sm text-gray-600">
-            Test the participant experience for different weeks
-          </p>
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>Test Weekly Picks</p>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>Test the participant experience for different weeks</p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-1">
-          <Users className="h-3 w-3" />
-          {poolName}
-        </Badge>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', background: surface, border: `1px solid ${border}`, borderRadius: 20 }}>
+          <Users style={{ width: 11, height: 11, color: textMid }} />
+          <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{poolName}</span>
+        </div>
       </div>
 
-      {/* Week Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Select Week to Test
-          </CardTitle>
-          <CardDescription>
-            Choose which week&apos;s picks you want to test
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="test-season-type-select">Season Type</Label>
-              <Select 
-                value={selectedSeasonType.toString()} 
-                onValueChange={(value) => {
-                  const newSeasonType = parseInt(value);
-                  setSelectedSeasonType(newSeasonType);
-                  // Reset to first week of the new season type
-                  const newSeasonTypeOption = seasonTypeOptions.find(option => option.value === newSeasonType);
-                  if (newSeasonTypeOption && newSeasonTypeOption.weeks.length > 0) {
-                    setSelectedWeek(newSeasonTypeOption.weeks[0]);
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select season type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasonTypeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value.toString()}>
-                      <div className="flex items-center gap-2">
-                        {option.value === 1 && <span className="text-orange-600">🏈</span>}
-                        {option.value === 2 && <span className="text-blue-600">🏆</span>}
-                        {option.value === 3 && <span className="text-purple-600">🎯</span>}
-                        {option.label}
-                        <span className="text-xs text-gray-500">({option.weeks.length} weeks)</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Week selection */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+          <Calendar style={{ width: 14, height: 14, color: textMid }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Select Week to Test</p>
+        </div>
+        <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Choose which week&apos;s picks you want to test</p>
 
-            <div>
-              <Label htmlFor="test-week-select">Week</Label>
-              <Select value={selectedWeek.toString()} onValueChange={(value) => setSelectedWeek(parseInt(value))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a week" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableWeeks.map((week) => (
-                    <SelectItem key={week} value={week.toString()}>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Week {week}
-                        {week === currentWeek && (
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Current</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Test URL Display */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
           <div>
-            <Label>Test URL</Label>
-            <div className="flex gap-2 mt-1">
-              <input
-                type="text"
-                value={testUrl}
-                readOnly
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
-              />
-              <Button
-                onClick={handleCopyLink}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Share2 className="h-4 w-4" />
-                Copy
-              </Button>
-            </div>
+            <label style={labelStyle}>Season Type</label>
+            <Select value={selectedSeasonType.toString()} onValueChange={(v) => {
+              const n = parseInt(v);
+              setSelectedSeasonType(n);
+              const opt = seasonTypeOptions.find(o => o.value === n);
+              if (opt?.weeks.length) setSelectedWeek(opt.weeks[0]);
+              setAvailableWeeks(opt?.weeks || seasonTypeOptions[1].weeks);
+            }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {seasonTypeOptions.map(o => (
+                  <SelectItem key={o.value} value={o.value.toString()}>
+                    {o.label} <span style={{ color: textDim, fontSize: '0.75em' }}>({o.weeks.length} wks)</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <div>
+            <label style={labelStyle}>Week</label>
+            <Select value={selectedWeek.toString()} onValueChange={(v) => setSelectedWeek(parseInt(v))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {availableWeeks.map(w => (
+                  <SelectItem key={w} value={w.toString()}>
+                    Week {w}{w === currentWeek ? ' (Current)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-          {/* Test Button */}
-          <Button
-            onClick={handleTestPicks}
-            className="w-full flex items-center gap-2"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Test {seasonTypeOptions.find(opt => opt.value === selectedSeasonType)?.label} Week {selectedWeek} Picks
-          </Button>
-        </CardContent>
-      </Card>
+        {/* URL row */}
+        <div style={{ marginBottom: '0.85rem' }}>
+          <label style={labelStyle}>Test URL</label>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input type="text" value={testUrl} readOnly style={{ flex: 1, ...b, background: surface, border: `1px solid ${border}`, color: textMid, padding: '0.45rem 0.75rem', borderRadius: 6, fontSize: '0.8rem', boxSizing: 'border-box' }} />
+            <button onClick={handleCopyLink} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.75rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Share2 style={{ width: 12, height: 12 }} />
+              Copy
+            </button>
+          </div>
+        </div>
+
+        {/* Test button */}
+        <button onClick={() => window.open(testUrl, '_blank')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', padding: '0.6rem', background: green, color: text, border: 'none', borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+          <ExternalLink style={{ width: 13, height: 13 }} />
+          Test {selectedLabel} Week {selectedWeek} Picks
+        </button>
+      </div>
 
       {/* Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>How to Test</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-              1
+      <div style={cardStyle}>
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem' }}>How to Test</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {[
+            { n: 1, title: 'Select a Week', desc: 'Choose which week you want to test from the dropdown above' },
+            { n: 2, title: 'Click "Test Picks"', desc: 'This will open the participant page in a new tab' },
+            { n: 3, title: 'Test the Experience', desc: 'Try making picks, checking the leaderboard, and testing all features' },
+            { n: 4, title: 'Share the Link', desc: 'Copy the test URL to share with participants for that specific week' },
+          ].map(({ n, title, desc }) => (
+            <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.72rem', color: greenHi, width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: `color-mix(in oklch, ${greenHi} 12%, ${surface})`, border: `1px solid color-mix(in oklch, ${greenHi} 30%, ${border})` }}>{n}</span>
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: text }}>{title}</p>
+                <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.15rem' }}>{desc}</p>
+              </div>
             </div>
-            <div>
-              <p className="font-medium">Select a Week</p>
-              <p className="text-sm text-gray-600">Choose which week you want to test from the dropdown above</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-              2
-            </div>
-            <div>
-              <p className="font-medium">Click &quot;Test Picks&quot;</p>
-              <p className="text-sm text-gray-600">This will open the participant page in a new tab</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-              3
-            </div>
-            <div>
-              <p className="font-medium">Test the Experience</p>
-              <p className="text-sm text-gray-600">Try making picks, checking the leaderboard, and testing all features</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-              4
-            </div>
-            <div>
-              <p className="font-medium">Share the Link</p>
-              <p className="text-sm text-gray-600">Copy the test URL to share with participants for that specific week</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </div>
 
-      {/* Current Week Info */}
+      {/* Current week callout */}
       {selectedWeek === currentWeek && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-blue-800">
-              <Calendar className="h-4 w-4" />
-              <span className="font-medium">Testing Current Week</span>
-            </div>
-            <p className="text-sm text-blue-700 mt-1">
-              You&apos;re testing Week {currentWeek}, which is the current active week. This is what participants will see when they use the regular pool link.
-            </p>
-          </CardContent>
-        </Card>
+        <div style={{ padding: '0.85rem 1rem', background: `color-mix(in oklch, ${greenHi} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${greenHi} 25%, ${border})`, borderRadius: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+            <Calendar style={{ width: 13, height: 13, color: greenHi }} />
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Testing Current Week</span>
+          </div>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
+            You&apos;re testing Week {currentWeek}, the current active week. This is what participants see with the regular pool link.
+          </p>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-# NFL Confidence Pool
+# Sunday Huddle
 
 A modern web application for managing NFL confidence pools with real-time scoring, participant management, and automated game updates.
 
