@@ -1,0 +1,118 @@
+'use server';
+
+import { createHmac } from 'crypto';
+import { getSupabaseServiceClient } from '@/lib/supabase';
+
+const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function signingSecret(): string {
+  const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!s) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  return s;
+}
+
+function appBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+}
+
+function sign(payload: string): string {
+  return createHmac('sha256', signingSecret()).update(payload).digest('base64url');
+}
+
+function buildToken(email: string): string {
+  const expiresAt = Date.now() + TOKEN_TTL_MS;
+  const payload = Buffer.from(`${email}::${expiresAt}`).toString('base64url');
+  const sig = sign(payload);
+  return `${payload}.${sig}`;
+}
+
+function parseToken(token: string): { email: string; valid: boolean; expired: boolean } {
+  const invalid = { email: '', valid: false, expired: false };
+  try {
+    const dot = token.lastIndexOf('.');
+    if (dot === -1) return invalid;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    if (sign(payload) !== sig) return invalid;
+
+    const decoded = Buffer.from(payload, 'base64url').toString();
+    const sep = decoded.indexOf('::');
+    if (sep === -1) return invalid;
+
+    const email = decoded.slice(0, sep);
+    const expiresAt = parseInt(decoded.slice(sep + 2), 10);
+    if (isNaN(expiresAt)) return invalid;
+    if (Date.now() > expiresAt) return { email, valid: false, expired: true };
+
+    return { email, valid: true, expired: false };
+  } catch {
+    return invalid;
+  }
+}
+
+export async function requestMagicLink(
+  email: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!email || !email.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: admin, error } = await supabase
+    .from('admins')
+    .select('id, email, full_name, is_active')
+    .eq('email', email.toLowerCase().trim())
+    .single();
+
+  if (error || !admin || !admin.is_active) {
+    // Return success anyway to avoid email enumeration
+    return { success: true };
+  }
+
+  const token = buildToken(admin.email);
+  const magicUrl = `${appBaseUrl()}/login/verify?token=${encodeURIComponent(token)}`;
+
+  // Send email via the email service
+  try {
+    const { emailService } = await import('@/lib/email');
+    await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
+  } catch (err) {
+    console.error('[SH][AUTH][MAGIC_LINK] Email send failed:', err);
+    return { success: false, error: 'Failed to send magic link. Please try again.' };
+  }
+
+  return { success: true };
+}
+
+export async function verifyMagicLink(token: string): Promise<{
+  success: boolean;
+  user?: { id: string; email: string; full_name: string; is_super_admin: boolean };
+  error?: string;
+  expired?: boolean;
+}> {
+  const { email, valid, expired } = parseToken(token);
+
+  if (expired) return { success: false, expired: true, error: 'This magic link has expired. Please request a new one.' };
+  if (!valid) return { success: false, error: 'This magic link is invalid or has already been used.' };
+
+  const supabase = getSupabaseServiceClient();
+  const { data: admin, error } = await supabase
+    .from('admins')
+    .select('id, email, full_name, is_super_admin, is_active')
+    .eq('email', email)
+    .single();
+
+  if (error || !admin || !admin.is_active) {
+    return { success: false, error: 'Account not found or inactive.' };
+  }
+
+  return {
+    success: true,
+    user: {
+      id: admin.id,
+      email: admin.email,
+      full_name: admin.full_name || '',
+      is_super_admin: admin.is_super_admin || false,
+    },
+  };
+}
