@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { DAYS_BEFORE_GAME, isOffseason } from '@/lib/utils';
+import { DAYS_BEFORE_GAME, getNFLSeasonYear, isOffseason } from '@/lib/utils';
 
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
@@ -114,8 +114,8 @@ export async function loadCurrentWeek() {
       .from('games')
       .select('season')
       .eq('week', week)
-      .eq('season_type', seasonType);
-
+      .eq('season_type', seasonType)
+      .eq('season', getNFLSeasonYear()); 
     if (error) {
       console.error('Error getting game data:', error);
     }

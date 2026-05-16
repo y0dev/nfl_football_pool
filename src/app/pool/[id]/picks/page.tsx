@@ -610,6 +610,7 @@ function PoolPicksContent() {
           const result = await response.json();
           if (result.success && result.pool) {
             const pool = result.pool;
+            console.log('Pool data:', pool);
 
             if (!pool.name || pool.name.trim() === '') {
               notFound();

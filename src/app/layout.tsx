@@ -15,7 +15,10 @@ const barlowCondensed = Barlow_Condensed({
   variable: "--font-barlow-condensed",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: "Sunday Huddle",
     template: "%s | Sunday Huddle",
@@ -23,16 +26,24 @@ export const metadata: Metadata = {
   description:
     "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
   icons: {
-    icon: '/brand/sh-app-icon.png',
-    apple: '/brand/sh-app-icon.png',
+    icon: '/brand/sh-icon.png',
+    apple: '/brand/sh-icon.png',
   },
   openGraph: {
+    type: 'website',
+    siteName: 'Sunday Huddle',
     title: 'Sunday Huddle',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
-    images: [{ url: '/brand/initials.png' }],
+    url: siteUrl,
+    locale: 'en_US',
+    images: [{
+      url: '/brand/initials.png',
+      alt: 'Sunday Huddle',
+    }],
   },
   twitter: {
     card: 'summary_large_image',
+    site: '@sundayhuddle',
     title: 'Sunday Huddle',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
     images: ['/brand/initials.png'],
