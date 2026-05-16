@@ -8,7 +8,7 @@ import { Game } from '@/types/game';
  *   - seasonType === 0 (the offseason signal from getCurrentWeekFromGames), or
  *   - it is currently offseason AND no games exist in the DB for the requested period.
  */
-export async function loadWeekGames(weekNumber: number = 1, seasonType?: number): Promise<Game[]> {
+export async function loadWeekGames(weekNumber: number = 1, seasonType?: number, season?: number): Promise<Game[]> {
   // seasonType 0 is the explicit "offseason, no data" signal — never query
   if (seasonType === 0) return [];
 
@@ -29,6 +29,10 @@ export async function loadWeekGames(weekNumber: number = 1, seasonType?: number)
 
     if (seasonType !== undefined) {
       query = query.eq('season_type', seasonType);
+    }
+
+    if (season !== undefined) {
+      query = query.eq('season', season);
     }
 
     const { data, error } = await query.order('kickoff_time');

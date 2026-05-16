@@ -52,6 +52,7 @@ function CommissionerDashboardContent() {
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
+  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -196,7 +197,7 @@ function CommissionerDashboardContent() {
 
   const loadGames = async () => {
     try {
-      const gamesData = await loadWeekGames(currentWeek, currentSeasonType);
+      const gamesData = await loadWeekGames(currentWeek, currentSeasonType, currentSeason);
       setGames(gamesData);
       debugLog('Loaded games for countdown:', gamesData.length);
     } catch (error) {
