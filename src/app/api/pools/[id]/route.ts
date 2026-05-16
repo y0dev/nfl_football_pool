@@ -26,7 +26,7 @@ export async function GET(
     // Get pool details
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, season, is_active, created_by, created_at, tie_breaker_method, tie_breaker_question, tie_breaker_answer')
+      .select('id, name, season, season_scope, is_active, created_by, created_at, tie_breaker_method, tie_breaker_question, tie_breaker_answer')
       .eq('id', poolId)
       .single();
 
@@ -80,6 +80,7 @@ export async function GET(
       id: pool.id,
       name: pool.name,
       season: pool.season,
+      season_scope: pool.season_scope,
       is_active: pool.is_active,
       created_at: pool.created_at,
       tie_breaker_method: pool.tie_breaker_method,
