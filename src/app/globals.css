@@ -442,6 +442,30 @@ input[type="url"], textarea {
   }
 }
 
+/* Pool detail hero — stacked on all screen sizes */
+.pool-hero-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.pool-hero-left { flex: 1; min-width: 0; }
+.pool-hero-stats-wrap { width: 100%; }
+
+/* Stats: 3-col horizontal on all screen sizes */
+.pool-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.pool-hero-stats > *:not(:last-child) {
+  border-right: 1px solid oklch(26% 0.03 255);
+}
+
+/* Pool detail tab labels — icon-only below 768 px */
+.pool-tab-label { display: none; }
+@media (min-width: 768px) {
+  .pool-tab-label { display: inline; }
+}
+
 /* ── End admin layout ─────────────────────────────────────────────────────── */
 
 /* ── Admin dark theme ────────────────────────────────────────────────────── */

@@ -169,16 +169,8 @@ function AdminDashboardContent() {
       n.push('⚠️ All pools are currently inactive.');
     if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0)
       n.push('📢 No participants have joined any pools yet. Consider sending invitations.');
-    if (dashboardStats.pendingSubmissions > 0) {
-      const pct = Math.round((dashboardStats.completedSubmissions / (dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions)) * 100);
-      n.push(`📊 Week ${currentWeek}: ${dashboardStats.completedSubmissions}/${dashboardStats.completedSubmissions + dashboardStats.pendingSubmissions} submissions (${pct}%)`);
-    }
-    if (dashboardStats.completedSubmissions > 0 && dashboardStats.pendingSubmissions === 0)
-      n.push('✅ All participants have submitted picks for this week!');
     if (dashboardStats.totalGames === 0)
       n.push('🏈 No games scheduled for the current week. Check NFL sync.');
-    if (dashboardStats.pendingSubmissions > 10)
-      n.push("⏰ Consider sending reminder emails to participants who haven't submitted picks.");
     setNotifications(n);
   };
 
@@ -651,11 +643,11 @@ function AdminDashboardContent() {
           <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
             {/* Column headers */}
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
               background: card, borderBottom: `1px solid ${border}`,
               padding: '0.625rem 1.25rem',
             }}>
-              {['Games', 'Pending', 'Submitted', 'Last Sync'].map(h => (
+              {['Games', 'Last Sync'].map(h => (
                 <div key={h} style={{ textAlign: 'center' }}>
                   <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>{h}</span>
                 </div>
@@ -663,24 +655,12 @@ function AdminDashboardContent() {
             </div>
 
             {/* Values */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '1.75rem 1.25rem', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', padding: '1.75rem 1.25rem', gap: '1rem' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
                   {dashboardStats.totalGames}
                 </div>
                 <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>scheduled</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: gold, lineHeight: 1, letterSpacing: '0.02em' }}>
-                  {dashboardStats.pendingSubmissions}
-                </div>
-                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>awaiting picks</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
-                  {dashboardStats.completedSubmissions}
-                </div>
-                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>picks submitted</div>
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ ...bc, fontWeight: 700, fontSize: '1.1rem', color: text, lineHeight: 1 }}>
