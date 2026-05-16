@@ -77,12 +77,13 @@ function LandingPage() {
         const weekData = await loadCurrentWeek();
         const weekNum = weekData?.week_number || 1;
         const seasonType = weekData?.season_type ?? 2;
+        const seasonNumber = weekData?.season_year || new Date().getFullYear();
         setCurrentWeek(weekNum);
         setCurrentSeasonType(seasonType);
 
         // seasonType 0 = offseason signal from getCurrentWeekFromGames
         if (seasonType !== 0) {
-          const res = await fetch(`/api/games/week?week=${weekNum}&seasonType=${seasonType}`);
+          const res = await fetch(`/api/games/week?week=${weekNum}&seasonType=${seasonType}&season=${seasonNumber}`);
           if (res.ok) {
             const result = await res.json();
             if (result.success) setGames(result.games || []);
@@ -131,10 +132,14 @@ function LandingPage() {
       const rounds: Record<number, string> = { 1: 'Wild Card', 2: 'Divisional', 3: 'Championship', 4: 'Super Bowl' };
       return `${rounds[currentWeek] ?? `Playoff Week ${currentWeek}`} Games`;
     }
-    if (currentSeasonType === 1) return `Preseason Week ${currentWeek} Games`;
+    if (currentSeasonType === 1) {
+      if (currentWeek === 1) return 'Hall of Fame Game';
+      return `Preseason Week ${currentWeek} Games`;
+    }
     return `Week ${currentWeek} Games`;
   };
 
+  console.log('Loaded games:', games);
   // Filter out malformed entries (e.g. Hall of Fame Game stored without a real away team)
   const validGames = games.filter(
     g => (g.away_team_id || g.away_team) && (g.home_team_id || g.home_team)

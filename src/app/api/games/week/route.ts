@@ -7,9 +7,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
-    
+    const season = searchParams.get('season');
+    const seasonNumber = season ? parseInt(season) : undefined;
 
-    debugLog('Games API called with:', { week, seasonType });
+    debugLog('Games API called with:', { week, seasonType, seasonNumber, rawSearchParams: searchParams.toString() });
 
     if (!week) {
       return NextResponse.json(
@@ -56,30 +57,19 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     debugLog('Supabase client created successfully');
 
-    const season = searchParams.get('season');
-    const seasonNumber = season ? parseInt(season) : undefined;
 
-    const query = supabase
+    let query = supabase
       .from('games')
       .select('*')
       .eq('week', weekNumber);
-    
-    if (seasonTypeNumber !== undefined && !isNaN(seasonTypeNumber)) {
-      query.eq('season_type', seasonTypeNumber);
-    }
-    
-    if (seasonNumber !== undefined && !isNaN(seasonNumber)) {
-      query.eq('season', seasonNumber);
-    }
 
-    // Only filter by season_type if the column exists and value is provided
-    // For now, we'll skip this filter to avoid the 500 error
-    // TODO: Add season_type column to games table if needed
-    /*
     if (seasonTypeNumber !== undefined && !isNaN(seasonTypeNumber)) {
       query = query.eq('season_type', seasonTypeNumber);
     }
-    */
+
+    if (seasonNumber !== undefined && !isNaN(seasonNumber)) {
+      query = query.eq('season', seasonNumber);
+    }
 
     debugLog('Executing query for week:', weekNumber);
     const { data: games, error } = await query.order('kickoff_time');

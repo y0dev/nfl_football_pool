@@ -86,7 +86,8 @@ function AdminPoolsContent() {
   const handleShare = async (poolId: string, poolName: string) => {
     const isOffseason = seasonType !== 2;
     const shareWeek = isOffseason ? 1 : currentWeek;
-    const shareUrl = `${window.location.origin}/pool/${poolId}?week=${shareWeek}`;
+    const shareSeasonType = isOffseason ? 2 : seasonType;
+    const shareUrl = `${window.location.origin}/pool/${poolId}/picks?week=${shareWeek}&seasonType=${shareSeasonType}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: `Join my pool: ${poolName}`, url: shareUrl });
