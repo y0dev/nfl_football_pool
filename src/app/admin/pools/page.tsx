@@ -12,7 +12,6 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { Footer } from '@/components/layout/Footer';
-import { Input } from '@/components/ui/input';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -171,20 +170,20 @@ function AdminPoolsContent() {
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Trophy style={{ width: 14, height: 14, color: bg }} />
                 </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Pool Management</span>
+                <span className="pools-nav-label" style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Pool Management</span>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-              <button onClick={handleRefresh} disabled={isRefreshing} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isRefreshing ? 'not-allowed' : 'pointer', opacity: isRefreshing ? 0.6 : 1 }}>
+              <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.65rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isRefreshing ? 'not-allowed' : 'pointer', opacity: isRefreshing ? 0.6 : 1 }}>
                 <RefreshCw style={{ width: 12, height: 12 }} className={isRefreshing ? 'animate-spin' : ''} />
-                Refresh
+                <span className="pools-nav-label">Refresh</span>
               </button>
-              <button onClick={() => setCreateOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <Plus style={{ width: 12, height: 12 }} /> Create Pool
+              <button onClick={() => setCreateOpen(true)} title="Create Pool" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.65rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <Plus style={{ width: 12, height: 12 }} /><span className="pools-nav-label">Create Pool</span>
               </button>
-              <button onClick={handleLogout} disabled={isLoggingOut} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.6 : 1 }}>
-                <LogOut style={{ width: 12, height: 12 }} /> Logout
+              <button onClick={handleLogout} disabled={isLoggingOut} title="Logout" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.65rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.6 : 1 }}>
+                <LogOut style={{ width: 12, height: 12 }} /><span className="pools-nav-label">Logout</span>
               </button>
             </div>
 
@@ -246,13 +245,13 @@ function AdminPoolsContent() {
             </div>
 
             {/* search */}
-            <div style={{ position: 'relative', width: 220 }}>
+            <div className="admin-pools-search">
               <Search style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: textDim }} />
-              <Input
+              <input
                 placeholder="Search pools…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.82rem', paddingLeft: '2rem', height: 34 }}
+                style={{ ...b, display: 'block', width: '100%', boxSizing: 'border-box', background: card, border: `1px solid ${border}`, color: text, fontSize: '0.82rem', paddingLeft: '2rem', paddingRight: '0.65rem', height: 34, borderRadius: 6 }}
               />
             </div>
           </div>
@@ -309,7 +308,7 @@ function AdminPoolsContent() {
                       </div>
 
                       {/* actions */}
-                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                      <div className="admin-pool-card-actions">
                         <button
                           onClick={() => handleShare(pool.id, pool.name)}
                           title="Share pool link"

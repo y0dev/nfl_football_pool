@@ -29,7 +29,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Sunday Huddle',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
-    images: [{ url: '/brand/sh-logo.png', width: 1254, height: 630 }],
+    images: [{ url: '/brand/initials.png' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Sunday Huddle',
+    description: 'Picks. People. Compete. — NFL confidence pools made simple.',
+    images: ['/brand/initials.png'],
   },
 };
 
