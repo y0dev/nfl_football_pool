@@ -296,15 +296,15 @@ function AdminDashboardContent() {
               }}>
                 <Shield style={{ width: 16, height: 16, color: text }} />
               </div>
-              <div style={{ minWidth: 0 }}>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', display: 'block' }}>
+              <div className="pools-nav-label" style={{ minWidth: 0 }}>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', display: 'block', whiteSpace: 'nowrap' }}>
                   Commissioner HQ
                 </span>
-                <span style={{ ...bc, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '0.18em', color: greenHi, textTransform: 'uppercase' }}>
+                <span style={{ ...bc, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '0.18em', color: greenHi, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                   System Administration
                 </span>
               </div>
-              <Badge variant="outline" style={{ fontSize: '0.6rem', flexShrink: 0, borderColor: border, color: textMid }}>
+              <Badge variant="outline" className="pools-nav-label" style={{ fontSize: '0.6rem', flexShrink: 0, borderColor: border, color: textMid }}>
                 Super Admin
               </Badge>
             </div>
@@ -314,9 +314,10 @@ function AdminDashboardContent() {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
+                title="Refresh"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
+                  padding: '0.4rem 0.65rem',
                   background: 'transparent', color: textMid,
                   border: `1px solid ${border}`, borderRadius: 6,
                   ...bc, fontWeight: 600, fontSize: '0.72rem',
@@ -327,7 +328,7 @@ function AdminDashboardContent() {
                 }}
               >
                 <RefreshCw style={{ width: 12, height: 12 }} className={isRefreshing ? 'animate-spin' : ''} />
-                {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                <span className="pools-nav-label">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
               </button>
 
               <button
@@ -358,9 +359,10 @@ function AdminDashboardContent() {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
+                title="Logout"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
+                  padding: '0.4rem 0.65rem',
                   background: liveRed, color: text,
                   border: 'none', borderRadius: 6,
                   ...bc, fontWeight: 700, fontSize: '0.72rem',
@@ -371,7 +373,7 @@ function AdminDashboardContent() {
                 }}
               >
                 <LogOut style={{ width: 12, height: 12 }} />
-                Logout
+                <span className="pools-nav-label">Logout</span>
               </button>
             </div>
           </div>

@@ -403,6 +403,44 @@ input[type="url"], textarea {
   .admin-5col-grid { grid-template-columns: repeat(5, 1fr); }
 }
 
+/* Admin pools page — nav button text hides below tablet width */
+.pools-nav-label {
+  display: none;
+}
+@media (min-width: 768px) {
+  .pools-nav-label {
+    display: inline;
+  }
+}
+
+/* Admin pools page — search expands full-width when toolbar wraps */
+.admin-pools-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 150px;
+  max-width: 220px;
+}
+@media (max-width: 639px) {
+  .admin-pools-search {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}
+
+/* Admin pools page — card action buttons align right when they wrap below info */
+.admin-pool-card-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  flex-shrink: 1;
+}
+@media (max-width: 639px) {
+  .admin-pool-card-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 /* ── End admin layout ─────────────────────────────────────────────────────── */
 
 /* ── Admin dark theme ────────────────────────────────────────────────────── */
