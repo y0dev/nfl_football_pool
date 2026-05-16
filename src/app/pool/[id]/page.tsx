@@ -69,6 +69,7 @@ function PoolDetailsContent() {
   const [currentWeek, setCurrentWeek] = useState(DEFAULT_WEEK);
   const [currentSeasonType, setCurrentSeasonType] = useState(DEFAULT_SEASON_TYPE);
   const [activeTab, setActiveTab] = useState('participants');
+  const [pickStats, setPickStats] = useState({ completed: 0, pending: 0, total: 0 });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,10 +98,29 @@ function PoolDetailsContent() {
   const loadCurrentWeekData = async () => {
     try {
       const weekData = await loadCurrentWeek();
-      setCurrentWeek(weekData?.week_number || 1);
-      setCurrentSeasonType(weekData?.season_type || DEFAULT_SEASON_TYPE);
+      const week = weekData?.week_number || 1;
+      const seasonType = weekData?.season_type || DEFAULT_SEASON_TYPE;
+      setCurrentWeek(week);
+      setCurrentSeasonType(seasonType);
+      loadPickStats(week, seasonType);
     } catch (error) {
       console.error('Error loading current week:', error);
+    }
+  };
+
+  const loadPickStats = async (week: number, seasonType: number) => {
+    try {
+      const [pRes, picksRes] = await Promise.all([
+        fetch(`/api/admin/pool-participants?poolId=${poolId}`),
+        fetch(`/api/picks?poolId=${poolId}&week=${week}&seasonType=${seasonType}`),
+      ]);
+      const [pData, picksData] = await Promise.all([pRes.json(), picksRes.json()]);
+      const total = pData.participants?.length || 0;
+      const picks: { participant_id: string }[] = picksData.picks || [];
+      const completed = new Set(picks.map(p => p.participant_id)).size;
+      setPickStats({ completed, pending: Math.max(0, total - completed), total });
+    } catch {
+      // non-critical — leave zeros
     }
   };
 
@@ -173,37 +193,73 @@ function PoolDetailsContent() {
       </nav>
 
       {/* HERO */}
-      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+      <section id='hero' style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
         <div className="lp-inner">
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
-            Pool Management
-          </p>
-          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
-            {pool.name.split(' ').slice(0, -1).join(' ') || pool.name}<br />
-            {pool.name.split(' ').length > 1 && <span style={{ color: gold }}>{pool.name.split(' ').slice(-1)[0]}</span>}
-          </h1>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)', color: pool.is_active ? greenHi : textDim, border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}` }}>
-              {pool.is_active ? 'Active' : 'Inactive'}
-            </span>
-            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
-              Season {pool.season}
-            </span>
-            <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
-              Created by {pool.created_by}
-            </span>
-          </div>
+          <div className="pool-hero-row">
 
-          {/* Header action row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
-            <SharePoolButton poolId={pool.id} poolName={pool.name} />
-            <button
-              onClick={() => setActiveTab('settings')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: activeTab === 'settings' ? 'oklch(26% 0.03 255)' : 'transparent', color: activeTab === 'settings' ? text : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              <Settings style={{ width: 12, height: 12 }} /> Settings
-            </button>
+            {/* ── Left: pool identity ── */}
+            <div className="pool-hero-left">
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
+                Pool Management
+              </p>
+              <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 0.95, color: text, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+                {pool.name.split(' ').slice(0, -1).join(' ') || pool.name}<br />
+                {pool.name.split(' ').length > 1 && <span style={{ color: gold }}>{pool.name.split(' ').slice(-1)[0]}</span>}
+              </h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: pool.is_active ? 'oklch(46% 0.14 155 / 0.2)' : 'oklch(26% 0.03 255)', color: pool.is_active ? greenHi : textDim, border: `1px solid ${pool.is_active ? 'oklch(46% 0.14 155 / 0.4)' : border}` }}>
+                  {pool.is_active ? 'Active' : 'Inactive'}
+                </span>
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>
+                  Season {pool.season}
+                </span>
+                <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
+                  Created by {pool.created_by}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
+                <SharePoolButton poolId={pool.id} poolName={pool.name} />
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: activeTab === 'settings' ? 'oklch(26% 0.03 255)' : 'transparent', color: activeTab === 'settings' ? text : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  <Settings style={{ width: 12, height: 12 }} /> Settings
+                </button>
+              </div>
+            </div>
+
+            {/* ── Right: pick submission stats ── */}
+            <div className="pool-hero-stats-wrap">
+              <div
+                className="pool-hero-stats"
+                style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, overflow: 'hidden' }}
+              >
+                {[
+                  { label: 'Pending', value: pickStats.pending, sub: 'awaiting picks', color: 'oklch(74% 0.16 72)' },
+                  { label: 'Submitted', value: pickStats.completed, sub: 'picks in', color: greenHi },
+                  {
+                    label: 'Completion',
+                    value: pickStats.total > 0 ? `${Math.round((pickStats.completed / pickStats.total) * 100)}%` : '—',
+                    sub: `of ${pickStats.total} members`,
+                    color: pickStats.total > 0 && pickStats.completed === pickStats.total ? greenHi : text,
+                  },
+                ].map(({ label, value, sub, color }) => (
+                  <div
+                    key={label}
+                    style={{ padding: '0.875rem 1rem', textAlign: 'center' }}
+                  >
+                    <div style={{ ...bc, fontWeight: 700, fontSize: '0.58rem', letterSpacing: '0.16em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>{label}</div>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.6rem', lineHeight: 1, color, letterSpacing: '0.02em' }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.65rem', color: textDim, marginTop: '0.2rem' }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ ...b, fontSize: '0.62rem', color: textDim, marginTop: '0.4rem', textAlign: 'center' }}>
+                Week {currentWeek} picks
+              </p>
+            </div>
+
           </div>
         </div>
       </section>
@@ -212,19 +268,29 @@ function PoolDetailsContent() {
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
       {/* TABS */}
-      <section style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
-        <div className="lp-inner">
-          <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
+      <section id='tabs' style={{ background: surface, borderBottom: `1px solid ${border}`, position: 'sticky', top: 57, zIndex: 40 }}>
+        <div className="lp-inner" style={{ position: 'relative' }}>
+          <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.15rem', overflowX: 'auto', paddingTop: '0.5rem' }}>
             {TABS.map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
               return (
                 <button
                   key={id}
+                  title={label}
                   onClick={() => setActiveTab(id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.85rem', background: active ? green : 'transparent', color: active ? text : textMid, border: `1px solid ${active ? green : 'transparent'}`, borderBottom: active ? `1px solid ${green}` : '1px solid transparent', borderRadius: '6px 6px 0 0', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    padding: '0.5rem 0.65rem',
+                    background: active ? green : 'transparent',
+                    color: active ? text : textMid,
+                    border: `1px solid ${active ? green : 'transparent'}`,
+                    borderRadius: '6px 6px 0 0',
+                    ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                    cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1, flexShrink: 0,
+                  }}
                 >
-                  <Icon style={{ width: 12, height: 12 }} />
-                  {label}
+                  <Icon style={{ width: 13, height: 13 }} />
+                  <span className="pool-tab-label">{label}</span>
                 </button>
               );
             })}
