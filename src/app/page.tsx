@@ -5,6 +5,7 @@ import { Search, Users, Trophy, Calendar, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { loadWeekGames } from '@/actions/loadWeekGames';
 import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
@@ -14,8 +15,8 @@ interface Game {
   id: string;
   home_team: string;
   away_team: string;
-  home_team_id: string;
-  away_team_id: string;
+  home_team_id?: string | number;
+  away_team_id?: string | number;
   home_score: number;
   away_score: number;
   status: string;
@@ -83,11 +84,8 @@ function LandingPage() {
 
         // seasonType 0 = offseason signal from getCurrentWeekFromGames
         if (seasonType !== 0) {
-          const res = await fetch(`/api/games/week?week=${weekNum}&seasonType=${seasonType}&season=${seasonNumber}`);
-          if (res.ok) {
-            const result = await res.json();
-            if (result.success) setGames(result.games || []);
-          }
+          const weekGames = await loadWeekGames(weekNum, seasonType, seasonNumber);
+          setGames(weekGames as Game[]);
         }
       } catch (error) {
         console.error('Error loading data:', error);
