@@ -5,6 +5,7 @@
 !src
 !src/actions
 !src/app
+!src/app/admin
 !src/components
 !src/lib
 !tests/e2e
