@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Try with join_password first; fall back if the column doesn't exist
-    let selectCols = 'id, name, season, join_password, is_active';
+    // Try with join_password + is_private first; fall back if columns don't exist
+    let selectCols = 'id, name, season, join_password, is_active, is_private';
     let query = supabase
       .from('pools')
       .select(selectCols)
@@ -27,13 +27,16 @@ export async function GET(request: NextRequest) {
       query = (query as any).or('is_active.eq.true,is_active.is.null');
     }
 
+    // Exclude private pools from public search (NULL = not private = public)
+    query = (query as any).or('is_private.eq.false,is_private.is.null');
+
     if (q) {
       query = query.ilike('name', `%${q}%`);
     }
 
     let { data: pools, error } = await query;
 
-    // If join_password column doesn't exist, retry without it
+    // If join_password/is_private columns don't exist, retry without them
     if (error) {
       console.error('[SH][API][POOL] Query error:', error.message || error);
 

@@ -13,7 +13,12 @@ export function cn(...inputs: ClassValue[]) {
 export function isOffseason(date: Date = new Date()): boolean {
   const month = date.getMonth() + 1; // convert 0-indexed to 1-indexed
   const day = date.getDate();
-  return (month === 2 && day >= 10) || (month >= 3 && month <= 7);
+  return (
+    (month === 2 && day >= 10) ||
+    (month === 3) ||
+    (month === 4) ||
+    (month === 5 && day <= 14)
+  );
 }
 
 // Rank icon and color utilities for leaderboards

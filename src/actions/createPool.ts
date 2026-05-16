@@ -10,6 +10,7 @@ export async function createPool(poolData: {
   pool_type?: 'normal' | 'knockout';
   join_password?: string;
   season_scope?: number[];
+  is_private?: boolean;
 }) {
   try {
     const supabase = getSupabaseServiceClient();
@@ -21,6 +22,7 @@ export async function createPool(poolData: {
         season: poolData.season || DEFAULT_POOL_SEASON,
         pool_type: poolData.pool_type || 'normal',
         is_active: true,
+        is_private: poolData.is_private ?? false,
         season_scope: poolData.season_scope ?? [2],
         ...(poolData.join_password ? { join_password: poolData.join_password } : {}),
       })

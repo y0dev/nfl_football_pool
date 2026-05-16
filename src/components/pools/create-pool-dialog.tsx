@@ -31,6 +31,7 @@ const poolSchema = z.object({
   pool_type: z.literal('normal'),
   season_scope: z.string(),
   join_password: z.string().optional(),
+  is_private: z.boolean(),
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -48,7 +49,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
 
   const form = useForm<PoolFormData>({
     resolver: zodResolver(poolSchema),
-    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, pool_type: 'normal' as const, season_scope: 'regular', join_password: '' },
+    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, pool_type: 'normal' as const, season_scope: 'regular', join_password: '', is_private: false },
   });
 
   async function onSubmit(data: PoolFormData) {
@@ -64,6 +65,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         pool_type: data.pool_type,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         join_password: data.join_password || undefined,
+        is_private: data.is_private,
       });
       onPoolCreated();
       onOpenChange(false);
@@ -176,8 +178,47 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                   <FormControl>
                     <input placeholder="Leave blank for open access" {...field} style={inputStyle} />
                   </FormControl>
-                  <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>If set, participants must enter this password to join from the public pool search page.</FormDescription>
+                  {!form.watch('is_private') && form.watch('join_password') && (
+                    <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
+                      Members will need this password to join from the search page.
+                    </p>
+                  )}
                   <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="is_private"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Visibility</FormLabel>
+                  <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem', marginTop: '0.35rem' }}>
+                    {([false, true] as const).map((val) => (
+                      <button
+                        key={String(val)}
+                        type="button"
+                        onClick={() => field.onChange(val)}
+                        style={{
+                          flex: 1, padding: '0.4rem 0.75rem',
+                          background: field.value === val ? (val ? 'oklch(62% 0.22 25 / 0.18)' : green) : 'transparent',
+                          color: field.value === val ? (val ? 'oklch(72% 0.18 25)' : text) : textDim,
+                          border: `1px solid ${field.value === val ? (val ? 'oklch(62% 0.22 25 / 0.4)' : green) : 'transparent'}`,
+                          borderRadius: 4,
+                          ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {val ? 'Private' : 'Public'}
+                      </button>
+                    ))}
+                  </div>
+                  <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                    {field.value
+                      ? 'Invitation only. This pool will not appear in search results.'
+                      : 'Anyone can find this pool by searching. A password still restricts who can join.'}
+                  </FormDescription>
                 </FormItem>
               )}
             />

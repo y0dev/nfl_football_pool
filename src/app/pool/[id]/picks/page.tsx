@@ -15,6 +15,7 @@ import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2,
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { loadWeekGames } from '@/actions/loadWeekGames';
 
 import { Game, SelectedUser } from '@/types/game';
 //
@@ -112,6 +113,7 @@ function WeekNav({
   currentWeek,
   currentSeasonType,
   upcomingWeek,
+  seasonScope,
   onPrev,
   onCurrent,
   onNext,
@@ -119,13 +121,17 @@ function WeekNav({
   currentWeek: number;
   currentSeasonType: number;
   upcomingWeek: { week: number; seasonType: number };
+  seasonScope: number[];
   onPrev: () => void;
   onCurrent: () => void;
   onNext: () => void;
 }) {
   const isCurrentWeek = currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType;
-  const prevDisabled = currentSeasonType === 1 && currentWeek <= 1;
-  const nextDisabled = currentSeasonType === 3 && currentWeek >= 4;
+  const scopeSorted = [...seasonScope].sort((a, b) => a - b);
+  const minScope = scopeSorted[0] ?? 2;
+  const maxScope = scopeSorted[scopeSorted.length - 1] ?? 2;
+  const prevDisabled = currentSeasonType <= minScope && currentWeek <= 1;
+  const nextDisabled = currentSeasonType >= maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
   const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -183,6 +189,7 @@ function PoolPicksContent() {
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
+  const [poolSeasonScope, setPoolSeasonScope] = useState<number[]>([2]);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -231,33 +238,35 @@ function PoolPicksContent() {
     let targetSeasonType = seasonType;
     const maxWeeks = getMaxWeeksForSeason(seasonType);
 
-    debugLog('Navigate to week:', { week, seasonType, targetWeek, targetSeasonType, maxWeeks });
+    const scopeSorted = [...poolSeasonScope].sort((a, b) => a - b);
+    const minScope = scopeSorted[0];
+    const maxScope = scopeSorted[scopeSorted.length - 1];
+
+    debugLog('Navigate to week:', { week, seasonType, targetWeek, targetSeasonType, maxWeeks, scope: scopeSorted });
 
     if (week < 1) {
-      if (seasonType === 1) {
-        return;
-      } else if (seasonType === 2) {
-        targetSeasonType = 1;
-        targetWeek = getMaxWeeksForSeason(1);
-      } else if (seasonType === 3) {
-        targetSeasonType = 2;
-        targetWeek = getMaxWeeksForSeason(2);
-      }
+      // At or before the start of scope — stop
+      if (seasonType <= minScope) return;
+      // Transition to the previous season type that's in scope
+      const prevScope = scopeSorted.filter(s => s < seasonType).pop();
+      if (!prevScope) return;
+      targetSeasonType = prevScope;
+      targetWeek = getMaxWeeksForSeason(prevScope);
     } else if (week > maxWeeks) {
-      if (seasonType === 1) {
-        targetSeasonType = 2;
-        targetWeek = 1;
-      } else if (seasonType === 2) {
+      // At or past the end of scope — stop
+      if (seasonType >= maxScope) return;
+      // Transition to the next season type that's in scope
+      const nextScope = scopeSorted.find(s => s > seasonType);
+      if (!nextScope) return;
+      if (seasonType === 2) {
         const allSubmitted = await checkPlayoffConfidencePointsSubmission();
         if (!allSubmitted) {
           window.location.href = `/pool/${poolId}/playoffs`;
           return;
         }
-        targetSeasonType = 3;
-        targetWeek = 1;
-      } else if (seasonType === 3) {
-        return;
       }
+      targetSeasonType = nextScope;
+      targetWeek = 1;
     } else if (targetSeasonType === 3) {
       const allSubmitted = await checkPlayoffConfidencePointsSubmission();
       if (!allSubmitted) {
@@ -507,8 +516,8 @@ function PoolPicksContent() {
             let resolvedSeasonType = 0;
             for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
               try {
-                const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
-                if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+                const games = await loadWeekGames(w, st);
+                if (games.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; }
               } catch {}
             }
             if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
@@ -562,8 +571,8 @@ function PoolPicksContent() {
           let resolvedSeasonType = 0;
           for (const [w, st] of [[1, 1], [1, 2]] as [number, number][]) {
             try {
-              const r = await fetch(`/api/games/week?week=${w}&seasonType=${st}`);
-              if (r.ok) { const d = await r.json(); if (d.success && d.games?.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; } }
+              const games = await loadWeekGames(w, st);
+              if (games.length > 0) { resolvedWeek = w; resolvedSeasonType = st; break; }
             } catch {}
           }
           if (!resolvedWeek) { setIsOffseasonState(true); setIsLoading(false); return; }
@@ -621,6 +630,22 @@ function PoolPicksContent() {
             localPoolSeason = seasonValue;
             setPoolName(pool.name);
             setPoolSeason(seasonValue);
+
+            const scope: number[] = (Array.isArray(pool.season_scope) && pool.season_scope.length > 0)
+              ? pool.season_scope
+              : [2];
+            setPoolSeasonScope(scope);
+
+            // If the resolved season type is outside this pool's scope, clamp to first valid type
+            if (!scope.includes(seasonTypeToUse)) {
+              const scopeSorted = [...scope].sort((a, b) => a - b);
+              seasonTypeToUse = scopeSorted[0];
+              weekToUse = 1;
+              setCurrentWeek(1);
+              setCurrentSeasonType(seasonTypeToUse);
+              router.replace(`/pool/${poolId}/picks?week=1&seasonType=${seasonTypeToUse}`, { scroll: false });
+              debugLog('Pool picks page: Season type clamped to scope', { scope, seasonTypeToUse });
+            }
 
             if (!pool.is_active) {
               setIsPoolClosed(true);
@@ -711,131 +736,98 @@ function PoolPicksContent() {
 
       // Load games
       try {
-        debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
+        debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse, 'season:', localPoolSeason);
 
-        const gamesApiUrl = `/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}&season=${localPoolSeason}`;
+        let gamesData = await loadWeekGames(weekToUse, seasonTypeToUse, localPoolSeason);
+        console.log('Games data before filtering:', gamesData);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const response = await fetch(gamesApiUrl, {
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            let gamesData = result.games;
-
-            if (gamesData && gamesData.length > 0) {
-              const season = gamesData[0].season || poolSeason;
-
-              try {
-                const recordsResponse = await fetch(`/api/team-records?season=${season}`, {
-                  headers: { 'Content-Type': 'application/json' },
-                });
-
-                if (recordsResponse.ok) {
-                  const recordsResult = await recordsResponse.json();
-                  if (recordsResult.success && recordsResult.records) {
-                    const recordsMapById = new Map<string, any>();
-                    const recordsMapByAbbr = new Map<string, any>();
-
-                    recordsResult.records.forEach((record: any) => {
-                      const recordData = {
-                        wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0,
-                        home_wins: record.home_wins, home_losses: record.home_losses, home_ties: record.home_ties,
-                        road_wins: record.road_wins, road_losses: record.road_losses, road_ties: record.road_ties
-                      };
-                      if (record.team_id) recordsMapById.set(record.team_id, recordData);
-                      if (record.team_abbreviation) recordsMapByAbbr.set(record.team_abbreviation.toLowerCase(), recordData);
-                    });
-
-                    gamesData = gamesData.map((game: Game) => {
-                      let homeRecord = game.home_team_id ? recordsMapById.get(game.home_team_id.toString()) : undefined;
-                      let awayRecord = game.away_team_id ? recordsMapById.get(game.away_team_id.toString()) : undefined;
-
-                      if (!homeRecord && game.home_team_id) homeRecord = recordsMapByAbbr.get(game.home_team_id.toString().toLowerCase());
-                      if (!homeRecord && game.home_team) homeRecord = recordsMapByAbbr.get(game.home_team.toLowerCase());
-                      if (!awayRecord && game.away_team_id) awayRecord = recordsMapByAbbr.get(game.away_team_id.toString().toLowerCase());
-                      if (!awayRecord && game.away_team) awayRecord = recordsMapByAbbr.get(game.away_team.toLowerCase());
-
-                      return { ...game, home_team_record: homeRecord, away_team_record: awayRecord };
-                    });
-
-                    debugLog('Attached team records to games');
-                  }
-                }
-              } catch (recordsError) {
-                console.error('Error loading team records:', recordsError);
-              }
-            }
-
-            setGames(gamesData);
-            debugLog('Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-
-            const now = new Date();
-            const validGames = gamesData.filter((game: Game) => {
-              const gameTime = new Date(game.kickoff_time);
-              const currentYear = now.getFullYear();
-              const gameYear = gameTime.getFullYear();
-              const isTestData =
-                Math.abs(currentYear - gameYear) > 1 ||
-                (gameYear === 2025 && gameTime.getMonth() === 7 && gameTime.getDate() === 1) ||
-                gameTime.getTime() < new Date('2024-01-01').getTime();
-
-              if (isTestData) {
-                debugLog('Skipping game with test/invalid date:', { game: `${game.away_team} @ ${game.home_team}`, gameYear, currentYear, kickoff: gameTime.toISOString(), isTestData: true });
-                return false;
-              }
-              return true;
+        if (gamesData.length > 0) {
+          try {
+            const recordsResponse = await fetch(`/api/team-records?season=${localPoolSeason}`, {
+              headers: { 'Content-Type': 'application/json' },
             });
 
-            debugLog('Valid games count:', validGames.length, 'out of', gamesData.length);
+            if (recordsResponse.ok) {
+              const recordsResult = await recordsResponse.json();
+              if (recordsResult.success && recordsResult.records) {
+                const recordsMapById = new Map<string, any>();
+                const recordsMapByAbbr = new Map<string, any>();
 
-            let hasStarted = false;
-            if (validGames.length > 0) {
-              hasStarted = validGames.some((game: Game) => {
-                const gameTime = new Date(game.kickoff_time);
-                const bufferTime = 60 * 60 * 1000;
-                const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
-                debugLog('Game status check:', { game: `${game.away_team} @ ${game.home_team}`, kickoff: gameTime.toISOString(), now: now.toISOString(), bufferTime: bufferTime / (1000 * 60 * 60), gameStarted });
-                return gameStarted;
-              });
-            } else {
-              hasStarted = false;
-              debugLog('All games are test data, setting gamesStarted to false');
+                recordsResult.records.forEach((record: any) => {
+                  const recordData = {
+                    wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0,
+                    home_wins: record.home_wins, home_losses: record.home_losses, home_ties: record.home_ties,
+                    road_wins: record.road_wins, road_losses: record.road_losses, road_ties: record.road_ties
+                  };
+                  if (record.team_id) recordsMapById.set(record.team_id, recordData);
+                  if (record.team_abbreviation) recordsMapByAbbr.set(record.team_abbreviation.toLowerCase(), recordData);
+                });
+
+                gamesData = gamesData.map((game: Game) => {
+                  let homeRecord = game.home_team_id ? recordsMapById.get(game.home_team_id.toString()) : undefined;
+                  let awayRecord = game.away_team_id ? recordsMapById.get(game.away_team_id.toString()) : undefined;
+
+                  if (!homeRecord && game.home_team_id) homeRecord = recordsMapByAbbr.get(game.home_team_id.toString().toLowerCase());
+                  if (!homeRecord && game.home_team) homeRecord = recordsMapByAbbr.get(game.home_team.toLowerCase());
+                  if (!awayRecord && game.away_team_id) awayRecord = recordsMapByAbbr.get(game.away_team_id.toString().toLowerCase());
+                  if (!awayRecord && game.away_team) awayRecord = recordsMapByAbbr.get(game.away_team.toLowerCase());
+
+                  return { ...game, home_team_record: homeRecord, away_team_record: awayRecord };
+                });
+
+                debugLog('Attached team records to games');
+              }
             }
-
-            setGamesStarted(hasStarted);
-            debugLog('Overall games started status:', hasStarted);
-
-            if (hasStarted) {
-              setShowLeaderboard(true);
-            }
-          } else {
-            console.error('API returned error:', result.error);
-            toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
+          } catch (recordsError) {
+            console.error('Error loading team records:', recordsError);
           }
+        }
+
+        setGames(gamesData);
+        debugLog('Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+
+        const now = new Date();
+        const validGames = gamesData.filter((game: Game) => {
+          const gameTime = new Date(game.kickoff_time);
+          const currentYear = now.getFullYear();
+          const gameYear = gameTime.getFullYear();
+          const isTestData =
+            Math.abs(currentYear - gameYear) > 1 ||
+            (gameYear === 2025 && gameTime.getMonth() === 7 && gameTime.getDate() === 1) ||
+            gameTime.getTime() < new Date('2024-01-01').getTime();
+
+          if (isTestData) {
+            debugLog('Skipping game with test/invalid date:', { game: `${game.away_team} @ ${game.home_team}`, gameYear, currentYear, kickoff: gameTime.toISOString(), isTestData: true });
+            return false;
+          }
+          return true;
+        });
+
+        debugLog('Valid games count:', validGames.length, 'out of', gamesData.length);
+
+        let hasStarted = false;
+        if (validGames.length > 0) {
+          hasStarted = validGames.some((game: Game) => {
+            const gameTime = new Date(game.kickoff_time);
+            const bufferTime = 60 * 60 * 1000;
+            const gameStarted = (gameTime.getTime() + bufferTime) <= now.getTime();
+            debugLog('Game status check:', { game: `${game.away_team} @ ${game.home_team}`, kickoff: gameTime.toISOString(), now: now.toISOString(), bufferTime: bufferTime / (1000 * 60 * 60), gameStarted });
+            return gameStarted;
+          });
         } else {
-          const errorText = await response.text();
-          console.error('Games API response error:', response.status, errorText);
-          throw new Error(`Failed to load games (${response.status})`);
+          hasStarted = false;
+          debugLog('All games are test data, setting gamesStarted to false');
+        }
+
+        setGamesStarted(hasStarted);
+        debugLog('Overall games started status:', hasStarted);
+
+        if (hasStarted) {
+          setShowLeaderboard(true);
         }
       } catch (e) {
         console.error('Error loading games:', e);
-        if (e instanceof Error) {
-          if (e.name === 'AbortError') {
-            toast({ title: "Warning", description: "Games request timed out", variant: "destructive" });
-          } else {
-            toast({ title: "Warning", description: `Could not load games data: ${e.message}`, variant: "destructive" });
-          }
-        } else {
-          toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
-        }
+        toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
       }
 
       // Check if there's a saved user session for this pool
@@ -1128,7 +1120,7 @@ function PoolPicksContent() {
   // ── OFFSEASON ─────────────────────────────────────────────────────────────────
   if (isOffseasonState) {
     return (
-      <div style={{ minHeight: '100vh', background: bg }}>
+      <div id='offseason-banner' style={{ minHeight: '100vh', background: bg }}>
         <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
         <section style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
           <div className="lp-inner">
@@ -1191,7 +1183,7 @@ function PoolPicksContent() {
         <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
 
         {/* Hero */}
-        <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+        <section id='hero' style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
           <div className="lp-inner">
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
@@ -1203,6 +1195,7 @@ function PoolPicksContent() {
               </h1>
               <WeekNav
                 currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+                seasonScope={poolSeasonScope}
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                 onCurrent={navigateToCurrentWeek}
                 onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
@@ -1267,6 +1260,7 @@ function PoolPicksContent() {
               </h1>
               <WeekNav
                 currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+                seasonScope={poolSeasonScope}
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                 onCurrent={navigateToCurrentWeek}
                 onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
@@ -1389,6 +1383,7 @@ function PoolPicksContent() {
             </h1>
             <WeekNav
               currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+              seasonScope={poolSeasonScope}
               onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
               onCurrent={navigateToCurrentWeek}
               onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
