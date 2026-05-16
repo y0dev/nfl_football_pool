@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (process.env.NODE_ENV === 'production' && email.split('@')[1]?.toLowerCase() === 'test') {
+      return NextResponse.json(
+        { success: false, error: 'Test email addresses are not allowed.' },
+        { status: 400 }
+      );
+    }
+
     if (password.length < 8) {
       console.log('Validation failed: password too short');
       return NextResponse.json(

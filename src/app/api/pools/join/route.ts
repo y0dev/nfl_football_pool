@@ -13,6 +13,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (process.env.NODE_ENV === 'production' && email.split('@')[1]?.toLowerCase() === 'test') {
+      return NextResponse.json(
+        { error: 'Test email addresses are not allowed.' },
+        { status: 400 }
+      );
+    }
+
     const supabase = getSupabaseServiceClient();
 
     // Check if the pool exists and is active

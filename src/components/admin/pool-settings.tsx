@@ -34,6 +34,8 @@ const poolSettingsSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
   is_active: z.boolean(),
+  is_private: z.boolean(),
+  join_password: z.string().optional(),
   season_scope: z.string(),
   tie_breaker_method: z.string().optional(),
 });
@@ -62,6 +64,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       name: poolName,
       season: DEFAULT_POOL_SEASON,
       is_active: true,
+      is_private: false,
+      join_password: '',
       season_scope: 'regular',
       tie_breaker_method: 'none',
     },
@@ -77,6 +81,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             name: pool.name,
             season: pool.season,
             is_active: pool.is_active,
+            is_private: pool.is_private ?? false,
+            join_password: pool.join_password ?? '',
             season_scope: seasonTypesToScopeValue(pool.season_scope ?? [2]),
             tie_breaker_method: pool.tie_breaker_method || 'none',
           });
@@ -99,6 +105,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         name: data.name,
         season: data.season,
         is_active: data.is_active,
+        is_private: data.is_private,
+        join_password: data.join_password || null,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         tie_breaker_method: data.tie_breaker_method,
       });
@@ -259,6 +267,62 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
                     </SelectContent>
                   </Select>
                   <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
+            {/* Join password */}
+            <FormField
+              control={form.control}
+              name="join_password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></FormLabel>
+                  <FormControl>
+                    <input {...field} placeholder="Leave blank for open access" style={inputStyle} />
+                  </FormControl>
+                  {!form.watch('is_private') && form.watch('join_password') && (
+                    <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
+                      Members will need this password to join from the search page.
+                    </p>
+                  )}
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
+            {/* Visibility */}
+            <FormField
+              control={form.control}
+              name="is_private"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Visibility</FormLabel>
+                  <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem', marginTop: '0.35rem' }}>
+                    {([false, true] as const).map((val) => (
+                      <button
+                        key={String(val)}
+                        type="button"
+                        onClick={() => field.onChange(val)}
+                        style={{
+                          flex: 1, padding: '0.4rem 0.75rem',
+                          background: field.value === val ? (val ? 'oklch(62% 0.22 25 / 0.18)' : green) : 'transparent',
+                          color: field.value === val ? (val ? 'oklch(72% 0.18 25)' : text) : textDim,
+                          border: `1px solid ${field.value === val ? (val ? 'oklch(62% 0.22 25 / 0.4)' : green) : 'transparent'}`,
+                          borderRadius: 4,
+                          ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {val ? 'Private' : 'Public'}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                    {field.value
+                      ? 'Invitation only. This pool will not appear in search results.'
+                      : 'Anyone can find this pool by searching. A password still restricts who can join.'}
+                  </p>
                 </FormItem>
               )}
             />

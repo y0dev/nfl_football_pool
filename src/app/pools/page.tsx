@@ -467,15 +467,27 @@ function PoolsContent() {
                 </div>
               </div>
 
-              {/* Leaderboard — read-only, uses existing component */}
-              <div style={{ padding: '1.25rem 1rem' }}>
-                <Leaderboard
-                  poolId={viewingPool.id}
-                  weekNumber={viewWeek}
-                  seasonType={2}
-                  season={viewingPool.season}
-                />
-              </div>
+              {/* Leaderboard — blocked for password-protected pools */}
+              {viewingPool.requires_password ? (
+                <div style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+                  <Lock style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
+                    Results are Private
+                  </p>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>
+                    This pool is password protected. Final results are only visible to members.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ padding: '1.25rem 1rem' }}>
+                  <Leaderboard
+                    poolId={viewingPool.id}
+                    weekNumber={viewWeek}
+                    seasonType={2}
+                    season={viewingPool.season}
+                  />
+                </div>
+              )}
             </div>
           )}
 
