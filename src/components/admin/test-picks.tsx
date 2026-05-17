@@ -23,9 +23,10 @@ interface TestPicksProps {
   poolName: string;
   weekNumber?: number;
   seasonType?: number;
+  seasonScope?: number[];
 }
 
-const seasonTypeOptions = [
+const ALL_SEASON_TYPE_OPTIONS = [
   { value: 1, label: 'Preseason', weeks: [1, 2, 3, 4] },
   { value: 2, label: 'Regular Season', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
   { value: 3, label: 'Postseason', weeks: [1, 2, 3, 4] },
@@ -34,10 +35,14 @@ const seasonTypeOptions = [
 const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
 const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
 
-export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPicksProps) {
+export function TestPicks({ poolId, poolName, weekNumber, seasonType, seasonScope }: TestPicksProps) {
+  const scope = seasonScope && seasonScope.length > 0 ? [...seasonScope].sort((a, b) => a - b) : [1, 2, 3];
+  const seasonTypeOptions = ALL_SEASON_TYPE_OPTIONS.filter(o => scope.includes(o.value));
+  const clampToScope = (st: number) => scope.includes(st) ? st : scope[0];
+
   const [currentWeek, setCurrentWeek] = useState(weekNumber || 1);
   const [selectedWeek, setSelectedWeek] = useState(weekNumber || 1);
-  const [selectedSeasonType, setSelectedSeasonType] = useState(seasonType || 2);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(clampToScope(seasonType || 2));
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [testUrl, setTestUrl] = useState('');
   const { toast } = useToast();
@@ -45,18 +50,20 @@ export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPick
   useEffect(() => {
     const loadWeek = async () => {
       try {
-        const { week, seasonType } = await getUpcomingWeek();
+        const { week, seasonType: upcomingST } = await getUpcomingWeek();
+        const clamped = clampToScope(upcomingST);
         setCurrentWeek(week);
         setSelectedWeek(week);
-        const opt = seasonTypeOptions.find(o => o.value === seasonType);
-        setAvailableWeeks(opt?.weeks || seasonTypeOptions[1].weeks);
-        setSelectedSeasonType(seasonType);
+        const opt = seasonTypeOptions.find(o => o.value === clamped);
+        setAvailableWeeks(opt?.weeks || seasonTypeOptions[0]?.weeks || []);
+        setSelectedSeasonType(clamped);
       } catch {
         setCurrentWeek(1); setSelectedWeek(1);
-        setAvailableWeeks(seasonTypeOptions[1].weeks);
+        setAvailableWeeks(seasonTypeOptions[0]?.weeks || []);
       }
     };
     loadWeek();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -106,7 +113,7 @@ export function TestPicks({ poolId, poolName, weekNumber, seasonType }: TestPick
               setSelectedSeasonType(n);
               const opt = seasonTypeOptions.find(o => o.value === n);
               if (opt?.weeks.length) setSelectedWeek(opt.weeks[0]);
-              setAvailableWeeks(opt?.weeks || seasonTypeOptions[1].weeks);
+              setAvailableWeeks(opt?.weeks || seasonTypeOptions[0]?.weeks || []);
             }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>

@@ -40,6 +40,7 @@ interface Pool {
   name: string;
   created_by: string;
   season: number;
+  season_scope: number[];
   is_active: boolean;
   created_at: string;
   description?: string;
@@ -219,7 +220,7 @@ function PoolDetailsContent() {
                 </span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem', alignItems: 'center' }}>
-                <SharePoolButton poolId={pool.id} poolName={pool.name} />
+                <SharePoolButton poolId={pool.id} poolName={pool.name} seasonScope={pool.season_scope} />
                 <button
                   onClick={() => setActiveTab('settings')}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: activeTab === 'settings' ? 'oklch(26% 0.03 255)' : 'transparent', color: activeTab === 'settings' ? text : textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
@@ -314,6 +315,7 @@ function PoolDetailsContent() {
               poolName={pool.name}
               weekNumber={currentWeek}
               seasonType={currentSeasonType}
+              seasonScope={pool.season_scope}
             />
           )}
 
@@ -396,6 +398,7 @@ function PoolDetailsContent() {
               poolName={pool.name}
               weekNumber={currentWeek}
               seasonType={currentSeasonType}
+              seasonScope={pool.season_scope}
             />
           )}
 
