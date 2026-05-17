@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Plus,
   X,
+  Settings,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -346,6 +347,20 @@ function AdminDashboardContent() {
                     {notifications.length}
                   </span>
                 )}
+              </button>
+
+              <button
+                onClick={() => router.push(createPageUrl('adminsettings'))}
+                title="Account Settings"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34,
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                <Settings style={{ width: 15, height: 15 }} />
               </button>
 
               <button
