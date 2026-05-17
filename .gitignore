@@ -4,14 +4,24 @@
 
 !src
 !src/actions
+!src/actions/**
 !src/app
 !src/app/admin
+!src/app/admin/**
 !src/app/api
 !src/app/api/**
 !src/components
+!src/components/**
 !src/lib
+!src/lib/**
+!src/types
+!src/types/**
+!src/hooks
+!src/hooks/**
 !tests/e2e
+!tests/e2e/**
 !tests/utils
+!tests/utils/**
 !next.config.js
 !playwright.config.ts
 !tsconfig.json
