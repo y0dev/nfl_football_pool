@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth, AuthProvider } from '@/lib/auth';
+import { loginUser } from '@/actions/loginUser';
 import { useRouter } from 'next/navigation';
 import { createPageUrl, debugLog } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
@@ -55,7 +56,7 @@ function RegisterContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const { toast } = useToast();
-  const { user, verifyAdminStatus } = useAuth();
+  const { user, signIn, verifyAdminStatus } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -86,8 +87,17 @@ function RegisterContent() {
       const result = await response.json();
 
       if (result.success) {
-        toast({ title: 'Success', description: 'Commissioner account created! You can now sign in.' });
-        setTimeout(() => { window.location.href = createPageUrl('login'); }, 2000);
+        const loginResult = await loginUser(data.email, data.password);
+        if (loginResult.success && loginResult.user) {
+          await signIn(loginResult.user);
+          window.location.href = loginResult.user.is_super_admin
+            ? createPageUrl('admindashboard')
+            : createPageUrl('dashboard');
+        } else {
+          // Account created but auto-login failed — fall back to login page
+          toast({ title: 'Account created', description: 'Please sign in to continue.' });
+          window.location.href = createPageUrl('login');
+        }
       } else {
         toast({ title: 'Error', description: result.error || 'Failed to create account', variant: 'destructive' });
       }

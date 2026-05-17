@@ -87,6 +87,9 @@ export function createPageUrl(page: string): string {
       return "/participant";
     case "superadmin":
       return "/super-admin";
+    case "adminsettings":
+    case "accountsettings":
+      return "/admin/account";
     case "landing":
       return "/";
     default:
