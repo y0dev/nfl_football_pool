@@ -6,6 +6,8 @@
 !src/actions
 !src/app
 !src/app/admin
+!src/app/api
+!src/app/api/**
 !src/components
 !src/lib
 !tests/e2e
