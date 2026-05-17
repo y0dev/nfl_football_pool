@@ -25,11 +25,15 @@ interface ParticipantLinksProps {
   poolName: string;
   weekNumber?: number;
   seasonType?: number;
+  seasonScope?: number[];
 }
 
-export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: ParticipantLinksProps) {
+export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType, seasonScope }: ParticipantLinksProps) {
+  const scope = seasonScope && seasonScope.length > 0 ? [...seasonScope].sort((a, b) => a - b) : [2];
+  const clampToScope = (st: number) => scope.includes(st) ? st : scope[0];
+
   const [currentWeek, setCurrentWeek] = useState<number>(weekNumber || 1);
-  const [currentSeasonType, setCurrentSeasonType] = useState<number>(seasonType || 2);
+  const [currentSeasonType, setCurrentSeasonType] = useState<number>(clampToScope(seasonType || 2));
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -67,13 +71,15 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType }: P
     const loadWeek = async () => {
       try {
         const weekData = await getUpcomingWeek();
+        const clamped = clampToScope(weekData.seasonType);
         setCurrentWeek(weekData.week);
-        setCurrentSeasonType(weekData.seasonType);
+        setCurrentSeasonType(clamped);
       } catch (error) {
         console.error('Error loading current week:', error);
       }
     };
     loadWeek();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const participantLink = generateParticipantLink();

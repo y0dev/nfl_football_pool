@@ -23,17 +23,27 @@ const labelSt: React.CSSProperties = { ...bc, fontSize: '0.68rem', fontWeight: 7
 const inputSt: React.CSSProperties = { ...b, background: surface, border: `1px solid ${border}`, color: textMid, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.78rem' };
 const btnBase: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' };
 
+const ALL_SEASON_TYPES = [
+  { value: 1, label: 'Preseason' },
+  { value: 2, label: 'Regular Season' },
+  { value: 3, label: 'Postseason' },
+];
+
 interface SharePoolButtonProps {
   poolId: string;
   poolName: string;
+  seasonScope?: number[];
 }
 
-export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
+export function SharePoolButton({ poolId, poolName, seasonScope }: SharePoolButtonProps) {
+  const scope = seasonScope && seasonScope.length > 0 ? [...seasonScope].sort((a, b) => a - b) : [1, 2, 3];
+  const clampToScope = (st: number) => scope.includes(st) ? st : scope[0];
+
   const [isOpen, setIsOpen] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
-  const [currentSeasonType, setCurrentSeasonType] = useState(2);
+  const [currentSeasonType, setCurrentSeasonType] = useState(clampToScope(2));
   const [selectedWeek, setSelectedWeek] = useState(1);
-  const [selectedSeasonType, setSelectedSeasonType] = useState(2);
+  const [selectedSeasonType, setSelectedSeasonType] = useState(clampToScope(2));
   const [shareUrl, setShareUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
@@ -43,20 +53,23 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
     const loadWeek = async () => {
       try {
         const { week, seasonType } = await getUpcomingWeek();
+        const clamped = clampToScope(seasonType);
         setCurrentWeek(week);
-        setCurrentSeasonType(seasonType);
+        setCurrentSeasonType(clamped);
         setSelectedWeek(week);
-        setSelectedSeasonType(seasonType);
-        setAvailableWeeks(Array.from({ length: getMaxWeeks(seasonType) }, (_, i) => i + 1));
+        setSelectedSeasonType(clamped);
+        setAvailableWeeks(Array.from({ length: getMaxWeeks(clamped) }, (_, i) => i + 1));
       } catch {
+        const fallback = clampToScope(2);
         setCurrentWeek(1);
-        setCurrentSeasonType(2);
+        setCurrentSeasonType(fallback);
         setSelectedWeek(1);
-        setSelectedSeasonType(2);
-        setAvailableWeeks(Array.from({ length: 18 }, (_, i) => i + 1));
+        setSelectedSeasonType(fallback);
+        setAvailableWeeks(Array.from({ length: getMaxWeeks(fallback) }, (_, i) => i + 1));
       }
     };
     loadWeek();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -71,8 +84,9 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
   const getMaxWeeks = (st: number) => (st === 1 || st === 3 ? 4 : 18);
 
   const handleSeasonTypeChange = (st: number) => {
-    setSelectedSeasonType(st);
-    const max = getMaxWeeks(st);
+    const clamped = clampToScope(st);
+    setSelectedSeasonType(clamped);
+    const max = getMaxWeeks(clamped);
     setAvailableWeeks(Array.from({ length: max }, (_, i) => i + 1));
     if (selectedWeek > max) setSelectedWeek(1);
   };
@@ -147,9 +161,9 @@ export function SharePoolButton({ poolId, poolName }: SharePoolButtonProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent style={{ background: card, border: `1px solid ${border}`, zIndex: 9999 }}>
-                <SelectItem value="1">Preseason</SelectItem>
-                <SelectItem value="2">Regular Season</SelectItem>
-                <SelectItem value="3">Postseason</SelectItem>
+                {ALL_SEASON_TYPES.filter(o => scope.includes(o.value)).map(o => (
+                  <SelectItem key={o.value} value={o.value.toString()}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>
