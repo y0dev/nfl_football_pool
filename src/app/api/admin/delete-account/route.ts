@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const { data: admin, error } = await supabase
       .from('admins')
-      .select('id, email, password_hash, is_active, is_super_admin')
+      .select('id, email, full_name, password_hash, is_active, is_super_admin')
       .eq('id', adminId)
       .eq('is_active', true)
       .single();
@@ -62,6 +62,14 @@ export async function POST(request: NextRequest) {
       await supabase.auth.admin.deleteUser(adminId);
     } catch {
       // Non-fatal: auth user may not exist for bcrypt-only accounts
+    }
+
+    // Send farewell email (best-effort)
+    try {
+      const { emailService } = await import('@/lib/email');
+      await emailService.sendAccountDeletionConfirmation(admin.email, admin.full_name || 'Commissioner');
+    } catch {
+      // Non-fatal
     }
 
     return NextResponse.json({ success: true });
