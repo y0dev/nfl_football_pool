@@ -6,7 +6,8 @@ interface User {
   id: string;
   email: string;
   full_name?: string;
-  is_super_admin?: boolean; // Add admin status to user data
+  is_super_admin?: boolean;
+  signedInAt?: number;
 }
 
 interface AuthContextType {
@@ -92,17 +93,16 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
         throw new Error('Test accounts are not allowed in production');
       }
 
-      // Store all user data including admin status
       const safeUserData = {
         id: userData.id,
         email: userData.email,
         full_name: userData.full_name,
-        is_super_admin: userData.is_super_admin
+        is_super_admin: userData.is_super_admin,
+        signedInAt: Date.now(),
       };
 
       setUser(safeUserData);
 
-      // Store in localStorage for persistence (including admin status)
       if (typeof window !== 'undefined') {
         localStorage.setItem('nfl-pool-user', JSON.stringify(safeUserData));
       }
@@ -189,28 +189,34 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
   useEffect(() => {
     setIsMounted(true);
     
-    // Check for existing session from localStorage
+    const SESSION_MAX_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
     const checkSession = async () => {
       try {
         if (typeof window !== 'undefined') {
           const storedUser = localStorage.getItem('nfl-pool-user');
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            
-            // Check for test account security
+
+            // Expire sessions older than 90 days
+            if (parsedUser.signedInAt && Date.now() - parsedUser.signedInAt > SESSION_MAX_MS) {
+              localStorage.removeItem('nfl-pool-user');
+              setLoading(false);
+              return;
+            }
+
             const isBlocked = checkTestAccountSecurity(parsedUser);
             if (isBlocked) {
-              console.warn('Test account detected in production, logging out automatically');
               await signOut();
               return;
             }
-            
-            // Restore all user data including admin status
+
             setUser({
               id: parsedUser.id,
               email: parsedUser.email,
               full_name: parsedUser.full_name,
-              is_super_admin: parsedUser.is_super_admin
+              is_super_admin: parsedUser.is_super_admin,
+              signedInAt: parsedUser.signedInAt,
             });
           }
         }

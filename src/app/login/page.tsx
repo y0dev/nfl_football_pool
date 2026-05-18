@@ -301,6 +301,14 @@ function LoginContent() {
                           </div>
                         </FormControl>
                         <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                          <Link
+                            href="/login/forgot-password"
+                            style={{ ...b, fontSize: '0.78rem', color: textDim, textDecoration: 'none' }}
+                          >
+                            Forgot password?
+                          </Link>
+                        </div>
                       </FormItem>
                     )}
                   />

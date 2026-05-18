@@ -6,8 +6,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function signingSecret(): string {
-  const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  const s = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!s) throw new Error('Service key not set');
   return s;
 }
 
@@ -77,7 +77,7 @@ export async function requestMagicLink(
     const { emailService } = await import('@/lib/email');
     await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
   } catch (err) {
-    console.error('[SH][AUTH][MAGIC_LINK] Email send failed:', err);
+    console.error('Magic link email send failed:', err);
     return { success: false, error: 'Failed to send magic link. Please try again.' };
   }
 

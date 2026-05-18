@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { useToast } from '@/hooks/use-toast';
+import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl } from '@/lib/utils';
 
@@ -57,7 +57,6 @@ function PasswordInput({ value, onChange, placeholder, autoComplete }: { value: 
 function AccountSettingsContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
 
   // Change password
   const [currentPw, setCurrentPw] = useState('');
@@ -65,13 +64,14 @@ function AccountSettingsContent() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
 
   // Delete account
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deletePw, setDeletePw] = useState('');
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteSent, setDeleteSent] = useState(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,8 +89,9 @@ function AccountSettingsContent() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Password updated', description: 'Your password has been changed successfully.' });
+        setPwSuccess('Password updated successfully.');
         setCurrentPw(''); setNewPw(''); setConfirmPw('');
+        setTimeout(() => setPwSuccess(''), 4000);
       } else {
         setPwError(data.error || 'Failed to update password');
       }
@@ -101,22 +102,16 @@ function AccountSettingsContent() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!deleteConfirmed || !deletePw || !user) return;
+  const handleRequestDeletion = async () => {
+    if (!deleteConfirmed || !user) return;
     setDeleteLoading(true);
     setDeleteError('');
     try {
-      const res = await fetch('/api/admin/delete-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminId: user.id, password: deletePw }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await signOut();
-        router.push('/');
+      const result = await requestDeletionConfirmation(user.id);
+      if (result.success) {
+        setDeleteSent(true);
       } else {
-        setDeleteError(data.error || 'Failed to delete account');
+        setDeleteError(result.error || 'Failed to send confirmation email');
       }
     } catch {
       setDeleteError('An unexpected error occurred');
@@ -217,6 +212,11 @@ function AccountSettingsContent() {
                   <p style={{ ...b, fontSize: '0.8rem', color: errRed }}>{pwError}</p>
                 </div>
               )}
+              {pwSuccess && (
+                <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6 }}>
+                  <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>{pwSuccess}</p>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -238,7 +238,17 @@ function AccountSettingsContent() {
               <p style={{ ...b, fontSize: '0.82rem', color: textDim, marginBottom: '1rem' }}>
                 Permanently delete your commissioner account. This cannot be undone. Your pools and pool data will remain intact.
               </p>
-              {!showDeleteDialog ? (
+              {deleteSent ? (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.9rem 1rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.35)`, borderRadius: 8 }}>
+                  <Mail style={{ width: 15, height: 15, color: greenHi, flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>Confirmation Email Sent</p>
+                    <p style={{ ...b, fontSize: '0.8rem', color: textMid, margin: 0 }}>
+                      Check your inbox and click the link to confirm deletion. The link expires in 24 hours.
+                    </p>
+                  </div>
+                </div>
+              ) : !showDeleteDialog ? (
                 <button
                   onClick={() => setShowDeleteDialog(true)}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: errRed, border: `1px solid oklch(62% 0.22 25 / 0.5)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
@@ -251,10 +261,9 @@ function AccountSettingsContent() {
                   <p style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: errRed, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     Confirm Account Deletion
                   </p>
-                  <div>
-                    <label style={labelSt}>Enter your password to confirm</label>
-                    <PasswordInput value={deletePw} onChange={setDeletePw} placeholder="Your current password" autoComplete="current-password" />
-                  </div>
+                  <p style={{ ...b, fontSize: '0.8rem', color: textDim, margin: 0 }}>
+                    We&apos;ll send a confirmation link to <strong style={{ color: textMid }}>{user?.email}</strong>. Click it to permanently delete your account.
+                  </p>
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
@@ -273,14 +282,15 @@ function AccountSettingsContent() {
 
                   <div style={{ display: 'flex', gap: '0.65rem' }}>
                     <button
-                      onClick={handleDeleteAccount}
-                      disabled={deleteLoading || !deletePw || !deleteConfirmed}
-                      style={{ padding: '0.55rem 1rem', background: deleteLoading || !deletePw || !deleteConfirmed ? 'oklch(40% 0.1 25)' : liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: deleteLoading || !deletePw || !deleteConfirmed ? 'not-allowed' : 'pointer' }}
+                      onClick={handleRequestDeletion}
+                      disabled={deleteLoading || !deleteConfirmed}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: deleteLoading || !deleteConfirmed ? 'oklch(40% 0.1 25)' : liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: deleteLoading || !deleteConfirmed ? 'not-allowed' : 'pointer' }}
                     >
-                      {deleteLoading ? 'Deleting…' : 'Delete My Account'}
+                      <Mail style={{ width: 12, height: 12 }} />
+                      {deleteLoading ? 'Sending…' : 'Send Confirmation Email'}
                     </button>
                     <button
-                      onClick={() => { setShowDeleteDialog(false); setDeletePw(''); setDeleteConfirmed(false); setDeleteError(''); }}
+                      onClick={() => { setShowDeleteDialog(false); setDeleteConfirmed(false); setDeleteError(''); }}
                       style={{ padding: '0.55rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                     >
                       Cancel
