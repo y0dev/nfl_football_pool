@@ -6,8 +6,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
+import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell, CheckCircle2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loginUser } from '@/actions/loginUser';
@@ -55,7 +54,8 @@ function RegisterContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { toast } = useToast();
+  const [formError, setFormError] = useState('');
+  const [success, setSuccess] = useState(false);
   const { user, signIn, verifyAdminStatus } = useAuth();
   const router = useRouter();
 
@@ -77,6 +77,7 @@ function RegisterContent() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
+    setFormError('');
     try {
       const response = await fetch('/api/admin/create-commissioner', {
         method: 'POST',
@@ -87,6 +88,7 @@ function RegisterContent() {
       const result = await response.json();
 
       if (result.success) {
+        setSuccess(true);
         const loginResult = await loginUser(data.email, data.password);
         if (loginResult.success && loginResult.user) {
           await signIn(loginResult.user);
@@ -94,15 +96,13 @@ function RegisterContent() {
             ? createPageUrl('admindashboard')
             : createPageUrl('dashboard');
         } else {
-          // Account created but auto-login failed — fall back to login page
-          toast({ title: 'Account created', description: 'Please sign in to continue.' });
           window.location.href = createPageUrl('login');
         }
       } else {
-        toast({ title: 'Error', description: result.error || 'Failed to create account', variant: 'destructive' });
+        setFormError(result.error || 'Failed to create account. Please try again.');
       }
     } catch {
-      toast({ title: 'Error', description: 'Registration failed. Please try again.', variant: 'destructive' });
+      setFormError('Registration failed. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -348,13 +348,33 @@ function RegisterContent() {
                   )}
                 />
 
+                {/* Success banner */}
+                {success && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.75rem 1rem', background: 'oklch(46% 0.14 155 / 0.12)', border: '1px solid oklch(46% 0.14 155 / 0.4)', borderRadius: 6 }}>
+                    <CheckCircle2 style={{ width: 16, height: 16, color: greenHi, flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ ...b, fontSize: '0.825rem', color: greenHi, margin: 0 }}>
+                      Account created! Taking you to your dashboard…
+                    </p>
+                  </div>
+                )}
+
+                {/* Error banner */}
+                {formError && !success && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.75rem 1rem', background: 'oklch(62% 0.22 25 / 0.1)', border: '1px solid oklch(62% 0.22 25 / 0.4)', borderRadius: 6 }}>
+                    <AlertCircle style={{ width: 16, height: 16, color: errRed, flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ ...b, fontSize: '0.825rem', color: errRed, margin: 0 }}>
+                      {formError}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || success}
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    background: isLoading ? 'oklch(35% 0.08 155)' : green,
+                    background: isLoading || success ? 'oklch(35% 0.08 155)' : green,
                     color: text, border: 'none', borderRadius: 6,
                     ...bc, fontWeight: 700, fontSize: '0.85rem',
                     letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -364,10 +384,15 @@ function RegisterContent() {
                     marginTop: '0.25rem',
                   }}
                 >
-                  {isLoading ? (
+                  {success ? (
                     <>
                       <span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-                      Creating Account...
+                      Redirecting…
+                    </>
+                  ) : isLoading ? (
+                    <>
+                      <span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                      Creating Account…
                     </>
                   ) : (
                     'Create Commissioner Account'
