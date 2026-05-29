@@ -5,7 +5,7 @@ interface ParticipantData {
   name: string;
 }
 
-export interface WinnerResult {
+interface WinnerResult {
   participant_id: string;
   participant_name: string;
   points: number;
@@ -412,7 +412,7 @@ export async function calculateWeeklyWinners(
 /**
  * Calculate season winners for a specific pool and season
  */
-export async function calculateSeasonWinners(
+async function calculateSeasonWinners(
   poolId: string,
   season: number
 ): Promise<SeasonWinner | null> {
@@ -564,7 +564,7 @@ export async function calculateSeasonWinners(
 /**
  * Calculate period winners (e.g., Q1, Q2, Q3, Q4, Playoffs)
  */
-export async function calculatePeriodWinners(
+async function calculatePeriodWinners(
   poolId: string,
   season: number,
   periodName: string,
@@ -871,7 +871,7 @@ async function savePeriodWinner(winner: PeriodWinner): Promise<void> {
  * Calculate current quarter standings including partial results from the current week
  * This function provides real-time quarter standings even while games are still in progress
  */
-export async function calculateCurrentQuarterStandings(
+async function calculateCurrentQuarterStandings(
   poolId: string,
   quarterWeek: number,
   season: number
@@ -1095,7 +1095,7 @@ export async function calculateCurrentQuarterStandings(
  * Calculate quarter winners with enhanced tie-breaker logic
  * This function handles automatic quarter winner calculation when weekly scores are updated
  */
-export async function calculateQuarterWinners(
+async function calculateQuarterWinners(
   poolId: string,
   quarterWeek: number,
   season: number

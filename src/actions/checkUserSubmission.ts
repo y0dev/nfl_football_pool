@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 
-export async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
+async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
   try {
     const supabase = getSupabaseServiceClient();
     
@@ -140,7 +140,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
   }
 }
 
-export async function isUserInPool(userEmail: string, poolId: string) {
+async function isUserInPool(userEmail: string, poolId: string) {
   try {
     // Validate inputs
     if (!userEmail || !poolId) {

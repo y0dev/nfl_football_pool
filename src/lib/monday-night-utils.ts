@@ -4,7 +4,7 @@ import { Game } from '@/types/game';
  * Identifies if a game is a Monday night game based on kickoff time
  * Monday night games typically start around 8:15 PM ET on Mondays
  */
-export function isMondayNightGame(game: Game): boolean {
+function isMondayNightGame(game: Game): boolean {
   const kickoffTime = new Date(game.kickoff_time);
   const dayOfWeek = kickoffTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
   const hour = kickoffTime.getHours();
@@ -37,7 +37,7 @@ export function getMondayNightGame(games: Game[]): Game | null {
  * Gets the final game of the week (latest kickoff time)
  * This is useful when there might be multiple Monday night games
  */
-export function getFinalGameOfWeek(games: Game[]): Game | null {
+function getFinalGameOfWeek(games: Game[]): Game | null {
   if (games.length === 0) {
     return null;
   }

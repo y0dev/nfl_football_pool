@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 
-export interface SendPickRemindersParams {
+interface SendPickRemindersParams {
   poolId: string;
   weekNumber: number;
   adminId: string;
@@ -9,7 +9,7 @@ export interface SendPickRemindersParams {
   poolUrl?: string;
 }
 
-export interface EmailReminderResult {
+interface EmailReminderResult {
   success: boolean;
   sent: number;
   failed: number;
@@ -17,7 +17,7 @@ export interface EmailReminderResult {
   message: string;
 }
 
-export interface PickReminderData {
+interface PickReminderData {
   participantName: string;
   participantEmail: string;
   poolName: string;
@@ -28,7 +28,7 @@ export interface PickReminderData {
   adminName: string;
 }
 
-export async function sendPickReminders(params: SendPickRemindersParams): Promise<EmailReminderResult> {
+async function sendPickReminders(params: SendPickRemindersParams): Promise<EmailReminderResult> {
   try {
     const supabase = getSupabaseClient();
     
@@ -223,7 +223,7 @@ export async function sendPickReminders(params: SendPickRemindersParams): Promis
   }
 }
 
-export async function getParticipantsWithoutPicks(poolId: string, weekNumber: number) {
+async function getParticipantsWithoutPicks(poolId: string, weekNumber: number) {
   try {
     const supabase = getSupabaseClient();
     
@@ -354,7 +354,7 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
   }
 }
 
-export async function sendAllSubmittedNotification(params: SendPickRemindersParams): Promise<EmailReminderResult> {
+async function sendAllSubmittedNotification(params: SendPickRemindersParams): Promise<EmailReminderResult> {
   try {
     const supabase = getSupabaseClient();
     
@@ -492,7 +492,7 @@ export async function sendAllSubmittedNotification(params: SendPickRemindersPara
   }
 }
 
-export async function testEmailConfiguration() {
+async function testEmailConfiguration() {
   return {
     success: false,
     message: 'Email service not configured. Please set up SMTP settings in your environment variables.'

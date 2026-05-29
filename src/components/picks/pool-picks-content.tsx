@@ -184,6 +184,8 @@ export function PoolPicksContent() {
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
   const [poolSeasonScope, setPoolSeasonScope] = useState<number[]>([2]);
+  const [forcePicks, setForcePicks] = useState(process.env.NEXT_PUBLIC_DUMMY_DATA === 'true');
+  const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -1491,7 +1493,7 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {process.env.NODE_ENV === 'development' && (
+          {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true') && (
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
               <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -1499,6 +1501,26 @@ export function PoolPicksContent() {
                 <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'} | <strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
                 <p><strong>Leaderboard:</strong> {showLeaderboard ? 'Shown' : 'Hidden'} | <strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
                 <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={forceWeekUnlocked}
+                    onChange={(e) => setForceWeekUnlocked(e.target.checked)}
+                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force week unlocked (ignore kickoff gate)</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={forcePicks}
+                    onChange={(e) => setForcePicks(e.target.checked)}
+                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show picks form (ignore games started / week ended)</span>
+                </label>
               </div>
             </div>
           )}
@@ -1586,7 +1608,7 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {gamesStarted && !weekEnded ? (
+          {gamesStarted && !weekEnded && !forcePicks ? (
             <>
               {submittedCount >= participantCount ? (
                 <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -1616,7 +1638,7 @@ export function PoolPicksContent() {
               )}
             </>
 
-          ) : !weekEnded && !gamesStarted ? (
+          ) : (!weekEnded && !gamesStarted) || forcePicks ? (
             <>
               {submittedCount >= participantCount ? (
                 <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -1677,6 +1699,7 @@ export function PoolPicksContent() {
                             selectedUser={selectedUser}
                             games={games}
                             preventGameLoading={true}
+                            forceWeekUnlocked={forceWeekUnlocked}
                             onPicksSubmitted={handlePicksSubmitted}
                             onUserChangeRequested={handleUserChangeRequested}
                           />

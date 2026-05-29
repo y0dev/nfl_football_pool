@@ -6,7 +6,7 @@ import {
   createParticipantTable 
 } from './email-templates-base';
 
-export interface EmailConfig {
+interface EmailConfig {
   host: string;
   port: number;
   user: string;

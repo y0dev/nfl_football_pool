@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, DashboardStats, Pool } from '@/lib/admin-service';
+import { adminService, DashboardStats } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl } from '@/lib/utils';
 import { Game } from '@/types/game';

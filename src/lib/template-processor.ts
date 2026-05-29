@@ -25,8 +25,8 @@ export function processTemplate(template: string, variables: TemplateVariables):
   return processed;
 }
 
-export function generatePoolUrl(poolId: string, week?: number): string {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+function generatePoolUrl(poolId: string, week?: number): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
   if (week) {
     return `${baseUrl}/pool/${poolId}/picks?week=${week}`;
   }

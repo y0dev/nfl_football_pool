@@ -50,7 +50,7 @@ export interface StoredPick extends Pick {
   timestamp: number;
 }
 
-export interface GameResult {
+interface GameResult {
   gameId: string;
   predictedWinner: string;
   actualWinner?: string;
@@ -58,7 +58,7 @@ export interface GameResult {
   confidencePoints: number;
 }
 
-export interface Participant {
+interface Participant {
   id: string;
   name: string;
   email?: string;
@@ -81,7 +81,7 @@ export interface LeaderboardEntry {
   };
 }
 
-export interface Pool {
+interface Pool {
   id: string;
   name: string;
   description?: string;

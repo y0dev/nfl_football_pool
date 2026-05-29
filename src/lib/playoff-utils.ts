@@ -44,7 +44,7 @@ export async function getPlayoffConfidencePoints(
  * Get confidence points for a predicted winner in a playoff game
  * Returns the confidence points assigned to that team, or null if not found
  */
-export async function getPlayoffConfidencePointsForTeam(
+async function getPlayoffConfidencePointsForTeam(
   poolId: string,
   season: number,
   participantId: string,
@@ -60,7 +60,7 @@ export async function getPlayoffConfidencePointsForTeam(
 /**
  * Check if a pool/season has playoff confidence points configured
  */
-export async function hasPlayoffConfidencePoints(
+async function hasPlayoffConfidencePoints(
   poolId: string,
   season: number
 ): Promise<boolean> {
@@ -89,7 +89,7 @@ export async function hasPlayoffConfidencePoints(
 /**
  * Check if a game is a playoff game
  */
-export function isPlayoffGame(seasonType: number): boolean {
+function isPlayoffGame(seasonType: number): boolean {
   return seasonType === 3; // 3 = Postseason/Playoffs
 }
 

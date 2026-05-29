@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 
-export interface SeasonReviewData {
+interface SeasonReviewData {
   seasonWinner: any;
   quarterlyWinners: any[];
   weeklyWinners: any[];

@@ -1,7 +1,7 @@
 import { debugLog } from '@/lib/utils';
 
 // Secure user session management without passwords
-export interface UserSession {
+interface UserSession {
   userId: string;
   userName: string;
   poolId: string;

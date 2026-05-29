@@ -276,10 +276,10 @@ export function getTemplatesByCategory(category?: string): EmailTemplate[] {
   return EMAIL_TEMPLATES.filter(template => template.category === category);
 }
 
-export function getTemplateById(id: string): EmailTemplate | undefined {
+function getTemplateById(id: string): EmailTemplate | undefined {
   return EMAIL_TEMPLATES.find(template => template.id === id);
 }
 
-export function getTemplatesByAudience(audience: 'all' | 'submitted' | 'not_submitted'): EmailTemplate[] {
+function getTemplatesByAudience(audience: 'all' | 'submitted' | 'not_submitted'): EmailTemplate[] {
   return EMAIL_TEMPLATES.filter(template => template.targetAudience === audience);
 }

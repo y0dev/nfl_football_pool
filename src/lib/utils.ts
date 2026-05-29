@@ -22,7 +22,7 @@ export function isOffseason(date: Date = new Date()): boolean {
 }
 
 // Rank icon and color utilities for leaderboards
-export const getRankIcon = (index: number) => {
+const getRankIcon = (index: number) => {
   switch (index) {
     case 0:
       return 'trophy-gold';
@@ -35,6 +35,7 @@ export const getRankIcon = (index: number) => {
   }
 };
 
+// fallow-ignore-next-line unused-export
 export const getRankColor = (index: number) => {
   switch (index) {
     case 0:
@@ -126,7 +127,7 @@ export function createPageUrl(page: string): string {
  */
 
 // NFL Season Configuration
-export const CURRENT_NFL_SEASON = 2025;
+const CURRENT_NFL_SEASON = 2025;
 export const DEFAULT_SEASON = 2025;
 export const DEFAULT_SEASON_TYPE = 2; // 1=Preseason, 2=Regular Season, 3=Postseason
 
@@ -153,8 +154,8 @@ export function getNFLSeasonYear(): number {
 
 // Pool Configuration
 export const DEFAULT_POOL_SEASON = getNFLSeasonYear();
-export const DEFAULT_POOL_IS_ACTIVE = true;
-export const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
+const DEFAULT_POOL_IS_ACTIVE = true;
+const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
 
 export const SEASON_SCOPE_OPTIONS = [
   { value: 'regular',           label: 'Regular Season Only',    desc: 'Weeks 1–18',                     types: [2] },
@@ -175,21 +176,21 @@ export function seasonTypesToScopeValue(types: number[]): SeasonScopeValue {
 }
 
 // Game Configuration
-export const MAX_WEEKS_PRESEASON = 4;
+const MAX_WEEKS_PRESEASON = 4;
 export const MAX_WEEKS_REGULAR_SEASON = 18;
-export const MAX_WEEKS_POSTSEASON = 4;
+const MAX_WEEKS_POSTSEASON = 4;
 export const DEFAULT_WEEK = 1;
 
 // Confidence Points Configuration
-export const MIN_CONFIDENCE_POINTS = 1;
-export const MAX_CONFIDENCE_POINTS = 16;
-export const CONFIDENCE_POINTS_RANGE = Array.from(
+const MIN_CONFIDENCE_POINTS = 1;
+const MAX_CONFIDENCE_POINTS = 16;
+const CONFIDENCE_POINTS_RANGE = Array.from(
   { length: MAX_CONFIDENCE_POINTS }, 
   (_, i) => MAX_CONFIDENCE_POINTS - i
 );
 
 // Performance Thresholds
-export const PERFORMANCE_THRESHOLDS = {
+const PERFORMANCE_THRESHOLDS = {
   EXCELLENT: 80,
   GOOD: 60,
   AVERAGE: 40,
@@ -197,14 +198,14 @@ export const PERFORMANCE_THRESHOLDS = {
 } as const;
 
 // UI Configuration
-export const SCREEN_BREAKPOINTS = {
+const SCREEN_BREAKPOINTS = {
   MOBILE: 768,
   TABLET: 1024,
   DESKTOP: 1280
 } as const;
 
 // Date/Time Configuration
-export const DATE_FORMATS = {
+const DATE_FORMATS = {
   SHORT: 'MMM dd',
   MEDIUM: 'MMM dd, yyyy',
   LONG: 'EEEE, MMMM dd, yyyy',
@@ -219,7 +220,7 @@ export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseco
 export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
 
 // API Configuration
-export const API_ENDPOINTS = {
+const API_ENDPOINTS = {
   POOLS: '/api/pools',
   PICKS: '/api/picks',
   ADMIN: '/api/admin',
@@ -228,7 +229,7 @@ export const API_ENDPOINTS = {
 } as const;
 
 // Error Messages
-export const ERROR_MESSAGES = {
+const ERROR_MESSAGES = {
   NETWORK_ERROR: 'Network error. Please check your connection.',
   UNAUTHORIZED: 'You are not authorized to perform this action.',
   NOT_FOUND: 'The requested resource was not found.',
@@ -237,7 +238,7 @@ export const ERROR_MESSAGES = {
 } as const;
 
 // Success Messages
-export const SUCCESS_MESSAGES = {
+const SUCCESS_MESSAGES = {
   POOL_CREATED: 'Pool created successfully!',
   POOL_UPDATED: 'Pool updated successfully!',
   PICKS_SUBMITTED: 'Picks submitted successfully!',
@@ -245,7 +246,7 @@ export const SUCCESS_MESSAGES = {
   USER_REMOVED: 'User removed from pool successfully!'
 } as const;
 
-export function formatDate(date: string | Date) {
+function formatDate(date: string | Date) {
   const d = new Date(date)
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -261,7 +262,7 @@ export function formatDate(date: string | Date) {
   return `${day}, ${month} ${dateNum} at ${displayHours}:${minutes} ${ampm}`
 }
 
-export function formatTime(date: string | Date) {
+function formatTime(date: string | Date) {
   const d = new Date(date)
   const hours = d.getUTCHours()
   const minutes = d.getUTCMinutes().toString().padStart(2, '0')
@@ -322,7 +323,7 @@ export const NFL_TEAMS = [
 /**
  * Get NFL team name
  */
-export function getNFLTeamName(abbreviation: string): string {
+function getNFLTeamName(abbreviation: string): string {
   const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
   return team?.name || abbreviation;
 }
@@ -342,7 +343,7 @@ export function getTeamAbbreviation(fullName: string): string {
 /**
  * Get team conference
  */
-export function getTeamConference(abbreviation: string): string {
+function getTeamConference(abbreviation: string): string {
   const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
   return team?.conference || '';
 }
@@ -350,7 +351,7 @@ export function getTeamConference(abbreviation: string): string {
 /**
  * Get team division
  */
-export function getTeamDivision(abbreviation: string): string {
+function getTeamDivision(abbreviation: string): string {
   const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
   return team?.conference + ' ' + team?.division || '';
 }
@@ -359,6 +360,7 @@ export function getTeamDivision(abbreviation: string): string {
  * Get short team name for mobile display
  * Returns a shortened version of the team name suitable for smaller screens
  */
+// fallow-ignore-next-line unused-export
 export function getShortTeamName(teamName: string): string {
   const team = NFL_TEAMS.find(t => t.name === teamName);
   if (!team) {
@@ -397,7 +399,7 @@ export function getSeasonTypeName(seasonType: number): string {
 /*
  * Get playoff round name
  */
-export function getPlayoffRoundName(week: number): string {
+function getPlayoffRoundName(week: number): string {
   switch (week) {
     case 1: return 'Wild Card';
     case 2: return 'Divisional Round';
@@ -441,7 +443,7 @@ export function getWeekTitle(week: number, seasonType: number): string {
  * Calculate week number from date (simple date-based calculation)
  * This is a fallback when database functions are not available
  */
-export function calculateWeekFromDate(date: Date = new Date()): number {
+function calculateWeekFromDate(date: Date = new Date()): number {
   const seasonStart = new Date(date.getFullYear(), 8, 1); // September 1st
   const weekDiff = Math.floor((date.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
   return Math.max(1, Math.min(18, weekDiff + 1));
@@ -459,6 +461,7 @@ export function getWeekPeriod(week: number): string {
   return 'Playoffs';
 }
 
+// fallow-ignore-next-line unused-export
 export function getWeekPeriodColor(week: number): string {
   const period = getWeekPeriod(week);
   switch (period) {
@@ -471,31 +474,12 @@ export function getWeekPeriodColor(week: number): string {
   }
 }
 
-export function getSeasonTypeFromDate(date: Date = new Date()): number {
+function getSeasonTypeFromDate(date: Date = new Date()): number {
   const month = date.getMonth() + 1; // 0-indexed
   if (month >= 8 && month <= 9) return 1; // Preseason
   if (month >= 9 && month <= 12) return 2; // Regular Season
   if (month >= 1 && month <= 2) return 3; // Postseason
   return 2; // Default to regular season
-}
-
-/**
- * Single entry point for getting current week data
- * Attempts database functions first, falls back to date calculations
- * 
- * Note: For Supabase Edge Functions, use the local calculation functions
- * since they can't import from @/lib/utils
- */
-export async function getCurrentWeekData() {
-  try {
-    const { getCurrentWeekFromGames } = await import('@/actions/getCurrentWeekFromGames');
-    return await getCurrentWeekFromGames();
-  } catch (error) {
-    console.error('Error getting current week data from database, using fallback:', error);
-    const fallbackWeek = calculateWeekFromDate();
-    const fallbackSeasonType = getSeasonTypeFromDate();
-    return { week: fallbackWeek, seasonType: fallbackSeasonType };
-  }
 }
 
 /**
@@ -531,7 +515,7 @@ export const debugInfo = (...args: unknown[]) => {
  * Conditional debug logging with a custom flag
  * Usage: debugIf(process.env.NEXT_PUBLIC_DEBUG === 'true', 'Debug message')
  */
-export const debugIf = (condition: boolean, ...args: unknown[]) => {
+const debugIf = (condition: boolean, ...args: unknown[]) => {
   if (condition && process.env.NODE_ENV === 'development') {
     console.log(...args);
   }
