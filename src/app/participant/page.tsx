@@ -153,7 +153,7 @@ function ParticipantContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
 
-        if (process.env.NODE_ENV === 'development') {
+        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
           console.log('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
       } else {
@@ -168,7 +168,7 @@ function ParticipantContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
 
-        if (process.env.NODE_ENV === 'development') {
+        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
           console.log('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
 
@@ -247,7 +247,7 @@ function ParticipantContent() {
 
       // Load games for the week using the new API route
       try {
-        if (process.env.NODE_ENV === 'development') {
+        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
           console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         }
 
@@ -259,7 +259,7 @@ function ParticipantContent() {
             const gamesData = result.games;
             setGames(gamesData);
 
-            if (process.env.NODE_ENV === 'development') {
+            if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
               console.log('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
             }
 
@@ -300,7 +300,7 @@ function ParticipantContent() {
           const poolSession = allSessions.find(session => session.poolId === poolId);
 
           if (poolSession && poolSession.userId) {
-            if (process.env.NODE_ENV === 'development') {
+            if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
               console.log('Restoring user session:', poolSession);
             }
             setSelectedUser({
@@ -309,7 +309,7 @@ function ParticipantContent() {
             });
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
+          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
             console.log('No saved user session found for pool:', poolId);
           }
         }
@@ -363,12 +363,12 @@ function ParticipantContent() {
             duration: 5000,
           });
 
-          if (process.env.NODE_ENV === 'development') {
+          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
             console.log('Loaded picks from localStorage:', storedPicks);
           }
         }
       } else {
-        if (process.env.NODE_ENV === 'development') {
+        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
           console.log('No valid picks found in localStorage for:', { participantId, poolId, week });
         }
       }
@@ -395,13 +395,13 @@ function ParticipantContent() {
 
     setSelectedUser(null);
 
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('Picks submitted successfully, clearing user selection to allow new user selection');
     }
   };
 
   const handleUserChangeRequested = () => {
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('User change requested. Current user:', selectedUser);
     }
 
@@ -412,7 +412,7 @@ function ParticipantContent() {
         try {
           const { pickStorage } = await import('@/lib/pick-storage');
           pickStorage.clearPicks();
-          if (process.env.NODE_ENV === 'development') {
+          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
             console.log('Cleared stored picks for user:', selectedUser.id);
           }
         } catch (error) {
@@ -424,7 +424,7 @@ function ParticipantContent() {
 
     setHasSubmitted({});
 
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('User selection interface should now be visible');
     }
 
@@ -512,7 +512,7 @@ function ParticipantContent() {
   };
 
   const loadParticipantStats = async () => {
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('Participant stats loaded from API endpoint');
     }
   };
@@ -521,7 +521,7 @@ function ParticipantContent() {
     if (!poolId || !selectedUser) return;
 
     try {
-      if (process.env.NODE_ENV === 'development') {
+      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
         console.log('Checking submission status for:', {
           participantId: selectedUser.id,
           poolId,
@@ -544,12 +544,12 @@ function ParticipantContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
+      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
         console.log('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
       }
 
       if (!gamesForWeek || gamesForWeek.length === 0) {
-        if (process.env.NODE_ENV === 'development') {
+        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
           console.log('No games found for week, cannot check picks');
         }
         return;
@@ -569,14 +569,14 @@ function ParticipantContent() {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
+      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
         console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
       }
 
       const hasSubmittedVal = picks && picks.length > 0 && picks.length === gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmittedVal, name: selectedUser.name } }));
 
-      if (process.env.NODE_ENV === 'development') {
+      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
         console.log('Submission status updated for current user:', { hasSubmitted: hasSubmittedVal, picksCount: picks?.length || 0, gamesCount: gameIds.length });
       }
     } catch (error) {
@@ -585,13 +585,13 @@ function ParticipantContent() {
   };
 
   const checkWeekPicksStatus = async () => {
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('Week picks status loaded from API endpoint');
     }
   };
 
   const checkAdminPermissions = async () => {
-    if (process.env.NODE_ENV === 'development') {
+    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
       console.log('Admin permissions loaded from API endpoint');
     }
   };
@@ -1056,7 +1056,7 @@ function ParticipantContent() {
                     </div>
                   ) : games.length > 0 ? (
                     <div>
-                      {process.env.NODE_ENV === 'development' && (
+                      {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development') && (
                         <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'oklch(59% 0.15 155 / 0.08)', border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: 6 }}>
                           <p style={{ ...b, fontSize: '0.78rem', color: greenHi }}>
                             <strong>User Selected:</strong> {selectedUser.name} (ID: {selectedUser.id})

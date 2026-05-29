@@ -48,11 +48,12 @@ interface WeeklyPickProps {
   selectedUser?: SelectedUser;
   games?: Game[];
   preventGameLoading?: boolean;
+  forceWeekUnlocked?: boolean;
   onPicksSubmitted?: () => void;
   onUserChangeRequested?: () => void;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, forceWeekUnlocked: propForceWeekUnlocked, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -68,12 +69,23 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
+  const devForceUnlockedRef = useRef(process.env.NEXT_PUBLIC_NODE_ENV === 'development');
+  const [devForceUnlocked, setDevForceUnlocked] = useState(devForceUnlockedRef.current);
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
   const [playoffConfidencePoints, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
 
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
+
+  // Sync forceWeekUnlocked prop into the ref so the checkWeekUnlocked effect respects it
+  useEffect(() => {
+    if (propForceWeekUnlocked !== undefined) {
+      devForceUnlockedRef.current = propForceWeekUnlocked;
+      setDevForceUnlocked(propForceWeekUnlocked);
+      setIsWeekUnlocked(propForceWeekUnlocked);
+    }
+  }, [propForceWeekUnlocked]);
 
   // Determine if we're in playoff mode
   const isPlayoffMode = seasonType === 3;
@@ -94,7 +106,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
         // Check if this week is unlocked for picks
         const weekUnlocked = await isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
-        setIsWeekUnlocked(weekUnlocked);
+        setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
 
         // Get unlock time if week is locked
         if (!weekUnlocked && propGames && propGames.length > 0) {
@@ -140,7 +152,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
         // Check if this week is unlocked for picks
         const weekUnlocked = await isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
-        setIsWeekUnlocked(weekUnlocked);
+        setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
 
         // Get unlock time if week is locked
         if (!weekUnlocked && gamesData.length > 0) {
@@ -308,7 +320,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           debugLog('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
           const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
           debugLog('WeeklyPick: Week unlock result:', weekUnlocked);
-          setIsWeekUnlocked(weekUnlocked);
+          setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
 
           // If week is locked, get unlock time
           if (!weekUnlocked && games.length > 0) {
@@ -992,7 +1004,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
                     </Select>
 
                     {/* Clear Confidence Button */}
-                    {pick?.confidence_points && pick.confidence_points > 0 && !isLocked && (
+                    {(pick?.confidence_points ?? 0) > 0 && !isLocked && (
                       <button
                         type="button"
                         onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
@@ -1105,7 +1117,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         )}
 
         {/* Random Picks Button - Only show in development */}
-        {process.env.NODE_ENV === 'development' && (
+        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development') && (
           <button
             type="button"
             onClick={generateRandomPicks}
