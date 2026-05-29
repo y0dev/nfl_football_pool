@@ -1,6 +1,6 @@
 import { StoredPick } from '@/types/game';
 
-export interface StoredPicksData {
+interface StoredPicksData {
   picks: StoredPick[];
   participant_id: string;
   pool_id: string;
@@ -12,7 +12,7 @@ export interface StoredPicksData {
 const PICK_STORAGE_KEY = 'nfl_pool_draft_picks';
 const AUTO_SUBMIT_DELAY = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-export class PickStorage {
+class PickStorage {
   private static instance: PickStorage;
   private autoSubmitTimer: NodeJS.Timeout | null = null;
 

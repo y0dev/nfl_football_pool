@@ -54,14 +54,14 @@ export function getSupabaseServiceClient() {
 // Create default client for backward compatibility (only in browser environment)
 let supabase: SupabaseClient | null = null;
 
-export function getDefaultSupabaseClient() {
+function getDefaultSupabaseClient() {
   if (typeof window !== 'undefined' && !supabase) {
     supabase = getSupabaseClient();
   }
   return supabase;
 }
 
-export type Database = {
+type Database = {
   public: {
     Tables: {
       admins: {
@@ -631,6 +631,7 @@ export type Database = {
 }
 
 // SQL Table Definitions
+// fallow-ignore-next-line unused-export
 export const adminsTable = `
 CREATE TABLE IF NOT EXISTS admins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -644,6 +645,7 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const poolsTable = `
 CREATE TABLE IF NOT EXISTS pools (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -663,6 +665,7 @@ CREATE TABLE IF NOT EXISTS pools (
 -- Migration: ALTER TABLE pools ADD COLUMN IF NOT EXISTS season_scope INTEGER[] DEFAULT '{2}';
 `;
 
+// fallow-ignore-next-line unused-export
 export const adminPoolsTable = `
 CREATE TABLE IF NOT EXISTS admin_pools (
   admin_id UUID REFERENCES admins(id) ON DELETE CASCADE,
@@ -673,6 +676,7 @@ CREATE TABLE IF NOT EXISTS admin_pools (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const participantsTable = `
 CREATE TABLE IF NOT EXISTS participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -684,6 +688,7 @@ CREATE TABLE IF NOT EXISTS participants (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const gamesTable = `
 CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(255) PRIMARY KEY,
@@ -702,6 +707,7 @@ CREATE TABLE IF NOT EXISTS games (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const picksTable = `
 CREATE TABLE IF NOT EXISTS picks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -717,6 +723,7 @@ CREATE TABLE IF NOT EXISTS picks (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const scoresTable = `
 CREATE TABLE IF NOT EXISTS scores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -737,6 +744,7 @@ CREATE TABLE IF NOT EXISTS scores (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const tieBreakersTable = `
 CREATE TABLE IF NOT EXISTS tie_breakers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -754,6 +762,7 @@ CREATE TABLE IF NOT EXISTS tie_breakers (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const weeklyWinnersTable = `
 CREATE TABLE IF NOT EXISTS weekly_winners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -776,6 +785,7 @@ CREATE TABLE IF NOT EXISTS weekly_winners (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const seasonWinnersTable = `
 CREATE TABLE IF NOT EXISTS season_winners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -798,6 +808,7 @@ CREATE TABLE IF NOT EXISTS season_winners (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const periodWinnersTable = `
 CREATE TABLE IF NOT EXISTS period_winners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -823,7 +834,7 @@ CREATE TABLE IF NOT EXISTS period_winners (
 );
 `;
 
-export const playoffTeamsTable = `
+const playoffTeamsTable = `
 CREATE TABLE IF NOT EXISTS playoff_teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   season INTEGER NOT NULL,
@@ -837,7 +848,7 @@ CREATE TABLE IF NOT EXISTS playoff_teams (
 );
 `;
 
-export const playoffConfidencePointsTable = `
+const playoffConfidencePointsTable = `
 CREATE TABLE IF NOT EXISTS playoff_confidence_points (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   participant_id UUID NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
@@ -852,6 +863,7 @@ CREATE TABLE IF NOT EXISTS playoff_confidence_points (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const auditLogsTable = `
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -864,6 +876,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const reminderLogsTable = `
 CREATE TABLE IF NOT EXISTS reminder_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -879,6 +892,7 @@ CREATE TABLE IF NOT EXISTS reminder_logs (
 `;
 
 // Teams table
+// fallow-ignore-next-line unused-export
 export const teamsTable = `
 CREATE TABLE IF NOT EXISTS teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -896,6 +910,7 @@ CREATE TABLE IF NOT EXISTS teams (
 `;
 
 // Update games table to include team references and playoff flag
+// fallow-ignore-next-line unused-export
 export const updatedGamesTable = `
 CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(255) PRIMARY KEY,
@@ -918,6 +933,7 @@ CREATE TABLE IF NOT EXISTS games (
 );
 `;
 
+// fallow-ignore-next-line unused-export
 export const rlsPolicies = `
 -- Enable Row Level Security on all tables
 ALTER TABLE admins ENABLE ROW LEVEL SECURITY;

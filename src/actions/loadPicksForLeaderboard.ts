@@ -2,7 +2,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { applyTieBreakers, getTieBreakerSettings, TieBreakerSettings } from '@/lib/tie-breakers';
 import { DEFAULT_SEASON } from '@/lib/utils';
 
-export interface PickData {
+interface PickData {
   id: string;
   participant_id: string;
   participant_name: string;
@@ -20,7 +20,7 @@ export interface PickData {
   away_score?: number | null;
 }
 
-export async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seasonType: number) {
+async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seasonType: number) {
   try {
     const supabase = getSupabaseClient();
     
@@ -111,7 +111,7 @@ export interface LeaderboardEntryWithPicks {
   picks: PickData[];
 }
 
-export async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seasonType: number, season?: number): Promise<LeaderboardEntryWithPicks[]> {
+async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seasonType: number, season?: number): Promise<LeaderboardEntryWithPicks[]> {
   try {
     const picks = await loadPicksForLeaderboard(poolId, weekNumber, seasonType);
     if (picks.length === 0) {

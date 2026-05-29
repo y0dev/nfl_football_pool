@@ -67,7 +67,7 @@ export interface PeriodWinner {
   };
 }
 
-export interface WinnerStats {
+interface WinnerStats {
   totalWeeks: number;
   totalParticipants: number;
   averagePointsPerWeek: number;

@@ -53,7 +53,7 @@ export async function copyMailtoToClipboard(mailtoUrl: string): Promise<boolean>
   }
 }
 
-export function createPoolInviteEmail(poolName: string, poolId: string, weekNumber: number, adminEmail?: string): MailtoOptions {
+function createPoolInviteEmail(poolName: string, poolId: string, weekNumber: number, adminEmail?: string): MailtoOptions {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
   const inviteLink = `${baseUrl}/invite?pool=${poolId}&week=${weekNumber}${adminEmail ? `&admin=${encodeURIComponent(adminEmail)}` : ''}`;
 
@@ -78,7 +78,7 @@ Your Commissioner`
   };
 }
 
-export function createReminderEmail(poolName: string, weekNumber: number): MailtoOptions {
+function createReminderEmail(poolName: string, weekNumber: number): MailtoOptions {
   return {
     subject: `Reminder: Week ${weekNumber} picks due — ${poolName}`,
     body: `Hey!

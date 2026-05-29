@@ -133,7 +133,7 @@ interface SeasonInfo {
   year: number;
 }
 
-export interface ESPNScoreboardResponse {
+interface ESPNScoreboardResponse {
   leagues: Array<{
     id: string;
     name: string;

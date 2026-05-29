@@ -720,7 +720,7 @@ async function breakTieByMondayNightTotal(
 /**
  * Save tie-breaker settings for a pool
  */
-export async function saveTieBreakerSettings(
+async function saveTieBreakerSettings(
   poolId: string,
   settings: TieBreakerSettings
 ): Promise<boolean> {

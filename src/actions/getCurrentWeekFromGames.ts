@@ -149,7 +149,7 @@ export async function getCurrentWeekFromGames() {
  * This is the week that should be unlocked for making picks
  * @returns The upcoming week number and season type
  */
-export async function getUpcomingWeekFromGames() {
+async function getUpcomingWeekFromGames() {
   try {
     const supabase = getSupabaseClient();
     const now = new Date();

@@ -10,7 +10,7 @@ export interface DashboardStats {
   completedSubmissions: number;
 }
 
-export interface Pool {
+interface Pool {
   id: string;
   name: string;
   created_by: string;
@@ -23,7 +23,7 @@ export interface Pool {
   season_scope?: number[];
 }
 
-export interface Participant {
+interface Participant {
   id: string;
   name: string;
   email?: string;
@@ -45,7 +45,7 @@ export interface Admin {
  * Admin Service - Centralized service for admin operations using service role client
  * Only includes functions that are actually being used in the application
  */
-export class AdminService {
+class AdminService {
   private static instance: AdminService;
   private supabase: ReturnType<typeof getSupabaseServiceClient>;
 

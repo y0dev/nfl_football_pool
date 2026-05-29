@@ -1,7 +1,7 @@
 import { getSupabaseServiceClient } from './supabase';
 import { debugLog, PERIOD_WEEKS } from './utils';
 
-export interface WeeklyExportData {
+interface WeeklyExportData {
   participant_id: string;
   participant_name: string;
   game_id: string;
@@ -18,7 +18,7 @@ export interface WeeklyExportData {
   points_earned: number;
 }
 
-export interface PeriodExportData {
+interface PeriodExportData {
   participant_id: string;
   participant_name: string;
   period_name: string;

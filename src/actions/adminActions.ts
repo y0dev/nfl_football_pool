@@ -3,7 +3,7 @@
 import { getSupabaseClient } from '@/lib/supabase';
 
 // Get weekly submissions for a pool
-export async function getWeeklySubmissions(poolId: string, week: number) {
+async function getWeeklySubmissions(poolId: string, week: number) {
   try {
     const { data, error } = await getSupabaseClient()
       .from('picks')
@@ -53,7 +53,7 @@ export async function getWeeklySubmissions(poolId: string, week: number) {
 }
 
 // Calculate weekly scores for a pool
-export async function calculateWeeklyScores(poolId: string, week: number) {
+async function calculateWeeklyScores(poolId: string, week: number) {
   try {
     // Get all picks for the week
     const { data: picks, error: picksError } = await getSupabaseClient()
@@ -154,7 +154,7 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
 }
 
 // Get quarterly standings (first 4 weeks)
-export async function getQuarterlyStandings(poolId: string) {
+async function getQuarterlyStandings(poolId: string) {
   try {
     const { data, error } = await getSupabaseClient()
       .from('scores')
@@ -217,7 +217,7 @@ export async function getQuarterlyStandings(poolId: string) {
 }
 
 // Export picks to Excel format
-export async function exportToExcel(poolId: string, week: number) {
+async function exportToExcel(poolId: string, week: number) {
   try {
     // Get all picks for the week with game details
     const { data: picks, error } = await getSupabaseClient()
@@ -336,7 +336,7 @@ function downloadCSV(data: any[][], filename: string) {
 }
 
 // Get all pools for admin
-export async function getAdminPools() {
+async function getAdminPools() {
   try {
     const { data, error } = await getSupabaseClient()
       .from('pools')
@@ -585,7 +585,7 @@ export async function updateParticipantName(participantId: string, newName: stri
 }
 
 // Get all submissions for a week in a format suitable for screenshot
-export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, seasonType?: number) {
+async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, seasonType?: number) {
   try {
     // If no week provided, get the current week from games
     let weekToUse = week;
@@ -689,7 +689,7 @@ export async function getWeeklySubmissionsForScreenshot(poolId: string, week?: n
 }
 
 // Get games for a week
-export async function getWeekGames(week: number) {
+async function getWeekGames(week: number) {
   try {
     const { data, error } = await getSupabaseClient()
       .from('games')
