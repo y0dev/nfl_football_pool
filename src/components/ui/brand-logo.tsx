@@ -10,7 +10,7 @@ interface BrandLogoProps {
 
 /**
  * Sunday Huddle brand logo.
- * - "icon": the circular huddle mark (sh-icon.png, 505×505 crop)
+ * - "icon": favicon with beveled corners (android-chrome-512x512.png)
  * - "horizontal": full logo with SUNDAY HUDDLE wordmark (sh-logo.png, 1254×630)
  */
 export function BrandLogo({ variant = 'icon', size = 40, className }: BrandLogoProps) {
@@ -30,24 +30,25 @@ export function BrandLogo({ variant = 'icon', size = 40, className }: BrandLogoP
     );
   }
 
-  // Icon variant — circular container so dark-bg edges blend with app bg
+  // Icon variant — favicon with beveled (rounded rect) corners
+  const radius = Math.round(size * 0.2);
   return (
     <div
       className={className}
       style={{
         width: size,
         height: size,
-        borderRadius: '50%',
+        borderRadius: radius,
         overflow: 'hidden',
         flexShrink: 0,
         position: 'relative',
       }}
     >
       <Image
-        src="/brand/sh-icon.png"
+        src="/favicon/android-chrome-512x512.png"
         alt="Sunday Huddle"
         fill
-        style={{ objectFit: 'cover', objectPosition: 'center 40%' }}
+        style={{ objectFit: 'cover' }}
         priority
       />
     </div>
