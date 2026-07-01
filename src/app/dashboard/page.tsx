@@ -1,20 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
   Trophy,
-  Mail,
   LogOut,
-  BarChart3,
   Plus,
   Bell,
   TrendingUp,
-  Edit,
   Clock,
   AlertTriangle,
   RefreshCw,
-  Shield,
+  ChevronRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -69,6 +67,7 @@ function CommissionerDashboardContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
   const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string}>>([]);
+  const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [importPicksOpen, setImportPicksOpen] = useState(false);
   const [selectedPoolForImport, setSelectedPoolForImport] = useState<{id: string, name: string} | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -85,6 +84,7 @@ function CommissionerDashboardContent() {
   }>>([]);
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
+  const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
 
   useEffect(() => {
     const loadData = async () => {
@@ -166,6 +166,10 @@ function CommissionerDashboardContent() {
     }
   }, [currentWeek, currentSeasonType]);
 
+  useEffect(() => {
+    if (selectedPoolId) loadSelectedPoolStats(selectedPoolId);
+  }, [selectedPoolId, currentWeek, currentSeasonType]);
+
   const loadDashboardStats = async () => {
     try {
       if (!user?.email) return;
@@ -185,6 +189,7 @@ function CommissionerDashboardContent() {
       );
       debugLog('stats pools', pools);
       setAvailablePools(pools);
+      if (pools.length > 0) setSelectedPoolId(prev => prev || pools[0].id);
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
       toast({
@@ -202,6 +207,49 @@ function CommissionerDashboardContent() {
       debugLog('Loaded games for countdown:', gamesData.length);
     } catch (error) {
       console.error('Error loading games for countdown:', error);
+    }
+  };
+
+  const loadSelectedPoolStats = async (poolId: string) => {
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+
+      const { count: participantCount } = await supabase
+        .from('participants')
+        .select('id', { count: 'exact', head: true })
+        .eq('pool_id', poolId)
+        .eq('is_active', true);
+
+      const total = participantCount ?? 0;
+
+      const { data: weekGames } = await supabase
+        .from('games')
+        .select('id')
+        .eq('week', currentWeek)
+        .eq('season_type', currentSeasonType);
+
+      const gameIds = weekGames?.map(g => g.id) ?? [];
+
+      if (gameIds.length === 0) {
+        setSelectedPoolStats({ participants: total, completed: 0, pending: total, completionRate: 0 });
+        return;
+      }
+
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('participant_id')
+        .eq('pool_id', poolId)
+        .in('game_id', gameIds);
+
+      const submittedIds = new Set((picks ?? []).map(p => p.participant_id));
+      const completed = submittedIds.size;
+      const pending = Math.max(0, total - completed);
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      setSelectedPoolStats({ participants: total, completed, pending, completionRate });
+    } catch (error) {
+      console.error('Error loading pool stats:', error);
     }
   };
 
@@ -425,72 +473,14 @@ function CommissionerDashboardContent() {
     );
   }
 
-  const completionRate = dashboardStats.totalParticipants > 0
-    ? Math.round((dashboardStats.completedSubmissions / dashboardStats.totalParticipants) * 100)
-    : 0;
-
-  const statsCards = [
-    { label: 'Total Pools', value: dashboardStats.totalPools, sub: `${dashboardStats.activePools} active`, big: true },
-    { label: 'Participants', value: dashboardStats.totalParticipants, sub: 'Across all pools', big: true },
-    { label: 'Pending', value: dashboardStats.pendingSubmissions, sub: 'Need picks', big: true, accent: amber },
-    { label: 'Completed', value: dashboardStats.completedSubmissions, sub: 'Picks submitted', big: true, accent: greenHi },
-    { label: 'Completion', value: `${completionRate}%`, sub: 'Rate', big: false, accent: 'oklch(59% 0.18 230)' },
+  const poolStats = [
+    { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
+    { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
+    { label: 'Completed',    value: String(selectedPoolStats.completed),    sub: 'Picks submitted', accent: greenHi },
+    { label: 'Completion',   value: `${selectedPoolStats.completionRate}%`, sub: 'Rate',            accent: 'oklch(59% 0.18 230)' },
   ];
 
-  const quickActions = [
-    {
-      label: 'Create Pool',
-      icon: Plus,
-      desc: currentSeasonType === 2 ? 'Pool creation is disabled while the season is in progress.' : 'Start a new Confidence Pool',
-      action: () => {
-        if (currentSeasonType === 2) return;
-        const event = new CustomEvent('openCreatePoolDialog');
-        document.dispatchEvent(event);
-      },
-      btnLabel: currentSeasonType === 2 ? 'Season In Progress' : 'Create Pool',
-      disabled: currentSeasonType === 2,
-    },
-    {
-      label: 'Pool Management',
-      icon: Trophy,
-      desc: isSuperAdmin ? 'Manage all pools and participants' : 'Manage your pools and participants',
-      action: () => router.push(createPageUrl('adminpools')),
-      btnLabel: isSuperAdmin ? 'Manage All Pools' : 'Manage My Pools',
-      disabled: false,
-    },
-    {
-      label: 'Leaderboards',
-      icon: BarChart3,
-      desc: isSuperAdmin ? 'View standings for all pools' : 'View standings for your pools',
-      action: () => router.push(createPageUrl('leaderboard')),
-      btnLabel: isSuperAdmin ? 'View All Leaderboards' : 'View My Leaderboards',
-      disabled: false,
-    },
-    {
-      label: 'Season Review',
-      icon: Trophy,
-      desc: 'View comprehensive season statistics and achievements',
-      action: () => router.push(createPageUrl('adminpools')),
-      btnLabel: 'Select Pool for Review',
-      disabled: false,
-    },
-    {
-      label: 'Send Reminders',
-      icon: Mail,
-      desc: 'Remind participants to submit picks',
-      action: () => router.push(createPageUrl('adminreminders')),
-      btnLabel: `Send Reminders (${dashboardStats.pendingSubmissions})`,
-      disabled: dashboardStats.pendingSubmissions === 0,
-    },
-    {
-      label: 'Override Picks',
-      icon: Edit,
-      desc: isSuperAdmin ? 'Override picks for any pool' : 'Override picks for your pools',
-      action: () => router.push(createPageUrl('overridepicks')),
-      btnLabel: isSuperAdmin ? 'Override All Picks' : 'Override My Picks',
-      disabled: false,
-    },
-  ];
+  const selectedPool = availablePools.find(p => p.id === selectedPoolId) ?? null;
 
   const activityAccent = (type: string) => {
     if (type === 'pool_created') return greenHi;
@@ -520,11 +510,21 @@ function CommissionerDashboardContent() {
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {user && (
-                <span style={{ ...b, fontSize: '0.78rem', color: textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '16ch' }}>
-                  {user.email}
-                </span>
-              )}
+              <button
+                onClick={() => setCreatePoolDialogOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.3rem',
+                  padding: '0.35rem 0.7rem',
+                  background: green, color: text,
+                  border: 'none', borderRadius: 5,
+                  ...bc, fontWeight: 700, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <Plus style={{ width: 11, height: 11 }} />
+                New Pool
+              </button>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
@@ -662,62 +662,128 @@ function CommissionerDashboardContent() {
             </div>
           )}
 
-          {/* Stats Overview */}
-          <div className="admin-actions-grid" style={{ marginBottom: '2.5rem' }}>
-            {statsCards.map(({ label, value, sub, big, accent }) => (
-              <div key={label} style={{
-                background: card, border: `1px solid ${border}`,
-                borderRadius: 8, padding: '1.1rem 1.25rem',
-              }}>
-                <p style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                  {label}
-                </p>
-                <p style={{ ...bc, fontWeight: 900, fontSize: big ? '2rem' : '1.5rem', color: accent || greenHi, lineHeight: 1.1 }}>
-                  {String(value)}
-                </p>
-                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{sub}</p>
-              </div>
-            ))}
+          {/* Pool Workspace */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>
+              Pool Workspace
+            </p>
+            {availablePools.length > 0 && (
+              <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
+                <SelectTrigger style={{ minWidth: 200, background: card, border: `1px solid ${border}`, color: text, fontSize: '0.78rem' }}>
+                  <SelectValue placeholder="Select a pool" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePools.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          {/* Quick Actions */}
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase', marginBottom: '1rem' }}>
-            Quick Actions
-          </p>
-          <div className="admin-3col-grid" style={{ marginBottom: '2.5rem' }}>
-            {quickActions.map(({ label, icon: Icon, desc, action, btnLabel, disabled }) => (
-              <div key={label} style={{
-                background: card, border: `1px solid ${border}`,
-                borderRadius: 8, padding: '1.1rem 1.25rem',
-                display: 'flex', flexDirection: 'column', gap: '0.75rem',
+          {selectedPool ? (
+            <div style={{ marginBottom: '2.5rem' }}>
+              {/* Pool info card */}
+              <div style={{
+                background: surface,
+                border: `1px solid ${border}`,
+                borderTop: `3px solid ${green}`,
+                borderRadius: 10,
+                padding: '1.25rem 1.5rem',
+                marginBottom: '0.75rem',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Icon style={{ width: 14, height: 14, color: greenHi, flexShrink: 0 }} />
-                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {label}
-                  </p>
+                {/* Top row: pool identity */}
+                <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '1rem', marginBottom: '1rem', borderBottom: `1px solid ${border}` }}>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{selectedPool.name}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Year</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentSeason}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
+                  </div>
                 </div>
-                <p style={{ ...b, fontSize: '0.78rem', color: textMid, flexGrow: 1 }}>{desc}</p>
-                <button
-                  onClick={action}
-                  disabled={disabled}
-                  style={{
-                    padding: '0.5rem 0.9rem',
-                    background: disabled ? 'oklch(20% 0.02 255)' : green,
-                    color: disabled ? textDim : text,
-                    border: `1px solid ${disabled ? border : green}`,
-                    borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.75rem',
-                    letterSpacing: '0.07em', textTransform: 'uppercase',
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    width: '100%',
-                  }}
-                >
-                  {btnLabel}
-                </button>
+                {/* Bottom row: pool stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
+                  {poolStats.map(({ label, value, sub, accent }) => (
+                    <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.875rem 1rem' }}>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: accent, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</p>
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.25rem' }}>{label}</p>
+                      <p style={{ ...b, fontSize: '0.65rem', color: textDim, marginTop: '0.1rem' }}>{sub}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
+
+              {/* Pool actions */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.625rem' }}>
+                {[
+                  { label: 'Pool Management', desc: 'Manage participants, settings, and pool details', href: `/admin/pool/${selectedPoolId}` },
+                  { label: 'Leaderboard',     desc: 'View standings and scores for this pool',        href: `/pool/${selectedPoolId}` },
+                  { label: 'Override Picks',  desc: 'Edit or override participant pick submissions',  href: `/override-picks?poolId=${selectedPoolId}` },
+                  { label: 'Season Review',   desc: 'Review results week by week for this pool',      href: `/season-review/${selectedPoolId}/${currentSeason}` },
+                ].map(({ label, desc, href }) => (
+                  <button
+                    key={label}
+                    onClick={() => router.push(href)}
+                    style={{
+                      background: card,
+                      border: `1px solid ${border}`,
+                      borderRadius: 8,
+                      padding: '1.1rem 1.25rem',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', gap: '0.4rem',
+                      transition: 'border-color 0.15s ease, background 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = green;
+                      (e.currentTarget as HTMLButtonElement).style.background = 'oklch(22% 0.03 255)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+                      (e.currentTarget as HTMLButtonElement).style.background = card;
+                    }}
+                  >
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+                      {label}
+                    </span>
+                    <span style={{ ...b, fontSize: '0.76rem', lineHeight: 1.5, color: textMid }}>
+                      {desc}
+                    </span>
+                    <span style={{ ...bc, fontSize: '0.66rem', fontWeight: 600, color: greenHi, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.2rem' }}>
+                      Open <ChevronRight style={{ width: 10, height: 10 }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center', marginBottom: '2.5rem' }}>
+              <Trophy style={{ width: 24, height: 24, color: textDim, margin: '0 auto 0.75rem' }} />
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.88rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>No Pools Yet</p>
+              <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.35rem' }}>Create a pool to manage it here.</p>
+              <button
+                onClick={() => setCreatePoolDialogOpen(true)}
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.45rem 1.1rem',
+                  background: green, color: text,
+                  border: 'none', borderRadius: 5,
+                  ...bc, fontWeight: 700, fontSize: '0.75rem',
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                }}
+              >
+                <Plus style={{ width: 12, height: 12 }} /> Create First Pool
+              </button>
+            </div>
+          )}
 
           {/* Recent Activity */}
           <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '2rem' }}>

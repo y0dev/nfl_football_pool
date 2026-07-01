@@ -1,13 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Singleton pattern to prevent multiple client instances
-let supabaseClient: SupabaseClient | null = null;
+// Pin singletons to globalThis so Next.js module re-evaluation (HMR, Strict Mode)
+// doesn't create additional GoTrueClient instances in the same browser/process context.
+const g = globalThis as typeof globalThis & {
+  __supabaseClient?: SupabaseClient;
+  __supabaseServiceClient?: SupabaseClient;
+};
 
-// Function to get Supabase client with proper environment variable handling
 export function getSupabaseClient() {
-  if (supabaseClient) {
-    return supabaseClient;
-  }
+  if (g.__supabaseClient) return g.__supabaseClient;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -21,20 +22,13 @@ export function getSupabaseClient() {
     throw new Error('Supabase key is required. Please set NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
   }
 
-  // Use service role key if available (for admin operations), otherwise use anon key
   const key = supabaseServiceKey || supabaseAnonKey!;
-  
-  supabaseClient = createClient(supabaseUrl, key);
-  return supabaseClient;
+  g.__supabaseClient = createClient(supabaseUrl, key);
+  return g.__supabaseClient;
 }
 
-// Function to get Supabase client with service role (for server-side operations that need to bypass RLS)
-let supabaseServiceClient: SupabaseClient | null = null;
-
 export function getSupabaseServiceClient() {
-  if (supabaseServiceClient) {
-    return supabaseServiceClient;
-  }
+  if (g.__supabaseServiceClient) return g.__supabaseServiceClient;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -47,18 +41,13 @@ export function getSupabaseServiceClient() {
     throw new Error('Supabase service role key is required for server operations. Please set NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
   }
 
-  supabaseServiceClient = createClient(supabaseUrl, supabaseServiceKey);
-  return supabaseServiceClient;
+  g.__supabaseServiceClient = createClient(supabaseUrl, supabaseServiceKey);
+  return g.__supabaseServiceClient;
 }
 
-// Create default client for backward compatibility (only in browser environment)
-let supabase: SupabaseClient | null = null;
-
 function getDefaultSupabaseClient() {
-  if (typeof window !== 'undefined' && !supabase) {
-    supabase = getSupabaseClient();
-  }
-  return supabase;
+  if (typeof window !== 'undefined') return getSupabaseClient();
+  return null;
 }
 
 type Database = {
