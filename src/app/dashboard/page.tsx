@@ -96,6 +96,7 @@ function CommissionerDashboardContent() {
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review'>('overview');
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
+  const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -119,6 +120,11 @@ function CommissionerDashboardContent() {
           generateNotifications();
           loadRecentActivity();
           await loadGames();
+
+          fetch(`/api/admin/plan-status?adminId=${user.id}`)
+            .then(r => r.json())
+            .then(d => { if (d.success) setPlanInfo({ plan: d.plan, isTrialActive: d.isTrialActive, daysLeft: d.daysLeft }); })
+            .catch(() => {});
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -591,6 +597,26 @@ function CommissionerDashboardContent() {
           </div>
         </div>
       </nav>
+
+      {/* Plan banner */}
+      {planInfo?.isTrialActive && (
+        <div style={{ background: 'oklch(28% 0.08 60)', borderBottom: `1px solid oklch(40% 0.12 60)` }}>
+          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
+            <p style={{ ...b, fontSize: '0.8rem', color: 'oklch(85% 0.09 60)', margin: 0 }}>
+              <strong style={{ color: amber }}>Standard trial</strong> — {planInfo.daysLeft} day{planInfo.daysLeft !== 1 ? 's' : ''} remaining. After it ends your account reverts to the free tier (1 pool, 15 participants).
+            </p>
+          </div>
+        </div>
+      )}
+      {planInfo && !planInfo.isTrialActive && planInfo.plan === 'free' && (
+        <div style={{ background: 'oklch(20% 0.03 255)', borderBottom: `1px solid ${border}` }}>
+          <div className="lp-inner" style={{ paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
+            <p style={{ ...b, fontSize: '0.8rem', color: textMid, margin: 0 }}>
+              Free plan — limited to 1 pool and 15 participants per pool.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <section style={{

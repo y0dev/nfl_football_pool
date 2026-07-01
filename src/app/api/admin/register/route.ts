@@ -82,6 +82,9 @@ export async function POST(request: NextRequest) {
 
     // Create admin record in admins table using the user's ID
     console.log('Creating admin record...');
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
     const { data: newAdmin, error: createError } = await supabase
       .from('admins')
       .insert({
@@ -91,6 +94,8 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         is_super_admin: false, // Regular commissioner by default
         is_active: true,
+        plan: 'free',
+        trial_ends_at: trialEndsAt.toISOString(),
       })
       .select()
       .single();

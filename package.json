@@ -30,7 +30,8 @@
     "test:install": "playwright install",
     "test:email": "node scripts/test-email.mjs",
     "close-season": "tsx scripts/close-season.ts",
-    "close-season:dry": "tsx scripts/close-season.ts --dry-run"
+    "close-season:dry": "tsx scripts/close-season.ts --dry-run",
+    "migrate-plan": "tsx scripts/add-plan-columns.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

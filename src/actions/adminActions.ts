@@ -374,6 +374,33 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
     const { getSupabaseServiceClient } = await import('@/lib/supabase');
     const supabase = getSupabaseServiceClient();
 
+    // Plan limit check
+    const { data: pool } = await supabase
+      .from('pools')
+      .select('created_by')
+      .eq('id', poolId)
+      .single();
+
+    if (pool?.created_by) {
+      const { getAdminPlanByEmail, LIMITS } = await import('@/lib/plan');
+      const planInfo = await getAdminPlanByEmail(pool.created_by);
+      const participantLimit = LIMITS[planInfo.plan].participants;
+
+      if (participantLimit !== Infinity) {
+        const { count: participantCount } = await supabase
+          .from('participants')
+          .select('*', { count: 'exact', head: true })
+          .eq('pool_id', poolId)
+          .eq('is_active', true);
+
+        if ((participantCount ?? 0) >= participantLimit) {
+          throw new Error(
+            `Your ${planInfo.plan} plan allows up to ${participantLimit} participants per pool. Upgrade to add more.`
+          );
+        }
+      }
+    }
+
     // Check if participant already exists in this pool
     const { data: existingParticipant, error: checkError } = await supabase
       .from('participants')

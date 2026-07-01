@@ -82,6 +82,9 @@ function CallbackContent() {
         }
 
         if (next === 'register') {
+          const trialEndsAt = new Date();
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
           const { data: newAdmin, error: createError } = await serviceClient
             .from('admins')
             .insert({
@@ -90,6 +93,8 @@ function CallbackContent() {
               full_name: fullName,
               is_super_admin: false,
               is_active: true,
+              plan: 'free',
+              trial_ends_at: trialEndsAt.toISOString(),
             })
             .select('id, email, full_name, is_super_admin')
             .single();
