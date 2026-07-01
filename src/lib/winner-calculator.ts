@@ -164,22 +164,26 @@ export async function getOrCalculateSeasonWinners(
       return existingWinner;
     }
 
-    // Check if all weeks in the season are completed
-    const { data: weeklyWinners, error: weeklyError } = await supabase
-      .from('weekly_winners')
-      .select('week')
-      .eq('pool_id', poolId)
-      .eq('season', season);
+    // Check if all regular season games are finished before declaring a season winner.
+    // For pools created mid-season, weekly_winner rows won't exist for pre-creation weeks,
+    // so we gate on game completion rather than weekly_winner row count.
+    const { data: regularSeasonGames, error: rsGamesError } = await supabase
+      .from('games')
+      .select('status')
+      .eq('season', season)
+      .eq('season_type', 2); // regular season
 
-    if (weeklyError) {
-      console.error('Error checking weekly winners:', weeklyError);
+    if (rsGamesError || !regularSeasonGames || regularSeasonGames.length === 0) {
+      console.log(`No regular season games found for season ${season}`);
       return null;
     }
 
-    // For now, let's assume we need at least 4 weeks to calculate season winner
-    // You can adjust this logic based on your season structure
-    if (!weeklyWinners || weeklyWinners.length < 4) {
-      console.log(`Not enough weeks completed for season ${season}. Need at least 4 weeks.`);
+    const allRegularSeasonFinished = regularSeasonGames.every(g =>
+      g.status === 'final' || g.status === 'post' || g.status === 'cancelled'
+    );
+
+    if (!allRegularSeasonFinished) {
+      console.log(`Regular season not complete yet for season ${season}. Cannot calculate season winner.`);
       return null;
     }
 
@@ -226,23 +230,26 @@ export async function getOrCalculatePeriodWinners(
       return existingWinner;
     }
 
-    // Check if all weeks in the period are completed
-    const { data: weeklyWinners, error: weeklyError } = await supabase
-      .from('weekly_winners')
-      .select('week')
-      .eq('pool_id', poolId)
-      .eq('season', season)
+    // Check if all NFL games in the period range are finished.
+    // Pools created mid-season won't have weekly_winner records for pre-creation weeks,
+    // so we gate on game completion rather than weekly_winner row count.
+    const { data: periodGames, error: gamesCheckError } = await supabase
+      .from('games')
+      .select('week, status')
       .gte('week', startWeek)
       .lte('week', endWeek);
 
-    if (weeklyError) {
-      console.error('Error checking weekly winners for period:', weeklyError);
+    if (gamesCheckError || !periodGames || periodGames.length === 0) {
+      console.log(`No games found for period ${periodName} (weeks ${startWeek}-${endWeek})`);
       return null;
     }
 
-    const expectedWeeks = endWeek - startWeek + 1;
-    if (!weeklyWinners || weeklyWinners.length < expectedWeeks) {
-      console.log(`Not all weeks completed for period ${periodName} (weeks ${startWeek}-${endWeek}). Need ${expectedWeeks} weeks.`);
+    const allPeriodGamesFinished = periodGames.every(g =>
+      g.status === 'final' || g.status === 'post' || g.status === 'cancelled'
+    );
+
+    if (!allPeriodGamesFinished) {
+      console.log(`Not all games finished for period ${periodName} (weeks ${startWeek}-${endWeek}). Cannot calculate winners yet.`);
       return null;
     }
 

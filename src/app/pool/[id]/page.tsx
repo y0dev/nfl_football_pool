@@ -19,6 +19,8 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
+import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -49,13 +51,14 @@ interface Pool {
 }
 
 const TABS = [
-  { id: 'participants',  label: 'Participants',  icon: Users },
-  { id: 'links',         label: 'Links',         icon: ExternalLink },
-  { id: 'emails',        label: 'Emails',        icon: Mail },
-  { id: 'playoffs',      label: 'Playoffs',      icon: Trophy },
-  { id: 'season-review', label: 'Season Review', icon: Calendar },
-  { id: 'export',        label: 'Export',        icon: Download },
-  { id: 'settings',      label: 'Settings',      icon: Settings },
+  { id: 'participants',    label: 'Participants',    icon: Users },
+  { id: 'links',           label: 'Links',           icon: ExternalLink },
+  { id: 'emails',          label: 'Emails',          icon: Mail },
+  { id: 'playoffs',        label: 'Playoffs',        icon: Trophy },
+  { id: 'override-picks',  label: 'Override Picks',  icon: BarChart3 },
+  { id: 'season-review',   label: 'Season Review',   icon: Calendar },
+  { id: 'export',          label: 'Export',          icon: Download },
+  { id: 'settings',        label: 'Settings',        icon: Settings },
   ...(process.env.NODE_ENV === 'development' ? [{ id: 'test-picks', label: 'Test Picks', icon: BarChart3 }] : []),
 ];
 
@@ -345,21 +348,14 @@ function PoolDetailsContent() {
             </div>
           )}
 
+          {/* Override Picks */}
+          {activeTab === 'override-picks' && (
+            <OverridePicksPanel poolId={pool.id} poolName={pool.name} currentSeason={pool.season} />
+          )}
+
           {/* Season Review */}
           {activeTab === 'season-review' && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center' }}>
-              <Trophy style={{ width: 40, height: 40, color: gold, margin: '0 auto 1rem' }} />
-              <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Season Review</h3>
-              <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.5rem' }}>
-                View comprehensive statistics and achievements for the {pool.season} season
-              </p>
-              <button
-                onClick={() => router.push(`/season-review/${pool.id}/${pool.season}`)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.6rem 1.1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-              >
-                <Trophy style={{ width: 13, height: 13 }} /> View Season Review
-              </button>
-            </div>
+            <SeasonReviewPanel poolId={pool.id} season={pool.season} />
           )}
 
           {/* Emails */}
@@ -413,7 +409,7 @@ function PoolDetailsContent() {
 export default function PoolDetailsPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <AdminGuard requireSuperAdmin>
         <PoolDetailsContent />
       </AdminGuard>
     </AuthProvider>

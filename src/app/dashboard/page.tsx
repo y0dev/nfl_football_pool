@@ -12,7 +12,10 @@ import {
   Clock,
   AlertTriangle,
   RefreshCw,
-  ChevronRight,
+  Users,
+  Edit,
+  Calendar,
+  BarChart3,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -26,6 +29,9 @@ import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
+import { ParticipantManagement } from '@/components/admin/participant-management';
+import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
+import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -85,6 +91,11 @@ function CommissionerDashboardContent() {
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
   const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
+  const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
+  const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
+  const [weekGamesCount, setWeekGamesCount] = useState(0);
+  const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review'>('overview');
+  const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -167,7 +178,10 @@ function CommissionerDashboardContent() {
   }, [currentWeek, currentSeasonType]);
 
   useEffect(() => {
-    if (selectedPoolId) loadSelectedPoolStats(selectedPoolId);
+    if (selectedPoolId) {
+      setActivePoolTab('overview');
+      loadSelectedPoolStats(selectedPoolId);
+    }
   }, [selectedPoolId, currentWeek, currentSeasonType]);
 
   const loadDashboardStats = async () => {
@@ -215,39 +229,80 @@ function CommissionerDashboardContent() {
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
 
-      const { count: participantCount } = await supabase
-        .from('participants')
-        .select('id', { count: 'exact', head: true })
-        .eq('pool_id', poolId)
-        .eq('is_active', true);
+      // Parallel: participant list + current week games
+      const [{ data: allParticipants }, { data: weekGames }] = await Promise.all([
+        supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
+        supabase.from('games').select('id').eq('week', currentWeek).eq('season_type', currentSeasonType),
+      ]);
 
-      const total = participantCount ?? 0;
-
-      const { data: weekGames } = await supabase
-        .from('games')
-        .select('id')
-        .eq('week', currentWeek)
-        .eq('season_type', currentSeasonType);
-
+      const total = allParticipants?.length ?? 0;
       const gameIds = weekGames?.map(g => g.id) ?? [];
+      setWeekGamesCount(gameIds.length);
 
-      if (gameIds.length === 0) {
-        setSelectedPoolStats({ participants: total, completed: 0, pending: total, completionRate: 0 });
-        return;
+      let submittedIds = new Set<string>();
+      if (gameIds.length > 0) {
+        const { data: picks } = await supabase
+          .from('picks')
+          .select('participant_id')
+          .eq('pool_id', poolId)
+          .in('game_id', gameIds);
+        submittedIds = new Set((picks ?? []).map(p => p.participant_id));
       }
 
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('participant_id')
-        .eq('pool_id', poolId)
-        .in('game_id', gameIds);
-
-      const submittedIds = new Set((picks ?? []).map(p => p.participant_id));
       const completed = submittedIds.size;
       const pending = Math.max(0, total - completed);
       const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-
       setSelectedPoolStats({ participants: total, completed, pending, completionRate });
+
+      // Missing participants for this week
+      setMissingParticipants(
+        (allParticipants ?? []).filter(p => !submittedIds.has(p.id))
+      );
+
+      // Pool leader — season total from scores table
+      const { data: seasonScores } = await supabase
+        .from('scores')
+        .select('participant_id, points, correct_picks')
+        .eq('pool_id', poolId)
+        .eq('season', currentSeason);
+
+      if (seasonScores && seasonScores.length > 0) {
+        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
+        seasonScores.forEach(s => {
+          const e = totalsMap.get(s.participant_id);
+          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
+          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
+        });
+        let leaderId = '';
+        let leaderPts = -1;
+        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
+        if (leaderId) {
+          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
+          const ld = totalsMap.get(leaderId)!;
+          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
+        } else {
+          setPoolLeader(null);
+        }
+        // Build ranked leaderboard
+        const ranked = [...totalsMap.entries()]
+          .map(([id, { points, correctPicks }]) => ({
+            participantId: id,
+            name: (allParticipants ?? []).find(p => p.id === id)?.name ?? 'Unknown',
+            points,
+            correctPicks,
+          }))
+          .sort((a, b) => b.points - a.points);
+        setLeaderboardEntries(ranked);
+      } else if (allParticipants && allParticipants.length > 0) {
+        // No scores yet — show first participant at 0
+        setPoolLeader({ name: allParticipants[0].name, points: 0, correctPicks: 0 });
+        setLeaderboardEntries(
+          (allParticipants ?? []).map(p => ({ participantId: p.id, name: p.name, points: 0, correctPicks: 0 }))
+        );
+      } else {
+        setPoolLeader(null);
+        setLeaderboardEntries([]);
+      }
     } catch (error) {
       console.error('Error loading pool stats:', error);
     }
@@ -264,57 +319,58 @@ function CommissionerDashboardContent() {
       const now = new Date();
       const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const { data: pools } = await supabase
+      // Get all pools this commissioner manages
+      const { data: commissionerPools } = await supabase
         .from('pools')
         .select('id, name, created_at')
         .eq('created_by', user.email)
-        .gte('created_at', last30Days)
-        .order('created_at', { ascending: false })
-        .limit(3);
+        .order('created_at', { ascending: false });
 
-      if (pools) {
-        pools.forEach(pool => {
-          activities.push({
-            type: 'pool_created' as const,
-            description: `Created new pool "${pool.name}"`,
-            timestamp: pool.created_at,
-            pool_name: pool.name
-          });
+      const commissionerPoolIds = commissionerPools?.map(p => p.id) ?? [];
+
+      // Pool creation events (last 30 days only)
+      const recentPools = commissionerPools?.filter(p => p.created_at >= last30Days) ?? [];
+      recentPools.slice(0, 3).forEach(pool => {
+        activities.push({
+          type: 'pool_created' as const,
+          description: `Created new pool "${pool.name}"`,
+          timestamp: pool.created_at,
+          pool_name: pool.name,
         });
+      });
+
+      if (commissionerPoolIds.length === 0) {
+        setRecentActivity(activities);
+        return;
       }
 
+      const poolNameMap = new Map(commissionerPools?.map(p => [p.id, p.name]) || []);
+
+      // Participants who joined this commissioner's pools in the last 30 days
       const { data: participants } = await supabase
         .from('participants')
         .select('id, name, created_at, pool_id')
+        .in('pool_id', commissionerPoolIds)
         .eq('is_active', true)
         .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (participants) {
-        const poolIds = [...new Set(participants.map(p => p.pool_id))];
-        const { data: poolNames } = await supabase
-          .from('pools')
-          .select('id, name')
-          .in('id', poolIds);
-
-        const poolNameMap = new Map(poolNames?.map(p => [p.id, p.name]) || []);
-
-        participants.forEach(participant => {
-          const poolName = poolNameMap.get(participant.pool_id) || 'Unknown Pool';
-          activities.push({
-            type: 'participant_joined' as const,
-            description: `${participant.name || 'New Participant'} joined "${poolName}"`,
-            timestamp: participant.created_at,
-            participant_name: participant.name || 'New Participant',
-            pool_name: poolName
-          });
+      participants?.forEach(participant => {
+        activities.push({
+          type: 'participant_joined' as const,
+          description: `${participant.name || 'New Participant'} joined "${poolNameMap.get(participant.pool_id) || 'Unknown Pool'}"`,
+          timestamp: participant.created_at,
+          participant_name: participant.name || 'New Participant',
+          pool_name: poolNameMap.get(participant.pool_id),
         });
-      }
+      });
 
+      // Pick submissions in this commissioner's pools in the last 30 days
       const { data: picks } = await supabase
         .from('picks')
         .select('created_at, participant_id, pool_id')
+        .in('pool_id', commissionerPoolIds)
         .gte('created_at', last30Days)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -322,38 +378,27 @@ function CommissionerDashboardContent() {
       if (picks && picks.length > 0) {
         const poolSubmissions = new Map<string, Set<string>>();
         picks.forEach(pick => {
-          if (!poolSubmissions.has(pick.pool_id)) {
-            poolSubmissions.set(pick.pool_id, new Set());
-          }
+          if (!poolSubmissions.has(pick.pool_id)) poolSubmissions.set(pick.pool_id, new Set());
           poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
         });
 
-        const pickPoolIds = [...new Set(picks.map(p => p.pool_id))];
-        const { data: pickPoolNames } = await supabase
-          .from('pools')
-          .select('id, name')
-          .in('id', pickPoolIds);
-
-        const pickPoolNameMap = new Map(pickPoolNames?.map(p => [p.id, p.name]) || []);
-
-        poolSubmissions.forEach((participants, poolId) => {
-          const poolName = pickPoolNameMap.get(poolId) || 'Unknown Pool';
-          const participantCount = participants.size;
-          if (participantCount > 0) {
+        poolSubmissions.forEach((submitters, poolId) => {
+          const count = submitters.size;
+          if (count > 0) {
             activities.push({
               type: 'picks_submitted' as const,
-              description: `${participantCount} participant${participantCount !== 1 ? 's' : ''} submitted picks for "${poolName}"`,
-              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString()
+              description: `${count} participant${count !== 1 ? 's' : ''} submitted picks for "${poolNameMap.get(poolId) || 'Unknown Pool'}"`,
+              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString(),
             });
           }
         });
       }
 
-      const sortedActivities = activities
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 5);
-
-      setRecentActivity(sortedActivities);
+      setRecentActivity(
+        activities
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 5)
+      );
     } catch (error) {
       console.error('Error loading recent activity:', error);
       setRecentActivity([]);
@@ -693,7 +738,10 @@ function CommissionerDashboardContent() {
                 marginBottom: '0.75rem',
               }}>
                 {/* Top row: pool identity */}
-                <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '1rem', marginBottom: '1rem', borderBottom: `1px solid ${border}` }}>
+                <div
+                  className='pool-identity'
+                  style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '1rem', marginBottom: '1rem', borderBottom: `1px solid ${border}` }}
+                >
                   <div>
                     <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
                     <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{selectedPool.name}</p>
@@ -719,48 +767,133 @@ function CommissionerDashboardContent() {
                 </div>
               </div>
 
-              {/* Pool actions */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.625rem' }}>
-                {[
-                  { label: 'Pool Management', desc: 'Manage participants, settings, and pool details', href: `/admin/pool/${selectedPoolId}` },
-                  { label: 'Leaderboard',     desc: 'View standings and scores for this pool',        href: `/pool/${selectedPoolId}` },
-                  { label: 'Override Picks',  desc: 'Edit or override participant pick submissions',  href: `/override-picks?poolId=${selectedPoolId}` },
-                  { label: 'Season Review',   desc: 'Review results week by week for this pool',      href: `/season-review/${selectedPoolId}/${currentSeason}` },
-                ].map(({ label, desc, href }) => (
-                  <button
-                    key={label}
-                    onClick={() => router.push(href)}
-                    style={{
-                      background: card,
-                      border: `1px solid ${border}`,
-                      borderRadius: 8,
-                      padding: '1.1rem 1.25rem',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex', flexDirection: 'column', gap: '0.4rem',
-                      transition: 'border-color 0.15s ease, background 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = green;
-                      (e.currentTarget as HTMLButtonElement).style.background = 'oklch(22% 0.03 255)';
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = border;
-                      (e.currentTarget as HTMLButtonElement).style.background = card;
-                    }}
-                  >
-                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-                      {label}
-                    </span>
-                    <span style={{ ...b, fontSize: '0.76rem', lineHeight: 1.5, color: textMid }}>
-                      {desc}
-                    </span>
-                    <span style={{ ...bc, fontSize: '0.66rem', fontWeight: 600, color: greenHi, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.2rem' }}>
-                      Open <ChevronRight style={{ width: 10, height: 10 }} />
-                    </span>
-                  </button>
-                ))}
+              {/* Pool tab bar */}
+              <div style={{ background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', overflowX: 'auto', marginBottom: '0.75rem' }} className="hide-scrollbar">
+                {([
+                  { id: 'overview',       label: 'Overview',       icon: TrendingUp },
+                  { id: 'players',        label: 'Players',        icon: Users },
+                  { id: 'leaderboard',    label: 'Leaderboard',    icon: BarChart3 },
+                  { id: 'override-picks', label: 'Override Picks', icon: Edit },
+                  { id: 'season-review',  label: 'Season Review',  icon: Calendar },
+                ] as const).map(({ id, label, icon: Icon }) => {
+                  const active = activePoolTab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActivePoolTab(id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.3rem',
+                        padding: '0.45rem 0.75rem', flexShrink: 0,
+                        background: active ? green : 'transparent',
+                        color: active ? text : textMid,
+                        border: `1px solid ${active ? green : 'transparent'}`,
+                        borderRadius: 6, cursor: 'pointer',
+                        ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                      }}
+                    >
+                      <Icon style={{ width: 13, height: 13 }} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
               </div>
+
+              {/* Overview tab */}
+              {activePoolTab === 'overview' && (
+                <>
+                  {poolLeader && (
+                    <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderLeft: `4px solid ${gold}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'oklch(74% 0.16 72 / 0.18)', border: `1px solid oklch(74% 0.16 72 / 0.45)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Trophy style={{ width: 18, height: 18, color: gold }} />
+                      </div>
+                      <div>
+                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool Leader</p>
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.02em' }}>
+                          {poolLeader.name}
+                          <span style={{ color: textMid, fontWeight: 600, fontSize: '0.9rem' }}>{' '}· {poolLeader.points} pts</span>
+                        </p>
+                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>
+                          {poolLeader.correctPicks} correct pick{poolLeader.correctPicks !== 1 ? 's' : ''} this season
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {currentSeasonType !== 0 && missingParticipants.length > 0 && (
+                    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                        <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
+                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing Picks — Week {currentWeek}</p>
+                        <span style={{ marginLeft: 'auto', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.15rem 0.5rem' }}>
+                          {missingParticipants.length} pending
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+                        {missingParticipants.map(p => (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.55rem 0.75rem' }}>
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'oklch(72% 0.16 60 / 0.15)', border: '1px solid oklch(72% 0.16 60 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 800, fontSize: '0.72rem', color: amber }}>
+                              {p.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
+                    <div style={{ background: 'oklch(18% 0.04 155)', border: `1px solid oklch(32% 0.1 155)`, borderRadius: 10, padding: '0.875rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        All picks submitted for Week {currentWeek}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Players tab */}
+              {activePoolTab === 'players' && selectedPool && (
+                <ParticipantManagement poolId={selectedPoolId} poolName={selectedPool.name} />
+              )}
+
+              {/* Leaderboard tab */}
+              {activePoolTab === 'leaderboard' && (
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                    <Trophy style={{ width: 16, height: 16, color: gold }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Season Standings</p>
+                  </div>
+                  {leaderboardEntries.length === 0 ? (
+                    <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {leaderboardEntries.map((entry, index) => (
+                        <div key={entry.participantId} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
+                          <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: index === 0 ? 'oklch(74% 0.16 72 / 0.18)' : 'oklch(26% 0.03 255)', color: index === 0 ? gold : textDim, border: `1px solid ${index === 0 ? 'oklch(74% 0.16 72 / 0.4)' : border}` }}>
+                            {index + 1}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{entry.name}</p>
+                            <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>{entry.correctPicks} correct picks</p>
+                          </div>
+                          <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: index === 0 ? gold : greenHi, letterSpacing: '0.02em' }}>
+                            {entry.points} <span style={{ ...b, fontWeight: 400, fontSize: '0.72rem', color: textDim }}>pts</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Override Picks tab */}
+              {activePoolTab === 'override-picks' && selectedPool && (
+                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={currentSeason} />
+              )}
+
+              {/* Season Review tab */}
+              {activePoolTab === 'season-review' && (
+                <SeasonReviewPanel poolId={selectedPoolId} season={currentSeason} />
+              )}
             </div>
           ) : (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center', marginBottom: '2.5rem' }}>
