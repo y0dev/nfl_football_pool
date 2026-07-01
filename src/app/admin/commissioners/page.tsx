@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   ArrowLeft, Search, Users, Eye, EyeOff,
-  RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle,
+  RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle, Zap,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -56,6 +56,16 @@ function CommissionersManagementContent() {
   const [showPassword, setShowPassword]               = useState(false);
   const [passwordError, setPasswordError]             = useState('');
 
+  // Plan upgrade
+  const [planOpen, setPlanOpen]         = useState(false);
+  const [planTarget, setPlanTarget]     = useState<AdminUser | null>(null);
+  const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [planSelected, setPlanSelected] = useState<'free' | 'standard' | 'pro'>('free');
+  const [planTrialDays, setPlanTrialDays] = useState(0);
+  const [planFetching, setPlanFetching] = useState(false);
+  const [planSaving, setPlanSaving]     = useState(false);
+  const [planError, setPlanError]       = useState('');
+
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
     if (!q) return commissioners;
@@ -93,6 +103,46 @@ function CommissionersManagementContent() {
     setIsLoggingOut(true);
     try { await signOut(); router.push('/admin/login'); }
     catch { setIsLoggingOut(false); }
+  };
+
+  const handleOpenPlan = async (c: AdminUser) => {
+    setPlanTarget(c);
+    setPlanCurrent(null);
+    setPlanSelected('free');
+    setPlanTrialDays(0);
+    setPlanError('');
+    setPlanOpen(true);
+    setPlanFetching(true);
+    try {
+      const res = await fetch(`/api/admin/plan-status?adminId=${c.id}`);
+      const data = await res.json();
+      if (data.success) {
+        setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft });
+        setPlanSelected(data.plan as 'free' | 'standard' | 'pro');
+      }
+    } catch { /* ignore */ } finally {
+      setPlanFetching(false);
+    }
+  };
+
+  const handleUpdatePlan = async () => {
+    if (!planTarget) return;
+    setPlanSaving(true);
+    setPlanError('');
+    try {
+      const res = await fetch('/api/super-admin/update-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: planTarget.id, plan: planSelected, trialDays: planTrialDays }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update plan');
+      setPlanOpen(false);
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : 'Failed to update plan');
+    } finally {
+      setPlanSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -219,6 +269,12 @@ function CommissionersManagementContent() {
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <button
+                      onClick={() => handleOpenPlan(c)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'oklch(46% 0.14 155 / 0.12)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                    >
+                      <Zap style={{ width: 11, height: 11 }} /> Upgrade Plan
+                    </button>
+                    <button
                       onClick={() => { setSelected(c); setResetOpen(true); }}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                     >
@@ -278,6 +334,121 @@ function CommissionersManagementContent() {
       </section>
 
       <Footer pageName="Commissioner HQ" />
+
+      {/* Plan Upgrade Dialog */}
+      <Dialog open={planOpen} onOpenChange={(o) => { setPlanOpen(o); if (!o) { setPlanTarget(null); setPlanCurrent(null); setPlanError(''); } }}>
+        <DialogContent style={{ maxWidth: '26rem', background: card, border: `1px solid ${border}` }}>
+          <DialogHeader>
+            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Zap style={{ width: 15, height: 15, color: greenHi }} /> Upgrade Plan
+            </DialogTitle>
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              {planTarget?.name || planTarget?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', paddingTop: '0.25rem' }}>
+
+            {/* Current status */}
+            {planFetching ? (
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading current plan…</p>
+            ) : planCurrent && (
+              <div style={{ padding: '0.65rem 0.875rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 7 }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Plan</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: planCurrent.plan === 'pro' ? greenHi : planCurrent.plan === 'standard' ? gold : textMid, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {planCurrent.plan}
+                  </span>
+                  {planCurrent.isTrialActive && (
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, color: gold, background: 'oklch(74% 0.16 72 / 0.12)', border: `1px solid oklch(74% 0.16 72 / 0.35)`, padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Trial · {planCurrent.daysLeft}d left
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Plan selector */}
+            <div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Set Plan</p>
+              <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem' }}>
+                {(['free', 'standard', 'pro'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlanSelected(p)}
+                    style={{
+                      flex: 1, padding: '0.4rem 0.5rem',
+                      background: planSelected === p
+                        ? p === 'pro' ? green : p === 'standard' ? 'oklch(74% 0.16 72 / 0.2)' : 'oklch(30% 0.03 255)'
+                        : 'transparent',
+                      color: planSelected === p
+                        ? p === 'pro' ? text : p === 'standard' ? gold : textMid
+                        : textDim,
+                      border: `1px solid ${planSelected === p
+                        ? p === 'pro' ? green : p === 'standard' ? 'oklch(74% 0.16 72 / 0.5)' : border
+                        : 'transparent'}`,
+                      borderRadius: 4,
+                      ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
+                {planSelected === 'free' && '1 pool · 15 participants per pool'}
+                {planSelected === 'standard' && '1 pool · 30 participants per pool'}
+                {planSelected === 'pro' && '3 pools · 75 participants per pool'}
+              </p>
+            </div>
+
+            {/* Trial extension */}
+            <div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                Grant Trial Days <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={365}
+                  value={planTrialDays}
+                  onChange={e => setPlanTrialDays(Math.max(0, parseInt(e.target.value) || 0))}
+                  style={{ ...b, background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, color: text, padding: '0.45rem 0.65rem', borderRadius: 6, fontSize: '0.875rem', width: '5rem', textAlign: 'center' }}
+                />
+                <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>days from today</span>
+              </div>
+              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.35rem' }}>
+                {planTrialDays > 0
+                  ? `Trial grants Standard access for ${planTrialDays} days, regardless of plan setting above.`
+                  : 'Leave at 0 to keep existing trial date unchanged.'}
+              </p>
+            </div>
+
+            {planError && (
+              <p style={{ ...b, fontSize: '0.78rem', color: liveRed, background: `oklch(62% 0.22 25 / 0.08)`, border: `1px solid oklch(62% 0.22 25 / 0.3)`, borderRadius: 5, padding: '0.4rem 0.65rem' }}>
+                {planError}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button onClick={() => setPlanOpen(false)} style={{ padding: '0.45rem 0.875rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: textMid, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdatePlan}
+                disabled={planSaving || planFetching}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: planSaving || planFetching ? border : green, color: planSaving || planFetching ? textDim : text, border: 'none', borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: planSaving || planFetching ? 'not-allowed' : 'pointer' }}
+              >
+                <Zap style={{ width: 12, height: 12 }} />
+                {planSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) { setNewPassword(''); setSelected(null); setPasswordError(''); } }}>

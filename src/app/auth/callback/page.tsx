@@ -42,6 +42,7 @@ function CallbackContent() {
 
         const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
         if (sessionError || !sessionData.session) {
+          console.error('[auth/callback] exchangeCodeForSession error:', sessionError);
           setErrorMsg('Failed to complete Google sign-in. Please try again.');
           setStatus('error');
           return;
@@ -81,6 +82,9 @@ function CallbackContent() {
         }
 
         if (next === 'register') {
+          const trialEndsAt = new Date();
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
           const { data: newAdmin, error: createError } = await serviceClient
             .from('admins')
             .insert({
@@ -89,6 +93,8 @@ function CallbackContent() {
               full_name: fullName,
               is_super_admin: false,
               is_active: true,
+              plan: 'free',
+              trial_ends_at: trialEndsAt.toISOString(),
             })
             .select('id, email, full_name, is_super_admin')
             .single();

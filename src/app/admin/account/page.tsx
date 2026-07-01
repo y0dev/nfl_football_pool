@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl } from '@/lib/utils';
 
@@ -57,6 +57,16 @@ function PasswordInput({ value, onChange, placeholder, autoComplete }: { value: 
 function AccountSettingsContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+
+  const [isOAuthAccount, setIsOAuthAccount] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/admin/account-type?adminId=${user.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setIsOAuthAccount(d.isOAuth); })
+      .catch(() => setIsOAuthAccount(false));
+  }, [user?.id]);
 
   // Change password
   const [currentPw, setCurrentPw] = useState('');
@@ -193,39 +203,48 @@ function AccountSettingsContent() {
               <KeyRound style={{ width: 15, height: 15, color: greenHi }} />
               <p style={sectionTitle}>Change Password</p>
             </div>
-            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={labelSt}>Current Password</label>
-                <PasswordInput value={currentPw} onChange={setCurrentPw} placeholder="Enter current password" autoComplete="current-password" />
+            {isOAuthAccount ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.9rem 1rem', background: 'oklch(26% 0.03 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
+                <Info style={{ width: 15, height: 15, color: textDim, flexShrink: 0, marginTop: 1 }} />
+                <p style={{ ...b, fontSize: '0.83rem', color: textMid, margin: 0, lineHeight: 1.5 }}>
+                  Password changes are not available for Google sign-in accounts. Your account is managed through Google.
+                </p>
               </div>
-              <div>
-                <label style={labelSt}>New Password</label>
-                <PasswordInput value={newPw} onChange={setNewPw} placeholder="At least 8 characters" autoComplete="new-password" />
-              </div>
-              <div>
-                <label style={labelSt}>Confirm New Password</label>
-                <PasswordInput value={confirmPw} onChange={setConfirmPw} placeholder="Repeat new password" autoComplete="new-password" />
-              </div>
-
-              {pwError && (
-                <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(62% 0.22 25 / 0.1)', border: `1px solid oklch(62% 0.22 25 / 0.4)`, borderRadius: 6 }}>
-                  <p style={{ ...b, fontSize: '0.8rem', color: errRed }}>{pwError}</p>
+            ) : (
+              <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={labelSt}>Current Password</label>
+                  <PasswordInput value={currentPw} onChange={setCurrentPw} placeholder="Enter current password" autoComplete="current-password" />
                 </div>
-              )}
-              {pwSuccess && (
-                <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6 }}>
-                  <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>{pwSuccess}</p>
+                <div>
+                  <label style={labelSt}>New Password</label>
+                  <PasswordInput value={newPw} onChange={setNewPw} placeholder="At least 8 characters" autoComplete="new-password" />
                 </div>
-              )}
+                <div>
+                  <label style={labelSt}>Confirm New Password</label>
+                  <PasswordInput value={confirmPw} onChange={setConfirmPw} placeholder="Repeat new password" autoComplete="new-password" />
+                </div>
 
-              <button
-                type="submit"
-                disabled={pwLoading || !currentPw || !newPw || !confirmPw}
-                style={{ padding: '0.65rem 1.25rem', background: pwLoading || !currentPw || !newPw || !confirmPw ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: pwLoading || !currentPw || !newPw || !confirmPw ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}
-              >
-                {pwLoading ? 'Updating…' : 'Update Password'}
-              </button>
-            </form>
+                {pwError && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(62% 0.22 25 / 0.1)', border: `1px solid oklch(62% 0.22 25 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: errRed }}>{pwError}</p>
+                  </div>
+                )}
+                {pwSuccess && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>{pwSuccess}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={pwLoading || !currentPw || !newPw || !confirmPw}
+                  style={{ padding: '0.65rem 1.25rem', background: pwLoading || !currentPw || !newPw || !confirmPw ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: pwLoading || !currentPw || !newPw || !confirmPw ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}
+                >
+                  {pwLoading ? 'Updating…' : 'Update Password'}
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Danger zone */}

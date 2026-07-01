@@ -2,6 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { getAdminPlanByEmail, LIMITS } from '@/lib/plan';
 
 export async function createPool(poolData: {
   name: string;
@@ -14,6 +15,19 @@ export async function createPool(poolData: {
 }) {
   try {
     const supabase = getSupabaseServiceClient();
+
+    const planInfo = await getAdminPlanByEmail(poolData.created_by);
+    const poolLimit = LIMITS[planInfo.plan].pools;
+    const { count: poolCount } = await supabase
+      .from('pools')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', poolData.created_by);
+
+    if ((poolCount ?? 0) >= poolLimit) {
+      throw new Error(
+        `Your ${planInfo.plan} plan allows ${poolLimit} pool${poolLimit === 1 ? '' : 's'}. Upgrade to create more.`
+      );
+    }
     const { data, error } = await supabase
       .from('pools')
       .insert({

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createPool } from '@/actions/createPool';
+import { addParticipantToPool } from '@/actions/adminActions';
 import { useAuth } from '@/lib/auth';
 import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS } from '@/lib/utils';
 
@@ -45,6 +46,7 @@ interface CreatePoolDialogProps {
 export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [includeSelf, setIncludeSelf] = useState(false);
   const { user } = useAuth();
 
   const form = useForm<PoolFormData>({
@@ -58,7 +60,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     setErrorMsg('');
     try {
       const scopeOption = SEASON_SCOPE_OPTIONS.find(o => o.value === data.season_scope);
-      await createPool({
+      const pool = await createPool({
         name: data.name,
         created_by: user.email || '',
         season: data.season,
@@ -67,12 +69,22 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         join_password: data.join_password || undefined,
         is_private: data.is_private,
       });
+
+      if (includeSelf && pool?.id && user.email) {
+        try {
+          await addParticipantToPool(pool.id, user.full_name || user.email, user.email);
+        } catch (selfError) {
+          console.warn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
+        }
+      }
+
       onPoolCreated();
       onOpenChange(false);
       form.reset();
+      setIncludeSelf(false);
     } catch (error) {
       console.error('Failed to create pool:', error);
-      setErrorMsg('Failed to create pool. Please try again.');
+      setErrorMsg(error instanceof Error ? error.message : 'Failed to create pool. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -222,6 +234,22 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                 </FormItem>
               )}
             />
+
+            {/* Include self as participant */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={includeSelf}
+                onChange={e => setIncludeSelf(e.target.checked)}
+                style={{ marginTop: 3, flexShrink: 0, accentColor: green, width: 14, height: 14 }}
+              />
+              <div>
+                <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>Add myself as a participant</span>
+                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem', margin: 0 }}>
+                  Your name and email will be added to this pool automatically.
+                </p>
+              </div>
+            </label>
 
             {errorMsg && (
               <p style={{ ...b, fontSize: '0.8rem', color: red, padding: '0.5rem 0.75rem', background: `${red}18`, border: `1px solid ${red}44`, borderRadius: 6 }}>{errorMsg}</p>
