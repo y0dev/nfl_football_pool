@@ -279,46 +279,51 @@ function formatTime(date: string | Date) {
  * and to validate team names and abbreviations in the database
  */
 export const NFL_TEAMS = [
-  { name: 'Arizona Cardinals', abbreviation: 'ARI', conference: 'NFC' , division: 'West' },
-  { name: 'Los Angeles Rams', abbreviation: 'LAR', conference: 'NFC' , division: 'West'},
-  { name: 'San Francisco 49ers', abbreviation: 'SF', conference: 'NFC' , division: 'West'},
-  { name: 'Seattle Seahawks', abbreviation: 'SEA', conference: 'NFC' , division: 'West'},
+  { name: 'Arizona Cardinals',    city: 'Arizona',       abbreviation: 'ARI', conference: 'NFC', division: 'West',  color: '#97233F', color2: '#000000' },
+  { name: 'Los Angeles Rams',     city: 'Los Angeles',   abbreviation: 'LAR', conference: 'NFC', division: 'West',  color: '#003594', color2: '#FFA300' },
+  { name: 'San Francisco 49ers',  city: 'San Francisco', abbreviation: 'SF',  conference: 'NFC', division: 'West',  color: '#AA0000', color2: '#B3995D' },
+  { name: 'Seattle Seahawks',     city: 'Seattle',       abbreviation: 'SEA', conference: 'NFC', division: 'West',  color: '#002244', color2: '#69BE28' },
 
-  { name: 'Atlanta Falcons', abbreviation: 'ATL', conference: 'NFC' , division: 'South'},
-  { name: 'Carolina Panthers', abbreviation: 'CAR', conference: 'NFC' , division: 'South'},
-  { name: 'New Orleans Saints', abbreviation: 'NO', conference: 'NFC' , division: 'South'},
-  { name: 'Tampa Bay Buccaneers', abbreviation: 'TB', conference: 'NFC' , division: 'South'},
+  { name: 'Atlanta Falcons',      city: 'Atlanta',       abbreviation: 'ATL', conference: 'NFC', division: 'South', color: '#A71930', color2: '#000000' },
+  { name: 'Carolina Panthers',    city: 'Carolina',      abbreviation: 'CAR', conference: 'NFC', division: 'South', color: '#0085CA', color2: '#101820' },
+  { name: 'New Orleans Saints',   city: 'New Orleans',   abbreviation: 'NO',  conference: 'NFC', division: 'South', color: '#D3BC8D', color2: '#101820' },
+  { name: 'Tampa Bay Buccaneers', city: 'Tampa Bay',     abbreviation: 'TB',  conference: 'NFC', division: 'South', color: '#D50A0A', color2: '#34302B' },
 
-  { name: 'Chicago Bears', abbreviation: 'CHI', conference: 'NFC' , division: 'North'},
-  { name: 'Detroit Lions', abbreviation: 'DET', conference: 'NFC' , division: 'North'},
-  { name: 'Green Bay Packers', abbreviation: 'GB', conference: 'NFC' , division: 'North'},
-  { name: 'Minnesota Vikings', abbreviation: 'MIN', conference: 'NFC' , division: 'North'},
+  { name: 'Chicago Bears',        city: 'Chicago',       abbreviation: 'CHI', conference: 'NFC', division: 'North', color: '#0B162A', color2: '#C83803' },
+  { name: 'Detroit Lions',        city: 'Detroit',       abbreviation: 'DET', conference: 'NFC', division: 'North', color: '#0076B6', color2: '#B0B7BC' },
+  { name: 'Green Bay Packers',    city: 'Green Bay',     abbreviation: 'GB',  conference: 'NFC', division: 'North', color: '#203731', color2: '#FFB612' },
+  { name: 'Minnesota Vikings',    city: 'Minnesota',     abbreviation: 'MIN', conference: 'NFC', division: 'North', color: '#4F2683', color2: '#FFC62F' },
 
-  { name: 'Dallas Cowboys', abbreviation: 'DAL', conference: 'NFC' , division: 'East'},
-  { name: 'New York Giants', abbreviation: 'NYG', conference: 'NFC' , division: 'East'},
-  { name: 'Philadelphia Eagles', abbreviation: 'PHI', conference: 'NFC' , division: 'East'},
-  { name: 'Washington Commanders', abbreviation: 'WSH', conference: 'NFC' , division: 'East'},
-  
-  { name: 'Baltimore Ravens', abbreviation: 'BAL', conference: 'AFC' , division: 'North'},
-  { name: 'Cincinnati Bengals', abbreviation: 'CIN', conference: 'AFC' , division: 'North'},
-  { name: 'Cleveland Browns', abbreviation: 'CLE', conference: 'AFC' , division: 'North'},
-  { name: 'Pittsburgh Steelers', abbreviation: 'PIT', conference: 'AFC' , division: 'North'},
+  { name: 'Dallas Cowboys',       city: 'Dallas',        abbreviation: 'DAL', conference: 'NFC', division: 'East',  color: '#003594', color2: '#869397' },
+  { name: 'New York Giants',      city: 'New York',      abbreviation: 'NYG', conference: 'NFC', division: 'East',  color: '#0B2265', color2: '#A71930' },
+  { name: 'Philadelphia Eagles',  city: 'Philadelphia',  abbreviation: 'PHI', conference: 'NFC', division: 'East',  color: '#004C54', color2: '#A5ACAF' },
+  { name: 'Washington Commanders',city: 'Washington',    abbreviation: 'WSH', conference: 'NFC', division: 'East',  color: '#5A1414', color2: '#FFB612' },
 
-  { name: 'Buffalo Bills', abbreviation: 'BUF', conference: 'AFC' , division: 'East' },
-  { name: 'Miami Dolphins', abbreviation: 'MIA', conference: 'AFC' , division: 'East' },   
-  { name: 'New England Patriots', abbreviation: 'NE', conference: 'AFC' , division: 'East' },
-  { name: 'New York Jets', abbreviation: 'NYJ', conference: 'AFC' , division: 'East' },
+  { name: 'Baltimore Ravens',     city: 'Baltimore',     abbreviation: 'BAL', conference: 'AFC', division: 'North', color: '#241773', color2: '#9E7C0C' },
+  { name: 'Cincinnati Bengals',   city: 'Cincinnati',    abbreviation: 'CIN', conference: 'AFC', division: 'North', color: '#FB4F14', color2: '#000000' },
+  { name: 'Cleveland Browns',     city: 'Cleveland',     abbreviation: 'CLE', conference: 'AFC', division: 'North', color: '#311D00', color2: '#FF3C00' },
+  { name: 'Pittsburgh Steelers',  city: 'Pittsburgh',    abbreviation: 'PIT', conference: 'AFC', division: 'North', color: '#FFB612', color2: '#101820' },
 
-  { name: 'Denver Broncos', abbreviation: 'DEN', conference: 'AFC' , division: 'West' },
-  { name: 'Kansas City Chiefs', abbreviation: 'KC', conference: 'AFC' , division: 'West' },
-  { name: 'Las Vegas Raiders', abbreviation: 'LV', conference: 'AFC' , division: 'West' },
-  { name: 'Los Angeles Chargers', abbreviation: 'LAC', conference: 'AFC' , division: 'West' },
+  { name: 'Buffalo Bills',        city: 'Buffalo',       abbreviation: 'BUF', conference: 'AFC', division: 'East',  color: '#00338D', color2: '#C60C30' },
+  { name: 'Miami Dolphins',       city: 'Miami',         abbreviation: 'MIA', conference: 'AFC', division: 'East',  color: '#008E97', color2: '#FC4C02' },
+  { name: 'New England Patriots', city: 'New England',   abbreviation: 'NE',  conference: 'AFC', division: 'East',  color: '#002244', color2: '#C60C30' },
+  { name: 'New York Jets',        city: 'New York',      abbreviation: 'NYJ', conference: 'AFC', division: 'East',  color: '#125740', color2: '#000000' },
 
-  { name: 'Houston Texans', abbreviation: 'HOU', conference: 'AFC' , division: 'South'},
-  { name: 'Indianapolis Colts', abbreviation: 'IND', conference: 'AFC' , division: 'South'},
-  { name: 'Jacksonville Jaguars', abbreviation: 'JAX', conference: 'AFC' , division: 'South'},
-  { name: 'Tennessee Titans', abbreviation: 'TEN', conference: 'AFC' , division: 'South'},
+  { name: 'Denver Broncos',       city: 'Denver',        abbreviation: 'DEN', conference: 'AFC', division: 'West',  color: '#FB4F14', color2: '#002244' },
+  { name: 'Kansas City Chiefs',   city: 'Kansas City',   abbreviation: 'KC',  conference: 'AFC', division: 'West',  color: '#E31837', color2: '#FFB81C' },
+  { name: 'Las Vegas Raiders',    city: 'Las Vegas',     abbreviation: 'LV',  conference: 'AFC', division: 'West',  color: '#000000', color2: '#A5ACAF' },
+  { name: 'Los Angeles Chargers', city: 'Los Angeles',   abbreviation: 'LAC', conference: 'AFC', division: 'West',  color: '#0080C6', color2: '#FFC20E' },
+
+  { name: 'Houston Texans',       city: 'Houston',       abbreviation: 'HOU', conference: 'AFC', division: 'South', color: '#03202F', color2: '#A71930' },
+  { name: 'Indianapolis Colts',   city: 'Indianapolis',  abbreviation: 'IND', conference: 'AFC', division: 'South', color: '#002C5F', color2: '#A2AAAD' },
+  { name: 'Jacksonville Jaguars', city: 'Jacksonville',  abbreviation: 'JAX', conference: 'AFC', division: 'South', color: '#006778', color2: '#9F792C' },
+  { name: 'Tennessee Titans',     city: 'Tennessee',     abbreviation: 'TEN', conference: 'AFC', division: 'South', color: '#0C2340', color2: '#4B92DB' },
 ] as const;
+
+export const getTeam = (abbr: string) =>
+  NFL_TEAMS.find(t => t.abbreviation === abbr) ?? { name: abbr, city: '', abbreviation: abbr, conference: '', division: '', color: '#333333', color2: '#666666' };
+
+export const TEAM_LIST = [...NFL_TEAMS].sort((a, b) => a.city.localeCompare(b.city));
 
 /**
  * Get NFL team name

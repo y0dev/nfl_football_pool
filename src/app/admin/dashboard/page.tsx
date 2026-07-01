@@ -8,8 +8,6 @@ import {
   Shield,
   Users,
   Trophy,
-  BarChart3,
-  Mail,
   Calendar,
   LogOut,
   Bell,
@@ -17,6 +15,7 @@ import {
   Plus,
   X,
   Settings,
+  ChevronRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -55,6 +54,14 @@ const quarterOptions = [
   { value: 'Playoffs', label: 'Playoffs (Weeks 17–20)' },
 ];
 
+interface Pool {
+  id: string;
+  name: string;
+  season: number;
+  is_active: boolean;
+  is_closed?: boolean;
+}
+
 function AdminDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
@@ -81,6 +88,9 @@ function AdminDashboardContent() {
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
   const [isGeneratingWinners, setIsGeneratingWinners] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
+  const [pools, setPools] = useState<Pool[]>([]);
+  const [selectedPoolId, setSelectedPoolId] = useState<string>('');
+  const [poolsLoading, setPoolsLoading] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -98,7 +108,10 @@ function AdminDashboardContent() {
               router.push(createPageUrl('dashboard'));
               return;
             }
-            if (superAdminStatus) await loadAdmins();
+            if (superAdminStatus) {
+              await loadAdmins();
+              await loadPools();
+            }
           } catch (error) {
             debugLog('Error verifying admin status:', error);
             setIsLoading(false);
@@ -162,6 +175,24 @@ function AdminDashboardContent() {
     }
   };
 
+  const loadPools = async () => {
+    setPoolsLoading(true);
+    try {
+      const response = await fetch('/api/admin/all-pools');
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.success && Array.isArray(data.pools)) {
+        const sorted: Pool[] = [...data.pools].sort((a: Pool, b: Pool) => b.season - a.season);
+        setPools(sorted);
+        if (sorted.length > 0) setSelectedPoolId(sorted[0].id);
+      }
+    } catch (err) {
+      console.error('Error loading pools:', err);
+    } finally {
+      setPoolsLoading(false);
+    }
+  };
+
   const generateNotifications = () => {
     const n: string[] = [];
     if (dashboardStats.totalPools === 0)
@@ -191,7 +222,7 @@ function AdminDashboardContent() {
   };
 
   const handlePoolCreated = async () => {
-    await loadDashboardStats();
+    await Promise.all([loadDashboardStats(), loadPools()]);
     toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
@@ -245,6 +276,7 @@ function AdminDashboardContent() {
   }
 
 
+  const selectedPool = pools.find(p => p.id === selectedPoolId) ?? null;
   const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
   const weekTitle = currentSeasonType === 0 ? 'Offseason' : `Week ${currentWeek} - ${seasonLabel}`;
 
@@ -258,13 +290,9 @@ function AdminDashboardContent() {
   const actions = [
     { icon: Users,    accent: green,                   title: 'Manage Commissioners', desc: 'Create and manage commissioner accounts',    label: 'Manage Commissioners', onClick: () => router.push(createPageUrl('admincommissioners')) },
     { icon: Shield,   accent: green,                   title: 'Manage Admins',        desc: 'Reset passwords and manage admin accounts',  label: 'Manage Admins',        onClick: () => router.push('/admin/manage-admins') },
-    { icon: Trophy,   accent: gold,                    title: 'Pool Management',      desc: 'Manage pools and participants',               label: 'Manage Pools',         onClick: () => router.push(createPageUrl('adminpools')) },
-    { icon: Mail,     accent: green,                   title: 'Email Management',     desc: 'Send emails and manage communications',       label: 'Email Management',     onClick: () => router.push(createPageUrl('adminreminders')) },
     { icon: Trophy,   accent: gold,                    title: 'Playoff Management',   desc: 'Manage playoff teams and games',              label: 'Manage Playoffs',      onClick: () => router.push('/admin/playoffs') },
     { icon: Calendar, accent: green,                   title: 'NFL Sync',             desc: 'Synchronize NFL game data',                  label: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
     { icon: Calendar, accent: 'oklch(65% 0.12 290)',  title: 'Season Games',         desc: 'Import and manage full season schedules',    label: 'Season Games',         onClick: () => router.push('/admin/season-games') },
-    { icon: BarChart3, accent: 'oklch(62% 0.12 270)', title: 'Season Review',        desc: 'Review each pool by week',                   label: 'Season Review',        onClick: () => router.push('/season-review') },
-    { icon: Plus,     accent: green,                   title: 'Create Pool',          desc: 'Create a new confidence pool',               label: 'Create Pool',          onClick: () => { document.dispatchEvent(new CustomEvent('openCreatePoolDialog')); } },
   ];
 
   return (
@@ -361,6 +389,23 @@ function AdminDashboardContent() {
                 }}
               >
                 <Settings style={{ width: 15, height: 15 }} />
+              </button>
+
+              <button
+                onClick={() => setCreatePoolDialogOpen(true)}
+                title="New Pool"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  background: green, color: text,
+                  border: 'none', borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <Plus style={{ width: 12, height: 12 }} />
+                <span className="pools-nav-label">New Pool</span>
               </button>
 
               <button
@@ -536,6 +581,141 @@ function AdminDashboardContent() {
           </div>
         </section>
       )}
+
+      {/* ── POOL WORKSPACE ── */}
+      <section style={{ background: bg, padding: '3.5rem 0' }}>
+        <div className="lp-inner">
+
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+                Pool Workspace
+              </h2>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {poolsLoading ? (
+                <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading pools…</span>
+              ) : pools.length > 0 ? (
+                <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
+                  <SelectTrigger style={{ minWidth: 220, background: card, border: `1px solid ${border}`, color: text }}>
+                    <SelectValue placeholder="Select a pool" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pools.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.season})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </div>
+          </div>
+
+          {selectedPool ? (
+            <>
+              {/* Pool info card */}
+              <div style={{
+                background: surface,
+                border: `1px solid ${border}`,
+                borderTop: `3px solid ${green}`,
+                borderRadius: 10,
+                padding: '1.25rem 1.75rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                gap: '2.5rem',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+              }}>
+                <div>
+                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{selectedPool.name}</p>
+                </div>
+                <div>
+                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Year</p>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{selectedPool.season}</p>
+                </div>
+                <div>
+                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{currentWeek}</p>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedPool.is_active ? green : textDim, flexShrink: 0 }} />
+                  <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: selectedPool.is_active ? greenHi : textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    {selectedPool.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Pool action tabs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                {[
+                  { label: 'Pool Management', desc: 'Manage participants, settings, and pool details', href: `/admin/pool/${selectedPoolId}` },
+                  { label: 'Leaderboard',     desc: 'View standings and scores for this pool',        href: `/pool/${selectedPoolId}` },
+                  { label: 'Override Picks',  desc: 'Edit or override participant pick submissions',  href: `/override-picks?poolId=${selectedPoolId}` },
+                  { label: 'Season Review',   desc: 'Review results week by week for this pool',      href: `/season-review/${selectedPoolId}/${selectedPool.season}` },
+                ].map(({ label, desc, href }) => (
+                  <button
+                    key={label}
+                    onClick={() => router.push(href)}
+                    style={{
+                      background: card,
+                      border: `1px solid ${border}`,
+                      borderRadius: 8,
+                      padding: '1.25rem',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                      transition: 'border-color 0.15s ease, background 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = green;
+                      (e.currentTarget as HTMLButtonElement).style.background = 'oklch(22% 0.03 255)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+                      (e.currentTarget as HTMLButtonElement).style.background = card;
+                    }}
+                  >
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                      {label}
+                    </span>
+                    <span style={{ ...b, fontSize: '0.78rem', lineHeight: 1.5, color: textMid }}>
+                      {desc}
+                    </span>
+                    <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 600, color: greenHi, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                      Open <ChevronRight style={{ width: 11, height: 11 }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : !poolsLoading ? (
+            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>
+              <Trophy style={{ width: 24, height: 24, color: textDim, margin: '0 auto 0.75rem' }} />
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>No Pools Yet</p>
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.4rem' }}>Create a pool to manage it here.</p>
+              <button
+                onClick={() => setCreatePoolDialogOpen(true)}
+                style={{
+                  marginTop: '1.25rem',
+                  padding: '0.5rem 1.25rem',
+                  background: green, color: text,
+                  border: 'none', borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.78rem',
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                }}
+              >
+                <Plus style={{ width: 13, height: 13 }} /> Create First Pool
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       {/* ── QUICK ACTIONS ── */}
       <section style={{ background: surface, padding: '3rem 0' }}>

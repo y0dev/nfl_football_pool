@@ -953,6 +953,8 @@ export function PoolPicksContent() {
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(poolId)) return;
 
     try {
       debugLog('Checking submission status for:', { participantId: selectedUser.id, poolId, currentWeek, currentSeasonType });

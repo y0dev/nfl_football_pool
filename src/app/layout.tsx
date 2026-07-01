@@ -25,6 +25,11 @@ export const metadata: Metadata = {
   },
   description:
     "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
+  keywords: [
+    'NFL', 'football', 'confidence pool', 'sports picks', 'weekly picks',
+    'NFL pool', 'football pool', 'sports competition', 'game predictions',
+    'sports entertainment', 'fantasy football', 'pick em',
+  ],
   icons: {
     icon: '/brand/sh-icon.png',
     apple: '/brand/sh-icon.png',
@@ -48,6 +53,11 @@ export const metadata: Metadata = {
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
     images: ['/brand/initials.png'],
   },
+  other: {
+    'classification': 'Sports',
+    'category': 'Sports/Football',
+    'rating': 'general',
+  },
 };
 
 export default function RootLayout({
@@ -61,6 +71,31 @@ export default function RootLayout({
         className={`${inter.className} ${barlow.variable} ${barlowCondensed.variable}`}
         suppressHydrationWarning
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebApplication',
+              name: 'Sunday Huddle',
+              url: siteUrl,
+              description: 'Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.',
+              applicationCategory: 'SportsApplication',
+              applicationSubCategory: 'Sports',
+              operatingSystem: 'Web',
+              genre: 'Sports',
+              about: {
+                '@type': 'SportsOrganization',
+                sport: 'American Football',
+                name: 'NFL Confidence Pool',
+              },
+              audience: {
+                '@type': 'Audience',
+                audienceType: 'Sports fans',
+              },
+            }),
+          }}
+        />
         {children}
       </body>
     </html>
