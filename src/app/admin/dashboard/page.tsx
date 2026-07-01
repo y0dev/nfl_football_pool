@@ -15,7 +15,10 @@ import {
   Plus,
   X,
   Settings,
-  ChevronRight,
+  TrendingUp,
+  BarChart3,
+  Edit,
+  AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +31,9 @@ import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
+import { ParticipantManagement } from '@/components/admin/participant-management';
+import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
+import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
 
 // Design tokens — match landing page exactly
 const bg      = 'oklch(13% 0.025 255)';
@@ -41,6 +47,7 @@ const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
 const liveRed = 'oklch(62% 0.22 25)';
+const amber   = 'oklch(72% 0.16 60)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
@@ -91,6 +98,21 @@ function AdminDashboardContent() {
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [poolsLoading, setPoolsLoading] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    type: 'pool_created' | 'participant_joined' | 'picks_submitted';
+    description: string;
+    timestamp: string;
+    pool_name?: string;
+    pool_id?: string;
+  }>>([]);
+  const [activityPoolFilter, setActivityPoolFilter] = useState<string>('all');
+  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review'>('overview');
+  const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
+  const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
+  const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
+  const [weekGamesCount, setWeekGamesCount] = useState(0);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -111,6 +133,7 @@ function AdminDashboardContent() {
             if (superAdminStatus) {
               await loadAdmins();
               await loadPools();
+              await loadRecentActivity();
             }
           } catch (error) {
             debugLog('Error verifying admin status:', error);
@@ -142,6 +165,16 @@ function AdminDashboardContent() {
     document.addEventListener('openCreatePoolDialog', handleOpenCreatePool);
     return () => document.removeEventListener('openCreatePoolDialog', handleOpenCreatePool);
   }, []);
+
+  useEffect(() => {
+    if (selectedPoolId) {
+      const pool = pools.find(p => p.id === selectedPoolId);
+      const season = pool?.season ?? new Date().getFullYear();
+      setCurrentSeason(season);
+      setActivePoolTab('overview');
+      loadSelectedPoolStats(selectedPoolId, season);
+    }
+  }, [selectedPoolId, currentWeek, currentSeasonType]);
 
   const loadDashboardStats = async () => {
     try {
@@ -193,6 +226,158 @@ function AdminDashboardContent() {
     }
   };
 
+  const loadRecentActivity = async () => {
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+      const activities: { type: 'pool_created' | 'participant_joined' | 'picks_submitted'; description: string; timestamp: string; pool_name?: string; pool_id?: string; }[] = [];
+      const now = new Date();
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: allPools } = await supabase.from('pools').select('id, name, created_at');
+      const poolNameMap = new Map(allPools?.map(p => [p.id, p.name]) || []);
+
+      const recentPools = (allPools ?? []).filter(p => p.created_at >= last30Days);
+      recentPools.slice(0, 5).forEach(pool => {
+        activities.push({
+          type: 'pool_created',
+          description: `Pool "${pool.name}" was created`,
+          timestamp: pool.created_at,
+          pool_name: pool.name,
+          pool_id: pool.id,
+        });
+      });
+
+      const { data: participants } = await supabase
+        .from('participants')
+        .select('id, name, created_at, pool_id')
+        .eq('is_active', true)
+        .gte('created_at', last30Days)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      participants?.forEach(participant => {
+        activities.push({
+          type: 'participant_joined',
+          description: `${participant.name || 'New Participant'} joined "${poolNameMap.get(participant.pool_id) || 'Unknown Pool'}"`,
+          timestamp: participant.created_at,
+          pool_name: poolNameMap.get(participant.pool_id),
+          pool_id: participant.pool_id,
+        });
+      });
+
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('created_at, participant_id, pool_id')
+        .gte('created_at', last30Days)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (picks && picks.length > 0) {
+        const poolSubmissions = new Map<string, Set<string>>();
+        picks.forEach(pick => {
+          if (!poolSubmissions.has(pick.pool_id)) poolSubmissions.set(pick.pool_id, new Set());
+          poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
+        });
+        poolSubmissions.forEach((submitters, poolId) => {
+          const count = submitters.size;
+          if (count > 0) {
+            activities.push({
+              type: 'picks_submitted',
+              description: `${count} participant${count !== 1 ? 's' : ''} submitted picks for "${poolNameMap.get(poolId) || 'Unknown Pool'}"`,
+              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString(),
+              pool_name: poolNameMap.get(poolId),
+              pool_id: poolId,
+            });
+          }
+        });
+      }
+
+      setRecentActivity(
+        activities
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 10)
+      );
+    } catch (error) {
+      console.error('Error loading recent activity:', error);
+      setRecentActivity([]);
+    }
+  };
+
+  const loadSelectedPoolStats = async (poolId: string, season: number) => {
+    try {
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
+
+      const [{ data: allParticipants }, { data: weekGames }] = await Promise.all([
+        supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
+        supabase.from('games').select('id').eq('week', currentWeek).eq('season_type', currentSeasonType),
+      ]);
+
+      const total = allParticipants?.length ?? 0;
+      const gameIds = weekGames?.map(g => g.id) ?? [];
+      setWeekGamesCount(gameIds.length);
+
+      let submittedIds = new Set<string>();
+      if (gameIds.length > 0) {
+        const { data: picks } = await supabase
+          .from('picks')
+          .select('participant_id')
+          .eq('pool_id', poolId)
+          .in('game_id', gameIds);
+        submittedIds = new Set((picks ?? []).map(p => p.participant_id));
+      }
+
+      const completed = submittedIds.size;
+      const pending = Math.max(0, total - completed);
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      setSelectedPoolStats({ participants: total, completed, pending, completionRate });
+      setMissingParticipants((allParticipants ?? []).filter(p => !submittedIds.has(p.id)));
+
+      const { data: seasonScores } = await supabase
+        .from('scores')
+        .select('participant_id, points, correct_picks')
+        .eq('pool_id', poolId)
+        .eq('season', season);
+
+      if (seasonScores && seasonScores.length > 0) {
+        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
+        seasonScores.forEach(s => {
+          const e = totalsMap.get(s.participant_id);
+          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
+          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
+        });
+        let leaderId = '';
+        let leaderPts = -1;
+        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
+        if (leaderId) {
+          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
+          const ld = totalsMap.get(leaderId)!;
+          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
+        } else {
+          setPoolLeader(null);
+        }
+        const ranked = [...totalsMap.entries()]
+          .map(([id, { points, correctPicks }]) => ({
+            participantId: id,
+            name: (allParticipants ?? []).find(p => p.id === id)?.name ?? 'Unknown',
+            points,
+            correctPicks,
+          }))
+          .sort((a, b) => b.points - a.points);
+        setLeaderboardEntries(ranked);
+      } else if (allParticipants && allParticipants.length > 0) {
+        setPoolLeader({ name: allParticipants[0].name, points: 0, correctPicks: 0 });
+        setLeaderboardEntries((allParticipants ?? []).map(p => ({ participantId: p.id, name: p.name, points: 0, correctPicks: 0 })));
+      } else {
+        setPoolLeader(null);
+        setLeaderboardEntries([]);
+      }
+    } catch (error) {
+      console.error('Error loading pool stats:', error);
+    }
+  };
+
   const generateNotifications = () => {
     const n: string[] = [];
     if (dashboardStats.totalPools === 0)
@@ -211,6 +396,7 @@ function AdminDashboardContent() {
     try {
       await loadDashboardStats();
       await loadLastGameUpdate();
+      await loadRecentActivity();
       generateNotifications();
       setLastRefresh(new Date());
       toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
@@ -277,7 +463,22 @@ function AdminDashboardContent() {
 
 
   const selectedPool = pools.find(p => p.id === selectedPoolId) ?? null;
+  const poolStats = [
+    { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
+    { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
+    { label: 'Completed',    value: String(selectedPoolStats.completed),    sub: 'Picks submitted', accent: greenHi },
+    { label: 'Completion',   value: `${selectedPoolStats.completionRate}%`, sub: 'Rate',            accent: 'oklch(59% 0.18 230)' },
+  ];
   const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
+  const activityAccent = (type: string) => {
+    if (type === 'pool_created') return greenHi;
+    if (type === 'participant_joined') return 'oklch(59% 0.18 230)';
+    if (type === 'picks_submitted') return 'oklch(62% 0.16 300)';
+    return textDim;
+  };
+  const filteredActivity = activityPoolFilter === 'all'
+    ? recentActivity
+    : recentActivity.filter(a => a.pool_id === activityPoolFilter);
   const weekTitle = currentSeasonType === 0 ? 'Offseason' : `Week ${currentWeek} - ${seasonLabel}`;
 
   const statItems = [
@@ -613,85 +814,180 @@ function AdminDashboardContent() {
           </div>
 
           {selectedPool ? (
-            <>
+            <div>
               {/* Pool info card */}
               <div style={{
                 background: surface,
                 border: `1px solid ${border}`,
                 borderTop: `3px solid ${green}`,
                 borderRadius: 10,
-                padding: '1.25rem 1.75rem',
-                marginBottom: '1rem',
-                display: 'flex',
-                gap: '2.5rem',
-                flexWrap: 'wrap',
-                alignItems: 'center',
+                padding: '1.25rem 1.5rem',
+                marginBottom: '0.75rem',
               }}>
-                <div>
-                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
-                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{selectedPool.name}</p>
+                {/* Top row: pool identity */}
+                <div
+                  className="pool-identity"
+                  style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '1rem', marginBottom: '1rem', borderBottom: `1px solid ${border}` }}
+                >
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{selectedPool.name}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Year</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{selectedPool.season}</p>
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
+                  </div>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedPool.is_active ? green : textDim, flexShrink: 0 }} />
+                    <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: selectedPool.is_active ? greenHi : textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                      {selectedPool.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Year</p>
-                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{selectedPool.season}</p>
-                </div>
-                <div>
-                  <p style={{ ...bc, fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.24em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
-                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text }}>{currentWeek}</p>
-                </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedPool.is_active ? green : textDim, flexShrink: 0 }} />
-                  <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: selectedPool.is_active ? greenHi : textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                    {selectedPool.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                {/* Bottom row: pool stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
+                  {poolStats.map(({ label, value, sub, accent }) => (
+                    <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.875rem 1rem' }}>
+                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: accent, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</p>
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.25rem' }}>{label}</p>
+                      <p style={{ ...b, fontSize: '0.65rem', color: textDim, marginTop: '0.1rem' }}>{sub}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Pool action tabs */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                {[
-                  { label: 'Pool Management', desc: 'Manage participants, settings, and pool details', href: `/admin/pool/${selectedPoolId}` },
-                  { label: 'Leaderboard',     desc: 'View standings and scores for this pool',        href: `/pool/${selectedPoolId}` },
-                  { label: 'Override Picks',  desc: 'Edit or override participant pick submissions',  href: `/override-picks?poolId=${selectedPoolId}` },
-                  { label: 'Season Review',   desc: 'Review results week by week for this pool',      href: `/season-review/${selectedPoolId}/${selectedPool.season}` },
-                ].map(({ label, desc, href }) => (
-                  <button
-                    key={label}
-                    onClick={() => router.push(href)}
-                    style={{
-                      background: card,
-                      border: `1px solid ${border}`,
-                      borderRadius: 8,
-                      padding: '1.25rem',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.4rem',
-                      transition: 'border-color 0.15s ease, background 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = green;
-                      (e.currentTarget as HTMLButtonElement).style.background = 'oklch(22% 0.03 255)';
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = border;
-                      (e.currentTarget as HTMLButtonElement).style.background = card;
-                    }}
-                  >
-                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
-                      {label}
-                    </span>
-                    <span style={{ ...b, fontSize: '0.78rem', lineHeight: 1.5, color: textMid }}>
-                      {desc}
-                    </span>
-                    <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 600, color: greenHi, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
-                      Open <ChevronRight style={{ width: 11, height: 11 }} />
-                    </span>
-                  </button>
-                ))}
+              {/* Pool tab bar */}
+              <div className="hide-scrollbar" style={{ background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', overflowX: 'auto', marginBottom: '0.75rem' }}>
+                {([
+                  { id: 'overview',       label: 'Overview',       icon: TrendingUp },
+                  { id: 'players',        label: 'Players',        icon: Users },
+                  { id: 'leaderboard',    label: 'Leaderboard',    icon: BarChart3 },
+                  { id: 'override-picks', label: 'Override Picks', icon: Edit },
+                  { id: 'season-review',  label: 'Season Review',  icon: Calendar },
+                ] as const).map(({ id, label, icon: Icon }) => {
+                  const active = activePoolTab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActivePoolTab(id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.3rem',
+                        padding: '0.45rem 0.75rem', flexShrink: 0,
+                        background: active ? green : 'transparent',
+                        color: active ? text : textMid,
+                        border: `1px solid ${active ? green : 'transparent'}`,
+                        borderRadius: 6, cursor: 'pointer',
+                        ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                      }}
+                    >
+                      <Icon style={{ width: 13, height: 13 }} />
+                      <span className="pool-tab-label">{label}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </>
+
+              {/* Overview tab */}
+              {activePoolTab === 'overview' && (
+                <>
+                  {poolLeader && (
+                    <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderLeft: `4px solid ${gold}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'oklch(74% 0.16 72 / 0.18)', border: `1px solid oklch(74% 0.16 72 / 0.45)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Trophy style={{ width: 18, height: 18, color: gold }} />
+                      </div>
+                      <div>
+                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool Leader</p>
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.02em' }}>
+                          {poolLeader.name}
+                          <span style={{ color: textMid, fontWeight: 600, fontSize: '0.9rem' }}>{' '}· {poolLeader.points} pts</span>
+                        </p>
+                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>
+                          {poolLeader.correctPicks} correct pick{poolLeader.correctPicks !== 1 ? 's' : ''} this season
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {currentSeasonType !== 0 && missingParticipants.length > 0 && (
+                    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                        <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
+                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing Picks — Week {currentWeek}</p>
+                        <span style={{ marginLeft: 'auto', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.15rem 0.5rem' }}>
+                          {missingParticipants.length} pending
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+                        {missingParticipants.map(p => (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.55rem 0.75rem' }}>
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'oklch(72% 0.16 60 / 0.15)', border: '1px solid oklch(72% 0.16 60 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 800, fontSize: '0.72rem', color: amber }}>
+                              {p.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
+                    <div style={{ background: 'oklch(18% 0.04 155)', border: `1px solid oklch(32% 0.1 155)`, borderRadius: 10, padding: '0.875rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        All picks submitted for Week {currentWeek}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Players tab */}
+              {activePoolTab === 'players' && (
+                <ParticipantManagement poolId={selectedPoolId} poolName={selectedPool.name} />
+              )}
+
+              {/* Leaderboard tab */}
+              {activePoolTab === 'leaderboard' && (
+                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                    <Trophy style={{ width: 16, height: 16, color: gold }} />
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Season Standings</p>
+                  </div>
+                  {leaderboardEntries.length === 0 ? (
+                    <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {leaderboardEntries.map((entry, index) => (
+                        <div key={entry.participantId} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
+                          <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: index === 0 ? 'oklch(74% 0.16 72 / 0.18)' : 'oklch(26% 0.03 255)', color: index === 0 ? gold : textDim, border: `1px solid ${index === 0 ? 'oklch(74% 0.16 72 / 0.4)' : border}` }}>
+                            {index + 1}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{entry.name}</p>
+                            <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>{entry.correctPicks} correct picks</p>
+                          </div>
+                          <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: index === 0 ? gold : greenHi, letterSpacing: '0.02em' }}>
+                            {entry.points} <span style={{ ...b, fontWeight: 400, fontSize: '0.72rem', color: textDim }}>pts</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Override Picks tab */}
+              {activePoolTab === 'override-picks' && (
+                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={selectedPool.season} />
+              )}
+
+              {/* Season Review tab */}
+              {activePoolTab === 'season-review' && (
+                <SeasonReviewPanel poolId={selectedPoolId} season={selectedPool.season} />
+              )}
+            </div>
           ) : !poolsLoading ? (
             <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>
               <Trophy style={{ width: 24, height: 24, color: textDim, margin: '0 auto 0.75rem' }} />
@@ -864,6 +1160,72 @@ function AdminDashboardContent() {
                 <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>last game sync</div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── RECENT ACTIVITY ── */}
+      <section style={{ background: bg, padding: '3.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+                Recent Activity
+              </h2>
+            </div>
+            <Select value={activityPoolFilter} onValueChange={setActivityPoolFilter}>
+              <SelectTrigger style={{ minWidth: 200, background: card, border: `1px solid ${border}`, color: text }}>
+                <SelectValue placeholder="Filter by pool" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Pools</SelectItem>
+                {pools.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.season})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+            {filteredActivity.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {filteredActivity.map((activity, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem',
+                      padding: '0.875rem 1rem',
+                      background: card, border: `1px solid ${border}`,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: activityAccent(activity.type) }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ ...b, fontSize: '0.85rem', color: text, fontWeight: 600 }}>
+                        {activity.description}
+                      </p>
+                      {activity.pool_name && (
+                        <p style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '0.15rem' }}>
+                          {activity.pool_name}
+                        </p>
+                      )}
+                    </div>
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, flexShrink: 0 }}>
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                <TrendingUp style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.88rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  {activityPoolFilter === 'all' ? 'No recent activity' : 'No activity for this pool'}
+                </p>
+                <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.35rem' }}>Activity from the last 30 days will appear here.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
