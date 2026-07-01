@@ -85,6 +85,9 @@ function CommissionerDashboardContent() {
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
   const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
+  const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
+  const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
+  const [weekGamesCount, setWeekGamesCount] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -215,39 +218,66 @@ function CommissionerDashboardContent() {
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
 
-      const { count: participantCount } = await supabase
-        .from('participants')
-        .select('id', { count: 'exact', head: true })
-        .eq('pool_id', poolId)
-        .eq('is_active', true);
+      // Parallel: participant list + current week games
+      const [{ data: allParticipants }, { data: weekGames }] = await Promise.all([
+        supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
+        supabase.from('games').select('id').eq('week', currentWeek).eq('season_type', currentSeasonType),
+      ]);
 
-      const total = participantCount ?? 0;
-
-      const { data: weekGames } = await supabase
-        .from('games')
-        .select('id')
-        .eq('week', currentWeek)
-        .eq('season_type', currentSeasonType);
-
+      const total = allParticipants?.length ?? 0;
       const gameIds = weekGames?.map(g => g.id) ?? [];
+      setWeekGamesCount(gameIds.length);
 
-      if (gameIds.length === 0) {
-        setSelectedPoolStats({ participants: total, completed: 0, pending: total, completionRate: 0 });
-        return;
+      let submittedIds = new Set<string>();
+      if (gameIds.length > 0) {
+        const { data: picks } = await supabase
+          .from('picks')
+          .select('participant_id')
+          .eq('pool_id', poolId)
+          .in('game_id', gameIds);
+        submittedIds = new Set((picks ?? []).map(p => p.participant_id));
       }
 
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('participant_id')
-        .eq('pool_id', poolId)
-        .in('game_id', gameIds);
-
-      const submittedIds = new Set((picks ?? []).map(p => p.participant_id));
       const completed = submittedIds.size;
       const pending = Math.max(0, total - completed);
       const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-
       setSelectedPoolStats({ participants: total, completed, pending, completionRate });
+
+      // Missing participants for this week
+      setMissingParticipants(
+        (allParticipants ?? []).filter(p => !submittedIds.has(p.id))
+      );
+
+      // Pool leader — season total from scores table
+      const { data: seasonScores } = await supabase
+        .from('scores')
+        .select('participant_id, points, correct_picks')
+        .eq('pool_id', poolId)
+        .eq('season', currentSeason);
+
+      if (seasonScores && seasonScores.length > 0) {
+        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
+        seasonScores.forEach(s => {
+          const e = totalsMap.get(s.participant_id);
+          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
+          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
+        });
+        let leaderId = '';
+        let leaderPts = -1;
+        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
+        if (leaderId) {
+          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
+          const ld = totalsMap.get(leaderId)!;
+          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
+        } else {
+          setPoolLeader(null);
+        }
+      } else if (allParticipants && allParticipants.length > 0) {
+        // No scores yet — show first participant at 0
+        setPoolLeader({ name: allParticipants[0].name, points: 0, correctPicks: 0 });
+      } else {
+        setPoolLeader(null);
+      }
     } catch (error) {
       console.error('Error loading pool stats:', error);
     }
@@ -718,6 +748,111 @@ function CommissionerDashboardContent() {
                   ))}
                 </div>
               </div>
+
+              {/* Pool Leader */}
+              {poolLeader && (
+                <div style={{
+                  background: 'oklch(19% 0.04 72)',
+                  border: `1px solid oklch(35% 0.1 72)`,
+                  borderLeft: `4px solid ${gold}`,
+                  borderRadius: 10,
+                  padding: '1.1rem 1.5rem',
+                  marginBottom: '0.75rem',
+                  display: 'flex', alignItems: 'center', gap: '1rem',
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                    background: 'oklch(74% 0.16 72 / 0.18)',
+                    border: `1px solid oklch(74% 0.16 72 / 0.45)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Trophy style={{ width: 18, height: 18, color: gold }} />
+                  </div>
+                  <div>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.2rem' }}>
+                      Pool Leader
+                    </p>
+                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.02em' }}>
+                      {poolLeader.name}
+                      <span style={{ color: textMid, fontWeight: 600, fontSize: '0.9rem' }}>
+                        {' '}· {poolLeader.points} pts
+                      </span>
+                    </p>
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>
+                      {poolLeader.correctPicks} correct pick{poolLeader.correctPicks !== 1 ? 's' : ''} this season
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Missing Picks */}
+              {currentSeasonType !== 0 && missingParticipants.length > 0 && (
+                <div style={{
+                  background: card,
+                  border: `1px solid ${border}`,
+                  borderRadius: 10,
+                  padding: '1.1rem 1.5rem',
+                  marginBottom: '0.75rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                    <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Missing Picks — Week {currentWeek}
+                    </p>
+                    <span style={{
+                      marginLeft: 'auto',
+                      ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em',
+                      color: amber, background: 'oklch(72% 0.16 60 / 0.12)',
+                      border: '1px solid oklch(72% 0.16 60 / 0.3)',
+                      borderRadius: 4, padding: '0.15rem 0.5rem',
+                    }}>
+                      {missingParticipants.length} pending
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+                    {missingParticipants.map(p => (
+                      <div
+                        key={p.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.6rem',
+                          background: surface, border: `1px solid ${border}`,
+                          borderRadius: 6, padding: '0.55rem 0.75rem',
+                        }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                          background: 'oklch(72% 0.16 60 / 0.15)',
+                          border: '1px solid oklch(72% 0.16 60 / 0.3)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          ...bc, fontWeight: 800, fontSize: '0.72rem', color: amber,
+                        }}>
+                          {p.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* All caught up */}
+              {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
+                <div style={{
+                  background: 'oklch(18% 0.04 155)',
+                  border: `1px solid oklch(32% 0.1 155)`,
+                  borderRadius: 10,
+                  padding: '0.875rem 1.5rem',
+                  marginBottom: '0.75rem',
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    All picks submitted for Week {currentWeek}
+                  </p>
+                </div>
+              )}
 
               {/* Pool actions */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.625rem' }}>
