@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
 import { loadWeekGames } from '@/actions/loadWeekGames';
@@ -10,10 +9,11 @@ import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { MondayNightScoreInput } from './monday-night-score-input';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
-import { Clock, Save, AlertTriangle, X } from 'lucide-react';
+import { Clock, Save, AlertTriangle } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
-import { debugLog, DAYS_BEFORE_GAME, getShortTeamName, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
+import { GameCard } from '@/components/picks/game-card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -538,6 +538,36 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     return errors;
   };
 
+  
+  const handleSelectTeam = (gameId: string, team: string) => {
+    const updatedPicks = picks.map(p =>
+      p.game_id === gameId ? { ...p, predicted_winner: team } : p
+    );
+    setPicks(updatedPicks);
+    setHasUnsavedChanges(true);
+    if (selectedUser) {
+      const storedPicks: StoredPick[] = updatedPicks.map(p => ({ ...p, timestamp: Date.now() }));
+      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+      setLastSaved(new Date());
+    }
+  };
+
+  const handleSetConfidence = (gameId: string, points: number) => {
+    const updatedPicks = picks.map(p => {
+      if (p.game_id === gameId) return { ...p, confidence_points: points };
+      if (p.confidence_points === points) return { ...p, confidence_points: 0 };
+      return p;
+    });
+    setPicks(updatedPicks);
+    setHasUnsavedChanges(true);
+    if (selectedUser) {
+      const storedPicks: StoredPick[] = updatedPicks.map(p => ({ ...p, timestamp: Date.now() }));
+      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+      setLastSaved(new Date());
+    }
+  };
+
+
   // Handle form submission
   const handleSubmit = async () => {
     const validationErrors = validatePicks();
@@ -868,217 +898,216 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
       {/* Games grid */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        {games.map((game, index) => {
+        {games.map((game) => {
           const pick = picks.find(p => p.game_id === game.id);
           const isLocked = !isWeekUnlocked;
-
-          // Get used confidence points from other picks
           const usedConfidencePoints = picks
             .filter(p => p.game_id !== game.id && p.confidence_points > 0)
             .map(p => p.confidence_points);
 
-          // Get available confidence points (excluding used ones and the current pick's value)
-          const availableConfidencePoints = games.length > 0 ? Array.from({ length: games.length }, (_, i) => i + 1)
-            .filter(points =>
-              points === pick?.confidence_points || // Include current pick's value
-              !usedConfidencePoints.includes(points) // Exclude used by other picks
-            ) : [];
-
-          const hasPick = !!pick?.predicted_winner;
-          const pickedAway = pick?.predicted_winner === game.away_team;
-          const pickedHome = pick?.predicted_winner === game.home_team;
-
           return (
-            <div
+            <GameCard
               key={game.id}
-              style={{
-                background: hasPick ? 'oklch(46% 0.14 155 / 0.08)' : card,
-                border: `1px solid ${hasPick ? 'oklch(46% 0.14 155 / 0.35)' : border}`,
-                borderRadius: 8,
-                padding: '0.9rem 1.1rem',
-                opacity: isLocked ? 0.7 : 1,
-                transition: 'border-color 0.15s, background 0.15s',
-              }}
-            >
-              {/* Game header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  Game {index + 1}
-                </span>
-                {isLocked && (
-                  <span style={{
-                    ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
-                    padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase',
-                    background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`,
-                  }}>Locked</span>
-                )}
-              </div>
-
-              {/* Team selection */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                <button
-                  onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.away_team)}
-                  disabled={isLocked}
-                  style={{
-                    padding: '0.6rem 0.5rem',
-                    background: pickedAway ? green : 'oklch(17% 0.028 255)',
-                    color: pickedAway ? text : textMid,
-                    border: `1px solid ${pickedAway ? green : border}`,
-                    borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.82rem',
-                    letterSpacing: '0.04em', textTransform: 'uppercase',
-                    cursor: isLocked ? 'not-allowed' : 'pointer',
-                    textAlign: 'center',
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  {game.away_team}
-                  {game.away_team_record && (
-                    <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 600, color: pickedAway ? 'oklch(85% 0.006 255)' : textDim, marginTop: '0.1rem' }}>
-                      {game.away_team_record.wins}-{game.away_team_record.losses}
-                      {game.away_team_record.ties > 0 && `-${game.away_team_record.ties}`}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.home_team)}
-                  disabled={isLocked}
-                  style={{
-                    padding: '0.6rem 0.5rem',
-                    background: pickedHome ? green : 'oklch(17% 0.028 255)',
-                    color: pickedHome ? text : textMid,
-                    border: `1px solid ${pickedHome ? green : border}`,
-                    borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.82rem',
-                    letterSpacing: '0.04em', textTransform: 'uppercase',
-                    cursor: isLocked ? 'not-allowed' : 'pointer',
-                    textAlign: 'center',
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  {game.home_team}
-                  {game.home_team_record && (
-                    <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 600, color: pickedHome ? 'oklch(85% 0.006 255)' : textDim, marginTop: '0.1rem' }}>
-                      {game.home_team_record.wins}-{game.home_team_record.losses}
-                      {game.home_team_record.ties > 0 && `-${game.home_team_record.ties}`}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* Confidence points - Only show for regular season */}
-              {!isPlayoffMode && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                    <label style={{ ...b, fontSize: '0.75rem', fontWeight: 600, color: textMid }}>
-                      Confidence Points
-                    </label>
-                    {usedConfidencePoints.length > 0 && (
-                      <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>
-                        {usedConfidencePoints.length} used
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <Select
-                      value={pick?.confidence_points?.toString() || ''}
-                      onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
-                      disabled={isLocked}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select confidence points" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
-                          availableConfidencePoints.map(points => (
-                            <SelectItem key={points} value={points.toString()}>
-                              {points} point{points !== 1 ? 's' : ''}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>
-                            No confidence points available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-
-                    {/* Clear Confidence Button */}
-                    {(pick?.confidence_points ?? 0) > 0 && !isLocked && (
-                      <button
-                        type="button"
-                        onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
-                        title="Clear confidence points - makes this value available for other games"
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          padding: '0 0.55rem',
-                          background: 'transparent',
-                          color: textDim,
-                          border: `1px solid ${border}`,
-                          borderRadius: 5,
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <X style={{ width: 14, height: 14 }} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Show used confidence points */}
-                  {usedConfidencePoints.length > 0 && (
-                    <div style={{ marginTop: '0.4rem' }}>
-                      <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.25rem' }}>Used by other games:</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                        {usedConfidencePoints.sort((a, b) => a - b).map(points => (
-                          <span key={points} style={{
-                            ...bc, fontWeight: 700, fontSize: '0.65rem',
-                            padding: '0.08rem 0.35rem', borderRadius: 3,
-                            background: 'oklch(26% 0.03 255)',
-                            color: textDim,
-                            border: `1px solid ${border}`,
-                          }}>
-                            {points}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Show message when no confidence points are assigned */}
-                  {!pick?.confidence_points && (
-                    <div style={{ marginTop: '0.35rem' }}>
-                      <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontStyle: 'italic' }}>
-                        No confidence points assigned — select a value above
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Show confidence points for playoff mode (read-only display) */}
-              {isPlayoffMode && pick?.predicted_winner && (
-                <div style={{ marginTop: '0.4rem' }}>
-                  <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
-                    <span style={{ fontWeight: 600 }}>Confidence Points:</span>{' '}
-                    {pick.confidence_points > 0 ? (
-                      <span style={{
-                        ...bc, fontWeight: 700, fontSize: '0.72rem',
-                        padding: '0.1rem 0.4rem', borderRadius: 4,
-                        background: 'oklch(46% 0.14 155 / 0.15)',
-                        color: greenHi,
-                        border: '1px solid oklch(46% 0.14 155 / 0.35)',
-                      }}>
-                        {pick.confidence_points} points
-                      </span>
-                    ) : (
-                      <span style={{ color: textDim, fontStyle: 'italic' }}>No points assigned to this team</span>
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
+              game={game}
+              pick={pick}
+              onSelectTeam={handleSelectTeam}
+              onSetConfidence={handleSetConfidence}
+              totalGames={games.length}
+              usedPoints={usedConfidencePoints}
+              locked={isLocked}
+            />
           );
+          // return (
+          //   <div
+          //     key={game.id}
+          //     style={{
+          //       background: hasPick ? 'oklch(46% 0.14 155 / 0.08)' : card,
+          //       border: `1px solid ${hasPick ? 'oklch(46% 0.14 155 / 0.35)' : border}`,
+          //       borderRadius: 8,
+          //       padding: '0.9rem 1.1rem',
+          //       opacity: isLocked ? 0.7 : 1,
+          //       transition: 'border-color 0.15s, background 0.15s',
+          //     }}
+          //   >
+          //     {/* Game header */}
+          //     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+          //       <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          //         Game {index + 1}
+          //       </span>
+          //       {isLocked && (
+          //         <span style={{
+          //           ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em',
+          //           padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase',
+          //           background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`,
+          //         }}>Locked</span>
+          //       )}
+          //     </div>
+
+          //     {/* Team selection */}
+          //     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.65rem' }}>
+          //       <button
+          //         onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.away_team)}
+          //         disabled={isLocked}
+          //         style={{
+          //           padding: '0.6rem 0.5rem',
+          //           background: pickedAway ? green : 'oklch(17% 0.028 255)',
+          //           color: pickedAway ? text : textMid,
+          //           border: `1px solid ${pickedAway ? green : border}`,
+          //           borderRadius: 6,
+          //           ...bc, fontWeight: 700, fontSize: '0.82rem',
+          //           letterSpacing: '0.04em', textTransform: 'uppercase',
+          //           cursor: isLocked ? 'not-allowed' : 'pointer',
+          //           textAlign: 'center',
+          //           transition: 'all 0.12s',
+          //         }}
+          //       >
+          //         {game.away_team}
+          //         {game.away_team_record && (
+          //           <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 600, color: pickedAway ? 'oklch(85% 0.006 255)' : textDim, marginTop: '0.1rem' }}>
+          //             {game.away_team_record.wins}-{game.away_team_record.losses}
+          //             {game.away_team_record.ties > 0 && `-${game.away_team_record.ties}`}
+          //           </span>
+          //         )}
+          //       </button>
+          //       <button
+          //         onClick={() => !isLocked && handlePickChange(game.id, 'predicted_winner', game.home_team)}
+          //         disabled={isLocked}
+          //         style={{
+          //           padding: '0.6rem 0.5rem',
+          //           background: pickedHome ? green : 'oklch(17% 0.028 255)',
+          //           color: pickedHome ? text : textMid,
+          //           border: `1px solid ${pickedHome ? green : border}`,
+          //           borderRadius: 6,
+          //           ...bc, fontWeight: 700, fontSize: '0.82rem',
+          //           letterSpacing: '0.04em', textTransform: 'uppercase',
+          //           cursor: isLocked ? 'not-allowed' : 'pointer',
+          //           textAlign: 'center',
+          //           transition: 'all 0.12s',
+          //         }}
+          //       >
+          //         {game.home_team}
+          //         {game.home_team_record && (
+          //           <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 600, color: pickedHome ? 'oklch(85% 0.006 255)' : textDim, marginTop: '0.1rem' }}>
+          //             {game.home_team_record.wins}-{game.home_team_record.losses}
+          //             {game.home_team_record.ties > 0 && `-${game.home_team_record.ties}`}
+          //           </span>
+          //         )}
+          //       </button>
+          //     </div>
+
+          //     {/* Confidence points - Only show for regular season */}
+          //     {!isPlayoffMode && (
+          //       <div>
+          //         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+          //           <label style={{ ...b, fontSize: '0.75rem', fontWeight: 600, color: textMid }}>
+          //             Confidence Points
+          //           </label>
+          //           {usedConfidencePoints.length > 0 && (
+          //             <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>
+          //               {usedConfidencePoints.length} used
+          //             </span>
+          //           )}
+          //         </div>
+          //         <div style={{ display: 'flex', gap: '0.4rem' }}>
+          //           <Select
+          //             value={pick?.confidence_points?.toString() || ''}
+          //             onValueChange={(value) => !isLocked && handlePickChange(game.id, 'confidence_points', parseInt(value))}
+          //             disabled={isLocked}
+          //           >
+          //             <SelectTrigger>
+          //               <SelectValue placeholder="Select confidence points" />
+          //             </SelectTrigger>
+          //             <SelectContent>
+          //               {availableConfidencePoints && availableConfidencePoints.length > 0 ? (
+          //                 availableConfidencePoints.map(points => (
+          //                   <SelectItem key={points} value={points.toString()}>
+          //                     {points} point{points !== 1 ? 's' : ''}
+          //                   </SelectItem>
+          //                 ))
+          //               ) : (
+          //                 <SelectItem value="" disabled>
+          //                   No confidence points available
+          //                 </SelectItem>
+          //               )}
+          //             </SelectContent>
+          //           </Select>
+
+          //           {/* Clear Confidence Button */}
+          //           {(pick?.confidence_points ?? 0) > 0 && !isLocked && (
+          //             <button
+          //               type="button"
+          //               onClick={() => handlePickChange(game.id, 'confidence_points', 0)}
+          //               title="Clear confidence points - makes this value available for other games"
+          //               style={{
+          //                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+          //                 padding: '0 0.55rem',
+          //                 background: 'transparent',
+          //                 color: textDim,
+          //                 border: `1px solid ${border}`,
+          //                 borderRadius: 5,
+          //                 cursor: 'pointer',
+          //                 flexShrink: 0,
+          //               }}
+          //             >
+          //               <X style={{ width: 14, height: 14 }} />
+          //             </button>
+          //           )}
+          //         </div>
+
+          //         {/* Show used confidence points */}
+          //         {usedConfidencePoints.length > 0 && (
+          //           <div style={{ marginTop: '0.4rem' }}>
+          //             <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.25rem' }}>Used by other games:</div>
+          //             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+          //               {usedConfidencePoints.sort((a, b) => a - b).map(points => (
+          //                 <span key={points} style={{
+          //                   ...bc, fontWeight: 700, fontSize: '0.65rem',
+          //                   padding: '0.08rem 0.35rem', borderRadius: 3,
+          //                   background: 'oklch(26% 0.03 255)',
+          //                   color: textDim,
+          //                   border: `1px solid ${border}`,
+          //                 }}>
+          //                   {points}
+          //                 </span>
+          //               ))}
+          //             </div>
+          //           </div>
+          //         )}
+
+          //         {/* Show message when no confidence points are assigned */}
+          //         {!pick?.confidence_points && (
+          //           <div style={{ marginTop: '0.35rem' }}>
+          //             <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontStyle: 'italic' }}>
+          //               No confidence points assigned — select a value above
+          //             </span>
+          //           </div>
+          //         )}
+          //       </div>
+          //     )}
+
+          //     {/* Show confidence points for playoff mode (read-only display) */}
+          //     {isPlayoffMode && pick?.predicted_winner && (
+          //       <div style={{ marginTop: '0.4rem' }}>
+          //         <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+          //           <span style={{ fontWeight: 600 }}>Confidence Points:</span>{' '}
+          //           {pick.confidence_points > 0 ? (
+          //             <span style={{
+          //               ...bc, fontWeight: 700, fontSize: '0.72rem',
+          //               padding: '0.1rem 0.4rem', borderRadius: 4,
+          //               background: 'oklch(46% 0.14 155 / 0.15)',
+          //               color: greenHi,
+          //               border: '1px solid oklch(46% 0.14 155 / 0.35)',
+          //             }}>
+          //               {pick.confidence_points} points
+          //             </span>
+          //           ) : (
+          //             <span style={{ color: textDim, fontStyle: 'italic' }}>No points assigned to this team</span>
+          //           )}
+          //         </span>
+          //       </div>
+          //     )}
+          //   </div>
+          // );
         })}
       </div>
 
