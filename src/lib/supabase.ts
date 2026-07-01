@@ -12,18 +12,18 @@ export function getSupabaseClient() {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl) {
     throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL in your environment variables.');
   }
 
-  if (!supabaseAnonKey && !supabaseServiceKey) {
-    throw new Error('Supabase key is required. Please set NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
+  if (!supabaseAnonKey) {
+    throw new Error('Supabase anon key is required. Please set NEXT_PUBLIC_SUPABASE_ANON_KEY or SUPABASE_ANON_KEY in your environment variables.');
   }
 
-  const key = supabaseServiceKey || supabaseAnonKey!;
-  g.__supabaseClient = createClient(supabaseUrl, key);
+  g.__supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { flowType: 'pkce', detectSessionInUrl: false },
+  });
   return g.__supabaseClient;
 }
 

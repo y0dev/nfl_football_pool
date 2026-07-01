@@ -42,6 +42,7 @@ function CallbackContent() {
 
         const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
         if (sessionError || !sessionData.session) {
+          console.error('[auth/callback] exchangeCodeForSession error:', sessionError);
           setErrorMsg('Failed to complete Google sign-in. Please try again.');
           setStatus('error');
           return;
