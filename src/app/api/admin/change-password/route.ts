@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
     }
 
+    if (admin.password_hash === 'google_oauth') {
+      return NextResponse.json({ success: false, error: 'Password changes are not available for Google sign-in accounts' }, { status: 400 });
+    }
+
     const isValid = await bcrypt.compare(currentPassword, admin.password_hash);
     if (!isValid) {
       return NextResponse.json({ success: false, error: 'Current password is incorrect' }, { status: 401 });
