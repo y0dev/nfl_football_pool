@@ -266,7 +266,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
                 <div style={{ padding: '0.85rem 1rem', background: `oklch(74% 0.16 72 / 0.08)`, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 8 }}>
                   <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: 'oklch(74% 0.16 72)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Pool Limit Reached</p>
                   <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade your plan to run additional pools.</p>
-                  <a href="/dashboard?upgrade=1" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                     View upgrade options →
                   </a>
                 </div>
