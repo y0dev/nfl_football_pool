@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Users, Trophy, Calendar, Shield } from 'lucide-react';
+import { Search, Users, Trophy, Calendar, Shield, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
@@ -144,16 +144,21 @@ function LandingPage() {
   );
 
   const features = [
-    { icon: Trophy,   label: 'Weekly Competition', body: 'Compete weekly with friends and family in confidence pools',        accent: gold },
-    { icon: Users,    label: 'Social Experience',   body: 'Join pools, invite friends, and track your performance all season', accent: greenHi },
-    { icon: Calendar, label: 'Season Long',          body: 'Follow your progress through every week of the NFL season',         accent: gold },
+    { icon: Trophy,   label: 'Weekly Competition', body: 'Confidence points separate the bold from the lucky — assign more points to games you are sure about.',   accent: gold },
+    { icon: Users,    label: 'Commissioner Tools',  body: 'Create a pool, invite players, manage picks, and track standings. Everything you need to run a great season.', accent: greenHi },
+    { icon: Calendar, label: 'All Season Long',     body: 'Q1–Q4 period prizes, playoff pools, and email reminders keep every week on the line through February.',   accent: gold },
   ];
 
-  const steps = [
-    { n: '01', title: 'Join a Pool',  body: 'Find and join a confidence pool with friends or family' },
-    { n: '02', title: 'Make Picks',   body: 'Pick the winner of each game and assign confidence points' },
-    { n: '03', title: 'Watch Games',  body: 'Follow the games and see how your picks perform' },
-    { n: '04', title: 'Win Points',   body: 'Earn points for correct picks based on your confidence level' },
+  const commissionerSteps = [
+    { n: '01', title: 'Create a Pool',    body: 'Register as a commissioner and set up your pool in minutes' },
+    { n: '02', title: 'Invite Players',   body: 'Share your pool link — players join and submit picks each week' },
+    { n: '03', title: 'Run the Season',   body: 'Manage picks, unlock weeks, and crown winners all season long' },
+  ];
+
+  const playerSteps = [
+    { n: '01', title: 'Join a Pool',   body: 'Get an invite from your commissioner and create your account' },
+    { n: '02', title: 'Make Picks',    body: 'Pick winners and assign confidence points before kickoff' },
+    { n: '03', title: 'Win the Week',  body: 'Earn points for correct picks and climb the leaderboard' },
   ];
 
   return (
@@ -180,7 +185,7 @@ function LandingPage() {
               </span>
             </div>
 
-            <div style={{ flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
               {user ? (
                 <button
                   onClick={() => {
@@ -203,21 +208,37 @@ function LandingPage() {
                   {isCheckingAdmin ? 'Loading…' : isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
                 </button>
               ) : (
-                <button
-                  onClick={() => router.push('/login')}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.45rem 0.9rem',
-                    background: 'transparent', color: text,
-                    border: `1px solid ${border}`, borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.78rem',
-                    letterSpacing: '0.08em', textTransform: 'uppercase',
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  Commissioner Login
-                </button>
+                <>
+                  <button
+                    onClick={() => router.push('/login')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      padding: '0.45rem 0.9rem',
+                      background: 'transparent', color: textMid,
+                      border: `1px solid ${border}`, borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.78rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => router.push('/register')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      padding: '0.45rem 0.9rem',
+                      background: green, color: text, border: 'none', borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.78rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Pool
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -277,56 +298,96 @@ function LandingPage() {
               <div style={{
                 background: surface,
                 border: `1px solid ${border}`,
-                borderTop: `3px solid ${green}`,
                 borderRadius: 10,
-                padding: '1.75rem',
+                overflow: 'hidden',
               }}>
-                <p style={{
-                  ...bc, fontWeight: 700, fontSize: '0.63rem',
-                  letterSpacing: '0.24em', color: greenHi,
-                  textTransform: 'uppercase', marginBottom: '0.3rem',
-                }}>
-                  Find Your Pool
-                </p>
-                <h2 style={{
-                  ...bc, fontWeight: 800, fontSize: '1.4rem',
-                  color: text, marginBottom: '1.25rem', letterSpacing: '0.02em',
-                }}>
-                  Join The Game
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <input
-                    placeholder="Pool Name"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    style={{
-                      background: bg,
-                      border: `1px solid ${border}`,
-                      color: text,
-                      borderRadius: 6,
-                      padding: '0.5rem 0.75rem',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      ...b, fontSize: '0.88rem',
-                    }}
-                  />
+                {/* Join section */}
+                <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}`, borderTop: `3px solid ${green}` }}>
+                  <p style={{
+                    ...bc, fontWeight: 700, fontSize: '0.63rem',
+                    letterSpacing: '0.24em', color: greenHi,
+                    textTransform: 'uppercase', marginBottom: '0.25rem',
+                  }}>
+                    Already have an invite?
+                  </p>
+                  <h2 style={{
+                    ...bc, fontWeight: 800, fontSize: '1.25rem',
+                    color: text, marginBottom: '1rem', letterSpacing: '0.02em',
+                  }}>
+                    Join a Pool
+                  </h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                    <input
+                      placeholder="Search by pool name"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      style={{
+                        background: bg,
+                        border: `1px solid ${border}`,
+                        color: text,
+                        borderRadius: 6,
+                        padding: '0.5rem 0.75rem',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        ...b, fontSize: '0.88rem',
+                      }}
+                    />
+                    <button
+                      onClick={handleSearch}
+                      disabled={!searchTerm.trim()}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                        padding: '0.6rem 1rem',
+                        background: searchTerm.trim() ? green : 'oklch(22% 0.03 255)',
+                        color: text, border: 'none', borderRadius: 6,
+                        ...bc, fontWeight: 700, fontSize: '0.82rem',
+                        letterSpacing: '0.1em', textTransform: 'uppercase',
+                        cursor: searchTerm.trim() ? 'pointer' : 'not-allowed',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      <Search className="h-4 w-4" />
+                      Find Pool
+                    </button>
+                  </div>
+                </div>
+
+                {/* Create section */}
+                <div style={{ padding: '1.5rem', borderTop: `3px solid ${gold}` }}>
+                  <p style={{
+                    ...bc, fontWeight: 700, fontSize: '0.63rem',
+                    letterSpacing: '0.24em', color: gold,
+                    textTransform: 'uppercase', marginBottom: '0.25rem',
+                  }}>
+                    Want to run one?
+                  </p>
+                  <h2 style={{
+                    ...bc, fontWeight: 800, fontSize: '1.25rem',
+                    color: text, marginBottom: '0.4rem', letterSpacing: '0.02em',
+                  }}>
+                    Start a Pool
+                  </h2>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '1rem', lineHeight: 1.55 }}>
+                    Set up your own confidence pool in minutes. Invite players, manage picks, and run your season.
+                  </p>
                   <button
-                    onClick={handleSearch}
-                    disabled={!searchTerm.trim()}
+                    onClick={() => router.push('/register')}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                      padding: '0.65rem 1rem',
-                      background: searchTerm.trim() ? green : 'oklch(22% 0.03 255)',
-                      color: text, border: 'none', borderRadius: 6,
-                      ...bc, fontWeight: 700, fontSize: '0.84rem',
+                      width: '100%', padding: '0.6rem 1rem',
+                      background: 'oklch(74% 0.16 72 / 0.15)',
+                      color: gold,
+                      border: `1px solid oklch(74% 0.16 72 / 0.4)`,
+                      borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.82rem',
                       letterSpacing: '0.1em', textTransform: 'uppercase',
-                      cursor: searchTerm.trim() ? 'pointer' : 'not-allowed',
+                      cursor: 'pointer',
                       transition: 'background 0.15s',
                     }}
                   >
-                    <Search className="h-4 w-4" />
-                    Find Pool
+                    <Plus className="h-4 w-4" />
+                    Create a Pool — Free
                   </button>
                 </div>
               </div>
@@ -518,29 +579,74 @@ function LandingPage() {
             </h3>
           </div>
 
-          {/* .lp-steps: 2-col mobile, 4-col 768px+ */}
-          <div className="lp-steps">
-            {steps.map(({ n, title, body: desc }) => (
-              <div key={n}>
-                <div style={{
-                  ...bc, fontWeight: 900, fontSize: '3rem',
-                  lineHeight: 1, color: gold, opacity: 0.6,
-                  marginBottom: '0.6rem', letterSpacing: '-0.02em',
-                }}>
-                  {n}
-                </div>
-                <h4 style={{
-                  ...bc, fontWeight: 700, fontSize: '0.9rem',
-                  letterSpacing: '0.07em', color: text,
-                  textTransform: 'uppercase', marginBottom: '0.35rem',
-                }}>
-                  {title}
-                </h4>
-                <p style={{ ...b, fontSize: '0.85rem', lineHeight: 1.65, color: textMid }}>
-                  {desc}
-                </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+
+            {/* Commissioner track */}
+            <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, padding: '1.75rem' }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Commissioner</p>
+              <h4 style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1.5rem' }}>
+                Running a Pool
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {commissionerSteps.map(({ n, title, body: desc }) => (
+                  <div key={n} style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1, color: gold, opacity: 0.5, letterSpacing: '-0.02em', flexShrink: 0, width: 32 }}>{n}</div>
+                    <div>
+                      <h5 style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.2rem' }}>{title}</h5>
+                      <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.6, color: textMid }}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+              <button
+                onClick={() => router.push('/register')}
+                style={{
+                  marginTop: '1.5rem', width: '100%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                  padding: '0.55rem 1rem',
+                  background: 'oklch(74% 0.16 72 / 0.12)', color: gold,
+                  border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.78rem',
+                  letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" /> Create a Pool
+              </button>
+            </div>
+
+            {/* Player track */}
+            <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${green}`, borderRadius: 10, padding: '1.75rem' }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Player</p>
+              <h4 style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1.5rem' }}>
+                Joining a Pool
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {playerSteps.map(({ n, title, body: desc }) => (
+                  <div key={n} style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1, color: greenHi, opacity: 0.5, letterSpacing: '-0.02em', flexShrink: 0, width: 32 }}>{n}</div>
+                    <div>
+                      <h5 style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.2rem' }}>{title}</h5>
+                      <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.6, color: textMid }}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleSearch}
+                style={{
+                  marginTop: '1.5rem', width: '100%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                  padding: '0.55rem 1rem',
+                  background: 'oklch(46% 0.14 155 / 0.12)', color: greenHi,
+                  border: `1px solid oklch(46% 0.14 155 / 0.35)`, borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.78rem',
+                  letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                <Search className="h-3.5 w-3.5" /> Find a Pool
+              </button>
+            </div>
+
           </div>
         </div>
       </section>

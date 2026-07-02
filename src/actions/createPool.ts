@@ -2,7 +2,11 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
-import { getAdminPlanByEmail, LIMITS } from '@/lib/plan';
+import { getAdminPlanByEmail, LIMITS, Plan } from '@/lib/plan';
+
+export type CreatePoolResult =
+  | { success: true; data: Record<string, unknown> }
+  | { success: false; error: string; limitReached?: true; plan?: Plan; limit?: number };
 
 export async function createPool(poolData: {
   name: string;
@@ -12,7 +16,7 @@ export async function createPool(poolData: {
   join_password?: string;
   season_scope?: number[];
   is_private?: boolean;
-}) {
+}): Promise<CreatePoolResult> {
   try {
     const supabase = getSupabaseServiceClient();
 
@@ -24,10 +28,15 @@ export async function createPool(poolData: {
       .eq('created_by', poolData.created_by);
 
     if ((poolCount ?? 0) >= poolLimit) {
-      throw new Error(
-        `Your ${planInfo.plan} plan allows ${poolLimit} pool${poolLimit === 1 ? '' : 's'}. Upgrade to create more.`
-      );
+      return {
+        success: false,
+        error: `Your ${planInfo.plan} plan allows ${poolLimit} pool${poolLimit === 1 ? '' : 's'}.`,
+        limitReached: true,
+        plan: planInfo.plan,
+        limit: poolLimit,
+      };
     }
+
     const { data, error } = await supabase
       .from('pools')
       .insert({
@@ -43,11 +52,13 @@ export async function createPool(poolData: {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      debugError('[SH][API][POOL] Insert failed:', error);
+      return { success: false, error: 'Failed to create pool. Please try again.' };
+    }
 
-    // Send email notification to pool creator (dynamically imported to avoid client bundle)
+    // Non-critical: send welcome email
     try {
-      // Get admin info
       const { data: admin } = await supabase
         .from('admins')
         .select('full_name, email')
@@ -55,7 +66,7 @@ export async function createPool(poolData: {
         .eq('is_active', true)
         .maybeSingle();
 
-      if (admin && admin.email) {
+      if (admin?.email) {
         const { emailService } = await import('@/lib/email');
         await emailService.sendPoolCreationNotification(
           admin.email,
@@ -66,12 +77,11 @@ export async function createPool(poolData: {
       }
     } catch (emailError) {
       debugError('Error sending pool creation email:', emailError);
-      // Don't fail pool creation if email fails
     }
 
-    return data;
+    return { success: true, data };
   } catch (error) {
-    debugError('Error creating pool:', error);
-    throw error;
+    debugError('[SH][API][POOL] Unexpected error:', error);
+    return { success: false, error: 'An unexpected error occurred. Please try again.' };
   }
 }
