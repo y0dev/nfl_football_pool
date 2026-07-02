@@ -28,7 +28,8 @@ function CallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
-      const next = searchParams.get('next');
+      const next = searchParams.get('next') || sessionStorage.getItem('oauth_intent');
+      sessionStorage.removeItem('oauth_intent');
 
       if (!code) {
         setErrorMsg('No authorization code received from Google.');
