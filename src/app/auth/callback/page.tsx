@@ -82,9 +82,6 @@ function CallbackContent() {
         }
 
         if (next === 'register') {
-          const trialEndsAt = new Date();
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-
           const { data: newAdmin, error: createError } = await serviceClient
             .from('admins')
             .insert({
@@ -93,8 +90,6 @@ function CallbackContent() {
               full_name: fullName,
               is_super_admin: false,
               is_active: true,
-              plan: 'free',
-              trial_ends_at: trialEndsAt.toISOString(),
             })
             .select('id, email, full_name, is_super_admin')
             .single();
@@ -107,6 +102,20 @@ function CallbackContent() {
             setStatus('error');
             return;
           }
+
+          // Set plan fields — non-critical, silently skipped if columns don't exist yet
+          const trialEndsAt = new Date();
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+          void serviceClient.from('admins')
+            .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
+            .eq('id', newAdmin.id);
+
+          // Send welcome email — non-critical
+          fetch('/api/admin/welcome-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: newAdmin.email, fullName: newAdmin.full_name ?? newAdmin.email }),
+          }).catch(() => {});
 
           await signIn({
             id: newAdmin.id,
