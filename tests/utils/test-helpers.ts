@@ -159,7 +159,7 @@ export const testData = {
   },
   poolDetail: {
     regularOnly: {
-      id: 'pool-regular-id',
+      id: 'a0000000-0000-0000-0000-000000000001',
       name: 'Regular Season Pool',
       season: 2025,
       season_scope: [2],
@@ -172,7 +172,7 @@ export const testData = {
       picks_status: null,
     },
     preseasonAndRegular: {
-      id: 'pool-preseason-regular-id',
+      id: 'a0000000-0000-0000-0000-000000000002',
       name: 'Full Season Pool',
       season: 2025,
       season_scope: [1, 2],

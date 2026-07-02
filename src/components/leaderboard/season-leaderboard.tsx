@@ -179,7 +179,7 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
             {index < 3 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 <div style={{ background: card, borderRadius: 6, padding: '0.4rem 0.5rem', textAlign: 'center' }}>
-                  <div style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: textMid, lineHeight: 1 }}>{entry.average_points.toFixed(1)}</div>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: textMid, lineHeight: 1 }}>{(entry.average_points ?? 0).toFixed(1)}</div>
                   <div style={{ ...b, fontSize: '0.65rem', color: textDim }}>avg/week</div>
                 </div>
                 <div style={{ background: card, borderRadius: 6, padding: '0.4rem 0.5rem', textAlign: 'center' }}>
