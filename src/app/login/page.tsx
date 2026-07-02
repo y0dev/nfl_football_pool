@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -57,7 +57,7 @@ function LoginContent() {
   const [loginError, setLoginError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
   const { toast } = useToast();
-  const { signIn, user } = useAuth();
+  const { signIn, user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -72,13 +72,26 @@ function LoginContent() {
     }
   }, [searchParams]);
 
+  const verifyCalledRef = useRef(false);
+
   useEffect(() => {
-    if (user && user.is_super_admin) {
-      router.push(createPageUrl('admindashboard'));
-    } else if (user && user.is_super_admin === false) {
-      router.push(createPageUrl('dashboard'));
+    if (!user) return;
+
+    // is_super_admin is in React state after verifyAdminStatus runs — redirect immediately
+    if (user.is_super_admin !== undefined) {
+      window.location.href = user.is_super_admin
+        ? createPageUrl('admindashboard')
+        : createPageUrl('dashboard');
+      return;
     }
-  }, [user, router]);
+
+    // is_super_admin not yet known (session restored from localStorage without it).
+    // Verify from DB once — the state update will re-trigger this effect to redirect.
+    if (!verifyCalledRef.current) {
+      verifyCalledRef.current = true;
+      verifyAdminStatus().catch(() => {});
+    }
+  }, [user, verifyAdminStatus]);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
