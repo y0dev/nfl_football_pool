@@ -986,7 +986,9 @@ function ParticipantContent() {
           ) : (
             <>
               {/* Picks Section */}
-              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.25rem' }}>
+                <div
+                  id="picks-section"
+                  style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                   <Zap style={{ width: 16, height: 16, color: greenHi }} />
                   <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase' }}>Week {currentWeek} Picks</p>

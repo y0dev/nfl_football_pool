@@ -16,6 +16,8 @@ import {
   Edit,
   Calendar,
   BarChart3,
+  Link2,
+  Check,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -97,6 +99,7 @@ function CommissionerDashboardContent() {
   const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review'>('overview');
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -452,6 +455,14 @@ function CommissionerDashboardContent() {
     setNotifications(newNotifications);
   };
 
+  const handleCopyPicksLink = async () => {
+    if (!selectedPoolId) return;
+    const url = `${window.location.origin}/pool/${selectedPoolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -734,7 +745,7 @@ function CommissionerDashboardContent() {
           )}
 
           {/* Pool Workspace */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div id='pool-workspace' style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>
               Pool Workspace
             </p>
@@ -779,6 +790,26 @@ function CommissionerDashboardContent() {
                   <div>
                     <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
                     <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
+                  </div>
+                  <div style={{ marginLeft: 'auto' }}>
+                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Picks Page</p>
+                    <button
+                      onClick={handleCopyPicksLink}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.3rem 0.65rem',
+                        background: linkCopied ? 'oklch(46% 0.14 155 / 0.15)' : 'transparent',
+                        color: linkCopied ? greenHi : textMid,
+                        border: `1px solid ${linkCopied ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
+                        borderRadius: 5, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                      }}
+                    >
+                      {linkCopied
+                        ? <><Check style={{ width: 11, height: 11 }} /> Copied!</>
+                        : <><Link2 style={{ width: 11, height: 11 }} /> Copy Link</>}
+                    </button>
                   </div>
                 </div>
                 {/* Bottom row: pool stats */}
