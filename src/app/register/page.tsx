@@ -82,9 +82,10 @@ function RegisterContent() {
     try {
       const { getSupabaseClient } = await import('@/lib/supabase');
       const supabase = getSupabaseClient();
+      sessionStorage.setItem('oauth_intent', 'register');
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=register` },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
     } catch {
       setFormError('Failed to start Google sign-in. Please try again.');
