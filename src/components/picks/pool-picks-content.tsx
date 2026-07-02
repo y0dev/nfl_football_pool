@@ -162,7 +162,7 @@ export function PoolPicksContent() {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showGameDetails, setShowGameDetails] = useState(false);
+  const [showGameDetails, setShowGameDetails] = useState(true);
   const [countdown, setCountdown] = useState<string>('');
   const [showQuickStats, setShowQuickStats] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
@@ -1402,7 +1402,7 @@ export function PoolPicksContent() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
             {[
               { label: 'Share', icon: Share2, onClick: handleShare },
-              { label: showGameDetails ? 'Hide Details' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => { setShowGameDetails(!showGameDetails); if (!showGameDetails) setShowLeaderboard(false); } },
+              { label: showGameDetails ? 'Unlock Week' : 'Game Details', icon: showGameDetails ? Unlock : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard', icon: BarChart3, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
@@ -1422,12 +1422,16 @@ export function PoolPicksContent() {
         <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
           {showQuickStats && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div
+              id="quick-stats-card"
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Users style={{ width: 15, height: 15, color: greenHi }} />
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pool Statistics</span>
               </div>
-              <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+              <div
+                id="quick-stats-grid"
+                style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
                 {[
                   { label: 'Total Participants', value: participantCount, color: greenHi },
                   { label: 'Submitted', value: submittedCount, color: 'oklch(58% 0.15 250)' },
@@ -1456,7 +1460,7 @@ export function PoolPicksContent() {
             const stats = getGameStatusStats();
             if (!stats) return null;
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+              <div id="game-status-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
                 {[
                   { label: 'Total', value: stats.total, color: 'oklch(58% 0.15 250)' },
                   { label: 'Upcoming', value: stats.upcoming, color: greenHi },
@@ -1499,7 +1503,9 @@ export function PoolPicksContent() {
           )}
 
           {showGameDetails && games.length > 0 && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div
+              id="game-details-card"
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Target style={{ width: 15, height: 15, color: textMid }} />
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Game Details</span>
@@ -1752,7 +1758,7 @@ export function PoolPicksContent() {
                     <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
                   </div>
                 </div>
-              ) : (
+              ) : (!showGameDetails || games.length === 0) ? (
                     <div
                       id="picks-content"
                       style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -1842,9 +1848,9 @@ export function PoolPicksContent() {
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
+              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (!showGameDetails || games.length === 0) && (
                 <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Eye style={{ width: 15, height: 15, color: 'oklch(58% 0.15 250)' }} />
