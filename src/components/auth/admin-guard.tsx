@@ -51,7 +51,7 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
     if (!isVerifying && !isAdmin) {
       debugLog('AdminGuard: Redirecting to admin login - isVerifying:', isVerifying, 'isAdmin:', isAdmin);
       // Redirect to admin login if not authenticated or not an admin
-      router.push('/admin/login');
+      router.push('/login');
     }
   }, [isVerifying, isAdmin, router]);
 

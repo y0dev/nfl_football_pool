@@ -3,6 +3,7 @@
 !public
 
 !src
+!src/proxy.ts
 !src/actions
 !src/actions/**
 !src/app

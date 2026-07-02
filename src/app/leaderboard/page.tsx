@@ -170,9 +170,7 @@ function LeaderboardContent() {
           setSelectedPoolSeason(selectedPoolData.season || DEFAULT_POOL_SEASON);
         }
       }
-      if (process.env.NODE_ENV === 'development') {
-        debugLog('Loading leaderboard data for:', { pool: selectedPool, week: selectedWeek, seasonType: selectedSeasonType, season: selectedPoolSeason });
-      }
+      debugLog('Loading leaderboard data for:', { pool: selectedPool, week: selectedWeek, seasonType: selectedSeasonType, season: selectedPoolSeason });
       const response = await fetch(`/api/leaderboard?poolId=${selectedPool}&week=${selectedWeek}&seasonType=${selectedSeasonType}${selectedPoolSeason ? `&season=${selectedPoolSeason}` : ''}`);
       if (response.ok) {
         const result = await response.json();

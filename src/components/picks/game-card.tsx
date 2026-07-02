@@ -41,6 +41,7 @@ function TeamButton({
   isSelected,
   isWinner,
   isFinal,
+  isLive,
   isSelectable,
   onClick,
 }: {
@@ -49,6 +50,7 @@ function TeamButton({
   isSelected: boolean;
   isWinner: boolean;
   isFinal: boolean;
+  isLive: boolean;
   isSelectable: boolean;
   onClick: () => void;
 }) {
@@ -58,6 +60,7 @@ function TeamButton({
 
   return (
     <button
+      className='team-button'
       onClick={onClick}
       disabled={!isSelectable}
       aria-pressed={isSelected}
@@ -77,6 +80,7 @@ function TeamButton({
       }}
     >
       <div
+        className='team-button-abbr'
         style={{
           width: 64,
           height: 64,
@@ -109,14 +113,20 @@ function TeamButton({
           {score ?? '—'}
         </span>
       )}
-      {isSelected && !isFinal && <Check size={13} color={greenHi} />}
+      {isLive && score != null && (
+        <span style={{ ...bc, fontWeight: 900, fontSize: '1.15rem', color: amber, marginTop: '0.15rem' }}>
+          {score}
+        </span>
+      )}
+      {isSelected && !isFinal && !isLive && <Check size={13} color={greenHi} />}
     </button>
   );
 }
 
 export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked }: GameCardProps) {
   const isFinal = game.status === 'final' || game.status === 'post';
-  const isSelectable = !locked && !isFinal;
+  const isLive = game.status === 'in_progress' || game.status === 'live';
+  const isSelectable = !locked && !isFinal && !isLive;
   const selectedTeam = pick?.predicted_winner;
   const confidencePoints = pick?.confidence_points;
 
@@ -135,6 +145,7 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
 
   return (
     <div
+      className='game-card'
       style={{
         background: card,
         border: `1px solid ${selectedTeam ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
@@ -146,6 +157,7 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
     >
       {/* Header */}
       <div
+        className='game-card-header'
         style={{
           padding: '0.5rem 1.125rem',
           background: surface,
@@ -156,11 +168,18 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
           gap: '0.5rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', ...b, fontSize: '0.75rem', color: textDim }}>
+        <div
+          className='game-card-kickoff'
+          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', ...b, fontSize: '0.75rem', color: textDim }}>
           {isFinal ? (
             <>
               <Trophy size={12} color={amber} />
               <span style={{ color: amber }}>Final</span>
+            </>
+          ) : isLive ? (
+            <>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, flexShrink: 0, animation: 'pulse 1.4s ease-in-out infinite' }} />
+              <span style={{ color: liveRed, fontWeight: 700 }}>Live</span>
             </>
           ) : (
             <>
@@ -169,7 +188,9 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
             </>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div
+          className='game-card-results'
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           {isFinal && winnerCity && (
             <span style={{ ...bc, fontSize: '0.75rem', fontWeight: 700, color: greenHi }}>
               {winnerCity} wins
@@ -187,17 +208,22 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
       </div>
 
       {/* Teams row */}
-      <div style={{ padding: '0.875rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+      <div
+        className='game-card-teams'
+        style={{ padding: '0.875rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
         <TeamButton
           fullName={game.away_team}
           score={game.away_score}
           isSelected={selectedTeam === game.away_team}
           isWinner={game.winner === game.away_team}
           isFinal={isFinal}
+          isLive={isLive}
           isSelectable={isSelectable}
           onClick={() => isSelectable && onSelectTeam(game.id, game.away_team)}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0, padding: '0 0.25rem' }}>
+        <div
+          className='game-card-vs'
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', flexShrink: 0, padding: '0 0.25rem' }}>
           <span style={{ ...bc, fontWeight: 800, fontSize: '0.7rem', color: textDim, letterSpacing: '0.12em' }}>VS</span>
           <span style={{ ...b, fontSize: '0.6rem', color: 'oklch(34% 0.02 255)' }}>@</span>
         </div>
@@ -207,18 +233,21 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
           isSelected={selectedTeam === game.home_team}
           isWinner={game.winner === game.home_team}
           isFinal={isFinal}
+          isLive={isLive}
           isSelectable={isSelectable}
           onClick={() => isSelectable && onSelectTeam(game.id, game.home_team)}
         />
       </div>
 
       {/* Confidence selector */}
-      {selectedTeam && !isFinal && !locked && (
-        <div style={{ padding: '0 1rem 1rem' }}>
+      {selectedTeam && !isFinal && !isLive && !locked && (
+        <div className='game-card-confidence' style={{ padding: '0 1rem 1rem' }}>
           <p style={{ ...b, fontSize: '0.68rem', color: textDim, textAlign: 'center', marginBottom: '0.5rem', marginTop: 0 }}>
             Confidence Points
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', justifyContent: 'center' }}>
+          <div
+            className='game-card-confidence-options'
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', justifyContent: 'center' }}>
             {availablePoints.map(p => (
               <button
                 key={p}
@@ -247,8 +276,8 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
       )}
 
       {/* Points badge when locked or final */}
-      {confidencePoints && (isFinal || locked) && (
-        <div style={{ padding: '0 1rem 0.875rem', textAlign: 'center' }}>
+      {!!confidencePoints && (isFinal || locked) && (
+        <div className='game-card-points' style={{ padding: '0 1rem 0.875rem', textAlign: 'center' }}>
           <span
             style={{
               display: 'inline-block',

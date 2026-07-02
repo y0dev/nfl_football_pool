@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
+import { GameCard } from '@/components/picks/game-card';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
@@ -161,7 +162,7 @@ export function PoolPicksContent() {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showGameDetails, setShowGameDetails] = useState(false);
+  const [showGameDetails, setShowGameDetails] = useState(true);
   const [countdown, setCountdown] = useState<string>('');
   const [showQuickStats, setShowQuickStats] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
@@ -186,6 +187,10 @@ export function PoolPicksContent() {
   const [poolSeasonScope, setPoolSeasonScope] = useState<number[]>([2]);
   const [forcePicks, setForcePicks] = useState(process.env.NEXT_PUBLIC_DUMMY_DATA === 'true');
   const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
+  const [devSimInProgress, setDevSimInProgress] = useState(false);
+  const [devSimFinished, setDevSimFinished] = useState(false);
+  const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
+  const [activeResultsTab, setActiveResultsTab] = useState<'leaderboard' | 'results'>('leaderboard');
 
   const { toast } = useToast();
   const router = useRouter();
@@ -311,12 +316,10 @@ export function PoolPicksContent() {
       return gameEnded;
     });
 
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Week status result:', {
-        allGamesEnded, gamesCount: games.length,
-        gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
-      });
-    }
+    debugLog('Week status result:', {
+      allGamesEnded, gamesCount: games.length,
+      gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
+    });
 
     setWeekEnded(allGamesEnded);
     if (allGamesEnded) {
@@ -990,13 +993,14 @@ export function PoolPicksContent() {
         .in('game_id', gameIds);
 
       if (picksError) {
-        debugError('Error checking picks:', picksError);
+        debugError('Error checking picks:', picksError.message ?? picksError.code ?? String(picksError));
+        setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: false, name: selectedUser.name } }));
         return;
       }
 
       debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
-      const hasSubmittedPicks = picks && picks.length > 0 && picks.length === gameIds.length;
+      const hasSubmittedPicks = (picks?.length ?? 0) >= gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmittedPicks, name: selectedUser.name } }));
 
       debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedPicks, picksCount: picks?.length || 0, gamesCount: gameIds.length });
@@ -1081,6 +1085,30 @@ export function PoolPicksContent() {
 
   const seasonTypeNames: Record<number, string> = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
 
+  const devDisplayGames = (() => {
+    if (process.env.NODE_ENV !== 'development') return games;
+    const liveScores:  [number, number][] = [[7,3],[14,14],[21,10],[0,7],[17,21],[28,24],[3,10],[35,14]];
+    const finalScores: [number, number][] = [[24,17],[31,28],[14,21],[38,35],[17,10],[21,7],[27,24],[13,10]];
+    if (devSimFinished) {
+      return games.map((g, i) => {
+        const [hs, as_] = finalScores[i % finalScores.length];
+        return { ...g, status: 'final', winner: hs >= as_ ? g.home_team : g.away_team, home_score: hs, away_score: as_ };
+      });
+    }
+    if (devSimInProgress) {
+      return games.map((g, i) => {
+        if (i % 2 === 0) {
+          const [hs, as_] = liveScores[i % liveScores.length];
+          return { ...g, status: 'in_progress', home_score: hs, away_score: as_ };
+        }
+        return g;
+      });
+    }
+    return games;
+  })();
+  const effectiveGamesStarted = gamesStarted || (process.env.NODE_ENV === 'development' && devSimInProgress);
+  const showResultsTabs = weekEnded || (process.env.NODE_ENV === 'development' && devForceLeaderboard) || (effectiveGamesStarted && !weekEnded && submittedCount >= participantCount);
+
   // ── LOADING ──────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
@@ -1098,7 +1126,9 @@ export function PoolPicksContent() {
     return (
       <div id='offseason-banner' style={{ minHeight: '100vh', background: bg }}>
         <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
-        <section style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
+        <section
+          id="offseason-banner"
+          style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
           <div className="lp-inner">
             <OffseasonBanner />
           </div>
@@ -1148,9 +1178,7 @@ export function PoolPicksContent() {
   }
 
   // ── WEEK ENDED — NO PICKS ─────────────────────────────────────────────────────
-  if (process.env.NODE_ENV === 'development') {
-    debugLog('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
-  }
+  debugLog('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
 
   if (weekEnded && !weekHasPicks) {
     return (
@@ -1183,7 +1211,9 @@ export function PoolPicksContent() {
         </section>
         <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-        <section style={{ background: bg, padding: '2rem 0' }}>
+        <section
+          id="no-picks-banner"
+          style={{ background: bg, padding: '2rem 0' }}>
           <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
               <Calendar style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
@@ -1221,7 +1251,9 @@ export function PoolPicksContent() {
       <div style={{ minHeight: '100vh', background: bg }}>
         <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
 
-        <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+        <section
+          id="final-results-banner"
+          style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
           <div className="lp-inner">
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
@@ -1247,7 +1279,10 @@ export function PoolPicksContent() {
         </section>
         <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
 
-        <section style={{ background: bg, padding: '2rem 0' }}>
+        <section
+          id="final-results-banner"
+          style={{ background: bg, padding: '2rem 0' }}
+        >
           <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
             <div style={{ background: `linear-gradient(135deg, oklch(20% 0.04 72 / 0.6), oklch(18% 0.03 255))`, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderTop: `3px solid ${gold}`, borderRadius: 12, padding: '2rem', textAlign: 'center' }}>
@@ -1337,7 +1372,9 @@ export function PoolPicksContent() {
     <div style={{ minHeight: '100vh', background: bg }}>
       <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
 
-      <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
+      <section
+        id="hero"
+        style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
         <div className="lp-inner">
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
@@ -1365,7 +1402,7 @@ export function PoolPicksContent() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
             {[
               { label: 'Share', icon: Share2, onClick: handleShare },
-              { label: showGameDetails ? 'Hide Details' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => { setShowGameDetails(!showGameDetails); if (!showGameDetails) setShowLeaderboard(false); } },
+              { label: showGameDetails ? 'Unlock Week' : 'Game Details', icon: showGameDetails ? Unlock : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard', icon: BarChart3, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
@@ -1379,16 +1416,22 @@ export function PoolPicksContent() {
       </section>
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      <section style={{ background: bg, padding: '1.5rem 0 3rem' }}>
+      <section
+        id="picks-content"
+        style={{ background: bg, padding: '1.5rem 0 3rem' }}>
         <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
           {showQuickStats && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div
+              id="quick-stats-card"
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Users style={{ width: 15, height: 15, color: greenHi }} />
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pool Statistics</span>
               </div>
-              <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+              <div
+                id="quick-stats-grid"
+                style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
                 {[
                   { label: 'Total Participants', value: participantCount, color: greenHi },
                   { label: 'Submitted', value: submittedCount, color: 'oklch(58% 0.15 250)' },
@@ -1417,7 +1460,7 @@ export function PoolPicksContent() {
             const stats = getGameStatusStats();
             if (!stats) return null;
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+              <div id="game-status-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
                 {[
                   { label: 'Total', value: stats.total, color: 'oklch(58% 0.15 250)' },
                   { label: 'Upcoming', value: stats.upcoming, color: greenHi },
@@ -1445,12 +1488,14 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {countdown === 'Games Started' && (
+          {(countdown === 'Games Started' || effectiveGamesStarted) && (
             <div style={{ background: `oklch(62% 0.22 25 / 0.1)`, border: `1px solid oklch(62% 0.22 25 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                 <AlertTriangle style={{ width: 18, height: 18, color: liveRed, flexShrink: 0 }} />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: liveRed }}>Games Have Started!</div>
+                  <div style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: liveRed }}>
+                    {devSimInProgress ? '[DEV] Simulating In-Progress' : 'Games Have Started!'}
+                  </div>
                   <div style={{ ...b, fontSize: '0.78rem', color: textMid }}>All picks are now locked</div>
                 </div>
               </div>
@@ -1458,7 +1503,9 @@ export function PoolPicksContent() {
           )}
 
           {showGameDetails && games.length > 0 && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div
+              id="game-details-card"
+              style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Target style={{ width: 15, height: 15, color: textMid }} />
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Game Details</span>
@@ -1523,6 +1570,33 @@ export function PoolPicksContent() {
                   />
                   <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show picks form (ignore games started / week ended)</span>
                 </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={devSimInProgress}
+                    onChange={(e) => setDevSimInProgress(e.target.checked)}
+                    style={{ accentColor: 'oklch(72% 0.16 60)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows "Games Started" banner, locks picks)</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={devSimFinished}
+                    onChange={(e) => setDevSimFinished(e.target.checked)}
+                    style={{ accentColor: 'oklch(46% 0.14 155)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with "Force show picks form")</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={devForceLeaderboard}
+                    onChange={(e) => setDevForceLeaderboard(e.target.checked)}
+                    style={{ accentColor: 'oklch(74% 0.16 72)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show week leaderboard</span>
+                </label>
               </div>
             </div>
           )}
@@ -1535,53 +1609,95 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {weekEnded && (
-            <div style={{ background: `linear-gradient(135deg, oklch(20% 0.04 72 / 0.4), oklch(18% 0.03 255))`, border: `1px solid oklch(74% 0.16 72 / 0.3)`, borderTop: `3px solid ${gold}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1.25rem', textAlign: 'center', borderBottom: `1px solid oklch(74% 0.16 72 / 0.2)` }}>
-                <Crown style={{ width: 28, height: 28, color: gold, margin: '0 auto 0.5rem' }} />
-                <h2 style={{ ...bc, fontWeight: 900, fontSize: '1.25rem', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Week {currentWeek} Final Results</h2>
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
-                  {weekHasPicks
-                    ? `The week has ended! Here are the final standings for ${poolName}`
-                    : `Week ${currentWeek} has ended. No picks were submitted for this week.`}
-                </p>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                {weekHasPicks ? (
-                  <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '2rem', color: textDim }}>
-                    <Calendar style={{ width: 40, height: 40, margin: '0 auto 0.5rem', color: textDim }} />
-                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid, textTransform: 'uppercase' }}>No Results Available</p>
-                    <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>This week ended without any submitted picks</p>
-                  </div>
+          {showResultsTabs && (
+            <div
+              id="results-section"
+              style={{ background: card, border: `1px solid ${border}`, borderTop: weekEnded ? `3px solid ${gold}` : `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              {weekEnded && (
+                <div style={{ padding: '1.25rem', textAlign: 'center', borderBottom: `1px solid oklch(74% 0.16 72 / 0.2)`, background: 'linear-gradient(135deg, oklch(20% 0.04 72 / 0.4), oklch(18% 0.03 255))' }}>
+                  <Crown style={{ width: 28, height: 28, color: gold, margin: '0 auto 0.5rem' }} />
+                  <h2 style={{ ...bc, fontWeight: 900, fontSize: '1.25rem', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Week {currentWeek} Final Results</h2>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                    {weekHasPicks
+                      ? `The week has ended! Here are the final standings for ${poolName}`
+                      : `Week ${currentWeek} has ended. No picks were submitted for this week.`}
+                  </p>
+                </div>
+              )}
+              <div
+                id="results-tabs"
+                style={{ display: 'flex', alignItems: 'stretch', borderBottom: `1px solid ${border}`, background: surface }}>
+                <button
+                  onClick={() => setActiveResultsTab('leaderboard')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.75rem 1.25rem', background: 'transparent', border: 'none', outline: 'none', borderBottom: activeResultsTab === 'leaderboard' ? `2px solid ${greenHi}` : '2px solid transparent', cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: activeResultsTab === 'leaderboard' ? greenHi : textDim, transition: 'color 0.12s ease, border-color 0.12s ease' }}
+                >
+                  <Trophy style={{ width: 14, height: 14 }} />
+                  Leaderboard
+                </button>
+                <button
+                  onClick={() => setActiveResultsTab('results')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.75rem 1.25rem', background: 'transparent', border: 'none', outline: 'none', borderBottom: activeResultsTab === 'results' ? `2px solid ${greenHi}` : '2px solid transparent', cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: activeResultsTab === 'results' ? greenHi : textDim, transition: 'color 0.12s ease, border-color 0.12s ease' }}
+                >
+                  <BarChart3 style={{ width: 14, height: 14 }} />
+                  Game Results
+                </button>
+                {effectiveGamesStarted && !weekEnded && submittedCount >= participantCount && (
+                  <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 1rem' }}>Games in progress</span>
+                )}
+                {process.env.NODE_ENV === 'development' && devForceLeaderboard && !weekEnded && !(effectiveGamesStarted && submittedCount >= participantCount) && (
+                  <span style={{ alignSelf: 'center', marginLeft: 'auto', marginRight: '1rem', ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.1rem 0.4rem', textTransform: 'uppercase' }}>Dev</span>
                 )}
               </div>
-            </div>
-          )}
-
-          {weekEnded && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Trophy style={{ width: 15, height: 15, color: greenHi }} />
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Season {poolSeason} Overall Standings</span>
-                <span style={{ ...b, fontSize: '0.75rem', color: textDim, marginLeft: 'auto' }}>Up to Week {currentWeek}</span>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
-              </div>
-            </div>
-          )}
-
-          {weekEnded && showLeaderboard && weekHasPicks && (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Trophy style={{ width: 15, height: 15, color: gold }} />
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Leaderboard</span>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-              </div>
+              {activeResultsTab === 'leaderboard' && (
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {weekHasPicks || !weekEnded ? (
+                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+                  ) : (
+                      <div
+                        id="no-results"
+                        style={{ textAlign: 'center', padding: '2rem', color: textDim }}>
+                        <Calendar style={{ width: 40, height: 40, margin: '0 auto 0.5rem', color: textDim }} />
+                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid, textTransform: 'uppercase' }}>No Results Available</p>
+                        <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>This week ended without any submitted picks</p>
+                      </div>
+                  )}
+                  {weekEnded && (
+                    <div
+                      id="season-standings"
+                      style={{ borderTop: `1px solid ${border}`, paddingTop: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <Trophy style={{ width: 15, height: 15, color: greenHi }} />
+                        <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Season {poolSeason} Overall Standings</span>
+                        <span style={{ ...b, fontSize: '0.75rem', color: textDim, marginLeft: 'auto' }}>Up to Week {currentWeek}</span>
+                      </div>
+                      <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+                    </div>
+                  )}
+                  <div style={{ borderTop: `1px solid ${border}`, paddingTop: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                      <Crown style={{ width: 15, height: 15, color: purple }} />
+                      <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{getPeriodName(currentSeasonType, currentWeek)}</span>
+                    </div>
+                    <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+                  </div>
+                </div>
+              )}
+              {activeResultsTab === 'results' && (
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {devDisplayGames.map(game => (
+                    <GameCard
+                      key={game.id}
+                      game={game}
+                      pick={undefined}
+                      onSelectTeam={() => {}}
+                      onSetConfidence={() => {}}
+                      totalGames={devDisplayGames.length}
+                      usedPoints={[]}
+                      locked={true}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1610,20 +1726,9 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {gamesStarted && !weekEnded && !forcePicks ? (
+          {!showResultsTabs && (effectiveGamesStarted && !weekEnded && !forcePicks ? (
             <>
-              {submittedCount >= participantCount ? (
-                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Trophy style={{ width: 15, height: 15, color: gold }} />
-                    <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {currentWeek} Leaderboard</span>
-                    <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto' }}>Games in progress</span>
-                  </div>
-                  <div style={{ padding: '1.25rem' }}>
-                    <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-                  </div>
-                </div>
-              ) : (
+              {submittedCount < participantCount && (
                 <div style={{ background: `oklch(72% 0.16 60 / 0.08)`, border: `1px solid oklch(72% 0.16 60 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     <Clock style={{ width: 15, height: 15, color: amber }} />
@@ -1653,8 +1758,10 @@ export function PoolPicksContent() {
                     <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
                   </div>
                 </div>
-              ) : (
-                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              ) : (!showGameDetails || games.length === 0) ? (
+                    <div
+                      id="picks-content"
+                      style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Zap style={{ width: 15, height: 15, color: greenHi }} />
                     <div>
@@ -1699,7 +1806,7 @@ export function PoolPicksContent() {
                             weekNumber={currentWeek}
                             seasonType={currentSeasonType}
                             selectedUser={selectedUser}
-                            games={games}
+                            games={devDisplayGames}
                             preventGameLoading={true}
                             forceWeekUnlocked={forceWeekUnlocked}
                             onPicksSubmitted={handlePicksSubmitted}
@@ -1741,9 +1848,9 @@ export function PoolPicksContent() {
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (
+              {selectedUser && hasSubmitted[selectedUser.id]?.submitted && (!showGameDetails || games.length === 0) && (
                 <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Eye style={{ width: 15, height: 15, color: 'oklch(58% 0.15 250)' }} />
@@ -1759,7 +1866,7 @@ export function PoolPicksContent() {
                       participantName={selectedUser.name}
                       weekNumber={currentWeek}
                       seasonType={currentSeasonType}
-                      games={games}
+                      games={devDisplayGames}
                       canUnlock={isPoolAdmin || isSuperAdmin}
                       onUnlock={unlockParticipantPicks}
                     />
@@ -1767,15 +1874,8 @@ export function PoolPicksContent() {
                 </div>
               )}
             </>
-          ) : null}
+          ) : null)}
 
-          {weekEnded && (
-            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.5rem', textAlign: 'center' }}>
-              <Calendar style={{ width: 36, height: 36, color: textDim, margin: '0 auto 0.6rem' }} />
-              <p style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Week {currentWeek} Has Ended</p>
-              <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Picks are no longer available for this week. Check back next week for new picks!</p>
-            </div>
-          )}
         </div>
       </section>
 
@@ -1801,7 +1901,7 @@ export function PoolPicksContent() {
                   <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.75rem' }}>User: {selectedUser.name}</h3>
                   <RecentPicksViewer
                     poolId={poolId} participantId={selectedUser.id} participantName={selectedUser.name}
-                    weekNumber={currentWeek} seasonType={currentSeasonType} games={games}
+                    weekNumber={currentWeek} seasonType={currentSeasonType} games={devDisplayGames}
                     canUnlock={isPoolAdmin || isSuperAdmin} onUnlock={unlockParticipantPicks}
                   />
                 </div>
@@ -1813,7 +1913,7 @@ export function PoolPicksContent() {
                       <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.75rem' }}>User: {data.name}</h3>
                       <RecentPicksViewer
                         poolId={poolId} participantId={userId} participantName={data.name}
-                        weekNumber={currentWeek} seasonType={currentSeasonType} games={games}
+                        weekNumber={currentWeek} seasonType={currentSeasonType} games={devDisplayGames}
                         canUnlock={isPoolAdmin || isSuperAdmin} onUnlock={unlockParticipantPicks}
                       />
                     </div>

@@ -19,6 +19,8 @@ import {
   BarChart3,
   Edit,
   AlertTriangle,
+  Link2,
+  Check,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +36,8 @@ import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { ParticipantManagement } from '@/components/admin/participant-management';
 import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
 import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
+import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
+import { PoolSettings } from '@/components/admin/pool-settings';
 
 // Design tokens — match landing page exactly
 const bg      = 'oklch(13% 0.025 255)';
@@ -107,12 +111,13 @@ function AdminDashboardContent() {
   }>>([]);
   const [activityPoolFilter, setActivityPoolFilter] = useState<string>('all');
   const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
-  const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review'>('overview');
+  const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review' | 'playoffs' | 'settings'>('overview');
   const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
   const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
   const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -453,6 +458,14 @@ function AdminDashboardContent() {
     }
   };
 
+  const handleCopyPicksLink = async () => {
+    if (!selectedPoolId) return;
+    const url = `${window.location.origin}/pool/${selectedPoolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
@@ -785,7 +798,7 @@ function AdminDashboardContent() {
 
       {/* ── POOL WORKSPACE ── */}
       <section style={{ background: bg, padding: '3.5rem 0' }}>
-        <div className="lp-inner">
+        <div id='pool-workspace' className="lp-inner">
 
           {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -841,11 +854,33 @@ function AdminDashboardContent() {
                     <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
                     <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
                   </div>
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedPool.is_active ? green : textDim, flexShrink: 0 }} />
-                    <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: selectedPool.is_active ? greenHi : textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                      {selectedPool.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div>
+                      <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Picks Page</p>
+                      <button
+                        onClick={handleCopyPicksLink}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.3rem 0.65rem',
+                          background: linkCopied ? 'oklch(46% 0.14 155 / 0.15)' : 'transparent',
+                          color: linkCopied ? greenHi : textMid,
+                          border: `1px solid ${linkCopied ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
+                          borderRadius: 5, cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                        }}
+                      >
+                        {linkCopied
+                          ? <><Check style={{ width: 11, height: 11 }} /> Copied!</>
+                          : <><Link2 style={{ width: 11, height: 11 }} /> Copy Link</>}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedPool.is_active ? green : textDim, flexShrink: 0 }} />
+                      <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, color: selectedPool.is_active ? greenHi : textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        {selectedPool.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 {/* Bottom row: pool stats */}
@@ -868,6 +903,8 @@ function AdminDashboardContent() {
                   { id: 'leaderboard',    label: 'Leaderboard',    icon: BarChart3 },
                   { id: 'override-picks', label: 'Override Picks', icon: Edit },
                   { id: 'season-review',  label: 'Season Review',  icon: Calendar },
+                  { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
+                  { id: 'settings',       label: 'Settings',       icon: Settings },
                 ] as const).map(({ id, label, icon: Icon }) => {
                   const active = activePoolTab === id;
                   return (
@@ -986,6 +1023,37 @@ function AdminDashboardContent() {
               {/* Season Review tab */}
               {activePoolTab === 'season-review' && (
                 <SeasonReviewPanel poolId={selectedPoolId} season={selectedPool.season} />
+              )}
+
+              {/* Playoffs tab */}
+              {activePoolTab === 'playoffs' && (
+                <div>
+                  <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <Trophy style={{ width: 14, height: 14, color: greenHi }} />
+                      <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Playoff Confidence Points</p>
+                    </div>
+                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Manage playoff confidence points and view participant submission status</p>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => router.push(`/pool/${selectedPoolId}/playoffs`)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        <Trophy style={{ width: 12, height: 12 }} /> Manage Playoff Confidence Points
+                      </button>
+                    </div>
+                  </div>
+                  <PlayoffParticipantsList poolId={selectedPoolId} poolSeason={selectedPool.season} />
+                </div>
+              )}
+
+              {/* Settings tab */}
+              {activePoolTab === 'settings' && (
+                <PoolSettings
+                  poolId={selectedPoolId}
+                  poolName={selectedPool.name}
+                  onPoolDeleted={() => { setSelectedPoolId(''); setActivePoolTab('overview'); }}
+                />
               )}
             </div>
           ) : !poolsLoading ? (

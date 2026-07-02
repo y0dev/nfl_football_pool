@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -57,7 +57,7 @@ function LoginContent() {
   const [loginError, setLoginError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
   const { toast } = useToast();
-  const { signIn, user } = useAuth();
+  const { signIn, user, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -72,13 +72,26 @@ function LoginContent() {
     }
   }, [searchParams]);
 
+  const verifyCalledRef = useRef(false);
+
   useEffect(() => {
-    if (user && user.is_super_admin) {
-      router.push(createPageUrl('admindashboard'));
-    } else if (user && user.is_super_admin === false) {
-      router.push(createPageUrl('dashboard'));
+    if (!user) return;
+
+    // is_super_admin is in React state after verifyAdminStatus runs — redirect immediately
+    if (user.is_super_admin !== undefined) {
+      window.location.href = user.is_super_admin
+        ? createPageUrl('admindashboard')
+        : createPageUrl('dashboard');
+      return;
     }
-  }, [user, router]);
+
+    // is_super_admin not yet known (session restored from localStorage without it).
+    // Verify from DB once — the state update will re-trigger this effect to redirect.
+    if (!verifyCalledRef.current) {
+      verifyCalledRef.current = true;
+      verifyAdminStatus().catch(() => {});
+    }
+  }, [user, verifyAdminStatus]);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -266,99 +279,217 @@ function LoginContent() {
           </div>
 
           {/* Auth Card */}
-          <div style={{
-            background: card,
-            border: `1px solid ${border}`,
-            borderTop: `3px solid ${green}`,
-            borderRadius: 10,
-            padding: '2rem',
-            marginBottom: '1.75rem',
-          }}>
+          <div
+            className="login-auth-card"
+            style={{
+              background: card,
+              border: `1px solid ${border}`,
+              borderTop: `3px solid ${green}`,
+              borderRadius: 10,
+              overflow: 'hidden',
+              marginBottom: '1.75rem',
+            }}
+          >
 
-            {/* ── PASSWORD MODE ── */}
-            {mode === 'password' && (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
-                          Email Address
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="commissioner@example.com"
-                            autoComplete="email"
-                            style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem' }}
-                            {...field}
-                            onChange={(e) => { field.onChange(e); setLoginError(''); }}
-                          />
-                        </FormControl>
-                        <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
-                      </FormItem>
-                    )}
-                  />
+            {/* ── TAB STRIP ── */}
+            {mode !== 'magic-sent' && (
+              <div style={{ display: 'flex', borderBottom: `1px solid ${border}`, padding: '0 1.5rem' }}>
+                {(['password', 'magic'] as const).map((tab) => {
+                  const active = mode === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => { setMode(tab); if (tab === 'password') setLoginError(''); }}
+                      style={{
+                        padding: '0.8rem 0.5rem',
+                        marginBottom: '-1px',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: active ? `2px solid ${green}` : '2px solid transparent',
+                        color: active ? text : textDim,
+                        cursor: 'pointer',
+                        marginRight: '1.25rem',
+                        ...bc,
+                        fontWeight: active ? 700 : 500,
+                        fontSize: '0.78rem',
+                        letterSpacing: '0.09em',
+                        textTransform: 'uppercase',
+                        transition: 'color 0.15s, border-color 0.15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tab === 'password' ? 'Password' : 'Magic Link'}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
-                          Password
-                        </FormLabel>
-                        <FormControl>
-                          <div style={{ position: 'relative' }}>
+            <div style={{ padding: '1.75rem 2rem 2rem' }}>
+
+              {/* ── PASSWORD TAB ── */}
+              {mode === 'password' && (
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                            Email Address
+                          </FormLabel>
+                          <FormControl>
                             <Input
-                              type={showPassword ? 'text' : 'password'}
-                              placeholder="Enter your password"
-                              autoComplete="current-password"
-                              style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                              type="email"
+                              placeholder="commissioner@sundayhuddle.net"
+                              autoComplete="email"
+                              style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem' }}
                               {...field}
                               onChange={(e) => { field.onChange(e); setLoginError(''); }}
                             />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', color: textDim, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          </FormControl>
+                          <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>
+                            Password
+                          </FormLabel>
+                          <FormControl>
+                            <div style={{ position: 'relative' }}>
+                              <Input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Enter your password"
+                                autoComplete="current-password"
+                                style={{ background: bg, border: `1px solid ${loginError ? 'oklch(62% 0.22 25 / 0.6)' : border}`, color: text, ...b, fontSize: '0.88rem', paddingRight: '2.75rem' }}
+                                {...field}
+                                onChange={(e) => { field.onChange(e); setLoginError(''); }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{ position: 'absolute', right: 0, top: 0, height: '100%', padding: '0 0.75rem', background: 'transparent', border: 'none', color: textDim, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              >
+                                {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                              </button>
+                            </div>
+                          </FormControl>
+                          <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                            <Link
+                              href="/login/forgot-password"
+                              style={{ ...b, fontSize: '0.78rem', color: textDim, textDecoration: 'none' }}
                             >
-                              {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
-                            </button>
+                              Forgot password?
+                            </Link>
                           </div>
-                        </FormControl>
-                        <FormMessage style={{ ...b, fontSize: '0.78rem', color: errRed }} />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                          <Link
-                            href="/login/forgot-password"
-                            style={{ ...b, fontSize: '0.78rem', color: textDim, textDecoration: 'none' }}
-                          >
-                            Forgot password?
-                          </Link>
-                        </div>
-                      </FormItem>
+                        </FormItem>
+                      )}
+                    />
+
+                    {loginError && (
+                      <div style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '0.65rem',
+                        padding: '0.75rem 1rem',
+                        background: 'oklch(62% 0.22 25 / 0.1)',
+                        border: `1px solid oklch(62% 0.22 25 / 0.4)`,
+                        borderRadius: 6,
+                      }}>
+                        <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>⚠</span>
+                        <p style={{ ...b, fontSize: '0.825rem', color: errRed, lineHeight: 1.45, margin: 0 }}>
+                          {loginError}
+                        </p>
+                      </div>
                     )}
-                  />
 
-                  {loginError && (
-                    <div style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '0.65rem',
-                      padding: '0.75rem 1rem',
-                      background: 'oklch(62% 0.22 25 / 0.1)',
-                      border: `1px solid oklch(62% 0.22 25 / 0.4)`,
-                      borderRadius: 6,
-                    }}>
-                      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>⚠</span>
-                      <p style={{ ...b, fontSize: '0.825rem', color: errRed, lineHeight: 1.45, margin: 0 }}>
-                        {loginError}
-                      </p>
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      style={{
+                        width: '100%', padding: '0.75rem 1rem',
+                        background: isLoading ? 'oklch(35% 0.08 155)' : green,
+                        color: text, border: 'none', borderRadius: 6,
+                        ...bc, fontWeight: 700, fontSize: '0.85rem',
+                        letterSpacing: '0.1em', textTransform: 'uppercase',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        transition: 'background 0.15s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                      }}
+                    >
+                      {isLoading ? (
+                        <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Signing in...</>
+                      ) : 'Sign In'}
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                      <div style={{ flex: 1, height: 1, background: border }} />
+                      <span style={{ ...b, fontSize: '0.75rem', color: textDim, whiteSpace: 'nowrap' }}>or</span>
+                      <div style={{ flex: 1, height: 1, background: border }} />
                     </div>
-                  )}
 
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={googleLoading}
+                      style={{
+                        width: '100%', padding: '0.7rem 1rem',
+                        background: 'oklch(98% 0.003 255)',
+                        color: 'oklch(18% 0.02 255)',
+                        border: '1px solid oklch(82% 0.01 255)', borderRadius: 6,
+                        ...b, fontWeight: 600, fontSize: '0.875rem',
+                        cursor: googleLoading ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem',
+                        opacity: googleLoading ? 0.7 : 1,
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {googleLoading ? (
+                        <span style={{ width: 14, height: 14, border: '2px solid oklch(60% 0.01 255)', borderTopColor: 'oklch(18% 0.02 255)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                        </svg>
+                      )}
+                      {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+                    </button>
+                  </form>
+                </Form>
+              )}
+
+              {/* ── MAGIC LINK TAB ── */}
+              {mode === 'magic' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div>
+                    <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="commissioner@sundayhuddle.net"
+                      value={magicEmail}
+                      onChange={(e) => setMagicEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && onSendMagicLink()}
+                      autoComplete="email"
+                      autoFocus
+                      style={{ display: 'block', width: '100%', height: '2.5rem', padding: '0 0.75rem', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem', background: bg, border: `1px solid ${border}`, color: text, ...b }}
+                    />
+                  </div>
+                  <p style={{ ...b, fontSize: '0.8rem', color: textDim, lineHeight: 1.5, margin: 0 }}>
+                    We'll send a one-time sign-in link to your email. No password needed.
+                  </p>
                   <button
-                    type="submit"
+                    onClick={onSendMagicLink}
                     disabled={isLoading}
                     style={{
                       width: '100%', padding: '0.75rem 1rem',
@@ -372,134 +503,38 @@ function LoginContent() {
                     }}
                   >
                     {isLoading ? (
-                      <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Signing in...</>
-                    ) : 'Sign In'}
+                      <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Sending...</>
+                    ) : 'Send Magic Link'}
                   </button>
+                </div>
+              )}
 
-                  {/* Divider + magic link toggle */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
-                    <div style={{ flex: 1, height: 1, background: border }} />
-                    <span style={{ ...b, fontSize: '0.75rem', color: textDim, whiteSpace: 'nowrap' }}>or</span>
-                    <div style={{ flex: 1, height: 1, background: border }} />
+              {/* ── MAGIC LINK SENT ── */}
+              {mode === 'magic-sent' && (
+                <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                  <div style={{ width: 48, height: 48, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'oklch(46% 0.14 155 / 0.15)', border: '1px solid oklch(46% 0.14 155 / 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={greenHi} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
                   </div>
-
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                    Check Your Email
+                  </p>
+                  <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, textTransform: 'uppercase', lineHeight: 1, marginBottom: '0.75rem' }}>
+                    Magic Link Sent
+                  </p>
+                  <p style={{ ...b, fontSize: '0.875rem', color: textMid, lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                    We sent a sign-in link to <strong style={{ color: text }}>{magicEmail}</strong>. It expires in 15 minutes.
+                  </p>
                   <button
                     type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={googleLoading}
-                    style={{
-                      width: '100%', padding: '0.7rem 1rem',
-                      background: 'oklch(98% 0.003 255)',
-                      color: 'oklch(18% 0.02 255)',
-                      border: '1px solid oklch(82% 0.01 255)', borderRadius: 6,
-                      ...b, fontWeight: 600, fontSize: '0.875rem',
-                      cursor: googleLoading ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem',
-                      opacity: googleLoading ? 0.7 : 1,
-                      transition: 'opacity 0.15s',
-                    }}
+                    onClick={() => { setMode('magic'); setMagicEmail(''); }}
+                    style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0 }}
                   >
-                    {googleLoading ? (
-                      <span style={{ width: 14, height: 14, border: '2px solid oklch(60% 0.01 255)', borderTopColor: 'oklch(18% 0.02 255)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                      </svg>
-                    )}
-                    {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+                    Back to sign in
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setMode('magic')}
-                    style={{
-                      background: 'none', border: 'none', color: textDim,
-                      cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0,
-                      textAlign: 'center',
-                    }}
-                  >
-                    Send Magic Link Instead
-                  </button>
-                </form>
-              </Form>
-            )}
-
-            {/* ── MAGIC LINK MODE ── */}
-            {mode === 'magic' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div>
-                  <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="commissioner@example.com"
-                    value={magicEmail}
-                    onChange={(e) => setMagicEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && onSendMagicLink()}
-                    autoComplete="email"
-                    autoFocus
-                    style={{ display: 'block', width: '100%', height: '2.5rem', padding: '0 0.75rem', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem', background: bg, border: `1px solid ${border}`, color: text, ...b }}
-                  />
                 </div>
+              )}
 
-                <button
-                  onClick={onSendMagicLink}
-                  disabled={isLoading}
-                  style={{
-                    width: '100%', padding: '0.75rem 1rem',
-                    background: isLoading ? 'oklch(35% 0.08 155)' : green,
-                    color: text, border: 'none', borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.85rem',
-                    letterSpacing: '0.1em', textTransform: 'uppercase',
-                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                    transition: 'background 0.15s',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  }}
-                >
-                  {isLoading ? (
-                    <><span style={{ width: 14, height: 14, border: '2px solid oklch(50% 0.08 155)', borderTopColor: text, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />Sending...</>
-                  ) : 'Send Magic Link'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setMode('password')}
-                  style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0 }}
-                >
-                  Back to password sign in
-                </button>
-              </div>
-            )}
-
-            {/* ── MAGIC LINK SENT ── */}
-            {mode === 'magic-sent' && (
-              <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
-                <div style={{ width: 48, height: 48, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'oklch(46% 0.14 155 / 0.15)', border: '1px solid oklch(46% 0.14 155 / 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={greenHi} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
-                </div>
-                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                  Check Your Email
-                </p>
-                <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, textTransform: 'uppercase', lineHeight: 1, marginBottom: '0.75rem' }}>
-                  Magic Link Sent
-                </p>
-                <p style={{ ...b, fontSize: '0.875rem', color: textMid, lineHeight: 1.6, marginBottom: '1.5rem' }}>
-                  We sent a sign-in link to <strong style={{ color: text }}>{magicEmail}</strong>. It expires in 15 minutes.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => { setMode('password'); setMagicEmail(''); }}
-                  style={{ background: 'none', border: 'none', color: textDim, cursor: 'pointer', ...b, fontSize: '0.8rem', padding: 0 }}
-                >
-                  Back to sign in
-                </button>
-              </div>
-            )}
-
+            </div>
           </div>
 
           {/* Footer links */}

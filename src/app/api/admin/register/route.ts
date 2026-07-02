@@ -4,6 +4,10 @@ import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'development') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   try {
     debugLog('Admin registration started');
     const { email, password, fullName } = await request.json();
@@ -14,13 +18,6 @@ export async function POST(request: NextRequest) {
       debugLog('Validation failed: missing fields');
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    if (process.env.NODE_ENV === 'production' && email.split('@')[1]?.toLowerCase() === 'test') {
-      return NextResponse.json(
-        { success: false, error: 'Test email addresses are not allowed.' },
         { status: 400 }
       );
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { verifyMagicLink } from '@/actions/magicLink';
 import { createPageUrl } from '@/lib/utils';
@@ -26,13 +26,13 @@ type Status = 'verifying' | 'success' | 'expired' | 'error';
 
 function VerifyContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { signIn } = useAuth();
   const [status, setStatus] = useState<Status>('verifying');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const token = searchParams.get('token');
+
   useEffect(() => {
-    const token = searchParams.get('token');
     if (!token) {
       setStatus('error');
       setErrorMsg('No magic link token found. Please request a new one.');
@@ -69,7 +69,8 @@ function VerifyContent() {
     });
 
     return () => { cancelled = true; };
-  }, [searchParams, signIn, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   return (
     <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
