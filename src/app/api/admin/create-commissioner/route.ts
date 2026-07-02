@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
 
@@ -26,11 +27,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       debugLog('Validation failed: password too short');
       return NextResponse.json(
-        { success: false, error: 'Password must be at least 6 characters' },
+        { success: false, error: 'Password must be at least 8 characters' },
         { status: 400 }
+      );
+    }
+
+    // 5 registrations per IP per hour
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many registration attempts. Please try again later.' },
+        { status: 429 }
       );
     }
 

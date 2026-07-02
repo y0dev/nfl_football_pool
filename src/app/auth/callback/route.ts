@@ -147,6 +147,15 @@ function buildSessionRedirect(
     httpOnly: false, // must be readable by JS in AuthProvider
   });
 
+  // Persistent httpOnly session cookie for server-side route protection (middleware)
+  response.cookies.set('sh-session', admin.id, {
+    path: '/',
+    maxAge: 90 * 24 * 60 * 60,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+  });
+
   // Apply Supabase's own PKCE/session cookies
   pendingCookies.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);

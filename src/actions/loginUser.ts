@@ -1,8 +1,17 @@
+'use server';
+
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { setSessionCookie } from '@/actions/sessionCookie';
+import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
 
 const INVALID_CREDENTIALS = 'Invalid email or password.';
+const TOO_MANY_ATTEMPTS = 'Too many login attempts. Please wait 15 minutes and try again.';
+
+// 10 attempts per email per 15 minutes
+const LOGIN_LIMIT = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 interface AdminData {
   id: string;
@@ -14,13 +23,19 @@ interface AdminData {
 }
 
 export async function loginUser(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!checkRateLimit(`login:${normalizedEmail}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)) {
+    return { success: false, error: TOO_MANY_ATTEMPTS };
+  }
+
   try {
     const supabase = getSupabaseServiceClient();
 
     const { data, error } = await supabase
       .from('admins')
       .select('*')
-      .eq('email', email.trim().toLowerCase())
+      .eq('email', normalizedEmail)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -45,6 +60,9 @@ export async function loginUser(email: string, password: string) {
     if (!isValidPassword) {
       return { success: false, error: INVALID_CREDENTIALS };
     }
+
+    // Set server-side session cookie so middleware can protect routes
+    await setSessionCookie(adminData.id);
 
     return {
       success: true,
