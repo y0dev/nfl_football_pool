@@ -80,9 +80,10 @@ function RegisterContent() {
     setGoogleLoading(true);
     setFormError('');
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      sessionStorage.setItem('oauth_intent', 'register');
+      const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
+      const supabase = getSupabaseBrowserClient();
+      // Cookie survives the redirect chain on all mobile browsers (unlike sessionStorage)
+      document.cookie = 'oauth_intent=register;path=/;max-age=300;samesite=lax';
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${window.location.origin}/auth/callback` },

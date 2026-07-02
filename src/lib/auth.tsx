@@ -195,6 +195,22 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
     const checkSession = async () => {
       try {
         if (typeof window !== 'undefined') {
+          // Check for server-set OAuth session cookie first (from /auth/callback route handler)
+          const cookieMatch = document.cookie.match(/(?:^|;\s*)nfl-pool-session=([^;]*)/);
+          if (cookieMatch) {
+            try {
+              const serverUser = JSON.parse(decodeURIComponent(cookieMatch[1]));
+              // Consume the cookie — one-time handoff from server to localStorage
+              document.cookie = 'nfl-pool-session=;path=/;max-age=0';
+              localStorage.setItem('nfl-pool-user', JSON.stringify(serverUser));
+              setUser(serverUser);
+              setLoading(false);
+              return;
+            } catch {
+              document.cookie = 'nfl-pool-session=;path=/;max-age=0';
+            }
+          }
+
           const storedUser = localStorage.getItem('nfl-pool-user');
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -58,6 +59,18 @@ function LoginContent() {
   const { toast } = useToast();
   const { signIn, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    if (oauthError === 'no-account') {
+      setLoginError('No commissioner account found for this Google account. Please register first.');
+    } else if (oauthError === 'duplicate-account') {
+      setLoginError('An account with this email already exists. Please sign in instead.');
+    } else if (oauthError === 'oauth-failed') {
+      setLoginError('Google sign-in failed. Please try again.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user && user.is_super_admin) {
@@ -97,8 +110,8 @@ function LoginContent() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
+      const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
+      const supabase = getSupabaseBrowserClient();
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -512,7 +525,9 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <AuthProvider>
-      <LoginContent />
+      <Suspense fallback={null}>
+        <LoginContent />
+      </Suspense>
     </AuthProvider>
   );
 }
