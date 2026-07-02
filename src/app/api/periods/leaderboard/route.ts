@@ -269,8 +269,24 @@ export async function GET(request: NextRequest) {
     // Create a map of games by ID for easy lookup
     const gamesMap = new Map(gamesData?.map(game => [game.id, game]) || []);
 
+    // Determine the pool's effective start week: the earliest week where any participant
+    // has an actual pick (non-empty predicted_winner). This handles mid-season pool creation
+    // so weeks before the pool existed don't generate 0-point entries in the leaderboard.
+    const actualPickWeeks = new Set<number>();
+    picksData?.forEach(pick => {
+      if (pick.predicted_winner) {
+        const game = gamesMap.get(pick.game_id);
+        if (game) actualPickWeeks.add(game.week);
+      }
+    });
+    const poolStartWeek = actualPickWeeks.size > 0 ? Math.min(...actualPickWeeks) : null;
+    const effectivePeriodWeeks = poolStartWeek
+      ? periodWeeks.filter(w => w >= poolStartWeek)
+      : periodWeeks;
+    debugLog('Pool start week:', poolStartWeek, '| Effective period weeks:', effectivePeriodWeeks);
+
     // Determine which weeks are completed (all games finished)
-    const completedWeeksForTotals = periodWeeks.filter(week => {
+    const completedWeeksForTotals = effectivePeriodWeeks.filter(week => {
       const weekGames = gamesData?.filter(game => game.week === week) || [];
       if (weekGames.length === 0) return false; // No games for this week
       
@@ -375,8 +391,8 @@ export async function GET(request: NextRequest) {
       
       debugLog(`\n=== Processing ${participant.name} ===`);
       
-      // Process each week
-      periodWeeks.forEach(week => {
+      // Process each week (only weeks from pool's effective start week onwards)
+      effectivePeriodWeeks.forEach(week => {
         const weekPicksData = weekPicks.get(week) || [];
         let weekPoints = 0;
         let weekCorrectPicks = 0;

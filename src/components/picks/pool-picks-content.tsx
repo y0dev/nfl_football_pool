@@ -1667,7 +1667,7 @@ export function PoolPicksContent() {
                       <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
                     </div>
                   )}
-                  {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+                  {weekEnded && (
                     <div style={{ borderTop: `1px solid ${border}`, paddingTop: '1.25rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                         <Crown style={{ width: 15, height: 15, color: purple }} />
