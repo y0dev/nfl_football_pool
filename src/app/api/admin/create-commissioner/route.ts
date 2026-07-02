@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
@@ -81,6 +82,8 @@ export async function POST(request: NextRequest) {
 
     debugLog('Auth user created successfully:', newAuthUser.user.id);
 
+    const password_hash = await bcrypt.hash(password, 12);
+
     // Create admin record in admins table using the user's ID
     debugLog('Creating admin record...');
     const { data: newAdmin, error: createError } = await supabase
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
       .insert({
         id: newAuthUser.user.id,
         email,
-        password_hash: '', // No need to store password hash since we use Supabase Auth
+        password_hash,
         full_name: fullName,
         is_super_admin: false, // Regular commissioner
         is_active: true,

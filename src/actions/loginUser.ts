@@ -34,6 +34,12 @@ export async function loginUser(email: string, password: string) {
     }
 
     const adminData = data as AdminData;
+
+    // Empty hash or OAuth-only accounts cannot use password login
+    if (!adminData.password_hash || adminData.password_hash === 'google_oauth') {
+      return { success: false, error: INVALID_CREDENTIALS };
+    }
+
     const isValidPassword = await bcrypt.compare(password, adminData.password_hash);
 
     if (!isValidPassword) {
