@@ -228,7 +228,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
 
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            debugLog('[Auth:checkSession] localStorage user:', parsedUser.email, '| signedInAt:', new Date(parsedUser.signedInAt).toISOString());
+            debugLog('[Auth:checkSession] localStorage user:', parsedUser.email, '| signedInAt:', parsedUser.signedInAt ? new Date(parsedUser.signedInAt).toISOString() : 'unknown');
 
             // Expire sessions older than 90 days
             if (parsedUser.signedInAt && Date.now() - parsedUser.signedInAt > SESSION_MAX_MS) {

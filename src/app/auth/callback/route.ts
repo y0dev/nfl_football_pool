@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
   const { data: newAdmin, error: createError } = await serviceClient
     .from('admins')
     .insert({
+      id: data.session.user.id,
       email,
       password_hash: 'google_oauth',
       full_name: fullName,
