@@ -311,12 +311,10 @@ export function PoolPicksContent() {
       return gameEnded;
     });
 
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Week status result:', {
-        allGamesEnded, gamesCount: games.length,
-        gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
-      });
-    }
+    debugLog('Week status result:', {
+      allGamesEnded, gamesCount: games.length,
+      gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
+    });
 
     setWeekEnded(allGamesEnded);
     if (allGamesEnded) {
@@ -1148,9 +1146,7 @@ export function PoolPicksContent() {
   }
 
   // ── WEEK ENDED — NO PICKS ─────────────────────────────────────────────────────
-  if (process.env.NODE_ENV === 'development') {
-    debugLog('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
-  }
+  debugLog('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
 
   if (weekEnded && !weekHasPicks) {
     return (

@@ -15,9 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { picks, mondayNightScore }: { picks: Pick[], mondayNightScore?: number | null } = await request.json();
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Picks:', picks);
-    }
+    debugLog('Picks:', picks);
     // Validate picks
     if (picks.length === 0) {
       return NextResponse.json(
@@ -48,9 +46,7 @@ export async function POST(request: NextRequest) {
       .eq('participant_id', firstPick.participant_id)
       .eq('pool_id', firstPick.pool_id)
       .in('game_id', gameIds); // Check all games in the week
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Check error:', checkError);
-    }
+    debugLog('Check error:', checkError);
     if (checkError) {
       debugError('Error checking existing picks:', checkError);
       return NextResponse.json(
@@ -59,18 +55,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Existing picks:', existingPicks);
-    }
+    debugLog('Existing picks:', existingPicks);
 
     // Check if games are locked
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('id, status, kickoff_time, week, season, season_type')
       .in('id', gameIds);
-    if (process.env.NODE_ENV === 'development') {
-      debugLog('Games:', games);
-    }
+    debugLog('Games:', games);
     if (gamesError) {
       debugError('Error checking games:', gamesError);
       return NextResponse.json(

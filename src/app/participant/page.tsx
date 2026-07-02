@@ -153,9 +153,7 @@ function ParticipantContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
 
-        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          debugLog('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
       } else {
         const upcomingWeek = await getUpcomingWeek();
         if (upcomingWeek.seasonType === 0) {
@@ -168,9 +166,7 @@ function ParticipantContent() {
         setCurrentWeek(weekToUse);
         setCurrentSeasonType(seasonTypeToUse);
 
-        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          debugLog('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
 
         toast({
           title: "Week not specified",
@@ -247,9 +243,7 @@ function ParticipantContent() {
 
       // Load games for the week using the new API route
       try {
-        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          debugLog('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
-        }
+        debugLog('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
 
         const response = await fetch(`/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
 
@@ -259,9 +253,7 @@ function ParticipantContent() {
             const gamesData = result.games;
             setGames(gamesData);
 
-            if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-              debugLog('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
-            }
+            debugLog('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
 
             const now = new Date();
             const hasStarted = gamesData.some((game: Game) => {
@@ -300,18 +292,14 @@ function ParticipantContent() {
           const poolSession = allSessions.find(session => session.poolId === poolId);
 
           if (poolSession && poolSession.userId) {
-            if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-              debugLog('Restoring user session:', poolSession);
-            }
+            debugLog('Restoring user session:', poolSession);
             setSelectedUser({
               id: poolSession.userId,
               name: poolSession.userName
             });
           }
         } catch (error) {
-          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            debugLog('No saved user session found for pool:', poolId);
-          }
+          debugLog('No saved user session found for pool:', poolId);
         }
       }
 
@@ -363,14 +351,10 @@ function ParticipantContent() {
             duration: 5000,
           });
 
-          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            debugLog('Loaded picks from localStorage:', storedPicks);
-          }
+          debugLog('Loaded picks from localStorage:', storedPicks);
         }
       } else {
-        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
-        }
+        debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
     } catch (error) {
       debugError('Error loading picks from localStorage:', error);
@@ -395,15 +379,11 @@ function ParticipantContent() {
 
     setSelectedUser(null);
 
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('Picks submitted successfully, clearing user selection to allow new user selection');
-    }
+    debugLog('Picks submitted successfully, clearing user selection to allow new user selection');
   };
 
   const handleUserChangeRequested = () => {
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('User change requested. Current user:', selectedUser);
-    }
+    debugLog('User change requested. Current user:', selectedUser);
 
     setSelectedUser(null);
 
@@ -412,9 +392,7 @@ function ParticipantContent() {
         try {
           const { pickStorage } = await import('@/lib/pick-storage');
           pickStorage.clearPicks();
-          if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            debugLog('Cleared stored picks for user:', selectedUser.id);
-          }
+          debugLog('Cleared stored picks for user:', selectedUser.id);
         } catch (error) {
           debugError('Error clearing stored picks:', error);
         }
@@ -424,9 +402,7 @@ function ParticipantContent() {
 
     setHasSubmitted({});
 
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('User selection interface should now be visible');
-    }
+    debugLog('User selection interface should now be visible');
 
     toast({
       title: "User Changed",
@@ -512,23 +488,19 @@ function ParticipantContent() {
   };
 
   const loadParticipantStats = async () => {
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('Participant stats loaded from API endpoint');
-    }
+    debugLog('Participant stats loaded from API endpoint');
   };
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
 
     try {
-      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        debugLog('Checking submission status for:', {
-          participantId: selectedUser.id,
-          poolId,
-          currentWeek,
-          currentSeasonType
-        });
-      }
+      debugLog('Checking submission status for:', {
+        participantId: selectedUser.id,
+        poolId,
+        currentWeek,
+        currentSeasonType
+      });
 
       const { getSupabaseServiceClient } = await import('@/lib/supabase');
       const supabase = getSupabaseServiceClient();
@@ -544,14 +516,10 @@ function ParticipantContent() {
         return;
       }
 
-      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
-      }
+      debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
 
       if (!gamesForWeek || gamesForWeek.length === 0) {
-        if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          debugLog('No games found for week, cannot check picks');
-        }
+        debugLog('No games found for week, cannot check picks');
         return;
       }
 
@@ -569,31 +537,23 @@ function ParticipantContent() {
         return;
       }
 
-      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
-      }
+      debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
       const hasSubmittedVal = picks && picks.length > 0 && picks.length === gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmittedVal, name: selectedUser.name } }));
 
-      if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedVal, picksCount: picks?.length || 0, gamesCount: gameIds.length });
-      }
+      debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedVal, picksCount: picks?.length || 0, gamesCount: gameIds.length });
     } catch (error) {
       debugError('Error checking submission status:', error);
     }
   };
 
   const checkWeekPicksStatus = async () => {
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('Week picks status loaded from API endpoint');
-    }
+    debugLog('Week picks status loaded from API endpoint');
   };
 
   const checkAdminPermissions = async () => {
-    if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      debugLog('Admin permissions loaded from API endpoint');
-    }
+    debugLog('Admin permissions loaded from API endpoint');
   };
 
   const unlockParticipantPicks = async (participantId: string) => {
