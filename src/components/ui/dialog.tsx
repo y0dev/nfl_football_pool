@@ -44,7 +44,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "grid gap-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "grid gap-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sh-dialog-content",
         className
       )}
       style={{
@@ -55,6 +55,8 @@ const DialogContent = React.forwardRef<
         zIndex: 9999,
         width: '100%',
         maxWidth: '32rem',
+        maxHeight: 'calc(100dvh - 2rem)',
+        overflowY: 'auto',
         borderRadius: '0.5rem',
         padding: '1.5rem',
         background: 'oklch(20% 0.03 255)',
@@ -66,15 +68,16 @@ const DialogContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close
+        className="sh-dialog-close"
         style={{
           position: 'absolute',
-          right: '1rem',
-          top: '1rem',
+          right: '0.75rem',
+          top: '0.75rem',
           opacity: 0.7,
           cursor: 'pointer',
           background: 'transparent',
           border: 'none',
-          padding: '0.25rem',
+          padding: '0.5rem',
           borderRadius: '0.25rem',
           display: 'flex',
           alignItems: 'center',

@@ -1028,3 +1028,22 @@ button[role="combobox"] svg {
   width: 100%;
   padding: 1.5rem;
 }
+
+/* Dialog mobile — override inline positioning so tall dialogs don't clip off-screen */
+@media (max-width: 639px) {
+  .sh-dialog-content {
+    top: 1rem !important;
+    transform: translateX(-50%) !important;
+    max-height: calc(100dvh - 2rem) !important;
+    width: calc(100% - 1.5rem) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sh-dialog-close {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    right: 0.25rem !important;
+    top: 0.25rem !important;
+    opacity: 0.9 !important;
+  }
+}
