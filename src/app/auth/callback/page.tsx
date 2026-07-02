@@ -110,6 +110,13 @@ function CallbackContent() {
             .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
             .eq('id', newAdmin.id);
 
+          // Send welcome email — non-critical
+          fetch('/api/admin/welcome-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: newAdmin.email, fullName: newAdmin.full_name ?? newAdmin.email }),
+          }).catch(() => {});
+
           await signIn({
             id: newAdmin.id,
             email: newAdmin.email,
