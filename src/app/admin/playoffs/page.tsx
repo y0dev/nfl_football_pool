@@ -24,7 +24,7 @@ import {
   AlertTriangle,
   Shield
 } from 'lucide-react';
-import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear } from '@/lib/utils';
+import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
@@ -125,7 +125,7 @@ function PlayoffManagementContent() {
           router.push('/admin/dashboard');
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        debugError('Error checking admin status:', error);
         router.push('/admin/dashboard');
       } finally {
         setCheckingAccess(false);
@@ -161,7 +161,7 @@ function PlayoffManagementContent() {
         toast({ title: 'Error', description: data.error || 'Failed to load playoff teams', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error loading teams:', error);
+      debugError('Error loading teams:', error);
       toast({ title: 'Error', description: 'Failed to load playoff teams', variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -179,7 +179,7 @@ function PlayoffManagementContent() {
         toast({ title: 'Error', description: data.error || 'Failed to load playoff games', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error loading games:', error);
+      debugError('Error loading games:', error);
     }
   };
 
@@ -234,7 +234,7 @@ function PlayoffManagementContent() {
             }
           }
         } catch (error) {
-          console.error(`Error fetching ESPN IDs for week ${week}:`, error);
+          debugError(`Error fetching ESPN IDs for week ${week}:`, error);
         }
       }
 
@@ -245,7 +245,7 @@ function PlayoffManagementContent() {
         toast({ title: 'Info', description: 'No game IDs were found or updated.' });
       }
     } catch (error) {
-      console.error('Error fetching game IDs:', error);
+      debugError('Error fetching game IDs:', error);
       toast({ title: 'Warning', description: 'Failed to fetch some game IDs from ESPN', variant: 'destructive' });
     } finally {
       setFetchingGameIds(false);
@@ -371,7 +371,7 @@ function PlayoffManagementContent() {
         toast({ title: 'Info', description: `No new games to create for ${ROUND_NAMES[round]}.` });
       }
     } catch (error) {
-      console.error(`Error fetching games for round ${round}:`, error);
+      debugError(`Error fetching games for round ${round}:`, error);
       toast({ title: 'Error', description: `Failed to fetch games for ${ROUND_NAMES[round]}: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: 'destructive' });
     } finally {
       setFetchingRoundGames(null);

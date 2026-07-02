@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase';
+import { debugError, debugWarn } from '@/lib/utils';
 
 export interface TieBreakerResult {
   participant_id: string;
@@ -262,7 +263,7 @@ async function applySecondaryTieBreakerCascade(
       return resolvedResults;
       
     } catch (error) {
-      console.error(`Error applying secondary tie breaker method ${method}:`, error);
+      debugError(`Error applying secondary tie breaker method ${method}:`, error);
       continue;
     }
   }
@@ -318,7 +319,7 @@ async function breakTieByTotalPoints(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by total points:', error);
+    debugError('Error breaking tie by total points:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -370,7 +371,7 @@ async function breakTieByCorrectPicks(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by correct picks:', error);
+    debugError('Error breaking tie by correct picks:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -425,7 +426,7 @@ async function breakTieByAccuracy(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by accuracy:', error);
+    debugError('Error breaking tie by accuracy:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -475,7 +476,7 @@ async function breakTieByLastWeek(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by last week:', error);
+    debugError('Error breaking tie by last week:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -532,7 +533,7 @@ async function breakTieByCustomQuestion(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by custom question:', error);
+    debugError('Error breaking tie by custom question:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -591,7 +592,7 @@ async function breakTieByConfidencePoints(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by confidence points:', error);
+    debugError('Error breaking tie by confidence points:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -625,7 +626,7 @@ export async function getTieBreakerSettings(poolId: string): Promise<TieBreakerS
       monday_night_game_id: pool?.monday_night_game_id
     };
   } catch (error) {
-    console.error('Error getting tie-breaker settings:', error);
+    debugError('Error getting tie-breaker settings:', error);
     return null;
   }
 }
@@ -657,7 +658,7 @@ async function breakTieByMondayNightTotal(
       .eq('season_type', 2); // Default to regular season
 
     if (gamesError) {
-      console.error('Error loading games for tiebreaker:', gamesError);
+      debugError('Error loading games for tiebreaker:', gamesError);
       throw gamesError;
     }
 
@@ -666,7 +667,7 @@ async function breakTieByMondayNightTotal(
     const mondayNightGame = getMondayNightGame(gamesData || []);
     
     if (!mondayNightGame) {
-      console.warn('No Monday night game found for week', week, 'season', season);
+      debugWarn('No Monday night game found for week', week, 'season', season);
     }
 
     const { data: tieBreakers, error } = await supabase
@@ -686,7 +687,7 @@ async function breakTieByMondayNightTotal(
         
         // Validate that the tiebreaker is for the correct Monday night game
         if (tieBreaker && mondayNightGame && tieBreaker.game_id !== mondayNightGame.id) {
-          console.warn(`Tiebreaker game ID mismatch for participant ${p.participant_id}: expected ${mondayNightGame.id}, got ${tieBreaker.game_id}`);
+          debugWarn(`Tiebreaker game ID mismatch for participant ${p.participant_id}: expected ${mondayNightGame.id}, got ${tieBreaker.game_id}`);
         }
         
         const difference = tieBreaker ? Math.abs(tieBreaker.answer - settings.answer!) : Infinity;
@@ -707,7 +708,7 @@ async function breakTieByMondayNightTotal(
 
     return results;
   } catch (error) {
-    console.error('Error breaking tie by Monday night total:', error);
+    debugError('Error breaking tie by Monday night total:', error);
     return participants.map((p, index) => ({
       participant_id: p.participant_id,
       participant_name: p.participant_name,
@@ -742,7 +743,7 @@ async function saveTieBreakerSettings(
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error saving tie-breaker settings:', error);
+    debugError('Error saving tie-breaker settings:', error);
     return false;
   }
 }

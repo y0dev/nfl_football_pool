@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, getWeekTitle } from '@/lib/utils';
+import { debugLog, getWeekTitle, debugError} from '@/lib/utils';
 import { Target, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
@@ -76,11 +76,11 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
       if (Array.isArray(availableUsers)) {
         setUsers(availableUsers);
       } else {
-        console.error('loadUsers returned non-array:', availableUsers);
+        debugError('loadUsers returned non-array:', availableUsers);
         setUsers([]);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      debugError('Error loading data:', error);
       setUsers([]);
       toast({
         title: 'Error',
@@ -127,7 +127,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
 
       onUserSelected(selectedUser.id, selectedUser.name);
     } catch (error) {
-      console.error('Error verifying access:', error);
+      debugError('Error verifying access:', error);
       toast({
         title: 'Error',
         description: 'Failed to verify access',
@@ -261,7 +261,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
 
   // Safety check - ensure users is an array
   if (!Array.isArray(users)) {
-    console.error('Users is not an array:', users);
+    debugError('Users is not an array:', users);
     return (
       <div style={cardBase}>
         <p style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Error Loading Participants</p>

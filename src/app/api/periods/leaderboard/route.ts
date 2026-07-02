@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 interface ParticipantData {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true });
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch participants' },
         { status: 500 }
@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
       }
     }
     if (picksError) {
-      console.error('Error fetching picks:', picksError);
+      debugError('Error fetching picks:', picksError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch picks data' },
         { status: 500 }
@@ -601,7 +601,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error fetching period leaderboard:', error);
+    debugError('Error fetching period leaderboard:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -636,7 +636,7 @@ async function getGameIdsForWeeks(supabase: ReturnType<typeof getSupabaseService
     .in('week', weeks);
 
   if (error) {
-    console.error('Error fetching game IDs:', error);
+    debugError('Error fetching game IDs:', error);
     return [];
   }
 

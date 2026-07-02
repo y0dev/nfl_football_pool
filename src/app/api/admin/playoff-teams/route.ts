@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 // GET - Get all playoff teams for a season
 export async function GET(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       .order('seed', { ascending: true });
 
     if (error) {
-      console.error('Error fetching playoff teams:', error);
+      debugError('Error fetching playoff teams:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch playoff teams' },
         { status: 500 }
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff teams GET API:', error);
+    debugError('Error in playoff teams GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
         .eq('id', id);
       
       if (error) {
-        console.error('Error updating team:', error);
+        debugError('Error updating team:', error);
         return NextResponse.json(
           { success: false, error: `Failed to update team: ${team.team_name}` },
           { status: 500 }
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
         .insert(toInsert);
 
       if (error) {
-        console.error('Error inserting teams:', error);
+        debugError('Error inserting teams:', error);
         return NextResponse.json(
           { success: false, error: 'Failed to insert teams' },
           { status: 500 }
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff teams POST API:', error);
+    debugError('Error in playoff teams POST API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -195,7 +196,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting playoff team:', error);
+      debugError('Error deleting playoff team:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to delete playoff team' },
         { status: 500 }
@@ -208,7 +209,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff teams DELETE API:', error);
+    debugError('Error in playoff teams DELETE API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { debugLog, debugError } from '@/lib/utils';
 
 // Create Supabase client dynamically to avoid build-time issues
 function createSupabaseClient() {
@@ -7,7 +8,7 @@ function createSupabaseClient() {
   const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
   
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('Missing Supabase environment variables:', {
+    debugError('Missing Supabase environment variables:', {
       NEXT_PUBLIC_SUPABASE_URL: !!supabaseUrl,
       NEXT_PUBLIC_SUPABASE_SERVICE_KEY: !!supabaseServiceKey
     });
@@ -93,7 +94,7 @@ class NFLAPI {
       const data = await this.makeRequest('/fixtures', params)
       return data.response || []
     } catch (error) {
-      console.error('Error fetching games:', error)
+      debugError('Error fetching games:', error)
       return []
     }
   }
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
     const { season, week } = await request.json()
     const currentSeason = season || new Date().getFullYear()
 
-    console.log(`Fetching games for season ${currentSeason}${week ? `, week ${week}` : ''}`)
+    debugLog(`Fetching games for season ${currentSeason}${week ? `, week ${week}` : ''}`)
 
     // Fetch games from API-Sports.io
     const apiGames = await NFLAPI.getGames(currentSeason, week)
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Error updating games:', error)
+    debugError('Error updating games:', error)
     return NextResponse.json(
       { error: error.message },
       { status: 500 }
@@ -236,7 +237,7 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('Error fetching last game update:', error);
+        debugError('Error fetching last game update:', error);
         return NextResponse.json(
           { error: 'Failed to fetch last game update' },
           { status: 500 }
@@ -267,7 +268,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error in games GET:', error);
+    debugError('Error in games GET:', error);
     return NextResponse.json(
       { error: error.message },
       { status: 500 }

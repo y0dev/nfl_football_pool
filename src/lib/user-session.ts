@@ -1,4 +1,4 @@
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 
 // Secure user session management without passwords
 interface UserSession {
@@ -44,7 +44,7 @@ class UserSessionManager {
         this.sessions = new Map(Object.entries(sessionsObj));
       }
     } catch (error) {
-      console.error('Failed to load sessions from storage:', error);
+      debugError('Failed to load sessions from storage:', error);
     }
     this.initialized = true;
   }
@@ -58,7 +58,7 @@ class UserSessionManager {
       debugLog('Sessions object:', sessionsObj);
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionsObj));
     } catch (error) {
-      console.error('Failed to save sessions to storage:', error);
+      debugError('Failed to save sessions to storage:', error);
     }
   }
 

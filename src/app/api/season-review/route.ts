@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 interface SeasonReviewData {
   seasonWinner: any;
@@ -263,7 +264,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in season review API:', error);
+    debugError('Error in season review API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

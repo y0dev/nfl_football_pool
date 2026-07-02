@@ -1,3 +1,4 @@
+import { debugError } from '@/lib/utils';
 export interface MailtoOptions {
   to?: string;
   cc?: string;
@@ -30,14 +31,14 @@ export async function openEmailClient(mailtoUrl: string): Promise<boolean> {
     
     return true;
   } catch (openError) {
-    console.error('Failed to open email client:', openError);
+    debugError('Failed to open email client:', openError);
     
     try {
       // Method 2: Try with location.href
       window.location.href = mailtoUrl;
       return true;
     } catch (hrefError) {
-      console.error('Failed with location.href:', hrefError);
+      debugError('Failed with location.href:', hrefError);
       return false;
     }
   }
@@ -48,7 +49,7 @@ export async function copyMailtoToClipboard(mailtoUrl: string): Promise<boolean>
     await navigator.clipboard.writeText(mailtoUrl);
     return true;
   } catch (error) {
-    console.error('Failed to copy to clipboard:', error);
+    debugError('Failed to copy to clipboard:', error);
     return false;
   }
 }

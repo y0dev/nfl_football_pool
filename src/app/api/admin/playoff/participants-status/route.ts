@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, participants });
   } catch (error) {
-    console.error('[SH][API][DB] Playoff participants status error:', error);
+    debugError('[SH][API][DB] Playoff participants status error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load playoff participant status' }, { status: 500 });
   }
 }

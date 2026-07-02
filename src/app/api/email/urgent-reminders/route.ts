@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAndSendUrgentReminders } from '@/actions/emailActions';
+import { debugError } from '@/lib/utils';
 
 /**
  * API route to check for participants without picks when games start in <5 hours
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
       message: 'Urgent reminder check completed'
     });
   } catch (error) {
-    console.error('Error checking urgent reminders:', error);
+    debugError('Error checking urgent reminders:', error);
     return NextResponse.json(
       { 
         success: false, 

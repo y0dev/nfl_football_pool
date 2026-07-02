@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Lock, Unlock, Target, RefreshCw } from 'lucide-react';
 import { Game } from '@/types/game';
-import { getShortTeamName } from '@/lib/utils';
+import { getShortTeamName, debugError} from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -85,7 +85,7 @@ export function RecentPicksViewer({
 
       setPicks(data || []);
     } catch (error) {
-      console.error('Error loading recent picks:', error);
+      debugError('Error loading recent picks:', error);
       toast({
         title: "Error",
         description: "Failed to load recent picks",

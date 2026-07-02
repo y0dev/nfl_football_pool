@@ -2,6 +2,7 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -77,7 +78,7 @@ export async function requestMagicLink(
     const { emailService } = await import('@/lib/email');
     await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
   } catch (err) {
-    console.error('Magic link email send failed:', err);
+    debugError('Magic link email send failed:', err);
     return { success: false, error: 'Failed to send magic link. Please try again.' };
   }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { DUMMY_POOL, isDummyData } from '@/lib/utils';
+import { DUMMY_POOL, isDummyData, debugLog, debugError} from '@/lib/utils';
 
 // GET - Get public pool details with stats (no authentication required)
 export async function GET(
@@ -16,7 +16,7 @@ export async function GET(
 
   try {
     const { id: poolId } = await params;
-    console.log(`Received request for pool ID: ${poolId}`);
+    debugLog(`Received request for pool ID: ${poolId}`);
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
@@ -31,7 +31,7 @@ export async function GET(
       .single();
 
     if (poolError) {
-      console.error('Error fetching pool:', poolError);
+      debugError('Error fetching pool:', poolError);
       return NextResponse.json(
         { success: false, error: 'Pool not found' },
         { status: 404 }
@@ -46,7 +46,7 @@ export async function GET(
       .eq('is_active', true);
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
     }
 
     // Get picks status if week and season type are provided
@@ -71,7 +71,7 @@ export async function GET(
           };
         }
       } catch (error) {
-        console.error('Error fetching picks:', error);
+        debugError('Error fetching picks:', error);
       }
     }
     
@@ -97,7 +97,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error in pool GET API:', error);
+    debugError('Error in pool GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

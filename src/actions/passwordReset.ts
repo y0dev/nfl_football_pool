@@ -3,6 +3,7 @@
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -74,7 +75,7 @@ export async function requestPasswordReset(
     const { emailService } = await import('@/lib/email');
     await emailService.sendPasswordResetLink(admin.email, admin.full_name || 'Commissioner', resetUrl);
   } catch (err) {
-    console.error('Password reset email failed:', err);
+    debugError('Password reset email failed:', err);
     return { success: false, error: 'Failed to send reset email. Please try again.' };
   }
 
@@ -113,7 +114,7 @@ export async function resetPasswordWithToken(
     .eq('id', admin.id);
 
   if (updateError) {
-    console.error('Password reset update failed:', updateError.code);
+    debugError('Password reset update failed:', updateError.code);
     return { success: false, error: 'Failed to update password. Please try again.' };
   }
 

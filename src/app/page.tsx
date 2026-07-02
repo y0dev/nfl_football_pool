@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason } from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason, debugLog, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
@@ -60,7 +60,7 @@ function LandingPage() {
           const superAdminStatus = await verifyAdminStatus(true);
           setIsSuperAdmin(superAdminStatus);
         } catch (error) {
-          console.error('Error checking admin status:', error);
+          debugError('Error checking admin status:', error);
           setIsSuperAdmin(false);
         } finally {
           setIsCheckingAdmin(false);
@@ -88,7 +88,7 @@ function LandingPage() {
           setGames(weekGames as Game[]);
         }
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoadingGames(false);
       }
@@ -137,7 +137,7 @@ function LandingPage() {
     return `Week ${currentWeek} Games`;
   };
 
-  console.log('Loaded games:', games);
+  debugLog('Loaded games:', games);
   // Filter out malformed entries (e.g. Hall of Fame Game stored without a real away team)
   const validGames = games.filter(
     g => (g.away_team_id || g.away_team) && (g.home_team_id || g.home_team)

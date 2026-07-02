@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getOrCalculateSeasonWinners } from '@/lib/winner-calculator';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error in season winners API:', error);
+    debugError('Error in season winners API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

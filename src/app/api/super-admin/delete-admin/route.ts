@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError, debugWarn } from '@/lib/utils';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -43,7 +44,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', adminId);
 
     if (deleteError) {
-      console.error('Error deleting admin:', deleteError);
+      debugError('Error deleting admin:', deleteError);
       return NextResponse.json(
         { success: false, error: 'Failed to delete commissioner account' },
         { status: 500 }
@@ -61,7 +62,7 @@ export async function DELETE(request: NextRequest) {
         }
       }
     } catch (authDeleteError) {
-      console.warn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
+      debugWarn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
       // Don't fail the entire operation if auth deletion fails
     }
 
@@ -80,7 +81,7 @@ export async function DELETE(request: NextRequest) {
           }
         });
     } catch (auditError) {
-      console.warn('Failed to log admin deletion to audit_logs:', auditError);
+      debugWarn('Failed to log admin deletion to audit_logs:', auditError);
       // Don't fail the operation if audit logging fails
     }
 
@@ -90,7 +91,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error deleting admin:', error);
+    debugError('Error deleting admin:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

@@ -1,6 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
 import { debugLog, debugError, isOffseason } from './utils';
-
 export interface DashboardStats {
   totalPools: number;
   activePools: number;
@@ -97,7 +96,7 @@ class AdminService {
   ): Promise<DashboardStats> {
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
+        debugLog('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
       }
 
       const now = new Date();
@@ -140,24 +139,24 @@ class AdminService {
       if (!isSuperAdmin && pools) {
         const poolIds = pools.map(p => p.id);
         if (process.env.NODE_ENV === 'development') {
-          console.log('AdminService: Filtering participants by pool IDs:', poolIds);
+          debugLog('AdminService: Filtering participants by pool IDs:', poolIds);
         }
         participantsQuery = participantsQuery.in('pool_id', poolIds);
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Executing participants query...');
+        debugLog('AdminService: Executing participants query...');
       }
       const { data: participants, error: participantsError } = await participantsQuery;
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Participants query result:', { data: participants, error: participantsError });
+        debugLog('AdminService: Participants query result:', { data: participants, error: participantsError });
       }
       
       if (participantsError) throw new Error(`Failed to load participants: ${participantsError.message}`);
 
       // Get games
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Executing games query...');
+        debugLog('AdminService: Executing games query...');
       }
       const { data: games, error: gamesError } = await this.supabase
         .from('games')
@@ -166,7 +165,7 @@ class AdminService {
         .eq('season_type', currentSeasonType);
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Games query result:', { data: games, error: gamesError });
+        debugLog('AdminService: Games query result:', { data: games, error: gamesError });
       }
       
       if (gamesError) throw new Error(`Failed to load games: ${gamesError.message}`);
@@ -181,17 +180,17 @@ class AdminService {
       if (!isSuperAdmin && pools) {
         const poolIds = pools.map(p => p.id);
         if (process.env.NODE_ENV === 'development') {
-          console.log('AdminService: Filtering picks by pool IDs:', poolIds);
+          debugLog('AdminService: Filtering picks by pool IDs:', poolIds);
         }
         picksQuery = picksQuery.in('pool_id', poolIds);
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Executing picks query...');
+        debugLog('AdminService: Executing picks query...');
       }
       const { data: picks, error: picksError } = await picksQuery;
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Picks query result:', { data: picks, error: picksError });
+        debugLog('AdminService: Picks query result:', { data: picks, error: picksError });
       }
       
       if (picksError) throw new Error(`Failed to load picks: ${picksError.message}`);
@@ -214,12 +213,12 @@ class AdminService {
       };
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Calculated dashboard stats:', stats);
+        debugLog('AdminService: Calculated dashboard stats:', stats);
       }
       return stats;
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting dashboard stats:', error);
+        debugError('AdminService: Error getting dashboard stats:', error);
       }
       throw error;
     }
@@ -231,7 +230,7 @@ class AdminService {
   async getActivePools(adminEmail: string, isSuperAdmin: boolean): Promise<Pool[]> {
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting active pools for:', { adminEmail, isSuperAdmin });
+        debugLog('AdminService: Getting active pools for:', { adminEmail, isSuperAdmin });
       }
 
       let query = this.supabase
@@ -247,19 +246,19 @@ class AdminService {
         
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('AdminService: Active pools query error:', error);
+          debugError('AdminService: Active pools query error:', error);
         }
         throw new Error(`Failed to load active pools: ${error.message}`);
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Active pools result:', { count: pools?.length || 0 });
+        debugLog('AdminService: Active pools result:', { count: pools?.length || 0 });
       }
 
       return pools || [];
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting active pools:', error);
+        debugError('AdminService: Error getting active pools:', error);
       }
       throw error;
     }
@@ -271,7 +270,7 @@ class AdminService {
   async getPoolParticipants(poolId: string): Promise<Participant[]> {
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting participants for pool:', poolId);
+        debugLog('AdminService: Getting participants for pool:', poolId);
       }
 
       const { data: participants, error } = await this.supabase
@@ -283,19 +282,19 @@ class AdminService {
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('AdminService: Participants query error:', error);
+          debugError('AdminService: Participants query error:', error);
         }
         throw new Error(`Failed to load participants: ${error.message}`);
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Pool participants result:', { count: participants?.length || 0 });
+        debugLog('AdminService: Pool participants result:', { count: participants?.length || 0 });
       }
 
       return participants || [];
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting pool participants:', error);
+        debugError('AdminService: Error getting pool participants:', error);
       }
       throw error;
     }
@@ -307,7 +306,7 @@ class AdminService {
   async getPoolById(poolId: string): Promise<Pool | null> {
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Getting pool by ID:', poolId);
+        debugLog('AdminService: Getting pool by ID:', poolId);
       }
 
       const { data: pool, error } = await this.supabase
@@ -318,19 +317,19 @@ class AdminService {
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('AdminService: Pool query error:', error);
+          debugError('AdminService: Pool query error:', error);
         }
         throw new Error(`Failed to load pool: ${error.message}`);
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('AdminService: Pool result:', pool);
+        debugLog('AdminService: Pool result:', pool);
       }
 
       return pool;
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('AdminService: Error getting pool:', error);
+        debugError('AdminService: Error getting pool:', error);
       }
       throw error;
     }

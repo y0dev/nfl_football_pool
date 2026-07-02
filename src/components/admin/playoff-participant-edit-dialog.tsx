@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Save, Target, Trophy, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { debugError } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -142,7 +143,7 @@ export function PlayoffParticipantEditDialog({
         setCanDeleteConfidencePoints(true);
       }
     } catch (error) {
-      console.error('Error loading participant data:', error);
+      debugError('Error loading participant data:', error);
       toast({ title: 'Error', description: 'Failed to load participant data', variant: 'destructive' });
     } finally {
       setIsLoadingData(false);
@@ -189,7 +190,7 @@ export function PlayoffParticipantEditDialog({
         throw new Error(result.error || 'Failed to update confidence points');
       }
     } catch (error: any) {
-      console.error('Error saving confidence points:', error);
+      debugError('Error saving confidence points:', error);
       toast({ title: 'Error', description: error.message || 'Failed to save confidence points', variant: 'destructive' });
     } finally {
       setIsLoading(false);

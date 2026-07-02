@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error('Error checking weekly winner:', error);
+      debugError('Error checking weekly winner:', error);
       return NextResponse.json(
         { error: 'Failed to check weekly winner' },
         { status: 500 }
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error in week-winner API:', error);
+    debugError('Error in week-winner API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     if (checkError && checkError.code !== 'PGRST116') {
       // PGRST116 is "no rows returned" which is expected when no winner exists
-      console.error('Error checking for existing winner:', checkError);
+      debugError('Error checking for existing winner:', checkError);
       return NextResponse.json(
         { 
           success: false,
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
       // This can happen if the unique constraint doesn't include season_type
       // In that case, try to update the existing record instead
       if (insertError.code === '23505') {
-        console.log('Duplicate key error detected, attempting to update existing winner...');
+        debugLog('Duplicate key error detected, attempting to update existing winner...');
         
         // Try to update the existing record
         const { data: updatedWinner, error: updateError } = await supabase
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
           .single();
         
         if (updateError) {
-          console.error('Error updating weekly winner:', updateError);
+          debugError('Error updating weekly winner:', updateError);
           return NextResponse.json(
             { 
               success: false,
@@ -184,8 +185,8 @@ export async function POST(request: NextRequest) {
         });
       }
       
-      console.error('Error inserting weekly winner:', insertError);
-      console.error('Insert data:', {
+      debugError('Error inserting weekly winner:', insertError);
+      debugError('Insert data:', {
         pool_id: poolId,
         week: parseInt(week),
         season: parseInt(season),
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in week-winner POST API:', error);
+    debugError('Error in week-winner POST API:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { 

@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugLog, debugError} from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { useAuth } from '@/lib/auth';
@@ -121,7 +121,7 @@ function OverridePicksContent() {
       const serviceSupabase = getSupabaseServiceClient();
 
       if (!supabase && !serviceSupabase) {
-        console.error('❌ No Supabase client available');
+        debugError('❌ No Supabase client available');
         toast({
           title: 'Error',
           description: 'Database connection not available',
@@ -139,7 +139,7 @@ function OverridePicksContent() {
         .order('name');
 
       if (error) {
-        console.error('❌ Error loading pools:', error);
+        debugError('❌ Error loading pools:', error);
         toast({
           title: 'Error',
           description: 'Failed to load pools',
@@ -150,7 +150,7 @@ function OverridePicksContent() {
 
       setPools(poolsData || []);
       } catch (error) {
-      console.error('❌ Error loading pools:', error);
+      debugError('❌ Error loading pools:', error);
         toast({
           title: 'Error',
         description: 'Failed to load pools',
@@ -167,7 +167,7 @@ function OverridePicksContent() {
       const client = serviceSupabase || supabase;
 
       if (!client) {
-        console.error('❌ No Supabase client available for loading picks');
+        debugError('❌ No Supabase client available for loading picks');
         toast({
           title: 'Error',
           description: 'Database connection not available',
@@ -184,7 +184,7 @@ function OverridePicksContent() {
         .eq('season_type', seasonType);
 
       if (gamesError) {
-        console.error('❌ Error loading games:', gamesError);
+        debugError('❌ Error loading games:', gamesError);
         toast({
           title: 'Error',
           description: 'Failed to load games for this week',
@@ -195,11 +195,11 @@ function OverridePicksContent() {
 
       const gameIds = gamesData?.map(game => game.id) || [];
 
-      console.log(`🔍 Loading picks for Week ${week}, Season ${season}, Season Type ${seasonType}`);
-      console.log(`🎮 Found ${gameIds.length} games:`, gamesData?.map(g => ({ id: g.id, week: g.week, season: g.season, season_type: g.season_type })));
+      debugLog(`🔍 Loading picks for Week ${week}, Season ${season}, Season Type ${seasonType}`);
+      debugLog(`🎮 Found ${gameIds.length} games:`, gamesData?.map(g => ({ id: g.id, week: g.week, season: g.season, season_type: g.season_type })));
 
       if (gameIds.length === 0) {
-        console.log('❌ No games found for this week/season/season_type combination');
+        debugLog('❌ No games found for this week/season/season_type combination');
         setPicks([]);
         return;
       }
@@ -224,7 +224,7 @@ function OverridePicksContent() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error loading picks:', error);
+        debugError('❌ Error loading picks:', error);
         toast({
           title: 'Error',
           description: 'Failed to load picks',
@@ -239,7 +239,7 @@ function OverridePicksContent() {
         games: Array.isArray(pick.games) ? pick.games[0] : pick.games
       }));
 
-      console.log(`📝 Found ${transformedPicks.length} picks:`, transformedPicks.map(p => ({
+      debugLog(`📝 Found ${transformedPicks.length} picks:`, transformedPicks.map(p => ({
         id: p.id,
         participant: p.participants?.name,
         game: p.games ? `${p.games.away_team} @ ${p.games.home_team}` : 'Unknown',
@@ -250,7 +250,7 @@ function OverridePicksContent() {
 
       setPicks(transformedPicks);
     } catch (error) {
-      console.error('❌ Error loading picks:', error);
+      debugError('❌ Error loading picks:', error);
       toast({
         title: 'Error',
         description: 'Failed to load picks',
@@ -269,7 +269,7 @@ function OverridePicksContent() {
       const client = serviceSupabase || supabase;
 
       if (!client) {
-        console.error('❌ No Supabase client available for loading games');
+        debugError('❌ No Supabase client available for loading games');
         return;
       }
 
@@ -282,7 +282,7 @@ function OverridePicksContent() {
         .order('kickoff_time', { ascending: true });
 
       if (error) {
-        console.error('❌ Error loading games:', error);
+        debugError('❌ Error loading games:', error);
         toast({
           title: 'Error',
           description: 'Failed to load games',
@@ -293,7 +293,7 @@ function OverridePicksContent() {
 
       setAvailableGames(gamesData || []);
     } catch (error) {
-      console.error('❌ Error loading games:', error);
+      debugError('❌ Error loading games:', error);
       toast({
         title: 'Error',
         description: 'Failed to load games',
@@ -309,7 +309,7 @@ function OverridePicksContent() {
       const client = serviceSupabase || supabase;
 
       if (!client) {
-        console.error('❌ No Supabase client available for loading participants');
+        debugError('❌ No Supabase client available for loading participants');
         return;
       }
 
@@ -321,7 +321,7 @@ function OverridePicksContent() {
         .order('name');
 
       if (error) {
-        console.error('❌ Error loading participants:', error);
+        debugError('❌ Error loading participants:', error);
         toast({
           title: 'Error',
           description: 'Failed to load participants',
@@ -332,7 +332,7 @@ function OverridePicksContent() {
 
       setAllParticipants(participantsData || []);
     } catch (error) {
-      console.error('❌ Error loading participants:', error);
+      debugError('❌ Error loading participants:', error);
       toast({
         title: 'Error',
         description: 'Failed to load participants',
@@ -379,7 +379,7 @@ function OverridePicksContent() {
           });
 
       if (error) {
-        console.error('❌ Error submitting new pick:', error);
+        debugError('❌ Error submitting new pick:', error);
       toast({
           title: 'Error',
           description: 'Failed to submit pick',
@@ -405,7 +405,7 @@ function OverridePicksContent() {
         description: 'Pick submitted successfully'
       });
     } catch (error) {
-      console.error('❌ Error submitting new pick:', error);
+      debugError('❌ Error submitting new pick:', error);
       toast({
         title: 'Error',
         description: 'Failed to submit pick',
@@ -461,7 +461,7 @@ function OverridePicksContent() {
         toast({ title: 'Error', description: result.error, variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error submitting Monday night score:', error);
+      debugError('Error submitting Monday night score:', error);
       toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -472,7 +472,7 @@ function OverridePicksContent() {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        console.error('Supabase client not initialized');
+        debugError('Supabase client not initialized');
         setIsLoading(false);
         return;
       }
@@ -485,7 +485,7 @@ function OverridePicksContent() {
         .single();
 
       if (error) {
-        console.error('Error loading current week:', error);
+        debugError('Error loading current week:', error);
         setCurrentSeason(2024);
         const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
         setWeeks(regularWeeks);
@@ -508,7 +508,7 @@ function OverridePicksContent() {
         ]);
       }
     } catch (error) {
-      console.error('Error loading current week:', error);
+      debugError('Error loading current week:', error);
       setCurrentSeason(2024);
       const regularWeeks = Array.from({ length: 18 }, (_, i) => i + 1);
       setWeeks(regularWeeks);

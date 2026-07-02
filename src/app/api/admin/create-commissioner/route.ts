@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError, debugWarn} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const { data: authUser, error: authCheckError } = await supabase.auth.admin.listUsers();
     
     if (authCheckError) {
-      console.error('Error checking auth users:', authCheckError);
+      debugError('Error checking auth users:', authCheckError);
       return NextResponse.json(
         { success: false, error: 'Failed to check existing users. Please ensure you have the correct service role key configured.' },
         { status: 500 }
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (createAuthError) {
-      console.error('Error creating auth user:', createAuthError);
+      debugError('Error creating auth user:', createAuthError);
       return NextResponse.json(
         { success: false, error: `Failed to create user: ${createAuthError.message}` },
         { status: 500 }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating admin record:', createError);
+      debugError('Error creating admin record:', createError);
       
       // Clean up the newly created auth user
       debugLog('Cleaning up newly created auth user...');
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         await supabase.auth.admin.deleteUser(newAuthUser.user.id);
         debugLog('Auth user cleanup successful');
       } catch (cleanupError) {
-        console.error('Failed to cleanup auth user:', cleanupError);
+        debugError('Failed to cleanup auth user:', cleanupError);
       }
       
       return NextResponse.json(
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         });
       debugLog('Audit log created successfully');
     } catch (auditError) {
-      console.warn('Failed to log commissioner creation to audit_logs:', auditError);
+      debugWarn('Failed to log commissioner creation to audit_logs:', auditError);
       // Don't fail the creation if audit logging fails
     }
 
@@ -151,12 +151,12 @@ export async function POST(request: NextRequest) {
       );
       
       if (!emailSent) {
-        console.warn('Email notification failed, but commissioner account was created successfully');
+        debugWarn('Email notification failed, but commissioner account was created successfully');
       } else {
         debugLog('Email notification sent successfully');
       }
     } catch (error) {
-      console.error('Failed to send commissioner creation notification:', error);
+      debugError('Failed to send commissioner creation notification:', error);
       // Don't fail the creation if email fails - just log the error
     }
 
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Create commissioner error:', error);
+    debugError('Create commissioner error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

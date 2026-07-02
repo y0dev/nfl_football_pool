@@ -1,6 +1,5 @@
 import { getSupabaseClient } from './supabase';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from './utils';
-
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugLog, debugError } from './utils';
 interface ParticipantData {
   name: string;
 }
@@ -106,12 +105,12 @@ export async function getOrCalculateWeeklyWinners(
       .eq('season', season);
 
     if (gamesError) {
-      console.error('Error checking games status:', gamesError);
+      debugError('Error checking games status:', gamesError);
       return null;
     }
 
     if (!games || games.length === 0) {
-      console.log(`No games found for week ${week}, season ${season}`);
+      debugLog(`No games found for week ${week}, season ${season}`);
       return null;
     }
 
@@ -121,12 +120,12 @@ export async function getOrCalculateWeeklyWinners(
     );
 
     if (!allGamesFinished) {
-      console.log(`Not all games finished for week ${week}, season ${season}. Cannot calculate winners yet.`);
+      debugLog(`Not all games finished for week ${week}, season ${season}. Cannot calculate winners yet.`);
       return null;
     }
 
     // All games finished, calculate winners
-    console.log(`All games finished for week ${week}, season ${season}. Calculating winners...`);
+    debugLog(`All games finished for week ${week}, season ${season}. Calculating winners...`);
     const calculatedWinner = await calculateWeeklyWinners(poolId, week, season);
     
     if (calculatedWinner) {
@@ -137,7 +136,7 @@ export async function getOrCalculateWeeklyWinners(
 
     return null;
   } catch (error) {
-    console.error('Error in getOrCalculateWeeklyWinners:', error);
+    debugError('Error in getOrCalculateWeeklyWinners:', error);
     return null;
   }
 }
@@ -174,7 +173,7 @@ export async function getOrCalculateSeasonWinners(
       .eq('season_type', 2); // regular season
 
     if (rsGamesError || !regularSeasonGames || regularSeasonGames.length === 0) {
-      console.log(`No regular season games found for season ${season}`);
+      debugLog(`No regular season games found for season ${season}`);
       return null;
     }
 
@@ -183,12 +182,12 @@ export async function getOrCalculateSeasonWinners(
     );
 
     if (!allRegularSeasonFinished) {
-      console.log(`Regular season not complete yet for season ${season}. Cannot calculate season winner.`);
+      debugLog(`Regular season not complete yet for season ${season}. Cannot calculate season winner.`);
       return null;
     }
 
     // Calculate season winner
-    console.log(`Calculating season winner for season ${season}...`);
+    debugLog(`Calculating season winner for season ${season}...`);
     const calculatedWinner = await calculateSeasonWinners(poolId, season);
     
     if (calculatedWinner) {
@@ -199,7 +198,7 @@ export async function getOrCalculateSeasonWinners(
 
     return null;
   } catch (error) {
-    console.error('Error in getOrCalculateSeasonWinners:', error);
+    debugError('Error in getOrCalculateSeasonWinners:', error);
     return null;
   }
 }
@@ -240,7 +239,7 @@ export async function getOrCalculatePeriodWinners(
       .lte('week', endWeek);
 
     if (gamesCheckError || !periodGames || periodGames.length === 0) {
-      console.log(`No games found for period ${periodName} (weeks ${startWeek}-${endWeek})`);
+      debugLog(`No games found for period ${periodName} (weeks ${startWeek}-${endWeek})`);
       return null;
     }
 
@@ -249,12 +248,12 @@ export async function getOrCalculatePeriodWinners(
     );
 
     if (!allPeriodGamesFinished) {
-      console.log(`Not all games finished for period ${periodName} (weeks ${startWeek}-${endWeek}). Cannot calculate winners yet.`);
+      debugLog(`Not all games finished for period ${periodName} (weeks ${startWeek}-${endWeek}). Cannot calculate winners yet.`);
       return null;
     }
 
     // Calculate period winner
-    console.log(`Calculating period winner for ${periodName} (weeks ${startWeek}-${endWeek})...`);
+    debugLog(`Calculating period winner for ${periodName} (weeks ${startWeek}-${endWeek})...`);
     const calculatedWinner = await calculatePeriodWinners(poolId, season, periodName, startWeek, endWeek);
     
     if (calculatedWinner) {
@@ -265,7 +264,7 @@ export async function getOrCalculatePeriodWinners(
 
     return null;
   } catch (error) {
-    console.error('Error in getOrCalculatePeriodWinners:', error);
+    debugError('Error in getOrCalculatePeriodWinners:', error);
     return null;
   }
 }
@@ -318,7 +317,7 @@ export async function calculateWeeklyWinners(
       .single();
 
     if (gamesError) {
-      console.error('Error fetching season type:', gamesError);
+      debugError('Error fetching season type:', gamesError);
       return null;
     }
 
@@ -329,7 +328,7 @@ export async function calculateWeeklyWinners(
     
     // If all participants have 0 points, there's no winner
     if (maxPoints === 0) {
-      console.log(`All participants have 0 points for week ${week}, season ${season}. No winner declared.`);
+      debugLog(`All participants have 0 points for week ${week}, season ${season}. No winner declared.`);
       return null;
     }
     
@@ -411,7 +410,7 @@ export async function calculateWeeklyWinners(
 
     return null;
   } catch (error) {
-    console.error('Error calculating weekly winners:', error);
+    debugError('Error calculating weekly winners:', error);
     return null;
   }
 }
@@ -563,7 +562,7 @@ async function calculateSeasonWinners(
 
     return null;
   } catch (error) {
-    console.error('Error calculating season winners:', error);
+    debugError('Error calculating season winners:', error);
     return null;
   }
 }
@@ -806,7 +805,7 @@ async function calculatePeriodWinners(
 
     return null;
   } catch (error) {
-    console.error('Error calculating period winners:', error);
+    debugError('Error calculating period winners:', error);
     return null;
   }
 }
@@ -823,12 +822,12 @@ async function saveWeeklyWinner(winner: WeeklyWinner): Promise<void> {
       .upsert(winner, { onConflict: 'pool_id,week,season' });
 
     if (error) {
-      console.error('Error saving weekly winner:', error);
+      debugError('Error saving weekly winner:', error);
     } else {
-      console.log(`Weekly winner saved for week ${winner.week}, season ${winner.season}`);
+      debugLog(`Weekly winner saved for week ${winner.week}, season ${winner.season}`);
     }
   } catch (error) {
-    console.error('Error saving weekly winner:', error);
+    debugError('Error saving weekly winner:', error);
   }
 }
 
@@ -844,12 +843,12 @@ async function saveSeasonWinner(winner: SeasonWinner): Promise<void> {
       .upsert(winner, { onConflict: 'pool_id,season' });
 
     if (error) {
-      console.error('Error saving season winner:', error);
+      debugError('Error saving season winner:', error);
     } else {
-      console.log(`Season winner saved for season ${winner.season}`);
+      debugLog(`Season winner saved for season ${winner.season}`);
     }
   } catch (error) {
-    console.error('Error saving season winner:', error);
+    debugError('Error saving season winner:', error);
   }
 }
 
@@ -865,12 +864,12 @@ async function savePeriodWinner(winner: PeriodWinner): Promise<void> {
       .upsert(winner, { onConflict: 'pool_id,season,period_name' });
 
     if (error) {
-      console.error('Error saving period winner:', error);
+      debugError('Error saving period winner:', error);
     } else {
-      console.log(`Period winner saved for ${winner.period_name}, season ${winner.season}`);
+      debugLog(`Period winner saved for ${winner.period_name}, season ${winner.season}`);
     }
   } catch (error) {
-    console.error('Error saving period winner:', error);
+    debugError('Error saving period winner:', error);
   }
 }
 
@@ -924,11 +923,11 @@ async function calculateCurrentQuarterStandings(
         periodName = 'Q4';
         break;
       default:
-        console.log(`Not a quarter week: ${quarterWeek}`);
+        debugLog(`Not a quarter week: ${quarterWeek}`);
         return null;
     }
 
-    console.log(`Calculating current ${periodName} standings for pool ${poolId}, weeks:`, quarterWeeks);
+    debugLog(`Calculating current ${periodName} standings for pool ${poolId}, weeks:`, quarterWeeks);
 
     // Get all participants in the pool
     const { data: participants, error: participantsError } = await supabase
@@ -938,7 +937,7 @@ async function calculateCurrentQuarterStandings(
 
     if (participantsError) throw participantsError;
     if (!participants || participants.length === 0) {
-      console.log('No participants found for pool');
+      debugLog('No participants found for pool');
       return null;
     }
 
@@ -1082,7 +1081,7 @@ async function calculateCurrentQuarterStandings(
     const standings = Array.from(participantTotals.values())
       .sort((a, b) => b.total_points - a.total_points);
 
-    console.log(`Current ${periodName} standings calculated:`, standings.length, 'participants');
+    debugLog(`Current ${periodName} standings calculated:`, standings.length, 'participants');
 
     return {
       standings,
@@ -1093,7 +1092,7 @@ async function calculateCurrentQuarterStandings(
     };
 
   } catch (error) {
-    console.error('Error calculating current quarter standings:', error);
+    debugError('Error calculating current quarter standings:', error);
     return null;
   }
 }
@@ -1132,11 +1131,11 @@ async function calculateQuarterWinners(
         periodName = 'Q4';
         break;
       default:
-        console.log(`Not a quarter week: ${quarterWeek}`);
+        debugLog(`Not a quarter week: ${quarterWeek}`);
         return null;
     }
 
-    console.log(`Calculating ${periodName} winners for pool ${poolId}, weeks:`, quarterWeeks);
+    debugLog(`Calculating ${periodName} winners for pool ${poolId}, weeks:`, quarterWeeks);
 
     // Get all participants in the pool
     const { data: participants, error: participantsError } = await supabase
@@ -1146,7 +1145,7 @@ async function calculateQuarterWinners(
 
     if (participantsError) throw participantsError;
     if (!participants || participants.length === 0) {
-      console.log('No participants found for pool');
+      debugLog('No participants found for pool');
       return null;
     }
 
@@ -1191,7 +1190,7 @@ async function calculateQuarterWinners(
 
     // Only calculate if all weeks are completed
     if (completedWeeks.length !== quarterWeeks.length) {
-      console.log(`Not all weeks completed for ${periodName}. Completed: ${completedWeeks.length}/${quarterWeeks.length}`);
+      debugLog(`Not all weeks completed for ${periodName}. Completed: ${completedWeeks.length}/${quarterWeeks.length}`);
       return null;
     }
 
@@ -1279,7 +1278,7 @@ async function calculateQuarterWinners(
       .sort((a, b) => b.total_points - a.total_points);
 
     if (quarterStandings.length === 0) {
-      console.log('No standings calculated');
+      debugLog('No standings calculated');
       return null;
     }
 
@@ -1292,7 +1291,7 @@ async function calculateQuarterWinners(
     if (tiedParticipants.length === 1) {
       winner = tiedParticipants[0];
     } else {
-      console.log(`Tie detected for ${periodName} winner. Applying tie-breakers...`);
+      debugLog(`Tie detected for ${periodName} winner. Applying tie-breakers...`);
       
       // Apply tie-breaker logic
       const resolvedTie = await resolveQuarterTieBreaker(
@@ -1325,11 +1324,11 @@ async function calculateQuarterWinners(
       total_participants: participants.length
     };
 
-    console.log(`${periodName} winner calculated:`, result);
+    debugLog(`${periodName} winner calculated:`, result);
     return result;
 
   } catch (error) {
-    console.error('Error calculating quarter winners:', error);
+    debugError('Error calculating quarter winners:', error);
     return null;
   }
 }
@@ -1380,7 +1379,7 @@ async function resolveQuarterTieBreaker(
       return stillTied;
     }
 
-    console.log(`Still tied after weeks won tie-breaker. Using Monday night score for week ${quarterWeek}`);
+    debugLog(`Still tied after weeks won tie-breaker. Using Monday night score for week ${quarterWeek}`);
 
     // Second tie-breaker: Monday night score for the quarter week
     const { data: tieBreakers, error: tieBreakerError } = await supabase
@@ -1404,7 +1403,7 @@ async function resolveQuarterTieBreaker(
 
     const poolAnswer = pool?.tie_breaker_answer;
     if (!poolAnswer) {
-      console.log('No pool tie breaker answer found, using random selection');
+      debugLog('No pool tie breaker answer found, using random selection');
       return stillTied.sort(() => Math.random() - 0.5);
     }
 
@@ -1437,7 +1436,7 @@ async function resolveQuarterTieBreaker(
 
     // Final tie-breaker for Q4: Super Bowl points
     if (quarterWeek === 18) {
-      console.log('Final quarter tie - using Super Bowl points as tie-breaker');
+      debugLog('Final quarter tie - using Super Bowl points as tie-breaker');
       
       const { data: superBowlTieBreakers, error: superBowlError } = await supabase
         .from('tie_breakers')
@@ -1449,7 +1448,7 @@ async function resolveQuarterTieBreaker(
         .in('participant_id', stillTiedAfterTieBreaker.map(p => p.participant_id));
 
       if (superBowlError) {
-        console.error('Error fetching Super Bowl tie breakers:', superBowlError);
+        debugError('Error fetching Super Bowl tie breakers:', superBowlError);
         return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
       }
 
@@ -1461,13 +1460,13 @@ async function resolveQuarterTieBreaker(
         .single();
 
       if (superBowlPoolError) {
-        console.error('Error fetching Super Bowl pool answer:', superBowlPoolError);
+        debugError('Error fetching Super Bowl pool answer:', superBowlPoolError);
         return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
       }
 
       const superBowlAnswer = superBowlPool?.super_bowl_tie_breaker_answer;
       if (!superBowlAnswer) {
-        console.log('No Super Bowl tie breaker answer found, using random selection');
+        debugLog('No Super Bowl tie breaker answer found, using random selection');
         return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
       }
 
@@ -1491,11 +1490,11 @@ async function resolveQuarterTieBreaker(
     }
 
     // For non-Q4 quarters, if still tied after Monday night score, use random selection
-    console.log('Still tied after Monday night score tie-breaker, using random selection');
+    debugLog('Still tied after Monday night score tie-breaker, using random selection');
     return stillTiedAfterTieBreaker.sort(() => Math.random() - 0.5);
 
   } catch (error) {
-    console.error('Error resolving quarter tie breaker:', error);
+    debugError('Error resolving quarter tie breaker:', error);
     return tiedParticipants.sort(() => Math.random() - 0.5);
   }
 }
@@ -1570,7 +1569,7 @@ async function resolveTieBreaker(
       (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
     );
   } catch (error) {
-    console.error('Error resolving tie breaker:', error);
+    debugError('Error resolving tie breaker:', error);
     return tiedParticipants;
   }
 }
@@ -1644,7 +1643,7 @@ async function resolveSeasonTieBreaker(
       (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
     );
   } catch (error) {
-    console.error('Error resolving season tie breaker:', error);
+    debugError('Error resolving season tie breaker:', error);
     return tiedParticipants;
   }
 }
@@ -1722,7 +1721,7 @@ async function resolvePeriodTieBreaker(
       (a.tie_breaker_difference || Infinity) - (b.tie_breaker_difference || Infinity)
     );
   } catch (error) {
-    console.error('Error resolving period tie breaker:', error);
+    debugError('Error resolving period tie breaker:', error);
     return tiedParticipants;
   }
 }

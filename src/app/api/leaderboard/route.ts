@@ -7,8 +7,7 @@ import {
   DUMMY_PLAYOFF_GAMES,
   DUMMY_LEADERBOARD_REGULAR,
   getDummyLeaderboardPlayoffs,
-  isDummyData 
-} from '@/lib/utils';
+  isDummyData, debugError} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 export async function GET(request: NextRequest) {
@@ -81,7 +80,7 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true);
 
     if (participantsError) {
-      console.error('Error loading participants:', participantsError);
+      debugError('Error loading participants:', participantsError);
       return NextResponse.json(
         { error: 'Failed to load participants' },
         { status: 500 }
@@ -106,7 +105,7 @@ export async function GET(request: NextRequest) {
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
-      console.error('Error loading games:', gamesError);
+      debugError('Error loading games:', gamesError);
       return NextResponse.json(
         { error: 'Failed to load games' },
         { status: 500 }
@@ -138,7 +137,7 @@ export async function GET(request: NextRequest) {
             playoffConfidencePointsMap.set(participant.id, playoffPoints);
           }
         } catch (error) {
-          console.error(`Error loading playoff confidence points for participant ${participant.id}:`, error);
+          debugError(`Error loading playoff confidence points for participant ${participant.id}:`, error);
         }
       }
     }
@@ -157,7 +156,7 @@ export async function GET(request: NextRequest) {
       .in('game_id', games.map(g => g.id));
 
     if (picksError) {
-      console.error('Error loading picks:', picksError);
+      debugError('Error loading picks:', picksError);
       return NextResponse.json(
         { error: 'Failed to load picks' },
         { status: 500 }
@@ -270,7 +269,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in leaderboard API:', error);
+    debugError('Error in leaderboard API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

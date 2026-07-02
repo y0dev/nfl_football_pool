@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (updateError) {
-      console.error('Error updating status:', updateError);
+      debugError('Error updating status:', updateError);
       return NextResponse.json({ success: false, error: 'Failed to update status' }, { status: 500 });
     }
 
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Status toggle error:', error);
+    debugError('Status toggle error:', error);
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 

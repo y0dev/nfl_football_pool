@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     const includeParticipants = searchParams.get('includeParticipants') === 'true';
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query params:', { poolId, participantId, week, seasonType, includeGames, includeParticipants });
+      debugLog('Picks API - Query params:', { poolId, participantId, week, seasonType, includeGames, includeParticipants });
     }
     if (!poolId) {
       return NextResponse.json(
@@ -23,11 +24,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Supabase client:', supabase);
+      debugLog('Picks API - Supabase client:', supabase);
     }
     // Build the select statement based on what's requested
     let selectStatement = 'id, participant_id, pool_id, game_id, predicted_winner, confidence_points, created_at';
-    console.log('Picks API - Select statement:', selectStatement);
+    debugLog('Picks API - Select statement:', selectStatement);
     if (includeGames) {
       selectStatement += `, games (
         id,
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       )`;
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Select statement:', selectStatement);
+      debugLog('Picks API - Select statement:', selectStatement);
     }
     if (includeParticipants) {
       selectStatement += `, participants (
@@ -53,20 +54,20 @@ export async function GET(request: NextRequest) {
       )`;
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Select statement:', selectStatement);
+      debugLog('Picks API - Select statement:', selectStatement);
     }
     let query = supabase
       .from('picks')
       .select(selectStatement)
       .eq('pool_id', poolId);
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query:', query);
+      debugLog('Picks API - Query:', query);
     }
     if (participantId) {
       query = query.eq('participant_id', participantId);
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query:', query);
+      debugLog('Picks API - Query:', query);
     }
     // Note: We can't filter by games.week or games.season_type directly unless includeGames is true
     // If filtering by week/seasonType without includeGames, we'll filter in post-processing
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
         query = query.eq('games.week', parseInt(week));
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query:', query);
+      debugLog('Picks API - Query:', query);
     }
     if (seasonType && includeGames) {
         query = query.eq('games.season_type', parseInt(seasonType));
@@ -83,21 +84,21 @@ export async function GET(request: NextRequest) {
     // Order by confidence points for consistent ordering
     query = query.order('confidence_points', { ascending: true });
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query:', query);
+      debugLog('Picks API - Query:', query);
     }
     const { data: picks, error } = await query;
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Picks:', picks);
+      debugLog('Picks API - Picks:', picks);
     }
     if (error) {
-      console.error('Error fetching picks:', error);
+      debugError('Error fetching picks:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch picks' },
         { status: 500 }
       );
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Picks:', picks);
+      debugLog('Picks API - Picks:', picks);
     }
     // If filtering by week/season but not including games, we need to filter the results
     let filteredPicks = picks;
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
         .from('games')
         .select('id, week, season_type');
       if (process.env.NODE_ENV === 'development') {
-        console.log('Picks API - Games query:', gamesQuery);
+        debugLog('Picks API - Games query:', gamesQuery);
       }
       if (week) {
         gamesQuery = gamesQuery.eq('week', parseInt(week));
@@ -116,11 +117,11 @@ export async function GET(request: NextRequest) {
         gamesQuery = gamesQuery.eq('season_type', parseInt(seasonType));
       }
       if (process.env.NODE_ENV === 'development') {
-        console.log('Picks API - Games query:', gamesQuery);
+        debugLog('Picks API - Games query:', gamesQuery);
       }
       const { data: games } = await gamesQuery;
       if (process.env.NODE_ENV === 'development') {
-        console.log('Picks API - Games:', games);
+        debugLog('Picks API - Games:', games);
       }
       if (games) {
         const gameIds = games.map(g => g.id);
@@ -128,11 +129,11 @@ export async function GET(request: NextRequest) {
       }
     }
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Filtered picks:', filteredPicks);
+      debugLog('Picks API - Filtered picks:', filteredPicks);
     }       
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks API - Query params:', { poolId, participantId, week, seasonType, includeGames, includeParticipants });
-      console.log('Picks API - Results:', { count: filteredPicks?.length || 0 });
+      debugLog('Picks API - Query params:', { poolId, participantId, week, seasonType, includeGames, includeParticipants });
+      debugLog('Picks API - Results:', { count: filteredPicks?.length || 0 });
     }
 
     return NextResponse.json({
@@ -148,7 +149,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in picks GET API:', error);
+    debugError('Error in picks GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

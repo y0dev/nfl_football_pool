@@ -3,6 +3,7 @@
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -70,7 +71,7 @@ export async function requestDeletionConfirmation(adminId: string): Promise<{ su
     const { emailService } = await import('@/lib/email');
     await emailService.sendDeletionConfirmationRequest(admin.email, admin.full_name || 'Commissioner', confirmUrl);
   } catch (err) {
-    console.error('Deletion confirmation email failed:', err);
+    debugError('Deletion confirmation email failed:', err);
     return { success: false, error: 'Failed to send confirmation email. Please try again.' };
   }
 
@@ -97,7 +98,7 @@ export async function confirmAccountDeletion(token: string): Promise<{ success: 
 
   const { error: deleteError } = await supabase.from('admins').delete().eq('id', adminId);
   if (deleteError) {
-    console.error('Account deletion failed:', deleteError.code);
+    debugError('Account deletion failed:', deleteError.code);
     return { success: false, error: 'Failed to delete account. Please try again.' };
   }
 

@@ -3,7 +3,7 @@ import { processTemplate, TemplateVariables } from '@/lib/template-processor';
 import { EmailTemplate } from '@/lib/email-templates';
 import { loadUsers } from './loadUsers';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
-import { DEFAULT_SEASON } from '@/lib/utils';
+import { DEFAULT_SEASON, debugError} from '@/lib/utils';
 
 interface SendTemplatedEmailsParams {
   poolId: string;
@@ -27,7 +27,7 @@ export async function sendTemplatedEmails({
     
     // Validate admin ID
     if (!adminId) {
-      console.error('Admin ID is empty or undefined');
+      debugError('Admin ID is empty or undefined');
       return {
         success: false,
         error: 'Admin ID is required but not provided'
@@ -42,8 +42,8 @@ export async function sendTemplatedEmails({
       .single();
     
     if (adminError) {
-      console.error('Error fetching admin data:', adminError);
-      console.error('Admin ID:', adminId);
+      debugError('Error fetching admin data:', adminError);
+      debugError('Admin ID:', adminId);
       return {
         success: false,
         error: `Could not fetch admin data: ${adminError.message}`
@@ -51,8 +51,8 @@ export async function sendTemplatedEmails({
     }
     
     if (!adminData?.email) {
-      console.error('Admin record found but no email:', adminData);
-      console.error('Admin ID:', adminId);
+      debugError('Admin record found but no email:', adminData);
+      debugError('Admin ID:', adminId);
       return {
         success: false,
         error: 'Admin record exists but has no email address'
@@ -153,7 +153,7 @@ export async function sendTemplatedEmails({
     //   .single();
     
     // if (emailError) {
-    //   console.error('Error logging email:', emailError);
+    //   debugError('Error logging email:', emailError);
     // }
     
     // Return the mailto URL for the client to open
@@ -168,7 +168,7 @@ export async function sendTemplatedEmails({
     };
     
   } catch (error) {
-    console.error('Error preparing templated emails:', error);
+    debugError('Error preparing templated emails:', error);
     return {
       success: false,
       error: 'Failed to prepare emails'

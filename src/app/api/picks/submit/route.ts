@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
-import { debugLog, DAYS_BEFORE_GAME, isDummyData } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, isDummyData, debugError} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const { picks, mondayNightScore }: { picks: Pick[], mondayNightScore?: number | null } = await request.json();
     if (process.env.NODE_ENV === 'development') {
-      console.log('Picks:', picks);
+      debugLog('Picks:', picks);
     }
     // Validate picks
     if (picks.length === 0) {
@@ -49,10 +49,10 @@ export async function POST(request: NextRequest) {
       .eq('pool_id', firstPick.pool_id)
       .in('game_id', gameIds); // Check all games in the week
     if (process.env.NODE_ENV === 'development') {
-      console.log('Check error:', checkError);
+      debugLog('Check error:', checkError);
     }
     if (checkError) {
-      console.error('Error checking existing picks:', checkError);
+      debugError('Error checking existing picks:', checkError);
       return NextResponse.json(
         { success: false, error: 'Failed to check existing picks' },
         { status: 500 }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Existing picks:', existingPicks);
+      debugLog('Existing picks:', existingPicks);
     }
 
     // Check if games are locked
@@ -69,10 +69,10 @@ export async function POST(request: NextRequest) {
       .select('id, status, kickoff_time, week, season, season_type')
       .in('id', gameIds);
     if (process.env.NODE_ENV === 'development') {
-      console.log('Games:', games);
+      debugLog('Games:', games);
     }
     if (gamesError) {
-      console.error('Error checking games:', gamesError);
+      debugError('Error checking games:', gamesError);
       return NextResponse.json(
         { success: false, error: 'Failed to validate games' },
         { status: 500 }
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
           .in('game_id', gameIds);
         
         if (deleteError) {
-          console.error('Error deleting existing playoff picks:', deleteError);
+          debugError('Error deleting existing playoff picks:', deleteError);
           return NextResponse.json(
             { success: false, error: 'Failed to update existing picks' },
             { status: 500 }
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (error) {
-      console.error('Error submitting picks:', error);
+      debugError('Error submitting picks:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to submit picks to database' },
         { status: 500 }
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
         .eq('season_type', seasonType);
 
       if (fullGamesError) {
-        console.error('Error loading full games for Monday night identification:', fullGamesError);
+        debugError('Error loading full games for Monday night identification:', fullGamesError);
       }
 
       // For Super Bowl (season_type === 3, week === 4), use the Super Bowl game itself
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (tieBreakerError) {
-        console.error('Error saving Monday night score:', tieBreakerError);
+        debugError('Error saving Monday night score:', tieBreakerError);
         // Don't fail the entire submission for tie breaker errors
       }
     }
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error submitting picks:', error);
+    debugError('Error submitting picks:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

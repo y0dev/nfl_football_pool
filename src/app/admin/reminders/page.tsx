@@ -13,7 +13,7 @@ import { createMailtoUrl, openEmailClient, copyMailtoToClipboard, createSubmissi
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
@@ -70,7 +70,7 @@ function RemindersContent() {
   const [isSendingSummary, setIsSendingSummary] = useState(false);
   const [summaryEmail, setSummaryEmail] = useState('');
 
-  console.log('RemindersContent rendering with:', { user, isLoading, currentWeek, currentSeasonType });
+  debugLog('RemindersContent rendering with:', { user, isLoading, currentWeek, currentSeasonType });
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -85,7 +85,7 @@ function RemindersContent() {
           await loadData();
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        debugError('Error checking admin status:', error);
       }
     };
     if (user) checkAdminStatus();
@@ -106,7 +106,7 @@ function RemindersContent() {
       await loadPoolsData();
       await loadParticipants();
     } catch (error) {
-      console.error('Error loading data:', error);
+      debugError('Error loading data:', error);
       toast({ title: 'Error', description: 'Failed to load reminder data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -118,7 +118,7 @@ function RemindersContent() {
       const poolsData = await loadPools(user?.email, user?.is_super_admin);
       setPools(poolsData);
     } catch (error) {
-      console.error('Error loading pools:', error);
+      debugError('Error loading pools:', error);
     }
   };
 
@@ -137,7 +137,7 @@ function RemindersContent() {
       if (data.success) setParticipants(data.participants);
       else throw new Error(data.error);
     } catch (error) {
-      console.error('Error loading participants:', error);
+      debugError('Error loading participants:', error);
     }
   };
 
@@ -201,7 +201,7 @@ function RemindersContent() {
         toast({ title: 'Error', description: data.error || 'Failed to send reminders', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error sending reminders:', error);
+      debugError('Error sending reminders:', error);
       toast({ title: 'Error', description: 'Failed to send reminders', variant: 'destructive' });
     } finally {
       setIsSendingReminders(false);
@@ -236,7 +236,7 @@ function RemindersContent() {
       }
       setSummaryEmail('');
     } catch (error) {
-      console.error('Error preparing summary:', error);
+      debugError('Error preparing summary:', error);
       toast({ title: 'Error', description: 'Failed to prepare summary', variant: 'destructive' });
     } finally {
       setIsSendingSummary(false);

@@ -15,6 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Footer } from '@/components/layout/Footer';
+import { debugLog } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -272,7 +273,7 @@ function SeasonGamesContent() {
       const data = await res.json();
 
       if (data.success) {
-        console.log('Received current season data:', data);
+        debugLog('Received current season data:', data);
         if (data.totalWeeks > 0) totalWeeks = data.totalWeeks;
 
         // Build map from weekSchedule — strip dashes to convert ISO → YYYYMMDD
@@ -310,7 +311,7 @@ function SeasonGamesContent() {
           body: JSON.stringify({ weekStart: range.start, weekEnd: range.end, week }),
         });
         const data = await res.json();
-        console.log(`Received generated games for week ${week}:`, data);
+        debugLog(`Received generated games for week ${week}:`, data);
         if (data.success && data.games.length > 0) {
           setPreviewWeeks(prev => [...prev, { week: data.week, games: data.games }]);
         }

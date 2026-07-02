@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError, debugWarn} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         });
       debugLog('Audit log created successfully');
     } catch (auditError) {
-      console.warn('Failed to log password reset to audit_logs:', auditError);
+      debugWarn('Failed to log password reset to audit_logs:', auditError);
       // Don't fail the password reset if audit logging fails
     }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Reset admin password error:', error);
+    debugError('Reset admin password error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

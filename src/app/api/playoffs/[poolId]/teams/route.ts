@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { DUMMY_PLAYOFF_TEAMS, isDummyData } from '@/lib/utils';
+import { DUMMY_PLAYOFF_TEAMS, isDummyData, debugError} from '@/lib/utils';
 
 // GET - Get playoff teams for a pool and season
 export async function GET(
@@ -36,7 +36,7 @@ export async function GET(
       .order('seed', { ascending: true, nullsFirst: false });
 
     if (error) {
-      console.error('Error fetching playoff teams:', error);
+      debugError('Error fetching playoff teams:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch playoff teams' },
         { status: 500 }
@@ -49,7 +49,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error in playoff teams GET API:', error);
+    debugError('Error in playoff teams GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

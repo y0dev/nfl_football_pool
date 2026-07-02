@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog, createPageUrl } from '@/lib/utils';
+import { debugLog, createPageUrl, debugError} from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
@@ -142,7 +142,7 @@ function AdminDashboardContent() {
           }
         }
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -182,7 +182,7 @@ function AdminDashboardContent() {
       const stats = await adminService.getDashboardStats(currentWeek, currentSeasonType, user.email, true);
       setDashboardStats(stats);
     } catch (error) {
-      console.error('Error loading dashboard stats:', error);
+      debugError('Error loading dashboard stats:', error);
       toast({ title: 'Error', description: 'Failed to load dashboard data', variant: 'destructive' });
     }
   };
@@ -194,7 +194,7 @@ function AdminDashboardContent() {
       const data = await response.json();
       if (data.success && data.lastUpdate) setLastGameUpdate(new Date(data.lastUpdate));
     } catch (error) {
-      console.error('Error loading last game update:', error);
+      debugError('Error loading last game update:', error);
     }
   };
 
@@ -203,7 +203,7 @@ function AdminDashboardContent() {
       const adminsData = await adminService.getAdmins();
       setAdmins(adminsData);
     } catch (error) {
-      console.error('Error loading admins:', error);
+      debugError('Error loading admins:', error);
       toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
     }
   };
@@ -220,7 +220,7 @@ function AdminDashboardContent() {
         if (sorted.length > 0) setSelectedPoolId(sorted[0].id);
       }
     } catch (err) {
-      console.error('Error loading pools:', err);
+      debugError('Error loading pools:', err);
     } finally {
       setPoolsLoading(false);
     }
@@ -299,7 +299,7 @@ function AdminDashboardContent() {
           .slice(0, 10)
       );
     } catch (error) {
-      console.error('Error loading recent activity:', error);
+      debugError('Error loading recent activity:', error);
       setRecentActivity([]);
     }
   };
@@ -374,7 +374,7 @@ function AdminDashboardContent() {
         setLeaderboardEntries([]);
       }
     } catch (error) {
-      console.error('Error loading pool stats:', error);
+      debugError('Error loading pool stats:', error);
     }
   };
 

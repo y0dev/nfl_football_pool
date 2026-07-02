@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[SH][API][DB] Games stats error:', error);
+    debugError('[SH][API][DB] Games stats error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load game stats' }, { status: 500 });
   }
 }

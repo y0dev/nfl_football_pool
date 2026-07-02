@@ -17,7 +17,7 @@ import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl } from '@/lib/utils';
+import { DEFAULT_WEEK, DEFAULT_SEASON_TYPE, createPageUrl, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
 import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
@@ -92,7 +92,7 @@ function PoolDetailsContent() {
         toast({ title: 'Error', description: 'Failed to load pool details', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error loading pool:', error);
+      debugError('Error loading pool:', error);
       toast({ title: 'Error', description: 'Failed to load pool details', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -108,7 +108,7 @@ function PoolDetailsContent() {
       setCurrentSeasonType(seasonType);
       loadPickStats(week, seasonType);
     } catch (error) {
-      console.error('Error loading current week:', error);
+      debugError('Error loading current week:', error);
     }
   };
 

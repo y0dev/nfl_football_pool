@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       .order('points_for', { ascending: false });
 
     if (error) {
-      console.error('Error fetching team records:', error);
+      debugError('Error fetching team records:', error);
       return NextResponse.json(
         { error: 'Failed to fetch team records' },
         { status: 500 }
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in team records API:', error);
+    debugError('Error in team records API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 interface SyncResult {
@@ -86,7 +86,7 @@ function NFLSyncContent() {
           setSelectedSyncOptions({ date: new Date(), updateGames: true, updateTeamRecords: true });
         }
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -112,7 +112,7 @@ function NFLSyncContent() {
       const data = await res.json();
       if (data.success) setCurrentStats(data.stats);
     } catch (error) {
-      console.error('Error loading current stats:', error);
+      debugError('Error loading current stats:', error);
     }
   };
 
@@ -121,7 +121,7 @@ function NFLSyncContent() {
       const history = localStorage.getItem('nfl-sync-history');
       if (history) setSyncHistory(JSON.parse(history));
     } catch (error) {
-      console.error('Error loading sync history:', error);
+      debugError('Error loading sync history:', error);
     }
   };
 
@@ -132,7 +132,7 @@ function NFLSyncContent() {
       setSyncHistory(newHistory);
       localStorage.setItem('nfl-sync-history', JSON.stringify(newHistory));
     } catch (error) {
-      console.error('Error saving sync history:', error);
+      debugError('Error saving sync history:', error);
     }
   };
 

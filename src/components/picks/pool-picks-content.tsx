@@ -19,7 +19,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
@@ -207,7 +207,7 @@ export function PoolPicksContent() {
           return false;
         }
       } catch (error) {
-        console.error('Error fetching pool season:', error);
+        debugError('Error fetching pool season:', error);
         return false;
       }
     }
@@ -221,7 +221,7 @@ export function PoolPicksContent() {
       }
       return false;
     } catch (error) {
-      console.error('Error checking playoff confidence points submission:', error);
+      debugError('Error checking playoff confidence points submission:', error);
       return false;
     }
   };
@@ -284,7 +284,7 @@ export function PoolPicksContent() {
       const newUrl = `/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`;
       window.location.href = newUrl;
     } catch (error) {
-      console.error('Error getting current week:', error);
+      debugError('Error getting current week:', error);
       const newUrl = `/pool/${poolId}/picks?week=1&seasonType=2&season=${poolSeason}`;
       window.location.href = newUrl;
     }
@@ -312,7 +312,7 @@ export function PoolPicksContent() {
     });
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Week status result:', {
+      debugLog('Week status result:', {
         allGamesEnded, gamesCount: games.length,
         gamesStatus: games.map(g => ({ game: `${g.away_team} @ ${g.home_team}`, status: g.status, winner: g.winner }))
       });
@@ -379,7 +379,7 @@ export function PoolPicksContent() {
                   debugLog('Winner added to database:', addResult);
                 } else {
                   const errorData = await addWinnerResponse.json().catch(() => ({}));
-                  console.error('Failed to add winner to database:', {
+                  debugError('Failed to add winner to database:', {
                     status: addWinnerResponse.status,
                     statusText: addWinnerResponse.statusText,
                     error: errorData.error || 'Unknown error',
@@ -388,7 +388,7 @@ export function PoolPicksContent() {
                   });
                 }
               } catch (error) {
-                console.error('Error adding winner to database:', error);
+                debugError('Error adding winner to database:', error);
               }
             }
           } else {
@@ -397,7 +397,7 @@ export function PoolPicksContent() {
           }
         }
       } catch (error) {
-        console.error('Error loading week winner:', error);
+        debugError('Error loading week winner:', error);
         setWeekHasPicks(false);
       }
     }
@@ -410,7 +410,7 @@ export function PoolPicksContent() {
       await supabase.auth.signOut();
       router.push('/admin/login');
     } catch (error) {
-      console.error('Error logging out:', error);
+      debugError('Error logging out:', error);
     }
   };
 
@@ -494,7 +494,7 @@ export function PoolPicksContent() {
       if (!isSeasonTypeValid) {
         try {
           const upcomingWeek = await getUpcomingWeek();
-          console.log('Upcoming week data:', upcomingWeek);
+          debugLog('Upcoming week data:', upcomingWeek);
           if (upcomingWeek.seasonType === 0) {
             let resolvedWeek = 0;
             let resolvedSeasonType = 0;
@@ -518,7 +518,7 @@ export function PoolPicksContent() {
           router.replace(newUrl, { scroll: false });
           debugLog('Pool picks page: Invalid season type, using current week - week:', weekToUse, 'season type:', seasonTypeToUse);
         } catch (error) {
-          console.error('Error getting upcoming week:', error);
+          debugError('Error getting upcoming week:', error);
           weekToUse = 1;
           seasonTypeToUse = 2;
           setCurrentWeek(1);
@@ -543,7 +543,7 @@ export function PoolPicksContent() {
           const upcomingWeek = await getUpcomingWeek();
           setUpcomingWeek({ week: upcomingWeek.week, seasonType: upcomingWeek.seasonType });
         } catch (error) {
-          console.error('Error getting upcoming week:', error);
+          debugError('Error getting upcoming week:', error);
           setUpcomingWeek({ week: 1, seasonType: 2 });
         }
 
@@ -588,12 +588,12 @@ export function PoolPicksContent() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        console.log('Fetching pool information with URL:', apiUrl);
+        debugLog('Fetching pool information with URL:', apiUrl);
         const response = await fetch(apiUrl, {
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
         });
-        console.log('API response for pool information:', response);
+        debugLog('API response for pool information:', response);
 
         clearTimeout(timeoutId);
 
@@ -601,7 +601,7 @@ export function PoolPicksContent() {
           const result = await response.json();
           if (result.success && result.pool) {
             const pool = result.pool;
-            console.log('Pool data:', pool);
+            debugLog('Pool data:', pool);
 
             if (!pool.name || pool.name.trim() === '') {
               notFound();
@@ -643,7 +643,7 @@ export function PoolPicksContent() {
                   return;
                 }
               } catch (error) {
-                console.error('Error checking playoff confidence points:', error);
+                debugError('Error checking playoff confidence points:', error);
               }
             }
 
@@ -658,7 +658,7 @@ export function PoolPicksContent() {
           }
         } else {
           const errorText = await response.text();
-          console.error('API response error:', response.status, errorText);
+          debugError('API response error:', response.status, errorText);
 
           if (response.status === 404) {
             notFound();
@@ -667,7 +667,7 @@ export function PoolPicksContent() {
           }
         }
       } catch (error) {
-        console.error('Error loading pool:', error);
+        debugError('Error loading pool:', error);
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
             setError('Request timed out. Please try again.');
@@ -712,14 +712,14 @@ export function PoolPicksContent() {
           }
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        debugError('Error checking admin status:', error);
       }
 
       try {
         debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse, 'season:', localPoolSeason);
 
         let gamesData = await loadWeekGames(weekToUse, seasonTypeToUse, localPoolSeason);
-        console.log('Games data before filtering:', gamesData);
+        debugLog('Games data before filtering:', gamesData);
 
         if (gamesData.length > 0) {
           try {
@@ -759,7 +759,7 @@ export function PoolPicksContent() {
               }
             }
           } catch (recordsError) {
-            console.error('Error fetching team records:', recordsError);
+            debugError('Error fetching team records:', recordsError);
           }
         }
 
@@ -801,7 +801,7 @@ export function PoolPicksContent() {
           setShowLeaderboard(true);
         }
       } catch (e) {
-        console.error('Error loading games:', e);
+        debugError('Error loading games:', e);
         toast({ title: "Warning", description: "Could not load games data", variant: "destructive" });
       }
 
@@ -823,7 +823,7 @@ export function PoolPicksContent() {
 
       setLastUpdated(new Date());
     } catch (error) {
-      console.error('Error loading pool picks data:', error);
+      debugError('Error loading pool picks data:', error);
       setError('Failed to load pool information. Please try again or contact the pool commissioner.');
     } finally {
       setIsLoading(false);
@@ -889,7 +889,7 @@ export function PoolPicksContent() {
         debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
       }
     } catch (err) {
-      console.error('Error loading picks from localStorage:', err);
+      debugError('Error loading picks from localStorage:', err);
       toast({ title: "Warning", description: "Could not load saved picks from previous session", variant: "destructive" });
     }
   };
@@ -920,7 +920,7 @@ export function PoolPicksContent() {
           pickStorage.clearPicks();
           debugLog('Cleared stored picks for user:', selectedUser.id);
         } catch (error) {
-          console.error('Error clearing stored picks:', error);
+          debugError('Error clearing stored picks:', error);
         }
       };
       clearStoredPicks();
@@ -943,7 +943,7 @@ export function PoolPicksContent() {
         toast({ title: "Link Copied", description: "Pool link copied to clipboard" });
       }
     } catch (e) {
-      console.error('Error sharing:', e);
+      debugError('Error sharing:', e);
     }
   };
 
@@ -969,7 +969,7 @@ export function PoolPicksContent() {
         .eq('season_type', currentSeasonType);
 
       if (gamesError) {
-        console.error('Error fetching games for week:', gamesError);
+        debugError('Error fetching games for week:', gamesError);
         return;
       }
 
@@ -990,7 +990,7 @@ export function PoolPicksContent() {
         .in('game_id', gameIds);
 
       if (picksError) {
-        console.error('Error checking picks:', picksError);
+        debugError('Error checking picks:', picksError);
         return;
       }
 
@@ -1001,7 +1001,7 @@ export function PoolPicksContent() {
 
       debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedPicks, picksCount: picks?.length || 0, gamesCount: gameIds.length });
     } catch (error) {
-      console.error('Error checking submission status:', error);
+      debugError('Error checking submission status:', error);
     }
   };
 
@@ -1051,7 +1051,7 @@ export function PoolPicksContent() {
       await checkUserSubmissionStatus();
       await loadParticipantStats();
     } catch (error) {
-      console.error('Error unlocking picks:', error);
+      debugError('Error unlocking picks:', error);
       toast({ title: "Error", description: "Failed to unlock picks", variant: "destructive" });
     }
   };
@@ -1149,7 +1149,7 @@ export function PoolPicksContent() {
 
   // ── WEEK ENDED — NO PICKS ─────────────────────────────────────────────────────
   if (process.env.NODE_ENV === 'development') {
-    console.log('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
+    debugLog('Early return check 1:', { weekEnded, weekHasPicks, condition: weekEnded && !weekHasPicks });
   }
 
   if (weekEnded && !weekHasPicks) {

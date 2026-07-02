@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       .eq('is_super_admin', false);
 
     if (error) {
-      console.error('[SH][API][AUTH] Update plan error:', error.message);
+      debugError('[SH][API][AUTH] Update plan error:', error.message);
       return NextResponse.json({ success: false, error: 'Failed to update plan' }, { status: 500 });
     }
 

@@ -1,6 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, PERIOD_WEEKS } from './utils';
-
+import { debugLog, PERIOD_WEEKS, debugError, debugWarn } from './utils';
 interface WeeklyExportData {
   participant_id: string;
   participant_name: string;
@@ -57,7 +56,7 @@ export async function exportWeeklyPicks(
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
-      console.error('Error fetching games for export:', gamesError);
+      debugError('Error fetching games for export:', gamesError);
       throw new Error('Failed to fetch games data');
     }
 
@@ -73,7 +72,7 @@ export async function exportWeeklyPicks(
        .eq('is_active', true);
 
      if (participantsError) {
-       console.error('Error fetching participants:', participantsError);
+       debugError('Error fetching participants:', participantsError);
        throw new Error('Failed to fetch participants');
      }
 
@@ -99,7 +98,7 @@ export async function exportWeeklyPicks(
        .order('participant_id', { ascending: true });
 
     if (picksError) {
-      console.error('Error fetching picks for export:', picksError);
+      debugError('Error fetching picks for export:', picksError);
       throw new Error('Failed to fetch picks data');
     }
 
@@ -141,7 +140,7 @@ export async function exportWeeklyPicks(
        debugLog('exportWeeklyPicks - game', game);
        debugLog('exportWeeklyPicks - participantName', participantName);
        if (!game) {
-         console.warn(`Game not found for pick ${pick.id}, game_id: ${pick.game_id}`);
+         debugWarn(`Game not found for pick ${pick.id}, game_id: ${pick.game_id}`);
          return null;
        }
        debugLog('exportWeeklyPicks - game found');
@@ -173,7 +172,7 @@ export async function exportWeeklyPicks(
      return csvContent;
     
   } catch (error) {
-    console.error('Failed to export weekly picks:', error);
+    debugError('Failed to export weekly picks:', error);
     throw error;
   }
 }
@@ -204,7 +203,7 @@ export async function exportPeriodData(
       .order('name', { ascending: true });
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
       throw new Error('Failed to fetch participants');
     }
 
@@ -227,7 +226,7 @@ export async function exportPeriodData(
       .in('game_id', await getGameIdsForWeeks(supabase, periodWeeks, season));
 
     if (picksError) {
-      console.error('Error fetching picks:', picksError);
+      debugError('Error fetching picks:', picksError);
       throw new Error('Failed to fetch picks data');
     }
 
@@ -240,7 +239,7 @@ export async function exportPeriodData(
       .in('week', periodWeeks);
 
     if (gamesError) {
-      console.error('Error fetching games:', gamesError);
+      debugError('Error fetching games:', gamesError);
       throw new Error('Failed to fetch games data');
     }
 
@@ -372,7 +371,7 @@ export async function exportPeriodData(
     return csvContent;
     
   } catch (error) {
-    console.error('Failed to export period data:', error);
+    debugError('Failed to export period data:', error);
     throw error;
   }
 }
@@ -387,7 +386,7 @@ async function getGameIdsForWeeks(supabase: any, weeks: number[], season: number
     .in('week', weeks);
 
   if (error) {
-    console.error('Error fetching game IDs:', error);
+    debugError('Error fetching game IDs:', error);
     return [];
   }
 

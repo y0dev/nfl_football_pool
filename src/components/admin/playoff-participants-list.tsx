@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Users, CheckCircle2, XCircle, Target } from 'lucide-react';
 import { PlayoffParticipantEditDialog } from './playoff-participant-edit-dialog';
+import { debugError } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -45,7 +46,7 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
       const data = await res.json();
       if (data.success) setParticipants(data.participants);
     } catch (error) {
-      console.error('Error loading participant status:', error);
+      debugError('Error loading participant status:', error);
       setParticipants([]);
     } finally {
       setIsLoading(false);

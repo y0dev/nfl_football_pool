@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, isOffseason } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, isOffseason, debugError} from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const { data: games, error } = await query.order('kickoff_time');
 
     if (error) {
-      console.error('Error loading week games:', error);
+      debugError('Error loading week games:', error);
       return NextResponse.json(
         { error: 'Failed to load games', details: error.message },
         { status: 500 }
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in games week API:', error);
+    debugError('Error in games week API:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

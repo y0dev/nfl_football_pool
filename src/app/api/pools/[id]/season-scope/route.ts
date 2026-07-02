@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(
   _request: NextRequest,
@@ -28,7 +29,7 @@ export async function GET(
       season_scope: pool.season_scope ?? []
     });
   } catch (error) {
-    console.error('Error in pool season-scope GET:', error);
+    debugError('Error in pool season-scope GET:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

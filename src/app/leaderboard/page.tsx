@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugLog, createPageUrl, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName } from '@/lib/utils';
+import { debugLog, createPageUrl, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, debugError} from '@/lib/utils';
 import {
   ArrowLeft,
   Trophy,
@@ -106,7 +106,7 @@ function LeaderboardContent() {
           await loadData(superAdminStatus);
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        debugError('Error checking admin status:', error);
       }
     };
 
@@ -119,7 +119,7 @@ function LeaderboardContent() {
         setSelectedSeasonType(weekData?.season_type || 2);
         await loadPoolsData(superAdminStatus);
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -158,7 +158,7 @@ function LeaderboardContent() {
         setSelectedPool(poolsData[0].id);
       }
     } catch (error) {
-      console.error('Error loading pools:', error);
+      debugError('Error loading pools:', error);
     }
   };
 
@@ -171,7 +171,7 @@ function LeaderboardContent() {
         }
       }
       if (process.env.NODE_ENV === 'development') {
-        console.log('Loading leaderboard data for:', { pool: selectedPool, week: selectedWeek, seasonType: selectedSeasonType, season: selectedPoolSeason });
+        debugLog('Loading leaderboard data for:', { pool: selectedPool, week: selectedWeek, seasonType: selectedSeasonType, season: selectedPoolSeason });
       }
       const response = await fetch(`/api/leaderboard?poolId=${selectedPool}&week=${selectedWeek}&seasonType=${selectedSeasonType}${selectedPoolSeason ? `&season=${selectedPoolSeason}` : ''}`);
       if (response.ok) {
@@ -180,16 +180,16 @@ function LeaderboardContent() {
           setLeaderboardWithPicks(result.leaderboard);
           setGames(result.games);
         } else {
-          console.error('API returned error:', result.error);
+          debugError('API returned error:', result.error);
           setLeaderboardWithPicks([]);
         }
       } else {
-        console.error('Failed to load leaderboard data');
+        debugError('Failed to load leaderboard data');
         setLeaderboardWithPicks([]);
       }
       setLeaderboard([]);
     } catch (error) {
-      console.error('Error loading leaderboard:', error);
+      debugError('Error loading leaderboard:', error);
       setLeaderboard([]);
       setLeaderboardWithPicks([]);
     }
@@ -209,15 +209,15 @@ function LeaderboardContent() {
           const allFinished = gamesData.every((game: Game) => game.status === 'final' || game.status === 'post');
           setAllGamesFinished(allFinished);
         } else {
-          console.error('API returned error:', result.error);
+          debugError('API returned error:', result.error);
           setGames([]);
         }
       } else {
-        console.error('Failed to load games');
+        debugError('Failed to load games');
         setGames([]);
       }
     } catch (error) {
-      console.error('Error loading games:', error);
+      debugError('Error loading games:', error);
       setGames([]);
     }
   };
@@ -242,7 +242,7 @@ function LeaderboardContent() {
         if (result.success) setPeriodWinners(result.periodWinners);
       }
     } catch (error) {
-      console.error('Error loading winner data:', error);
+      debugError('Error loading winner data:', error);
     } finally {
       setIsLoadingWinners(false);
     }

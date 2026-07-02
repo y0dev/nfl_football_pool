@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { debugLog, getRankColor } from '@/lib/utils';
+import { debugLog, getRankColor, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Design tokens
@@ -255,11 +255,11 @@ export default function PeriodLeaderboardPage() {
       if (poolResult.success && poolResult.pool) {
         setPoolName(poolResult.pool.name);
       } else {
-        console.warn('Failed to load pool name:', poolResult.error);
+        debugWarn('Failed to load pool name:', poolResult.error);
         setPoolName(`Pool ${poolId.slice(0, 8)}...`);
       }
     } catch (error) {
-      console.error('Error loading period data:', error);
+      debugError('Error loading period data:', error);
       if (process.env.NODE_ENV === 'development') {
         debugLog('Error loading period data, loading dummy data for development');
         loadDummyData();

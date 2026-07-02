@@ -14,7 +14,7 @@ import { loadCurrentWeek, getUpcomingWeek } from '@/actions/loadCurrentWeek';
 
 import { Game, SelectedUser } from '@/types/game';
 import { userSessionManager } from '@/lib/user-session';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, debugLog, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
@@ -103,7 +103,7 @@ function ParticipantContent() {
       await supabase.auth.signOut();
       router.push('/admin/login');
     } catch (error) {
-      console.error('Error logging out:', error);
+      debugError('Error logging out:', error);
     }
   };
 
@@ -154,7 +154,7 @@ function ParticipantContent() {
         setCurrentSeasonType(seasonTypeToUse);
 
         if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          console.log('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
+          debugLog('Participant page: Using URL parameters - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
       } else {
         const upcomingWeek = await getUpcomingWeek();
@@ -169,7 +169,7 @@ function ParticipantContent() {
         setCurrentSeasonType(seasonTypeToUse);
 
         if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          console.log('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
+          debugLog('Participant page: Using upcoming week - week:', weekToUse, 'season type:', seasonTypeToUse);
         }
 
         toast({
@@ -204,7 +204,7 @@ function ParticipantContent() {
             setError('Failed to load pool information. Please try again.');
           }
         } catch (error) {
-          console.error('Error loading pool:', error);
+          debugError('Error loading pool:', error);
           setError('Failed to load pool information. Please try again.');
         }
       } else {
@@ -242,13 +242,13 @@ function ParticipantContent() {
           }
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        debugError('Error checking admin status:', error);
       }
 
       // Load games for the week using the new API route
       try {
         if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          console.log('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
+          debugLog('Participant page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse);
         }
 
         const response = await fetch(`/api/games/week?week=${weekToUse}&seasonType=${seasonTypeToUse}`);
@@ -260,7 +260,7 @@ function ParticipantContent() {
             setGames(gamesData);
 
             if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-              console.log('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
+              debugLog('Participant page: Loaded games:', gamesData.map((g: Game) => ({ id: g.id, home_team: g.home_team, away_team: g.away_team, week: g.week, season_type: g.season_type })));
             }
 
             const now = new Date();
@@ -274,7 +274,7 @@ function ParticipantContent() {
               setShowLeaderboard(true);
             }
           } else {
-            console.error('API returned error:', result.error);
+            debugError('API returned error:', result.error);
             toast({
               title: "Warning",
               description: "Could not load games data",
@@ -285,7 +285,7 @@ function ParticipantContent() {
           throw new Error('Failed to load games');
         }
       } catch (error) {
-        console.error('Error loading games:', error);
+        debugError('Error loading games:', error);
         toast({
           title: "Warning",
           description: "Could not load games data",
@@ -301,7 +301,7 @@ function ParticipantContent() {
 
           if (poolSession && poolSession.userId) {
             if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-              console.log('Restoring user session:', poolSession);
+              debugLog('Restoring user session:', poolSession);
             }
             setSelectedUser({
               id: poolSession.userId,
@@ -310,14 +310,14 @@ function ParticipantContent() {
           }
         } catch (error) {
           if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            console.log('No saved user session found for pool:', poolId);
+            debugLog('No saved user session found for pool:', poolId);
           }
         }
       }
 
       setLastUpdated(new Date());
     } catch (error) {
-      console.error('Error loading participant data:', error);
+      debugError('Error loading participant data:', error);
       setError('Failed to load pool information. Please try again or contact the pool commissioner.');
     } finally {
       setIsLoading(false);
@@ -364,16 +364,16 @@ function ParticipantContent() {
           });
 
           if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            console.log('Loaded picks from localStorage:', storedPicks);
+            debugLog('Loaded picks from localStorage:', storedPicks);
           }
         }
       } else {
         if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          console.log('No valid picks found in localStorage for:', { participantId, poolId, week });
+          debugLog('No valid picks found in localStorage for:', { participantId, poolId, week });
         }
       }
     } catch (error) {
-      console.error('Error loading picks from localStorage:', error);
+      debugError('Error loading picks from localStorage:', error);
       toast({
         title: "Warning",
         description: "Could not load saved picks from previous session",
@@ -396,13 +396,13 @@ function ParticipantContent() {
     setSelectedUser(null);
 
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('Picks submitted successfully, clearing user selection to allow new user selection');
+      debugLog('Picks submitted successfully, clearing user selection to allow new user selection');
     }
   };
 
   const handleUserChangeRequested = () => {
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('User change requested. Current user:', selectedUser);
+      debugLog('User change requested. Current user:', selectedUser);
     }
 
     setSelectedUser(null);
@@ -413,10 +413,10 @@ function ParticipantContent() {
           const { pickStorage } = await import('@/lib/pick-storage');
           pickStorage.clearPicks();
           if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-            console.log('Cleared stored picks for user:', selectedUser.id);
+            debugLog('Cleared stored picks for user:', selectedUser.id);
           }
         } catch (error) {
-          console.error('Error clearing stored picks:', error);
+          debugError('Error clearing stored picks:', error);
         }
       };
       clearStoredPicks();
@@ -425,7 +425,7 @@ function ParticipantContent() {
     setHasSubmitted({});
 
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('User selection interface should now be visible');
+      debugLog('User selection interface should now be visible');
     }
 
     toast({
@@ -451,7 +451,7 @@ function ParticipantContent() {
         });
       }
     } catch (error) {
-      console.error('Error sharing:', error);
+      debugError('Error sharing:', error);
     }
   };
 
@@ -513,7 +513,7 @@ function ParticipantContent() {
 
   const loadParticipantStats = async () => {
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('Participant stats loaded from API endpoint');
+      debugLog('Participant stats loaded from API endpoint');
     }
   };
 
@@ -522,7 +522,7 @@ function ParticipantContent() {
 
     try {
       if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        console.log('Checking submission status for:', {
+        debugLog('Checking submission status for:', {
           participantId: selectedUser.id,
           poolId,
           currentWeek,
@@ -540,17 +540,17 @@ function ParticipantContent() {
         .eq('season_type', currentSeasonType);
 
       if (gamesError) {
-        console.error('Error fetching games for week:', gamesError);
+        debugError('Error fetching games for week:', gamesError);
         return;
       }
 
       if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        console.log('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
+        debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
       }
 
       if (!gamesForWeek || gamesForWeek.length === 0) {
         if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-          console.log('No games found for week, cannot check picks');
+          debugLog('No games found for week, cannot check picks');
         }
         return;
       }
@@ -565,34 +565,34 @@ function ParticipantContent() {
         .in('game_id', gameIds);
 
       if (picksError) {
-        console.error('Error checking picks:', picksError);
+        debugError('Error checking picks:', picksError);
         return;
       }
 
       if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        console.log('Picks found for current user:', { picks, count: picks?.length || 0 });
+        debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
       }
 
       const hasSubmittedVal = picks && picks.length > 0 && picks.length === gameIds.length;
       setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: hasSubmittedVal, name: selectedUser.name } }));
 
       if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-        console.log('Submission status updated for current user:', { hasSubmitted: hasSubmittedVal, picksCount: picks?.length || 0, gamesCount: gameIds.length });
+        debugLog('Submission status updated for current user:', { hasSubmitted: hasSubmittedVal, picksCount: picks?.length || 0, gamesCount: gameIds.length });
       }
     } catch (error) {
-      console.error('Error checking submission status:', error);
+      debugError('Error checking submission status:', error);
     }
   };
 
   const checkWeekPicksStatus = async () => {
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('Week picks status loaded from API endpoint');
+      debugLog('Week picks status loaded from API endpoint');
     }
   };
 
   const checkAdminPermissions = async () => {
     if ((process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development')) {
-      console.log('Admin permissions loaded from API endpoint');
+      debugLog('Admin permissions loaded from API endpoint');
     }
   };
 
@@ -646,7 +646,7 @@ function ParticipantContent() {
       await checkUserSubmissionStatus();
       await loadParticipantStats();
     } catch (error) {
-      console.error('Error unlocking picks:', error);
+      debugError('Error unlocking picks:', error);
       toast({
         title: "Error",
         description: "Failed to unlock picks",

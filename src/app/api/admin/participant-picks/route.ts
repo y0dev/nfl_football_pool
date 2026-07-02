@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       .order('confidence_points', { ascending: false });
     
     if (error) {
-      console.error('Error loading participant picks:', error);
+      debugError('Error loading participant picks:', error);
       return NextResponse.json(
         { error: 'Failed to load participant picks' },
         { status: 500 }
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
       .in('id', gameIds);
 
     if (gamesError) {
-      console.error('Error loading games:', gamesError);
+      debugError('Error loading games:', gamesError);
       return NextResponse.json(
         { error: 'Failed to load game details' },
         { status: 500 }
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Error in participant-picks API:', error);
+    debugError('Error in participant-picks API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

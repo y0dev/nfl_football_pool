@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { debugError, debugWarn } from '@/lib/utils';
 
 interface User {
   id: string;
@@ -32,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (process.env.NODE_ENV === 'production' && user?.email) {
       const testEmails = ['admin@test.com', 'superadmin@test.com'];
       if (testEmails.includes(user.email.toLowerCase())) {
-        console.warn('Test account detected in production:', user.email);
+        debugWarn('Test account detected in production:', user.email);
         setIsTestAccountBlocked(true);
         return true; // Account is blocked
       }
@@ -89,7 +90,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
       // Check for test account security
       const isBlocked = checkTestAccountSecurity(userData);
       if (isBlocked) {
-        console.warn('Test account detected in production, blocking sign in');
+        debugWarn('Test account detected in production, blocking sign in');
         throw new Error('Test accounts are not allowed in production');
       }
 
@@ -107,7 +108,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
         localStorage.setItem('nfl-pool-user', JSON.stringify(safeUserData));
       }
     } catch (error) {
-      console.error('Sign in error:', error);
+      debugError('Sign in error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -126,7 +127,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
         localStorage.removeItem('nfl-pool-user');
       }
     } catch (error) {
-      console.error('Sign out error:', error);
+      debugError('Sign out error:', error);
     } finally {
       setLoading(false);
     }
@@ -138,7 +139,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
     
     // Check if test account is blocked
     if (isTestAccountBlocked) {
-      console.warn('Blocked test account attempting to verify admin status:', user.email);
+      debugWarn('Blocked test account attempting to verify admin status:', user.email);
       await signOut();
       return false;
     }
@@ -181,7 +182,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
       
       return true;
     } catch (error) {
-      console.error('Error verifying admin status:', error);
+      debugError('Error verifying admin status:', error);
       return false;
     }
   }, [user, isTestAccountBlocked]);
@@ -221,7 +222,7 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
           }
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        debugError('Error checking session:', error);
       } finally {
         setLoading(false);
       }
