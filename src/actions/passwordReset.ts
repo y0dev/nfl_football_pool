@@ -2,14 +2,20 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// 3 reset requests per email per hour
+const RESET_LIMIT = 3;
+const RESET_WINDOW_MS = 60 * 60 * 1000;
+
 function signingSecret(): string {
-  const s = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('Service key not set');
+  // NEVER use NEXT_PUBLIC_ vars here — they are exposed in the browser bundle
+  const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!s) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
   return s;
 }
 
@@ -58,11 +64,18 @@ export async function requestPasswordReset(
     return { success: false, error: 'Please enter a valid email address.' };
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Rate limit silently — return success to avoid enumeration
+  if (!checkRateLimit(`reset:${normalizedEmail}`, RESET_LIMIT, RESET_WINDOW_MS)) {
+    return { success: true };
+  }
+
   const supabase = getSupabaseServiceClient();
   const { data: admin } = await supabase
     .from('admins')
     .select('id, email, full_name, is_active')
-    .eq('email', email.toLowerCase().trim())
+    .eq('email', normalizedEmail)
     .single();
 
   // Always return success to avoid email enumeration

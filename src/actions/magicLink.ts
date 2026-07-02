@@ -2,13 +2,20 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { setSessionCookie } from '@/actions/sessionCookie';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
+// 3 magic link requests per email per hour
+const MAGIC_LIMIT = 3;
+const MAGIC_WINDOW_MS = 60 * 60 * 1000;
+
 function signingSecret(): string {
-  const s = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('Service key not set');
+  // NEVER use NEXT_PUBLIC_ vars here — they are exposed in the browser bundle
+  const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!s) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
   return s;
 }
 
@@ -23,8 +30,7 @@ function sign(payload: string): string {
 function buildToken(email: string): string {
   const expiresAt = Date.now() + TOKEN_TTL_MS;
   const payload = Buffer.from(`${email}::${expiresAt}`).toString('base64url');
-  const sig = sign(payload);
-  return `${payload}.${sig}`;
+  return `${payload}.${sign(payload)}`;
 }
 
 function parseToken(token: string): { email: string; valid: boolean; expired: boolean } {
@@ -58,11 +64,18 @@ export async function requestMagicLink(
     return { success: false, error: 'Please enter a valid email address.' };
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!checkRateLimit(`magic:${normalizedEmail}`, MAGIC_LIMIT, MAGIC_WINDOW_MS)) {
+    // Return success to avoid leaking whether the email exists or whether limit was hit
+    return { success: true };
+  }
+
   const supabase = getSupabaseServiceClient();
   const { data: admin, error } = await supabase
     .from('admins')
     .select('id, email, full_name, is_active')
-    .eq('email', email.toLowerCase().trim())
+    .eq('email', normalizedEmail)
     .single();
 
   if (error || !admin || !admin.is_active) {
@@ -73,7 +86,6 @@ export async function requestMagicLink(
   const token = buildToken(admin.email);
   const magicUrl = `${appBaseUrl()}/login/verify?token=${encodeURIComponent(token)}`;
 
-  // Send email via the email service
   try {
     const { emailService } = await import('@/lib/email');
     await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
@@ -106,6 +118,9 @@ export async function verifyMagicLink(token: string): Promise<{
   if (error || !admin || !admin.is_active) {
     return { success: false, error: 'Account not found or inactive.' };
   }
+
+  // Set server-side session cookie so middleware can protect routes
+  await setSessionCookie(admin.id);
 
   return {
     success: true,

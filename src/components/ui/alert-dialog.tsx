@@ -43,7 +43,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "grid gap-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "grid gap-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sh-dialog-content",
         className
       )}
       style={{
@@ -54,6 +54,8 @@ const AlertDialogContent = React.forwardRef<
         zIndex: 9999,
         width: '100%',
         maxWidth: '32rem',
+        maxHeight: 'calc(100dvh - 2rem)',
+        overflowY: 'auto',
         borderRadius: '0.5rem',
         padding: '1.5rem',
         background: 'oklch(20% 0.03 255)',

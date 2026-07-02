@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { clearSessionCookie } from '@/actions/sessionCookie';
 import { debugLog, debugError, debugWarn } from '@/lib/utils';
 
 interface User {
@@ -125,14 +126,11 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      
       setUser(null);
       setIsTestAccountBlocked(false);
-      
-      // Clear localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('nfl-pool-user');
-      }
+      if (typeof window !== 'undefined') localStorage.removeItem('nfl-pool-user');
+      // Clear the httpOnly session cookie used by middleware
+      await clearSessionCookie();
     } catch (error) {
       debugError('Sign out error:', error);
     } finally {
