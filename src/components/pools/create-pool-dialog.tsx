@@ -46,6 +46,7 @@ interface CreatePoolDialogProps {
 export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [limitReached, setLimitReached] = useState(false);
   const [includeSelf, setIncludeSelf] = useState(false);
   const { user } = useAuth();
 
@@ -58,9 +59,10 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     if (!user) return;
     setIsLoading(true);
     setErrorMsg('');
+    setLimitReached(false);
     try {
       const scopeOption = SEASON_SCOPE_OPTIONS.find(o => o.value === data.season_scope);
-      const pool = await createPool({
+      const result = await createPool({
         name: data.name,
         created_by: user.email || '',
         season: data.season,
@@ -70,9 +72,16 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         is_private: data.is_private,
       });
 
+      if (!result.success) {
+        if (result.limitReached) setLimitReached(true);
+        setErrorMsg(result.error);
+        return;
+      }
+
+      const pool = result.data;
       if (includeSelf && pool?.id && user.email) {
         try {
-          await addParticipantToPool(pool.id, user.full_name || user.email, user.email);
+          await addParticipantToPool(pool.id as string, user.full_name || user.email, user.email);
         } catch (selfError) {
           debugWarn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
         }
@@ -82,9 +91,10 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
       onOpenChange(false);
       form.reset();
       setIncludeSelf(false);
+      setLimitReached(false);
     } catch (error) {
       debugError('Failed to create pool:', error);
-      setErrorMsg(error instanceof Error ? error.message : 'Failed to create pool. Please try again.');
+      setErrorMsg('Failed to create pool. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -252,7 +262,17 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
             </label>
 
             {errorMsg && (
-              <p style={{ ...b, fontSize: '0.8rem', color: red, padding: '0.5rem 0.75rem', background: `${red}18`, border: `1px solid ${red}44`, borderRadius: 6 }}>{errorMsg}</p>
+              limitReached ? (
+                <div style={{ padding: '0.85rem 1rem', background: `oklch(74% 0.16 72 / 0.08)`, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 8 }}>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: 'oklch(74% 0.16 72)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Pool Limit Reached</p>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade your plan to run additional pools.</p>
+                  <a href="/dashboard?upgrade=1" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    View upgrade options →
+                  </a>
+                </div>
+              ) : (
+                <p style={{ ...b, fontSize: '0.8rem', color: red, padding: '0.5rem 0.75rem', background: `${red}18`, border: `1px solid ${red}44`, borderRadius: 6 }}>{errorMsg}</p>
+              )
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.5rem' }}>
