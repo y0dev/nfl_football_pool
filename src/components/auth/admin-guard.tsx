@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Loader2, Shield } from 'lucide-react';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -35,7 +35,7 @@ export function AdminGuard({ children, requireSuperAdmin = false }: AdminGuardPr
         debugLog('AdminGuard: Admin status after verification:', adminStatus);
         setIsAdmin(adminStatus);
       } catch (error) {
-        console.error('AdminGuard: Error verifying admin status:', error);
+        debugError('AdminGuard: Error verifying admin status:', error);
         setIsAdmin(false);
       } finally {
         setIsVerifying(false);

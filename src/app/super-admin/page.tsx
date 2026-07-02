@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { debugError } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -98,7 +99,7 @@ function SuperAdminContent() {
         });
       }
     } catch (error) {
-      console.error('Error creating admin:', error);
+      debugError('Error creating admin:', error);
       toast({
         title: 'Error',
         description: 'Failed to create admin',
@@ -116,7 +117,7 @@ function SuperAdminContent() {
       await supabase.auth.signOut();
       router.push('/admin/login');
     } catch (error) {
-      console.error('Error logging out:', error);
+      debugError('Error logging out:', error);
     }
   };
 

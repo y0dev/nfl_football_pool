@@ -12,7 +12,7 @@ import { loadUsers } from '@/actions/loadUsers';
 import { getUsersWhoSubmitted } from '@/actions/checkUserSubmission';
 import { sendTemplatedEmails } from '@/actions/sendTemplatedEmails';
 import { getUpcomingWeek, loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { DEFAULT_SEASON } from '@/lib/utils';
+import { DEFAULT_SEASON, debugLog, debugError} from '@/lib/utils';
 
 // Design tokens (matching landing page)
 const bg      = 'oklch(13% 0.025 255)';
@@ -81,7 +81,7 @@ function ParticipantCountWarning({
         }
       }
     } catch (error) {
-      console.error('Error loading target count:', error);
+      debugError('Error loading target count:', error);
       setTargetCount(null);
     } finally {
       setIsLoading(false);
@@ -158,7 +158,7 @@ export function EnhancedEmailManagement({
         .single();
       if (!error && adminData?.full_name) setAdminName(adminData.full_name);
     } catch (error) {
-      console.error('Error loading admin name:', error);
+      debugError('Error loading admin name:', error);
     }
   };
 
@@ -168,7 +168,7 @@ export function EnhancedEmailManagement({
 
   useEffect(() => {
     if (selectedTemplate && participants.length > 0 && (customSubject || customMessage)) {
-      console.log('Custom fields changed, updating preview...');
+      debugLog('Custom fields changed, updating preview...');
       updatePreview();
     }
   }, [customSubject, customMessage]);
@@ -179,7 +179,7 @@ export function EnhancedEmailManagement({
       const allParticipants = await loadUsers(poolId);
       setParticipants(allParticipants);
     } catch (error) {
-      console.error('Error loading participants:', error);
+      debugError('Error loading participants:', error);
       toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -195,7 +195,7 @@ export function EnhancedEmailManagement({
       if (targetAudience === 'submitted') return participants.filter(p => submittedIds.includes(p.id));
       return participants.filter(p => !submittedIds.includes(p.id));
     } catch (error) {
-      console.error('Error filtering participants:', error);
+      debugError('Error filtering participants:', error);
       return participants;
     }
   };
@@ -229,7 +229,7 @@ export function EnhancedEmailManagement({
       }
       setEmailPreview({ subject: processTemplate(template.subject, variables), body: processTemplate(template.body, variables) });
     } catch (error) {
-      console.error('Error updating preview:', error);
+      debugError('Error updating preview:', error);
       setEmailPreview({ subject: 'Error generating preview', body: 'There was an error generating the email preview. Please try again.' });
     } finally {
       setIsPreviewLoading(false);
@@ -291,7 +291,7 @@ export function EnhancedEmailManagement({
         toast({ title: 'Cannot Send Email', description: errorMessage, variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error sending emails:', error);
+      debugError('Error sending emails:', error);
       toast({ title: 'Error', description: 'Failed to prepare emails', variant: 'destructive' });
     } finally {
       setIsSending(false);
@@ -303,7 +303,7 @@ export function EnhancedEmailManagement({
       await navigator.clipboard.writeText(textToCopy);
       toast({ title: 'Copied!', description: 'Email content copied to clipboard' });
     } catch (error) {
-      console.error('Failed to copy:', error);
+      debugError('Failed to copy:', error);
       toast({ title: 'Error', description: 'Failed to copy to clipboard', variant: 'destructive' });
     }
   };

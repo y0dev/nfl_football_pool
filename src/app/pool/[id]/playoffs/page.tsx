@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Trophy, CheckCircle2, Calendar, Target, ArrowLeft, RefreshCw, LogOut } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
-import { createPageUrl, debugLog, getTeamAbbreviation } from '@/lib/utils';
+import { createPageUrl, debugLog, getTeamAbbreviation, debugError} from '@/lib/utils';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
@@ -147,7 +147,7 @@ function PlayoffsPageContent() {
       await loadSubmissionStatus();
 
     } catch (error) {
-      console.error('Error loading data:', error);
+      debugError('Error loading data:', error);
       toast({
         title: 'Error',
         description: 'Failed to load playoff data',
@@ -184,7 +184,7 @@ function PlayoffsPageContent() {
         setParticipants(availableUsers);
       }
     } catch (error) {
-      console.error('Error loading submission status:', error);
+      debugError('Error loading submission status:', error);
     }
   };
 
@@ -217,7 +217,7 @@ function PlayoffsPageContent() {
         }
       }
     } catch (error) {
-      console.error('Error loading participant confidence points:', error);
+      debugError('Error loading participant confidence points:', error);
     }
   };
 
@@ -390,7 +390,7 @@ function PlayoffsPageContent() {
         });
       }
     } catch (error) {
-      console.error('Error submitting confidence points:', error);
+      debugError('Error submitting confidence points:', error);
       toast({
         title: 'Error',
         description: 'Failed to submit confidence points',
@@ -500,7 +500,7 @@ function PlayoffsPageContent() {
                   const upcomingWeek = await getUpcomingWeek();
                   router.push(`/pool/${poolId}/picks?week=${upcomingWeek.week}&seasonType=${upcomingWeek.seasonType}`);
                 } catch (error) {
-                  console.error('Error getting current week:', error);
+                  debugError('Error getting current week:', error);
                   router.push(`/pool/${poolId}/picks?week=1&seasonType=2`);
                 }
               }}

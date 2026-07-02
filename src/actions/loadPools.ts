@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog, debugError } from '@/lib/utils';
 
 export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
   try {
@@ -18,7 +19,7 @@ export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error loading pools:', error);
+    debugError('Error loading pools:', error);
     return [];
   }
 }
@@ -31,11 +32,11 @@ export async function loadPool(poolId: string) {
       .select('*')
       .eq('id', poolId)
       .maybeSingle();
-    console.log(`Loaded pool ${poolId}:`, data, error);
+    debugLog(`Loaded pool ${poolId}:`, data, error);
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error loading pool:', error);
+    debugError('Error loading pool:', error);
     return null;
   }
 }

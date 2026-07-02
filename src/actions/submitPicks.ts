@@ -1,4 +1,5 @@
 import { Pick } from '@/types/game';
+import { debugLog, debugError } from '@/lib/utils';
 
 interface SubmitPicksResult {
   success: boolean;
@@ -37,7 +38,7 @@ export async function submitPicks(picks: Pick[], mondayNightScore?: number | nul
     });
 
     const result = await response.json();
-    console.log('SubmitPicksResult:', result);
+    debugLog('SubmitPicksResult:', result);
     
     if (!response.ok) {
       return {
@@ -51,7 +52,7 @@ export async function submitPicks(picks: Pick[], mondayNightScore?: number | nul
       data: result.data
     };
   } catch (error) {
-    console.error('Error submitting picks:', error);
+    debugError('Error submitting picks:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

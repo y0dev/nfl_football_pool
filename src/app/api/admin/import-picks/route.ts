@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
       return await handleDataSubmission(request);
     }
   } catch (error) {
-    console.error('Error in import picks API:', error);
+    debugError('Error in import picks API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -93,7 +94,7 @@ async function handleFileUpload(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error handling file upload:', error);
+    debugError('Error handling file upload:', error);
     return NextResponse.json(
       { error: 'Failed to parse file' },
       { status: 500 }
@@ -220,7 +221,7 @@ async function handleDataSubmission(request: NextRequest) {
 
         importedCount++;
       } catch (error) {
-        console.error(`Error processing participant ${participant.participantName}:`, error);
+        debugError(`Error processing participant ${participant.participantName}:`, error);
         errors.push(`Failed to process ${participant.participantName}: ${error}`);
       }
     }
@@ -233,7 +234,7 @@ async function handleDataSubmission(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error handling data submission:', error);
+    debugError('Error handling data submission:', error);
     return NextResponse.json(
       { error: 'Failed to import picks' },
       { status: 500 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error upserting period winner:', error);
+      debugError('Error upserting period winner:', error);
       return NextResponse.json(
         { error: 'Failed to save period winner' },
         { status: 500 }
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, winner: data });
   } catch (error) {
-    console.error('Error in period-winner POST API:', error);
+    debugError('Error in period-winner POST API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

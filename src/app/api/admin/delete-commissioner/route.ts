@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function DELETE(request: NextRequest) {
       .eq('created_by', targetAdmin.email);
 
     if (poolsError) {
-      console.error('Error checking pools:', poolsError);
+      debugError('Error checking pools:', poolsError);
       return NextResponse.json({ success: false, error: 'Failed to check commissioner pools' }, { status: 500 });
     }
 
@@ -67,7 +68,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', adminId);
 
     if (deleteError) {
-      console.error('Error deleting commissioner:', deleteError);
+      debugError('Error deleting commissioner:', deleteError);
       return NextResponse.json({ success: false, error: 'Failed to delete commissioner' }, { status: 500 });
     }
 
@@ -77,7 +78,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Delete commissioner error:', error);
+    debugError('Delete commissioner error:', error);
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 

@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
+import { debugLog, debugError, debugWarn } from '@/lib/utils';
 
 interface SendPickRemindersParams {
   poolId: string;
@@ -101,7 +102,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
       .eq('week', params.weekNumber);
 
     if (picksError) {
-      console.error('Error fetching picks:', picksError);
+      debugError('Error fetching picks:', picksError);
     }
 
     const participantsWithPicks = new Set(picksData?.map(p => p.participant_id) || []);
@@ -158,7 +159,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
 
     for (const participant of participants) {
       if (!participant.email) {
-        console.warn(`Skipping participant ${participant.name} - no email address`);
+        debugWarn(`Skipping participant ${participant.name} - no email address`);
         failedCount++;
         continue;
       }
@@ -179,7 +180,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
           failedCount++;
         }
       } catch (error) {
-        console.error(`Error sending reminder to ${participant.email}:`, error);
+        debugError(`Error sending reminder to ${participant.email}:`, error);
         failedCount++;
       }
     }
@@ -212,7 +213,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
     };
 
   } catch (error) {
-    console.error('Error sending pick reminders:', error);
+    debugError('Error sending pick reminders:', error);
     return {
       success: false,
       sent: 0,
@@ -235,7 +236,7 @@ async function getParticipantsWithoutPicks(poolId: string, weekNumber: number) {
       .eq('is_active', true);
 
     if (allError || !allParticipants) {
-      console.error('Error fetching participants:', allError);
+      debugError('Error fetching participants:', allError);
       return [];
     }
 
@@ -247,7 +248,7 @@ async function getParticipantsWithoutPicks(poolId: string, weekNumber: number) {
       .eq('week', weekNumber);
 
     if (picksError) {
-      console.error('Error fetching picks:', picksError);
+      debugError('Error fetching picks:', picksError);
     }
 
     const participantsWithPicks = new Set(picksData?.map(p => p.participant_id) || []);
@@ -255,7 +256,7 @@ async function getParticipantsWithoutPicks(poolId: string, weekNumber: number) {
     // Return participants without picks
     return allParticipants.filter(p => !participantsWithPicks.has(p.id));
   } catch (error) {
-    console.error('Error getting participants without picks:', error);
+    debugError('Error getting participants without picks:', error);
     return [];
   }
 }
@@ -342,15 +343,15 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
               timeString,
               poolLink
             );
-            console.log(`Sent urgent reminder to admin for pool ${pool.name}, week ${weekNumber}`);
+            debugLog(`Sent urgent reminder to admin for pool ${pool.name}, week ${weekNumber}`);
           } catch (error) {
-            console.error(`Error sending urgent reminder for pool ${pool.name}:`, error);
+            debugError(`Error sending urgent reminder for pool ${pool.name}:`, error);
           }
         }
       }
     }
   } catch (error) {
-    console.error('Error in checkAndSendUrgentReminders:', error);
+    debugError('Error in checkAndSendUrgentReminders:', error);
   }
 }
 
@@ -454,7 +455,7 @@ async function sendAllSubmittedNotification(params: SendPickRemindersParams): Pr
     }));
 
     // For now, just log the notifications since email service is not configured
-    console.log(`📧 Would send ${notifications.length} all-submitted notifications:`, notifications);
+    debugLog(`📧 Would send ${notifications.length} all-submitted notifications:`, notifications);
 
     // Log the email campaign
     await supabase
@@ -481,7 +482,7 @@ async function sendAllSubmittedNotification(params: SendPickRemindersParams): Pr
     };
 
   } catch (error) {
-    console.error('Error sending all-submitted notifications:', error);
+    debugError('Error sending all-submitted notifications:', error);
     return {
       success: false,
       sent: 0,

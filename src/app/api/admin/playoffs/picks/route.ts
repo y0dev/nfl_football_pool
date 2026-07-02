@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { isDummyData } from '@/lib/utils';
+import { isDummyData, debugError} from '@/lib/utils';
 
 // DELETE - Delete picks for a participant for a specific round
 export async function DELETE(request: NextRequest) {
@@ -37,7 +37,7 @@ export async function DELETE(request: NextRequest) {
       .eq('season', parseInt(season));
 
     if (gamesError) {
-      console.error('Error fetching games:', gamesError);
+      debugError('Error fetching games:', gamesError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch games' },
         { status: 500 }
@@ -62,7 +62,7 @@ export async function DELETE(request: NextRequest) {
       .in('game_id', gameIds);
 
     if (error) {
-      console.error('Error deleting picks:', error);
+      debugError('Error deleting picks:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to delete picks' },
         { status: 500 }
@@ -93,7 +93,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in DELETE playoff picks API:', error);
+    debugError('Error in DELETE playoff picks API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

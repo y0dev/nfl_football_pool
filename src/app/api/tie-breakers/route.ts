@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     const { data: tieBreakers, error } = await query;
 
     if (error) {
-      console.error('Error fetching tie-breakers:', error);
+      debugError('Error fetching tie-breakers:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch tie-breakers' },
         { status: 500 }
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in tie-breakers GET API:', error);
+    debugError('Error in tie-breakers GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

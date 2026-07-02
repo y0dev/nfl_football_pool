@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugLog, debugError } from '@/lib/utils';
 
 async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
   try {
@@ -12,7 +13,7 @@ async function checkUserSubmission(participantId: string, poolId: string, week: 
       .eq('season_type', seasonType);
 
     if (gamesError) {
-      console.error('Error getting games for week:', gamesError);
+      debugError('Error getting games for week:', gamesError);
       return false;
     }
 
@@ -32,13 +33,13 @@ async function checkUserSubmission(participantId: string, poolId: string, week: 
       .limit(1);
 
     if (error) {
-      console.error('Error checking user submission:', error);
+      debugError('Error checking user submission:', error);
       return false;
     }
 
     return picks && picks.length > 0;
   } catch (error) {
-    console.error('Error checking user submission:', error);
+    debugError('Error checking user submission:', error);
     return false;
   }
 }
@@ -48,14 +49,14 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
     
     // Validate inputs
     if (!poolId || !week || week < 1) {
-      console.log('Invalid inputs provided to getUsersWhoSubmitted');
+      debugLog('Invalid inputs provided to getUsersWhoSubmitted');
       return [];
     }
 
     // Validate poolId is a valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(poolId)) {
-      console.error('Invalid poolId format (not a UUID):', poolId);
+      debugError('Invalid poolId format (not a UUID):', poolId);
       return [];
     }
     
@@ -70,12 +71,12 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
       .eq('season_type', seasonType);
 
     if (gamesError) {
-      console.error('Error getting games for week:', gamesError);
+      debugError('Error getting games for week:', gamesError);
       return [];
     }
 
     if (!games || games.length === 0) {
-      console.log('No games found for week:', week, 'season type:', seasonType);
+      debugLog('No games found for week:', week, 'season type:', seasonType);
       return [];
     }
 
@@ -89,7 +90,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
     }
 
     if (validGames.length === 0) {
-      console.log('No valid games found for week:', week, 'season type:', seasonType);
+      debugLog('No valid games found for week:', week, 'season type:', seasonType);
       return [];
     }
 
@@ -105,7 +106,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
       .not('predicted_winner', 'is', null);
 
     if (error) {
-      console.error('Error getting users who submitted:', error);
+      debugError('Error getting users who submitted:', error);
       return [];
     }
 
@@ -123,7 +124,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
       .filter(([_, gameIdsSet]) => gameIdsSet.size === gameIds.length)
       .map(([participantId]) => participantId);
     
-    console.log('getUsersWhoSubmitted - result:', {
+    debugLog('getUsersWhoSubmitted - result:', {
       poolId,
       week,
       seasonType,
@@ -135,7 +136,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
     
     return submittedParticipantIds;
   } catch (error) {
-    console.error('Error getting users who submitted:', error);
+    debugError('Error getting users who submitted:', error);
     return [];
   }
 }
@@ -144,14 +145,14 @@ async function isUserInPool(userEmail: string, poolId: string) {
   try {
     // Validate inputs
     if (!userEmail || !poolId) {
-      console.log('Invalid inputs provided to isUserInPool');
+      debugLog('Invalid inputs provided to isUserInPool');
       return false;
     }
 
     // Validate poolId is a valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(poolId)) {
-      console.error('Invalid poolId format (not a UUID):', poolId);
+      debugError('Invalid poolId format (not a UUID):', poolId);
       return false;
     }
 
@@ -166,13 +167,13 @@ async function isUserInPool(userEmail: string, poolId: string) {
       .maybeSingle();
 
     if (error) {
-      console.error('Error checking if user is in pool:', error);
+      debugError('Error checking if user is in pool:', error);
       return false;
     }
 
     return !!participant;
   } catch (error) {
-    console.error('Error checking if user is in pool:', error);
+    debugError('Error checking if user is in pool:', error);
     return false;
   }
 }

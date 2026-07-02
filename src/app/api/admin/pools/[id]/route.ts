@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 // GET - Get pool details
 export async function GET(
@@ -17,7 +18,7 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error('Error fetching pool:', error);
+      debugError('Error fetching pool:', error);
       return NextResponse.json(
         { success: false, error: 'Pool not found' },
         { status: 404 }
@@ -30,7 +31,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error in pool GET API:', error);
+    debugError('Error in pool GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -72,7 +73,7 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error('Error updating pool:', error);
+      debugError('Error updating pool:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to update pool' },
         { status: 500 }
@@ -99,7 +100,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    console.error('Error in pool PUT API:', error);
+    debugError('Error in pool PUT API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -145,16 +146,16 @@ export async function DELETE(
       .eq('pool_id', poolId);
 
     if (participantsError) {
-      console.error('Error checking participants:', participantsError);
+      debugError('Error checking participants:', participantsError);
     }
     if (picksError) {
-      console.error('Error checking picks:', picksError);
+      debugError('Error checking picks:', picksError);
     }
     if (scoresError) {
-      console.error('Error checking scores:', scoresError);
+      debugError('Error checking scores:', scoresError);
     }
     if (tieBreakersError) {
-      console.error('Error checking tie breakers:', tieBreakersError);
+      debugError('Error checking tie breakers:', tieBreakersError);
     }
 
     // Delete the pool
@@ -164,7 +165,7 @@ export async function DELETE(
       .eq('id', poolId);
 
     if (error) {
-      console.error('Error deleting pool:', error);
+      debugError('Error deleting pool:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to delete pool' },
         { status: 500 }
@@ -205,7 +206,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error('Error in pool DELETE API:', error);
+    debugError('Error in pool DELETE API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

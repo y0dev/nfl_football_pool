@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (deleteAdminError) {
-      console.error('[SH][API][AUTH] Delete admin record error:', deleteAdminError.code);
+      debugError('[SH][API][AUTH] Delete admin record error:', deleteAdminError.code);
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[SH][API][AUTH] Delete account error:', error instanceof Error ? error.message : 'unknown');
+    debugError('[SH][API][AUTH] Delete account error:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

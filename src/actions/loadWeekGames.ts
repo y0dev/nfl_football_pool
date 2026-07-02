@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { isOffseason } from '@/lib/utils';
+import { isOffseason, debugError} from '@/lib/utils';
 import { Game } from '@/types/game';
 
 /*
@@ -39,7 +39,7 @@ export async function loadWeekGames(weekNumber: number = 1, seasonType?: number,
     if (error) throw error;
     return (data as Game[]) || [];
   } catch (error) {
-    console.error('Error loading week games:', error);
+    debugError('Error loading week games:', error);
     return [];
   }
 }

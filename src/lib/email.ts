@@ -1,10 +1,11 @@
 import nodemailer from 'nodemailer';
-import { 
-  createResponsiveEmailTemplate, 
-  createInfoBox, 
+import {
+  createResponsiveEmailTemplate,
+  createInfoBox,
   createTwoColumnGrid,
-  createParticipantTable 
+  createParticipantTable
 } from './email-templates-base';
+import { debugLog, debugError, debugWarn } from '@/lib/utils';
 
 interface EmailConfig {
   host: string;
@@ -38,7 +39,7 @@ class EmailService {
     const from = process.env.NEXT_PUBLIC_SMTP_FROM || process.env.SMTP_FROM;
 
     if (!host || !port || !user || !pass || !from) {
-      console.warn('Email configuration incomplete. Email notifications will be disabled.');
+      debugWarn('Email configuration incomplete. Email notifications will be disabled.');
       return;
     }
 
@@ -63,7 +64,7 @@ class EmailService {
 
   async sendEmail(emailData: EmailData): Promise<boolean> {
     if (!this.transporter || !this.config) {
-      console.warn('Email service not configured. Skipping email send.');
+      debugWarn('Email service not configured. Skipping email send.');
       return false;
     }
 
@@ -77,10 +78,10 @@ class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', info.messageId);
+      debugLog('Email sent successfully:', info.messageId);
       return true;
     } catch (error) {
-      console.error('Error sending email:', error);
+      debugError('Error sending email:', error);
       return false;
     }
   }

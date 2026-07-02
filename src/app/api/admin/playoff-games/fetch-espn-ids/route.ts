@@ -1,4 +1,4 @@
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Fetch ESPN game IDs for playoff games
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.error(`Error fetching ESPN data for date ${dateStr}:`, error);
+        debugError(`Error fetching ESPN data for date ${dateStr}:`, error);
         // Continue to next date
       }
     }
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in fetch ESPN IDs API:', error);
+    debugError('Error in fetch ESPN IDs API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

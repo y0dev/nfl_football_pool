@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
-import { getWeekPeriod, getWeekPeriodColor } from '@/lib/utils';
+import { getWeekPeriod, getWeekPeriodColor, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
@@ -92,7 +92,7 @@ function SeasonReviewContent() {
           await loadPools();
         }
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -110,7 +110,7 @@ function SeasonReviewContent() {
         setPools(result.data.activePools || []);
       }
     } catch (error) {
-      console.error('Error loading pools:', error);
+      debugError('Error loading pools:', error);
     }
   };
 
@@ -131,7 +131,7 @@ function SeasonReviewContent() {
         setSeasonWinner(seasonResult.seasonWinner);
       }
     } catch (error) {
-      console.error('Error loading pool data:', error);
+      debugError('Error loading pool data:', error);
     } finally {
       setLoadingData(false);
     }

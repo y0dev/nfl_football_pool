@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true);
 
     if (participantsError || !participants || participants.length === 0) {
-      console.error('[SH][API][PICKS] Failed to fetch participants:', participantsError);
+      debugError('[SH][API][PICKS] Failed to fetch participants:', participantsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch participants' },
         { status: 500 }
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
 
           return { success: sent, participantId: participant.id };
         } catch (error) {
-          console.error(`[SH][API][PICKS] Reminder failed for ${participant.email}:`, error);
+          debugError(`[SH][API][PICKS] Reminder failed for ${participant.email}:`, error);
           return { success: false, participantId: participant.id };
         }
       })
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       results: { successful, failed, total: participants.length },
     });
   } catch (error) {
-    console.error('[SH][API][PICKS] Error sending reminders:', error);
+    debugError('[SH][API][PICKS] Error sending reminders:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

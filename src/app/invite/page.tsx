@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadPool } from '@/actions/loadPools';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
@@ -90,7 +90,7 @@ function InviteContent() {
         setCurrentWeek(weekData?.week_number || 1);
 
       } catch (error) {
-        console.error('Error loading invite data:', error);
+        debugError('Error loading invite data:', error);
         setError('Failed to load pool information. Please try again.');
       } finally {
         setIsLoading(false);
@@ -166,7 +166,7 @@ function InviteContent() {
       }, 2000);
 
     } catch (error) {
-      console.error('Error joining pool:', error);
+      debugError('Error joining pool:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to join the pool. Please try again or contact the pool commissioner.';
       toast({
         title: "Join Failed",

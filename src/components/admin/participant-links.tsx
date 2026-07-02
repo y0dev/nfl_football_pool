@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Share2, Link as LinkIcon, QrCode } from 'lucide-react';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { debugError } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -75,7 +76,7 @@ export function ParticipantLinks({ poolId, poolName, weekNumber, seasonType, sea
         setCurrentWeek(weekData.week);
         setCurrentSeasonType(clamped);
       } catch (error) {
-        console.error('Error loading current week:', error);
+        debugError('Error loading current week:', error);
       }
     };
     loadWeek();

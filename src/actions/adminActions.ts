@@ -1,6 +1,7 @@
 'use server';
 
 import { getSupabaseClient } from '@/lib/supabase';
+import { debugLog, debugError, debugWarn } from '@/lib/utils';
 
 // Get weekly submissions for a pool
 async function getWeeklySubmissions(poolId: string, week: number) {
@@ -19,7 +20,7 @@ async function getWeeklySubmissions(poolId: string, week: number) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching submissions:', error);
+      debugError('Error fetching submissions:', error);
       return [];
     }
 
@@ -47,7 +48,7 @@ async function getWeeklySubmissions(poolId: string, week: number) {
 
     return Array.from(submissionsMap.values());
   } catch (error) {
-    console.error('Failed to get weekly submissions:', error);
+    debugError('Failed to get weekly submissions:', error);
     return [];
   }
 }
@@ -70,7 +71,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
       .eq('games.week', week);
 
     if (picksError) {
-      console.error('Error fetching picks:', picksError);
+      debugError('Error fetching picks:', picksError);
       return [];
     }
 
@@ -115,7 +116,7 @@ async function calculateWeeklyScores(poolId: string, week: number) {
 
     return scores;
   } catch (error) {
-    console.error('Failed to calculate weekly scores:', error);
+    debugError('Failed to calculate weekly scores:', error);
     return [];
   }
 }
@@ -146,10 +147,10 @@ async function updateScoresInDatabase(poolId: string, week: number, scores: any[
       .insert(scoresToInsert);
 
     if (error) {
-      console.error('Error updating scores:', error);
+      debugError('Error updating scores:', error);
     }
   } catch (error) {
-    console.error('Failed to update scores in database:', error);
+    debugError('Failed to update scores in database:', error);
   }
 }
 
@@ -169,7 +170,7 @@ async function getQuarterlyStandings(poolId: string) {
       .order('week', { ascending: true });
 
     if (error) {
-      console.error('Error fetching quarterly scores:', error);
+      debugError('Error fetching quarterly scores:', error);
       return [];
     }
 
@@ -211,7 +212,7 @@ async function getQuarterlyStandings(poolId: string) {
 
     return standings;
   } catch (error) {
-    console.error('Failed to get quarterly standings:', error);
+    debugError('Failed to get quarterly standings:', error);
     return [];
   }
 }
@@ -235,7 +236,7 @@ async function exportToExcel(poolId: string, week: number) {
       .order('participants.name', { ascending: true });
 
     if (error) {
-      console.error('Error fetching picks for export:', error);
+      debugError('Error fetching picks for export:', error);
       return;
     }
 
@@ -247,7 +248,7 @@ async function exportToExcel(poolId: string, week: number) {
       .order('kickoff_time', { ascending: true });
 
     if (!games) {
-      console.error('No games found for week', week);
+      debugError('No games found for week', week);
       return;
     }
 
@@ -258,7 +259,7 @@ async function exportToExcel(poolId: string, week: number) {
     downloadCSV(csvData, `pool-${poolId}-week-${week}-picks.csv`);
     
   } catch (error) {
-    console.error('Failed to export Excel:', error);
+    debugError('Failed to export Excel:', error);
   }
 }
 
@@ -345,13 +346,13 @@ async function getAdminPools() {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('Error fetching pools:', error);
+      debugError('Error fetching pools:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('Failed to get admin pools:', error);
+    debugError('Failed to get admin pools:', error);
     return [];
   }
 }
@@ -362,7 +363,7 @@ export async function getPoolParticipants(poolId: string) {
     const { adminService } = await import('@/lib/admin-service');
     return await adminService.getPoolParticipants(poolId);
   } catch (error) {
-    console.error('Failed to get pool participants:', error);
+    debugError('Failed to get pool participants:', error);
     throw error;
   }
 }
@@ -448,10 +449,10 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
         });
       
       if (logError) {
-        console.warn('Failed to log participant addition:', logError);
+        debugWarn('Failed to log participant addition:', logError);
       }
     } catch (logError) {
-      console.warn('Failed to log participant addition:', logError);
+      debugWarn('Failed to log participant addition:', logError);
       // Don't throw error for logging failure
     }
 
@@ -477,14 +478,14 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
           );
         }
       } catch (emailError) {
-        console.error('Error sending welcome email:', emailError);
+        debugError('Error sending welcome email:', emailError);
         // Don't fail participant addition if email fails
       }
     }
 
     return participant;
   } catch (error) {
-    console.error('Failed to add participant to pool:', error);
+    debugError('Failed to add participant to pool:', error);
     throw error;
   }
 }
@@ -536,16 +537,16 @@ export async function removeParticipantFromPool(participantId: string) {
         });
       
       if (logError) {
-        console.warn('Failed to log participant removal:', logError);
+        debugWarn('Failed to log participant removal:', logError);
       }
     } catch (logError) {
-      console.warn('Failed to log participant removal:', logError);
+      debugWarn('Failed to log participant removal:', logError);
       // Don't throw error for logging failure
     }
 
     return true;
   } catch (error) {
-    console.error('Failed to remove participant from pool:', error);
+    debugError('Failed to remove participant from pool:', error);
     throw error;
   }
 }
@@ -597,16 +598,16 @@ export async function updateParticipantName(participantId: string, newName: stri
         });
       
       if (logError) {
-        console.warn('Failed to log participant update:', logError);
+        debugWarn('Failed to log participant update:', logError);
       }
     } catch (logError) {
-      console.warn('Failed to log participant update:', logError);
+      debugWarn('Failed to log participant update:', logError);
       // Don't throw error for logging failure
     }
 
     return true;
   } catch (error) {
-    console.error('Failed to update participant name:', error);
+    debugError('Failed to update participant name:', error);
     throw error;
   }
 }
@@ -634,12 +635,12 @@ async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, 
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
-      console.error('Error fetching games for screenshot:', gamesError);
+      debugError('Error fetching games for screenshot:', gamesError);
       return null;
     }
 
     if (!games || games.length === 0) {
-      console.log('No games found for week:', weekToUse, 'season type:', seasonTypeToUse);
+      debugLog('No games found for week:', weekToUse, 'season type:', seasonTypeToUse);
       return { games: [], participants: [] };
     }
 
@@ -662,7 +663,7 @@ async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, 
       .in('game_id', gameIds);
     
     if (picksError) {
-      console.error('Error fetching picks for screenshot:', picksError);
+      debugError('Error fetching picks for screenshot:', picksError);
       return null;
     }
 
@@ -673,7 +674,7 @@ async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, 
       .eq('pool_id', poolId);
 
     if (participantsError) {
-      console.error('Error fetching participants for screenshot:', participantsError);
+      debugError('Error fetching participants for screenshot:', participantsError);
       return null;
     }
 
@@ -710,7 +711,7 @@ async function getWeeklySubmissionsForScreenshot(poolId: string, week?: number, 
 
     return result;
   } catch (error) {
-    console.error('Failed to get submissions for screenshot:', error);
+    debugError('Failed to get submissions for screenshot:', error);
     return null;
   }
 }
@@ -726,13 +727,13 @@ async function getWeekGames(week: number) {
       .order('kickoff_time', { ascending: true });
 
     if (error) {
-      console.error('Error fetching games:', error);
+      debugError('Error fetching games:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('Failed to get week games:', error);
+    debugError('Failed to get week games:', error);
     return [];
   }
 } 

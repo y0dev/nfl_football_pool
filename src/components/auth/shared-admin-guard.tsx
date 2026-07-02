@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Loader2, Shield } from 'lucide-react';
+import { debugLog, debugError } from '@/lib/utils';
 
 interface SharedAdminGuardProps {
   children: React.ReactNode;
@@ -18,24 +19,24 @@ export function SharedAdminGuard({ children }: SharedAdminGuardProps) {
   useEffect(() => {
     const checkAccess = async () => {
       if (!user) {
-        console.log('SharedAdminGuard: No user, setting isVerifying to false');
+        debugLog('SharedAdminGuard: No user, setting isVerifying to false');
         setIsVerifying(false);
         return;
       }
 
-      console.log('SharedAdminGuard: Checking access for user:', user.email);
+      debugLog('SharedAdminGuard: Checking access for user:', user.email);
 
       try {
         // Check if user is either a commissioner or super admin
         const isSuperAdmin = await verifyAdminStatus(true);
         const isCommissioner = await verifyAdminStatus(false);
         
-        console.log('SharedAdminGuard: Super admin status:', isSuperAdmin);
-        console.log('SharedAdminGuard: Commissioner status:', isCommissioner);
+        debugLog('SharedAdminGuard: Super admin status:', isSuperAdmin);
+        debugLog('SharedAdminGuard: Commissioner status:', isCommissioner);
         
         setHasAccess(isSuperAdmin || isCommissioner);
       } catch (error) {
-        console.error('SharedAdminGuard: Error verifying access:', error);
+        debugError('SharedAdminGuard: Error verifying access:', error);
         setHasAccess(false);
       } finally {
         setIsVerifying(false);
@@ -49,7 +50,7 @@ export function SharedAdminGuard({ children }: SharedAdminGuardProps) {
 
   useEffect(() => {
     if (!isVerifying && !hasAccess) {
-      console.log('SharedAdminGuard: Redirecting to login - isVerifying:', isVerifying, 'hasAccess:', hasAccess);
+      debugLog('SharedAdminGuard: Redirecting to login - isVerifying:', isVerifying, 'hasAccess:', hasAccess);
       // Redirect to login if not authenticated or not an admin/commissioner
       router.push('/login');
     }

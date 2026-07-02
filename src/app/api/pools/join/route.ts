@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (checkError) {
-      console.error('Error checking existing participant:', checkError);
+      debugError('Error checking existing participant:', checkError);
       return NextResponse.json(
         { error: 'Failed to check participant status' },
         { status: 500 }
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('Error creating participant:', insertError);
+      debugError('Error creating participant:', insertError);
       return NextResponse.json(
         { error: 'Failed to join pool' },
         { status: 500 }
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (emailError) {
-      console.error('Error sending welcome email:', emailError);
+      debugError('Error sending welcome email:', emailError);
       // Don't fail join if email fails
     }
 
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in join pool API:', error);
+    debugError('Error in join pool API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, debugError} from '@/lib/utils';
 
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const { data: games, error } = await query.order('kickoff_time');
 
     if (error) {
-      console.error('Error fetching playoff games:', error);
+      debugError('Error fetching playoff games:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch playoff games' },
         { status: 500 }
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff games GET API:', error);
+    debugError('Error in playoff games GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
         .eq('id', gameId);
       
       if (error) {
-        console.error('Error updating game:', error);
+        debugError('Error updating game:', error);
         return NextResponse.json(
           { success: false, error: `Failed to update game ${gameId}` },
           { status: 500 }
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
         .insert(toInsert);
 
       if (error) {
-        console.error('Error inserting games:', error);
+        debugError('Error inserting games:', error);
         return NextResponse.json(
           { success: false, error: 'Failed to insert games' },
           { status: 500 }
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff games POST API:', error);
+    debugError('Error in playoff games POST API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -295,7 +295,7 @@ export async function DELETE(request: NextRequest) {
       .eq('season_type', 3); // Only delete playoff games
 
     if (error) {
-      console.error('Error deleting playoff game:', error);
+      debugError('Error deleting playoff game:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to delete playoff game' },
         { status: 500 }
@@ -308,7 +308,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in playoff games DELETE API:', error);
+    debugError('Error in playoff games DELETE API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { nflAPI } from '@/lib/nfl-api';
+import { debugLog } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ function buildRegularSeasonSchedule(year: number): WeekWindow[] {
   const firstThurs = getKickoffThursday(year);
   const schedule: WeekWindow[] = [];
 
-  console.log(`Kickoff Wednesday for ${year}: ${isoDate(kickoff)}`);
+  debugLog(`Kickoff Wednesday for ${year}: ${isoDate(kickoff)}`);
 
   for (let week = 1; week <= 18; week++) {
     // Only week 1 will have a Wednesday game (the kickoff), but we calculate it for all weeks for consistency

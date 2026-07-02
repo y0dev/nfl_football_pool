@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
 import { Trash2, Lock, Settings, Save } from 'lucide-react';
-import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, debugError} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -88,7 +88,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
           });
         }
       } catch (error) {
-        console.error('Error loading pool data:', error);
+        debugError('Error loading pool data:', error);
         toast({ title: 'Error', description: 'Failed to load pool settings', variant: 'destructive' });
       } finally {
         setIsLoading(false);
@@ -112,7 +112,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       });
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
-      console.error('Failed to update pool settings:', error);
+      debugError('Failed to update pool settings:', error);
       toast({ title: 'Error', description: 'Failed to update pool settings', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -137,7 +137,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         toast({ title: 'Error', description: result.error || 'Failed to delete pool', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error deleting pool:', error);
+      debugError('Error deleting pool:', error);
       toast({ title: 'Error', description: 'Failed to delete pool', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
@@ -167,7 +167,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         toast({ title: 'Error', description: result.error || 'Failed to close season', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error closing season:', error);
+      debugError('Error closing season:', error);
       toast({ title: 'Error', description: 'Failed to close season', variant: 'destructive' });
     } finally {
       setIsClosingSeason(false);

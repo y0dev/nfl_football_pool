@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, FileSpreadsheet, Calendar, Trophy, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { PERIOD_WEEKS } from '@/lib/utils';
+import { PERIOD_WEEKS, debugError} from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 
 // Design tokens
@@ -81,7 +81,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       setPools(poolsData);
       if (poolsData.length > 0) setSelectedPoolId(poolsData[0].id);
     } catch (error) {
-      console.error('Error loading pools:', error);
+      debugError('Error loading pools:', error);
       toast({ title: 'Error', description: 'Failed to load pools', variant: 'destructive' });
     } finally {
       setIsLoadingPools(false);
@@ -122,7 +122,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       document.body.removeChild(link);
       toast({ title: 'Export Successful', description: `Weekly picks for Week ${selectedWeek} have been exported successfully.` });
     } catch (error) {
-      console.error('Error exporting weekly picks:', error);
+      debugError('Error exporting weekly picks:', error);
       toast({ title: 'Export Failed', description: error instanceof Error ? error.message : 'Failed to export weekly picks', variant: 'destructive' });
     } finally {
       setIsExportingWeekly(false);
@@ -165,7 +165,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
       document.body.removeChild(link);
       toast({ title: 'Export Successful', description: `Period data for ${selectedPeriod} has been exported successfully.` });
     } catch (error) {
-      console.error('Error exporting period data:', error);
+      debugError('Error exporting period data:', error);
       toast({ title: 'Export Failed', description: error instanceof Error ? error.message : 'Failed to export period data', variant: 'destructive' });
     } finally {
       setIsExportingPeriod(false);

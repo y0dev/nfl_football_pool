@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (updateError) {
-      console.error('Error updating admin password:', updateError);
+      debugError('Error updating admin password:', updateError);
       return NextResponse.json(
         { success: false, error: 'Failed to reset password' },
         { status: 500 }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Password reset error:', error);
+    debugError('Password reset error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

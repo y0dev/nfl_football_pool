@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/email';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     const sent = await emailService.sendAdminCreationNotification(email, fullName);
     return NextResponse.json({ success: sent });
   } catch (error) {
-    console.error('[SH][AUTH][EMAIL] Welcome email error:', error);
+    debugError('[SH][AUTH][EMAIL] Welcome email error:', error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

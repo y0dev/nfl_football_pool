@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { isOffseason } from '@/lib/utils';
+import { isOffseason, debugLog, debugError} from '@/lib/utils';
 
 /**
  * Determines the current week based on game kickoff times
@@ -31,12 +31,12 @@ export async function getCurrentWeekFromGames() {
       .order('kickoff_time');
 
     if (error) {
-      console.error('Error loading games for current week calculation:', error);
+      debugError('Error loading games for current week calculation:', error);
       return { week: 1, seasonType: 2 }; // Fallback to regular season week 1
     }
 
     if (!games || games.length === 0) {
-      console.log('No games found in database, using fallback values');
+      debugLog('No games found in database, using fallback values');
       return { week: 1, seasonType: 2 }; // Fallback to regular season week 1
     }
 
@@ -139,7 +139,7 @@ export async function getCurrentWeekFromGames() {
 
     return { week: bestWeek, seasonType: bestSeasonType };
   } catch (error) {
-    console.error('Error getting current week from games:', error);
+    debugError('Error getting current week from games:', error);
     return { week: 1, seasonType: 2 }; // Fallback to regular season week 1
   }
 }
@@ -188,7 +188,7 @@ async function getUpcomingWeekFromGames() {
       seasonType: closestGame.season_type
     };
   } catch (error) {
-    console.error('Error getting upcoming week from games:', error);
+    debugError('Error getting upcoming week from games:', error);
     // Fallback to current week
     const currentWeekData = await getCurrentWeekFromGames();
     return currentWeekData;
@@ -316,7 +316,7 @@ export async function getWeekForPicks() {
 
     return { week: bestWeek, seasonType: bestSeasonType };
   } catch (error) {
-    console.error('Error getting week for picks:', error);
+    debugError('Error getting week for picks:', error);
     // Fallback to current week
     const currentWeekData = await getCurrentWeekFromGames();
     return currentWeekData;

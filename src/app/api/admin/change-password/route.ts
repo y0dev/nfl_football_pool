@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,13 +45,13 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (updateError) {
-      console.error('[SH][API][AUTH] Change password update error:', updateError.code);
+      debugError('[SH][API][AUTH] Change password update error:', updateError.code);
       return NextResponse.json({ success: false, error: 'Failed to update password' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[SH][API][AUTH] Change password error:', error instanceof Error ? error.message : 'unknown');
+    debugError('[SH][API][AUTH] Change password error:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

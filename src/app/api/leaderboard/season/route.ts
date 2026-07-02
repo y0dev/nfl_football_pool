@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError, debugWarn } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
 
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch participants' },
         { status: 500 }
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
     const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
-      console.error('Error fetching games:', gamesError);
+      debugError('Error fetching games:', gamesError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch games' },
         { status: 500 }
@@ -162,7 +163,7 @@ export async function GET(request: NextRequest) {
             }
           } catch (error) {
             // Skip weeks where participant didn't play or there was an error
-            console.warn(`Error processing week ${week} for participant ${participant.id}:`, error);
+            debugWarn(`Error processing week ${week} for participant ${participant.id}:`, error);
           }
         }
 
@@ -201,7 +202,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in season leaderboard API:', error);
+    debugError('Error in season leaderboard API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

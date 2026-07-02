@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(_request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ success: true, pools: pools || [] });
   } catch (error) {
-    console.error('[SH][API][DB] All pools error:', error);
+    debugError('[SH][API][DB] All pools error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load pools' }, { status: 500 });
   }
 }

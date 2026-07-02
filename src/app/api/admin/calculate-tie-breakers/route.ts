@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { calculateWeeklyWinners } from '@/lib/winner-calculator';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 
 function getQuarterWeeks(quarter: number): number[] {
   switch (quarter) {
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
           });
         }
       } catch (error) {
-        console.error(`Error calculating tie breakers for pool ${pool.id}:`, error);
+        debugError(`Error calculating tie breakers for pool ${pool.id}:`, error);
         errors.push({
           poolId: pool.id,
           poolName: pool.name,
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error calculating tie breakers:', error);
+    debugError('Error calculating tie breakers:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

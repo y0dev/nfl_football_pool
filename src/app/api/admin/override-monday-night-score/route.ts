@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       .eq('season_type', seasonType);
 
     if (gamesError) {
-      console.error('Error loading games:', gamesError);
+      debugError('Error loading games:', gamesError);
       return NextResponse.json(
         { success: false, error: 'Failed to load games for this week' },
         { status: 500 }
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (tieBreakerError) {
-      console.error('Error saving Monday night score:', tieBreakerError);
+      debugError('Error saving Monday night score:', tieBreakerError);
       return NextResponse.json(
         { success: false, error: 'Failed to save Monday night score' },
         { status: 500 }
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in override Monday night score:', error);
+    debugError('Error in override Monday night score:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

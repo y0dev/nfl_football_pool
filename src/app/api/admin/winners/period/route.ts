@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getOrCalculatePeriodWinners } from '@/lib/winner-calculator';
+import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in period winners API:', error);
+    debugError('Error in period winners API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true);
 
     if (poolsError) {
-      console.error('Error fetching pools:', poolsError);
+      debugError('Error fetching pools:', poolsError);
       return NextResponse.json(
         { error: 'Failed to fetch pools' },
         { status: 500 }
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
     // Process each pool
     for (const pool of pools) {
       try {
-        console.log(`Processing period winners for pool: ${pool.name} (${pool.id})`);
+        debugLog(`Processing period winners for pool: ${pool.name} (${pool.id})`);
         let poolWinners = 0;
         let poolErrors = 0;
         
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
               poolErrors++;
             }
           } catch (periodError) {
-            console.error(`Error processing period ${period.name} for pool ${pool.name}:`, periodError);
+            debugError(`Error processing period ${period.name} for pool ${pool.name}:`, periodError);
             results.push({
               poolId: pool.id,
               poolName: pool.name,
@@ -170,9 +171,9 @@ export async function POST(request: NextRequest) {
         }
         
         poolsProcessed++;
-        console.log(`Pool ${pool.name}: ${poolWinners} winners generated, ${poolErrors} issues`);
+        debugLog(`Pool ${pool.name}: ${poolWinners} winners generated, ${poolErrors} issues`);
       } catch (error) {
-        console.error(`Error processing pool ${pool.name}:`, error);
+        debugError(`Error processing pool ${pool.name}:`, error);
         poolErrors.push({
           poolId: pool.id,
           poolName: pool.name,
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in period winners generation API:', error);
+    debugError('Error in period winners generation API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

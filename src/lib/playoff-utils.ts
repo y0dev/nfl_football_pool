@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
+import { debugError } from '@/lib/utils';
 
 /**
  * Get playoff confidence points for a participant
@@ -20,7 +21,7 @@ export async function getPlayoffConfidencePoints(
       .eq('participant_id', participantId);
 
     if (error) {
-      console.error('Error fetching playoff confidence points:', error);
+      debugError('Error fetching playoff confidence points:', error);
       return null;
     }
 
@@ -35,7 +36,7 @@ export async function getPlayoffConfidencePoints(
 
     return pointsMap;
   } catch (error) {
-    console.error('Error in getPlayoffConfidencePoints:', error);
+    debugError('Error in getPlayoffConfidencePoints:', error);
     return null;
   }
 }
@@ -75,13 +76,13 @@ async function hasPlayoffConfidencePoints(
       .limit(1);
 
     if (error) {
-      console.error('Error checking playoff confidence points:', error);
+      debugError('Error checking playoff confidence points:', error);
       return false;
     }
 
     return (data?.length || 0) > 0;
   } catch (error) {
-    console.error('Error in hasPlayoffConfidencePoints:', error);
+    debugError('Error in hasPlayoffConfidencePoints:', error);
     return false;
   }
 }

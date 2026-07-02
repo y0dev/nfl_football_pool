@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createPool } from '@/actions/createPool';
 import { addParticipantToPool } from '@/actions/adminActions';
 import { useAuth } from '@/lib/auth';
-import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS, debugError, debugWarn} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -74,7 +74,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         try {
           await addParticipantToPool(pool.id, user.full_name || user.email, user.email);
         } catch (selfError) {
-          console.warn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
+          debugWarn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
         }
       }
 
@@ -83,7 +83,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
       form.reset();
       setIncludeSelf(false);
     } catch (error) {
-      console.error('Failed to create pool:', error);
+      debugError('Failed to create pool:', error);
       setErrorMsg(error instanceof Error ? error.message : 'Failed to create pool. Please try again.');
     } finally {
       setIsLoading(false);

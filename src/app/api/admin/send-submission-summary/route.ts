@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true);
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch participants' },
         { status: 500 }
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error sending submission summary:', error);
+    debugError('Error sending submission summary:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

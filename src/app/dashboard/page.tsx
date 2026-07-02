@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog, createPageUrl } from '@/lib/utils';
+import { debugLog, createPageUrl, debugError} from '@/lib/utils';
 import { Game } from '@/types/game';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
@@ -127,7 +127,7 @@ function CommissionerDashboardContent() {
             .catch(() => {});
         }
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -211,7 +211,7 @@ function CommissionerDashboardContent() {
       setAvailablePools(pools);
       if (pools.length > 0) setSelectedPoolId(prev => prev || pools[0].id);
     } catch (error) {
-      console.error('Error loading dashboard stats:', error);
+      debugError('Error loading dashboard stats:', error);
       toast({
         title: 'Error',
         description: 'Failed to load dashboard data',
@@ -226,7 +226,7 @@ function CommissionerDashboardContent() {
       setGames(gamesData);
       debugLog('Loaded games for countdown:', gamesData.length);
     } catch (error) {
-      console.error('Error loading games for countdown:', error);
+      debugError('Error loading games for countdown:', error);
     }
   };
 
@@ -310,7 +310,7 @@ function CommissionerDashboardContent() {
         setLeaderboardEntries([]);
       }
     } catch (error) {
-      console.error('Error loading pool stats:', error);
+      debugError('Error loading pool stats:', error);
     }
   };
 
@@ -406,7 +406,7 @@ function CommissionerDashboardContent() {
           .slice(0, 5)
       );
     } catch (error) {
-      console.error('Error loading recent activity:', error);
+      debugError('Error loading recent activity:', error);
       setRecentActivity([]);
     }
   };
@@ -462,7 +462,7 @@ function CommissionerDashboardContent() {
       setLastRefresh(new Date());
       toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
     } catch (error) {
-      console.error('Error refreshing dashboard:', error);
+      debugError('Error refreshing dashboard:', error);
       toast({ title: 'Refresh Failed', description: 'Failed to refresh dashboard data', variant: 'destructive' });
     } finally {
       setIsRefreshing(false);
@@ -478,7 +478,7 @@ function CommissionerDashboardContent() {
       await signOut();
       router.push(createPageUrl('adminlogin'));
     } catch (error) {
-      console.error('Error logging out:', error);
+      debugError('Error logging out:', error);
       setIsLoggingOut(false);
     }
   };
@@ -508,7 +508,7 @@ function CommissionerDashboardContent() {
         setCountdown('Games Started');
       }
     } catch (error) {
-      console.error('Error loading countdown:', error);
+      debugError('Error loading countdown:', error);
       setCountdown('Games Started');
     }
   };

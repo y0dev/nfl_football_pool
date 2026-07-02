@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
+import { debugError } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -89,7 +90,7 @@ export default function SeasonReviewPage() {
       }
     } catch (err) {
       setError('Failed to load season data');
-      console.error('Error loading season data:', err);
+      debugError('Error loading season data:', err);
     } finally {
       setLoading(false);
     }

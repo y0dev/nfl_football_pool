@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 const INVALID_CREDENTIALS = 'Invalid email or password.';
 
@@ -24,7 +25,7 @@ export async function loginUser(email: string, password: string) {
       .maybeSingle();
 
     if (error) {
-      console.error('[SH][API][AUTH] Login query error:', error.code);
+      debugError('[SH][API][AUTH] Login query error:', error.code);
       return { success: false, error: 'Database connection error. Please try again.' };
     }
 
@@ -49,7 +50,7 @@ export async function loginUser(email: string, password: string) {
       },
     };
   } catch (error) {
-    console.error('[SH][API][AUTH] Login error:', error instanceof Error ? error.message : 'unknown');
+    debugError('[SH][API][AUTH] Login error:', error instanceof Error ? error.message : 'unknown');
     return { success: false, error: 'An unexpected error occurred. Please try again.' };
   }
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError, debugWarn } from '@/lib/utils';
 
 export async function updatePool(poolId: string, updates: {
   name?: string;
@@ -28,7 +29,7 @@ export async function updatePool(poolId: string, updates: {
   // don't exist yet (join_password / is_private require a DB migration).
   const msg = (error as any)?.message ?? '';
   if (msg.includes('join_password') || msg.includes('is_private') || msg.includes('schema cache')) {
-    console.warn('[SH][LOGIC][POOL] Retrying updatePool without schema-missing columns:', msg);
+    debugWarn('[SH][LOGIC][POOL] Retrying updatePool without schema-missing columns:', msg);
     const { join_password, is_private, ...safeUpdates } = updates;
     const { data: retryData, error: retryError } = await supabase
       .from('pools')
@@ -38,12 +39,12 @@ export async function updatePool(poolId: string, updates: {
       .single();
 
     if (retryError) {
-      console.error('[SH][LOGIC][POOL] Error updating pool:', retryError);
+      debugError('[SH][LOGIC][POOL] Error updating pool:', retryError);
       throw retryError;
     }
     return retryData;
   }
 
-  console.error('[SH][LOGIC][POOL] Error updating pool:', error);
+  debugError('[SH][LOGIC][POOL] Error updating pool:', error);
   throw error;
 }

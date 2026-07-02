@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     // If join_password/is_private columns don't exist, retry without them
     if (error) {
-      console.error('[SH][API][POOL] Query error:', error.message || error);
+      debugError('[SH][API][POOL] Query error:', error.message || error);
 
       selectCols = 'id, name, season, is_active';
       let retryQuery = supabase
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
       const retryResult = await retryQuery;
       if (retryResult.error) {
-        console.error('[SH][API][POOL] Retry error:', retryResult.error.message);
+        debugError('[SH][API][POOL] Retry error:', retryResult.error.message);
         return NextResponse.json({ pools: [] }, { status: 500 });
       }
       pools = retryResult.data;
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ pools: poolsWithCounts });
   } catch (error) {
-    console.error('[SH][API][POOL] Error:', error);
+    debugError('[SH][API][POOL] Error:', error);
     return NextResponse.json({ pools: [] }, { status: 500 });
   }
 }

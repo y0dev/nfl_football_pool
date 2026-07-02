@@ -275,7 +275,7 @@ async function updateTeamRecords(supabase: ReturnType<typeof getSupabaseServiceC
       // Also map by abbreviation for fallback
       teamMap.set(team.abbreviation.toLowerCase(), team.id);
     });
-    console.log('teamMap', teamMap);
+    debugLog('teamMap', teamMap);
 
     // Fetch team records from ESPN API
     const teamRecordsMap = new Map<string, {

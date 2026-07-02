@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,8 +49,8 @@ export async function GET(request: NextRequest) {
     const { data: scores, error } = await query;
 
     if (error) {
-      console.error('Error fetching scores:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      debugError('Error fetching scores:', error);
+      debugError('Error details:', JSON.stringify(error, null, 2));
       return NextResponse.json(
         { success: false, error: `Failed to fetch scores: ${error.message || 'Unknown error'}` },
         { status: 500 }
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in scores GET API:', error);
+    debugError('Error in scores GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

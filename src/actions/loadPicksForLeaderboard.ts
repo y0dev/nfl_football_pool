@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase';
 import { applyTieBreakers, getTieBreakerSettings, TieBreakerSettings } from '@/lib/tie-breakers';
-import { DEFAULT_SEASON } from '@/lib/utils';
+import { DEFAULT_SEASON, debugLog, debugError} from '@/lib/utils';
 
 interface PickData {
   id: string;
@@ -40,12 +40,12 @@ async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seaso
       .eq('pool_id', poolId);
 
     if (picksError) {
-      console.error('Error loading picks:', picksError);
+      debugError('Error loading picks:', picksError);
       return [];
     }
 
     if (!picksData || picksData.length === 0) {
-      console.log('No picks data found');
+      debugLog('No picks data found');
       return [];
     }
 
@@ -62,7 +62,7 @@ async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seaso
       .order('kickoff_time', { ascending: true });
 
     if (gamesError) {
-      console.error('Error loading games:', gamesError);
+      debugError('Error loading games:', gamesError);
       return [];
     }
 
@@ -72,7 +72,7 @@ async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seaso
     // Transform the data to a more usable format
     const picks: PickData[] = picksData.map(pick => {
       const game = gamesMap.get(pick.game_id);
-      // console.log('game', game);
+      // debugLog('game', game);
       const transformedPick = {
         id: pick.id,
         participant_id: pick.participant_id,
@@ -96,7 +96,7 @@ async function loadPicksForLeaderboard(poolId: string, weekNumber: number, seaso
 
     return picks;
   } catch (error) {
-    console.error('Error loading picks for leaderboard:', error);
+    debugError('Error loading picks for leaderboard:', error);
     return [];
   }
 }
@@ -233,13 +233,13 @@ async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seas
         return await applyTopThreeTieBreakerLogic(finalEntries, poolId, weekNumber, seasonToUse, tieBreakerSettings);
       }
     } catch (error) {
-      console.error('Error applying tie breakers:', error);
+      debugError('Error applying tie breakers:', error);
       // Fall back to original sorting if tie breakers fail
     }
     
     return sortedEntries;
   } catch (error) {
-    console.error('Error loading leaderboard with picks:', error);
+    debugError('Error loading leaderboard with picks:', error);
     return [];
   }
 }
@@ -291,7 +291,7 @@ async function applyTopThreeTieBreakerLogic(
       .in('participant_id', entries.slice(0, 4).map(e => e.participant_id));
 
     if (error) {
-      console.error('Error loading Monday night tie-breakers:', error);
+      debugError('Error loading Monday night tie-breakers:', error);
       return entries;
     }
 
@@ -303,7 +303,7 @@ async function applyTopThreeTieBreakerLogic(
       .single();
 
     if (poolError || !pool?.tie_breaker_answer) {
-      console.error('Error loading pool tie-breaker answer:', poolError);
+      debugError('Error loading pool tie-breaker answer:', poolError);
       return entries;
     }
 
@@ -341,7 +341,7 @@ async function applyTopThreeTieBreakerLogic(
       finalEntries.push(...entries.slice(4));
     }
 
-    console.log('Applied top 3 tie-breaker logic:', {
+    debugLog('Applied top 3 tie-breaker logic:', {
       originalTopThree: topThree.map(e => ({ name: e.participant_name, points: e.total_points })),
       finalTopThree: finalEntries.slice(0, 3).map(e => ({ name: e.participant_name, points: e.total_points })),
       mondayNightDifferences: participantsWithTieBreakers.slice(0, 4).map(e => ({ 
@@ -353,7 +353,7 @@ async function applyTopThreeTieBreakerLogic(
 
     return finalEntries;
   } catch (error) {
-    console.error('Error applying top 3 tie-breaker logic:', error);
+    debugError('Error applying top 3 tie-breaker logic:', error);
     return entries;
   }
 }

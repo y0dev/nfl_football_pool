@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { DAYS_BEFORE_GAME, getNFLSeasonYear, isOffseason } from '@/lib/utils';
+import { DAYS_BEFORE_GAME, getNFLSeasonYear, isOffseason,debugError } from '@/lib/utils';
 
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
@@ -54,7 +54,7 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
     return timeUntilFirstGame <= daysToKickoffInMs && timeUntilFirstGame > 0;
     
   } catch (error) {
-    console.error('Error checking if week is unlocked for picks:', error);
+    debugError('Error checking if week is unlocked for picks:', error);
     // Fallback to permissive behavior
     return true;
   }
@@ -81,7 +81,7 @@ export async function getUpcomingWeek(): Promise<{ week: number; seasonType: num
     const { getWeekForPicks } = await import('./getCurrentWeekFromGames');
     return await getWeekForPicks();
   } catch (error) {
-    console.error('Error getting upcoming week:', error);
+    debugError('Error getting upcoming week:', error);
     // Fallback to current week
     const currentWeekData = await loadCurrentWeek();
     return {
@@ -117,7 +117,7 @@ export async function loadCurrentWeek() {
       .eq('season_type', seasonType)
       .eq('season', getNFLSeasonYear()); 
     if (error) {
-      console.error('Error getting game data:', error);
+      debugError('Error getting game data:', error);
     }
 
     // Get the season from the first game, or fallback to current year
@@ -135,7 +135,7 @@ export async function loadCurrentWeek() {
       season_type: seasonType
     };
   } catch (error) {
-    console.error('Error loading current week:', error);
+    debugError('Error loading current week:', error);
     // Fallback to hardcoded values
     return {
       id: 1,

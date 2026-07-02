@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET() {
   try {
@@ -30,7 +31,7 @@ export async function GET() {
       }
     });
   } catch (error) {
-    console.error('Error in test-pools API:', error);
+    debugError('Error in test-pools API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

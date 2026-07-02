@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError, debugWarn} from '@/lib/utils';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -77,7 +77,7 @@ export async function DELETE(request: NextRequest) {
     if (authDeleteError) {
       debugLog('Error deleting auth user:', authDeleteError);
       // Log the error but don't fail the request since the admin record was deleted
-      console.warn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
+      debugWarn('Failed to delete auth user, but admin record was deleted:', authDeleteError);
     }
 
     debugLog('Admin deleted successfully');
@@ -99,7 +99,7 @@ export async function DELETE(request: NextRequest) {
         });
       debugLog('Audit log created successfully');
     } catch (auditError) {
-      console.warn('Failed to log admin deletion to audit_logs:', auditError);
+      debugWarn('Failed to log admin deletion to audit_logs:', auditError);
       // Don't fail the deletion if audit logging fails
     }
 
@@ -110,7 +110,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Delete admin error:', error);
+    debugError('Delete admin error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

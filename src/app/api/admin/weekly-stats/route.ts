@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       .order('week');
 
     if (scoresError) {
-      console.error('Error fetching scores:', scoresError);
+      debugError('Error fetching scores:', scoresError);
       return NextResponse.json(
         { error: 'Failed to fetch scores' },
         { status: 500 }
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true);
 
     if (participantsError) {
-      console.error('Error fetching participants:', participantsError);
+      debugError('Error fetching participants:', participantsError);
     }
 
     const totalParticipants = participants?.length || 0;
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
       .order('week');
 
     if (gamesError) {
-      console.error('Error fetching games:', gamesError);
+      debugError('Error fetching games:', gamesError);
     }
 
     // Calculate weekly statistics
@@ -150,7 +151,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in weekly stats API:', error);
+    debugError('Error in weekly stats API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating admin:', createError);
+      debugError('Error creating admin:', createError);
       return NextResponse.json(
         { success: false, error: 'Failed to create admin' },
         { status: 500 }
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in create admin API:', error);
+    debugError('Error in create admin API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

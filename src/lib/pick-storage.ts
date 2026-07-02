@@ -1,4 +1,5 @@
 import { StoredPick } from '@/types/game';
+import { debugLog, debugError } from '@/lib/utils';
 
 interface StoredPicksData {
   picks: StoredPick[];
@@ -41,7 +42,7 @@ class PickStorage {
     // Set up auto-submit timer
     this.setupAutoSubmit(data);
     
-    console.log('💾 Picks saved to localStorage:', picks.length, 'picks');
+    debugLog('💾 Picks saved to localStorage:', picks.length, 'picks');
   }
 
   // Load picks from localStorage
@@ -67,10 +68,10 @@ class PickStorage {
       //   return [];
       // }
 
-      console.log('📂 Loaded picks from localStorage:', data.picks.length, 'picks');
+      debugLog('📂 Loaded picks from localStorage:', data.picks.length, 'picks');
       return data.picks;
     } catch (error) {
-      console.error('Error loading picks from localStorage:', error);
+      debugError('Error loading picks from localStorage:', error);
       return [];
     }
   }
@@ -81,7 +82,7 @@ class PickStorage {
 
     localStorage.removeItem(PICK_STORAGE_KEY);
     this.clearAutoSubmitTimer();
-    console.log('🗑️ Picks cleared from localStorage');
+    debugLog('🗑️ Picks cleared from localStorage');
   }
 
   // Get time remaining until auto-submit
@@ -143,7 +144,7 @@ class PickStorage {
   // Auto-submit picks when timer expires
   private async autoSubmitPicks(data: StoredPicksData): Promise<void> {
     try {
-      console.log('⏰ Auto-submitting picks after 5 minutes...');
+      debugLog('⏰ Auto-submitting picks after 5 minutes...');
       
       // Import the submitPicks function dynamically to avoid circular dependencies
       const { submitPicks } = await import('@/actions/submitPicks');
@@ -151,13 +152,13 @@ class PickStorage {
       const result = await submitPicks(data.picks);
       
       if (result.success) {
-        console.log('✅ Picks auto-submitted successfully');
+        debugLog('✅ Picks auto-submitted successfully');
         this.clearPicks();
       } else {
-        console.error('❌ Auto-submit failed:', result.error);
+        debugError('❌ Auto-submit failed:', result.error);
       }
     } catch (error) {
-      console.error('❌ Error during auto-submit:', error);
+      debugError('❌ Error during auto-submit:', error);
     }
   }
 
@@ -176,7 +177,7 @@ class PickStorage {
       localStorage.setItem(PICK_STORAGE_KEY, JSON.stringify(data));
       this.setupAutoSubmit(data);
     } catch (error) {
-      console.error('Error updating expiration:', error);
+      debugError('Error updating expiration:', error);
     }
   }
 

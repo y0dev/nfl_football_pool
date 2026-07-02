@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Trophy, TrendingUp, Users, RefreshCw } from 'lucide-react';
-import { debugLog } from '@/lib/utils';
+import { debugLog, debugError} from '@/lib/utils';
 
 // Design tokens
 const surface = 'oklch(17% 0.028 255)';
@@ -61,7 +61,7 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
           throw new Error(result.error || 'Failed to load season leaderboard');
         }
       } catch (err) {
-        console.error('Error loading season leaderboard:', err);
+        debugError('Error loading season leaderboard:', err);
         setError(err instanceof Error ? err.message : 'Failed to load season leaderboard');
       } finally {
         setIsLoading(false);

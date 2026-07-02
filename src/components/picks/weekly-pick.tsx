@@ -11,7 +11,7 @@ import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
-import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { GameCard } from '@/components/picks/game-card';
 import {
@@ -176,7 +176,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         debugLog('Games:', gamesData);
         debugLog('Initial picks:', initialPicks);
       } catch (error) {
-        console.error('Error loading data:', error);
+        debugError('Error loading data:', error);
         toast({
           title: 'Error',
           description: 'Failed to load games data',
@@ -222,7 +222,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             debugLog('WeeklyPick: Loaded pool season for playoff mode:', data.pool.season);
           }
         } catch (error) {
-          console.error('Error loading pool season:', error);
+          debugError('Error loading pool season:', error);
         }
       }
     };
@@ -243,7 +243,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             debugLog('WeeklyPick: No playoff confidence points found for user');
           }
         } catch (error) {
-          console.error('Error loading playoff confidence points:', error);
+          debugError('Error loading playoff confidence points:', error);
           setPlayoffConfidencePoints({});
         }
       } else if (!isPlayoffMode) {
@@ -332,7 +332,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             debugLog('WeeklyPick: Week is unlocked for picks');
           }
         } catch (error) {
-          console.error('Error checking week unlock status:', error);
+          debugError('Error checking week unlock status:', error);
           // Default to unlocked if there's an error
           setIsWeekUnlocked(true);
           debugLog('WeeklyPick: Defaulting to unlocked due to error');
@@ -635,7 +635,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setShowErrorDialog(true);
       }
     } catch (error: unknown) {
-      console.error('Error submitting picks:', error);
+      debugError('Error submitting picks:', error);
       setSubmissionError(error instanceof Error ? error.message : 'Failed to submit picks');
       setShowErrorDialog(true);
     } finally {

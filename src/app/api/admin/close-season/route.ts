@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 interface ParticipantScore {
   participant_id: string;
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
       totalProcessed: pools.length,
     });
   } catch (error) {
-    console.error('[SH][STATE][SEASON] close-season error:', error);
+    debugError('[SH][STATE][SEASON] close-season error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportPeriodData } from '@/lib/export-utils';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (poolError) {
-      console.error('Error fetching pool name:', poolError);
+      debugError('Error fetching pool name:', poolError);
       // Fallback to pool ID if name fetch fails
     }
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error exporting period data:', error);
+    debugError('Error exporting period data:', error);
     return NextResponse.json(
       { 
         success: false, 

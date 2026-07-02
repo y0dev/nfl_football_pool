@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
 import { getAdminPlanByEmail, LIMITS } from '@/lib/plan';
 
 export async function createPool(poolData: {
@@ -65,13 +65,13 @@ export async function createPool(poolData: {
         );
       }
     } catch (emailError) {
-      console.error('Error sending pool creation email:', emailError);
+      debugError('Error sending pool creation email:', emailError);
       // Don't fail pool creation if email fails
     }
 
     return data;
   } catch (error) {
-    console.error('Error creating pool:', error);
+    debugError('Error creating pool:', error);
     throw error;
   }
 }

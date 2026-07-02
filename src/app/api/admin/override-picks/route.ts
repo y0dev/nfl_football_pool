@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
           .eq('id', update.id);
         
         if (updateError) {
-          console.error('Error updating pick:', updateError);
+          debugError('Error updating pick:', updateError);
           return NextResponse.json(
             { success: false, error: `Failed to update pick: ${updateError.message}` },
             { status: 500 }
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         .eq('games.season_type', seasonType);
 
       if (selectError) {
-        console.error('Error selecting picks to delete:', selectError);
+        debugError('Error selecting picks to delete:', selectError);
         return NextResponse.json(
           { success: false, error: `Failed to select picks to delete: ${selectError.message}` },
           { status: 500 }
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
         .in('id', picksToDelete.map(pick => pick.id));
 
       if (deleteError) {
-        console.error('Error deleting picks:', deleteError);
+        debugError('Error deleting picks:', deleteError);
         return NextResponse.json(
           { success: false, error: `Failed to delete picks: ${deleteError.message}` },
           { status: 500 }
@@ -202,7 +203,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error in override-picks API:', error);
+    debugError('Error in override-picks API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

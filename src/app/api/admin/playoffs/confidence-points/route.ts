@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { isDummyData } from '@/lib/utils';
+import { isDummyData, debugError} from '@/lib/utils';
 
 interface ConfidencePointSubmission {
   team_name: string;
@@ -111,7 +111,7 @@ export async function PUT(request: NextRequest) {
       .eq('season', season);
 
     if (deleteError) {
-      console.error('Error deleting existing confidence points:', deleteError);
+      debugError('Error deleting existing confidence points:', deleteError);
       return NextResponse.json(
         { success: false, error: 'Failed to update confidence points' },
         { status: 500 }
@@ -132,7 +132,7 @@ export async function PUT(request: NextRequest) {
       .insert(insertData);
 
     if (insertError) {
-      console.error('Error inserting confidence points:', insertError);
+      debugError('Error inserting confidence points:', insertError);
       return NextResponse.json(
         { success: false, error: 'Failed to update confidence points' },
         { status: 500 }
@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in PUT playoff confidence points API:', error);
+    debugError('Error in PUT playoff confidence points API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -201,7 +201,7 @@ export async function DELETE(request: NextRequest) {
       .eq('season', parseInt(season));
 
     if (gamesError) {
-      console.error('Error fetching playoff games:', gamesError);
+      debugError('Error fetching playoff games:', gamesError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch playoff games' },
         { status: 500 }
@@ -238,7 +238,7 @@ export async function DELETE(request: NextRequest) {
         .in('game_id', gameIds);
 
       if (picksError) {
-        console.error('Error deleting playoff picks:', picksError);
+        debugError('Error deleting playoff picks:', picksError);
         // Continue with confidence points deletion even if picks deletion fails
       } else {
         deletedPicksCount = count || 0;
@@ -254,7 +254,7 @@ export async function DELETE(request: NextRequest) {
       .eq('season', parseInt(season));
 
     if (error) {
-      console.error('Error deleting confidence points:', error);
+      debugError('Error deleting confidence points:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to delete confidence points' },
         { status: 500 }
@@ -284,7 +284,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in DELETE playoff confidence points API:', error);
+    debugError('Error in DELETE playoff confidence points API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

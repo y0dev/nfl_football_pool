@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { debugInfo, debugWarn } from './utils';
+import { debugInfo, debugWarn, debugLog, debugError } from './utils';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
@@ -278,11 +278,11 @@ class NFLAPIService {
 
   private async makeRequest(endpoint: string, params: Record<string, string> = {}) {
     const url = new URL(`${this.baseUrl}${endpoint}`);
-    console.log(`📊 Constructed URL: ${this.baseUrl}${endpoint} with params:`, params);
+    debugLog(`📊 Constructed URL: ${this.baseUrl}${endpoint} with params:`, params);
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, value);
     });
-    console.log(`Making request to ESPN API: ${url.toString()}`);
+    debugLog(`Making request to ESPN API: ${url.toString()}`);
 
 
     try {
@@ -308,7 +308,7 @@ class NFLAPIService {
       
       return data;
     } catch (error) {
-      console.error('ESPN API request failed:', error);
+      debugError('ESPN API request failed:', error);
       throw error;
     }
   }
@@ -325,7 +325,7 @@ class NFLAPIService {
       
       return new Date().getFullYear();
     } catch (error) {
-      console.error('Failed to get current season:', error);
+      debugError('Failed to get current season:', error);
       return new Date().getFullYear();
     }
   }
@@ -364,7 +364,7 @@ class NFLAPIService {
       
       return Array.from(teamsMap.values());
     } catch (error) {
-      console.error('Failed to get teams:', error);
+      debugError('Failed to get teams:', error);
       return [];
     }
   }
@@ -434,7 +434,7 @@ class NFLAPIService {
         const awayTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'away');
 
         if (!homeTeam || !awayTeam) {
-          console.warn(`⚠️  Missing team data for game ${game.id}`);
+          debugWarn(`⚠️  Missing team data for game ${game.id}`);
           return null;
         }
 
@@ -462,7 +462,7 @@ class NFLAPIService {
       debugInfo(`Successfully converted ${games.length} games`);
       return games;
     } catch (error) {
-      console.error(`❌ Error fetching games for weekStart ${weekStart}:`, error);
+      debugError(`❌ Error fetching games for weekStart ${weekStart}:`, error);
       return [];
     }
   }
@@ -557,7 +557,7 @@ class NFLAPIService {
         const awayTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'away');
         
         if (!homeTeam || !awayTeam) {
-          console.warn(`⚠️  Missing team data for game ${game.id}`);
+          debugWarn(`⚠️  Missing team data for game ${game.id}`);
           return null;
         }
         
@@ -592,7 +592,7 @@ class NFLAPIService {
       return games;
       
     } catch (error) {
-      console.error(`❌ Error fetching games with date endpoint:`, error);
+      debugError(`❌ Error fetching games with date endpoint:`, error);
       return [];
     }
   }
@@ -624,7 +624,7 @@ class NFLAPIService {
         game_count: 0, // Would need to count games for this week
       })) || [];
     } catch (error) {
-      console.error('Failed to get season weeks:', error);
+      debugError('Failed to get season weeks:', error);
       return [];
     }
   }
@@ -668,7 +668,7 @@ class NFLAPIService {
       
       return null;
     } catch (error) {
-      console.error('Failed to get current week:', error);
+      debugError('Failed to get current week:', error);
       return null;
     }
   }
@@ -707,7 +707,7 @@ class NFLAPIService {
         };
       }).filter(Boolean) as NFLGame[];
     } catch (error) {
-      console.error('Failed to get playoff games:', error);
+      debugError('Failed to get playoff games:', error);
       return [];
     }
   }
@@ -748,7 +748,7 @@ class NFLAPIService {
       const data = await this.makeRequest('/standings', { season: season.toString() });
       return data.standings || [];
     } catch (error) {
-      console.error('Failed to get standings:', error);
+      debugError('Failed to get standings:', error);
       return [];
     }
   }
@@ -758,7 +758,7 @@ class NFLAPIService {
       const data = await this.makeRequest('/teams');
       return data || [];
     } catch (error) {
-      console.error('Failed to get team ESPN team ID:', error);
+      debugError('Failed to get team ESPN team ID:', error);
       return [];
     }
   }
@@ -819,7 +819,7 @@ class NFLAPIService {
         road_ties
       };
     } catch (error) {
-      console.error(`Failed to get team record for team ${teamId}:`, error);
+      debugError(`Failed to get team record for team ${teamId}:`, error);
       return null;
     }
   }
@@ -879,7 +879,7 @@ class NFLAPIService {
       debugInfo('Extracted team IDs:', teamIds);
       return teamIds;
     } catch (error) {
-      console.error('Failed to get team IDs from standings:', error);
+      debugError('Failed to get team IDs from standings:', error);
       return [];
     }
   }

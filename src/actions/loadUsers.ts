@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
-import { debugLog, DUMMY_PARTICIPANTS, isDummyData } from '@/lib/utils';
+import { debugLog, DUMMY_PARTICIPANTS, isDummyData, debugError} from '@/lib/utils';
 
 /**
  * Load users for a pool and week
@@ -32,7 +32,7 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
           .order('name');
 
         if (error) {
-          console.error('Error querying participants (excluding submitted):', error);
+          debugError('Error querying participants (excluding submitted):', error);
           throw error;
         }
 
@@ -77,7 +77,7 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
                 return submissionCount === teamsCount;
               });
               
-              console.log('loadUsers - filtered by confidence points:', {
+              debugLog('loadUsers - filtered by confidence points:', {
                 poolId,
                 season: pool.season,
                 teamsCount,
@@ -92,7 +92,7 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
         const submittedIdsSet = new Set(submittedParticipantIds);
         const availableParticipants = filteredParticipants.filter(participant => !submittedIdsSet.has(participant.id));
         
-        console.log('loadUsers - filtered participants:', {
+        debugLog('loadUsers - filtered participants:', {
           poolId,
           week,
           seasonType,
@@ -103,9 +103,9 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
         
         return availableParticipants;
       } catch (error) {
-        console.error('Error in loadUsers when filtering submitted users:', error);
+        debugError('Error in loadUsers when filtering submitted users:', error);
         // Fall back to loading all users in the pool if there's an error
-        console.log('Falling back to loading all participants due to filtering error');
+        debugLog('Falling back to loading all participants due to filtering error');
       }
     }
 
@@ -120,13 +120,13 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
           .order('name');
 
         if (error) {
-          console.error('Error querying participants for pool:', error);
+          debugError('Error querying participants for pool:', error);
           throw error;
         }
         
         return participants || [];
       } catch (fallbackError) {
-        console.error('Error in fallback participant loading:', fallbackError);
+        debugError('Error in fallback participant loading:', fallbackError);
         return [];
       }
     }
@@ -134,7 +134,7 @@ export async function loadUsers(poolId?: string, week?: number, seasonType: numb
     // If no poolId provided, return empty array (shouldn't happen in normal flow)
     return [];
   } catch (error) {
-    console.error('Error loading users:', error);
+    debugError('Error loading users:', error);
     throw error;
   }
 }

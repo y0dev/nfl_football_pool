@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, debugError} from '@/lib/utils';
 
 const bg      = 'oklch(13% 0.025 255)';
 const card    = 'oklch(20% 0.03 255)';
@@ -43,7 +43,7 @@ function CallbackContent() {
 
         const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
         if (sessionError || !sessionData.session) {
-          console.error('[auth/callback] exchangeCodeForSession error:', sessionError);
+          debugError('[auth/callback] exchangeCodeForSession error:', sessionError);
           setErrorMsg('Failed to complete Google sign-in. Please try again.');
           setStatus('error');
           return;
@@ -131,7 +131,7 @@ function CallbackContent() {
         setErrorMsg('No commissioner account found for this Google account. Please register first or use a different sign-in method.');
         setStatus('error');
       } catch (err) {
-        console.error('OAuth callback error:', err);
+        debugError('OAuth callback error:', err);
         setErrorMsg('An unexpected error occurred. Please try again.');
         setStatus('error');
       }

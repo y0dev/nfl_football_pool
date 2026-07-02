@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, DUMMY_PLAYOFF_CONFIDENCE_POINTS, DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS, isDummyData } from '@/lib/utils';
+import { debugLog, DUMMY_PLAYOFF_CONFIDENCE_POINTS, DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS, isDummyData, debugError} from '@/lib/utils';
 
 interface ConfidencePointSubmission {
   participant_id: string;
@@ -91,7 +91,7 @@ export async function GET(
         .order('confidence_points', { ascending: false });
 
       if (error) {
-        console.error('Error fetching confidence points:', error);
+        debugError('Error fetching confidence points:', error);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch confidence points' },
           { status: 500 }
@@ -127,7 +127,7 @@ export async function GET(
       .eq('season', seasonNumber);
 
     if (error) {
-      console.error('Error fetching submissions:', error);
+      debugError('Error fetching submissions:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch submissions' },
         { status: 500 }
@@ -194,7 +194,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error in playoff confidence points GET API:', error);
+    debugError('Error in playoff confidence points GET API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -329,7 +329,7 @@ export async function POST(
         .eq('season', season);
 
       if (deleteError) {
-        console.error('Error deleting existing partial submissions:', deleteError);
+        debugError('Error deleting existing partial submissions:', deleteError);
         return NextResponse.json(
           { success: false, error: 'Failed to update confidence points' },
           { status: 500 }
@@ -351,7 +351,7 @@ export async function POST(
       .insert(insertData);
 
     if (insertError) {
-      console.error('Error inserting confidence points:', insertError);
+      debugError('Error inserting confidence points:', insertError);
       return NextResponse.json(
         { success: false, error: 'Failed to submit confidence points' },
         { status: 500 }
@@ -364,7 +364,7 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error('Error in playoff confidence points POST API:', error);
+    debugError('Error in playoff confidence points POST API:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

@@ -14,6 +14,7 @@ import {
   Printer
 } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
+import { debugError } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -85,7 +86,7 @@ function AdminSummaryContent() {
         }
         setSummaryData(data);
       } catch (err) {
-        console.error('Error loading summary data:', err);
+        debugError('Error loading summary data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load summary data');
       } finally {
         setIsLoading(false);

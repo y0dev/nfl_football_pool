@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       .eq('season', parseInt(season));
     
     if (error) {
-      console.error('Error checking week status:', error);
+      debugError('Error checking week status:', error);
       return NextResponse.json(
         { error: 'Failed to check week status' },
         { status: 500 }
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Error in week-status API:', error);
+    debugError('Error in week-status API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
