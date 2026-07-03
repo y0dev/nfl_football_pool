@@ -9,6 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
     }
 
+    const body = await request.json().catch(() => ({}));
+    const group = body.group === 'standard' ? 'standard' : 'free';
+
     const supabase = getSupabaseServiceClient();
 
     const { data: currentAdmin } = await supabase
@@ -25,21 +28,16 @@ export async function POST(request: NextRequest) {
       .from('admins')
       .select('email, full_name, plan, trial_ends_at')
       .eq('is_super_admin', false)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .eq('plan', group);
 
     if (!targets || targets.length === 0) {
       return NextResponse.json({ success: true, sent: 0 });
     }
 
-    const now = new Date();
-    const eligible = targets.filter(t => {
-      const isTrialActive = !!(t.trial_ends_at && new Date(t.trial_ends_at) > now);
-      return t.plan === 'free' || isTrialActive;
-    });
-
     const { emailService } = await import('@/lib/email');
     let sent = 0;
-    for (const target of eligible) {
+    for (const target of targets) {
       try {
         await emailService.sendPromotionEmail(target.email, target.full_name || 'Commissioner');
         sent++;
@@ -48,7 +46,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, sent, total: eligible.length });
+    return NextResponse.json({ success: true, sent, total: targets.length });
   } catch (e) {
     debugError('[SH][API][ADMIN] Send promotion error:', e);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
