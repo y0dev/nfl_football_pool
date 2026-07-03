@@ -403,27 +403,6 @@ input[type="url"], textarea {
   .admin-5col-grid { grid-template-columns: repeat(5, 1fr); }
 }
 
-/* Admin dashboard — Quick Actions floating sidebar, narrower on tighter viewports */
-.admin-qa-float {
-  display: block;
-  width: 224px;
-  right: 1.5rem;
-}
-@media (max-width: 1440px) {
-  .admin-qa-float { width: 190px; right: 1rem; }
-}
-@media (max-width: 900px) {
-  .admin-qa-float { display: none; }
-}
-
-/* Admin dashboard — Quick Actions FAB, only shown where the floating sidebar is hidden */
-.admin-qa-fab {
-  display: none;
-}
-@media (max-width: 900px) {
-  .admin-qa-fab { display: flex; }
-}
-
 /* Admin pools page — nav button text hides below tablet width */
 .pools-nav-label {
   display: none;

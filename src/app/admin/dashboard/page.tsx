@@ -205,7 +205,7 @@ function AdminDashboardContent() {
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [quickActionsMobileOpen, setQuickActionsMobileOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -1257,29 +1257,15 @@ function AdminDashboardContent() {
         </div>
       </section>
 
-      {/* ── QUICK ACTIONS (floating sidebar — wide viewports) ── */}
-      <aside className="admin-qa-float" style={{ position: 'fixed', top: 88, maxHeight: 'calc(100vh - 112px)', overflowY: 'auto', zIndex: 40 }}>
-        <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '1rem', boxShadow: '0 12px 28px oklch(0% 0 0 / 0.4)' }}>
-          <QuickActionsPanel
-            actions={actions}
-            selectedQuarter={selectedQuarter}
-            setSelectedQuarter={setSelectedQuarter}
-            isGeneratingWinners={isGeneratingWinners}
-            handleGeneratePeriodWinners={handleGeneratePeriodWinners}
-          />
-        </div>
-      </aside>
-
-      {/* ── QUICK ACTIONS (FAB — narrow viewports, below 900px) ── */}
+      {/* ── QUICK ACTIONS (toggle — FAB opens a closable panel at any screen size) ── */}
       <button
-        className="admin-qa-fab"
-        onClick={() => setQuickActionsMobileOpen(true)}
+        onClick={() => setQuickActionsOpen(true)}
         aria-label="Open quick actions"
         style={{
           position: 'fixed', bottom: '1.25rem', right: '1.25rem',
           width: 52, height: 52, borderRadius: '50%',
           background: green, color: text, border: 'none',
-          alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 8px 20px oklch(0% 0 0 / 0.45)',
           cursor: 'pointer', zIndex: 45,
         }}
@@ -1287,7 +1273,7 @@ function AdminDashboardContent() {
         <Zap style={{ width: 22, height: 22 }} />
       </button>
 
-      <Dialog open={quickActionsMobileOpen} onOpenChange={setQuickActionsMobileOpen}>
+      <Dialog open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
         <DialogContent style={{ maxWidth: '22rem', background: surface, border: `1px solid ${border}` }}>
           <DialogHeader>
             <DialogTitle className="sr-only">Quick Actions</DialogTitle>
