@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { debugLog, getRankColor, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -498,6 +498,30 @@ export default function PeriodLeaderboardPage() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 32, height: 32, border: `3px solid ${border}`, borderTopColor: greenHi, borderRadius: '50%', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
           <p style={{ ...b, color: textMid, fontSize: '0.9rem' }}>Loading period leaderboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Periods (Q1-Q4, Playoffs) don't apply to preseason weeks — reaching here with
+  // an unmapped period number means whatever linked here didn't account for that.
+  if (periodName === 'Unknown Period') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, padding: '1rem' }}>
+        <div style={{ textAlign: 'center', maxWidth: 360 }}>
+          <AlertTriangle style={{ width: 28, height: 28, color: amber, margin: '0 auto 0.75rem' }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
+            Period Not Available
+          </p>
+          <p style={{ ...b, color: textMid, fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+            This pool doesn't have a quarter or playoffs period for that week.
+          </p>
+          <button
+            onClick={() => router.push(`/pool/${poolId}/picks`)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Picks
+          </button>
         </div>
       </div>
     );
