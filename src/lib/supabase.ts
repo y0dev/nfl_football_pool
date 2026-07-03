@@ -10,15 +10,15 @@ const g = globalThis as typeof globalThis & {
 export function getSupabaseClient() {
   if (g.__supabaseClient) return g.__supabaseClient;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl) {
-    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL in your environment variables.');
+    throw new Error('Supabase URL is required. Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your environment variables.');
   }
 
   if (!supabaseAnonKey) {
-    throw new Error('Supabase anon key is required. Please set NEXT_PUBLIC_SUPABASE_ANON_KEY or SUPABASE_ANON_KEY in your environment variables.');
+    throw new Error('Supabase anon key is required. Please set SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment variables.');
   }
 
   g.__supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -30,16 +30,15 @@ export function getSupabaseClient() {
 export function getSupabaseServiceClient() {
   if (g.__supabaseServiceClient) return g.__supabaseServiceClient;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  // Prefer the private key — NEXT_PUBLIC_ variables are exposed in the client bundle
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl) {
-    throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_SERVICE_KEY or SUPABASE_URL in your environment variables.');
+    throw new Error('Supabase URL is required. Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your environment variables.');
   }
 
   if (!supabaseServiceKey) {
-    throw new Error('Supabase service role key is required for server operations. Please set NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
+    throw new Error('Supabase service role key is required for server operations. Please set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
   }
 
   g.__supabaseServiceClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -62,8 +61,11 @@ type Database = {
           full_name: string | null
           avatar_url: string | null
           created_at: string
+          updated_at: string | null
           is_super_admin: boolean
           is_active: boolean
+          plan: string | null
+          trial_ends_at: string | null
         }
         Insert: {
           id?: string
@@ -72,8 +74,11 @@ type Database = {
           full_name?: string | null
           avatar_url?: string | null
           created_at?: string
+          updated_at?: string | null
           is_super_admin?: boolean
           is_active?: boolean
+          plan?: string | null
+          trial_ends_at?: string | null
         }
         Update: {
           id?: string
@@ -82,8 +87,11 @@ type Database = {
           full_name?: string | null
           avatar_url?: string | null
           created_at?: string
+          updated_at?: string | null
           is_super_admin?: boolean
           is_active?: boolean
+          plan?: string | null
+          trial_ends_at?: string | null
         }
       }
       pools: {
@@ -630,9 +638,16 @@ CREATE TABLE IF NOT EXISTS admins (
   full_name VARCHAR(255),
   avatar_url VARCHAR(500),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE,
   is_super_admin BOOLEAN DEFAULT false,
-  is_active BOOLEAN DEFAULT true
+  is_active BOOLEAN DEFAULT true,
+  plan VARCHAR(20) DEFAULT 'free',
+  trial_ends_at TIMESTAMP WITH TIME ZONE
 );
+-- Migrations for existing databases:
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;
 `;
 
 // fallow-ignore-next-line unused-export

@@ -38,6 +38,8 @@ export interface Admin {
   is_super_admin: boolean;
   is_active: boolean;
   created_at: string;
+  plan?: string | null;
+  trial_ends_at?: string | null;
 }
 
 /**

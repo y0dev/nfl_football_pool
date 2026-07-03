@@ -32,11 +32,11 @@ class EmailService {
 
   private initializeTransporter() {
     
-    const host = process.env.NEXT_PUBLIC_SMTP_HOST || process.env.SMTP_HOST;
-    const port = process.env.NEXT_PUBLIC_SMTP_PORT || process.env.SMTP_PORT;
-    const user = process.env.NEXT_PUBLIC_SMTP_USER || process.env.SMTP_USER;
-    const pass = process.env.NEXT_PUBLIC_SMTP_PASS || process.env.SMTP_PASS;
-    const from = process.env.NEXT_PUBLIC_SMTP_FROM || process.env.SMTP_FROM;
+    const host = process.env.SMTP_HOST || process.env.NEXT_PUBLIC_SMTP_HOST;
+    const port = process.env.SMTP_PORT || process.env.NEXT_PUBLIC_SMTP_PORT;
+    const user = process.env.SMTP_USER || process.env.NEXT_PUBLIC_SMTP_USER;
+    const pass = process.env.SMTP_PASS || process.env.NEXT_PUBLIC_SMTP_PASS;
+    const from = process.env.SMTP_FROM || process.env.NEXT_PUBLIC_SMTP_FROM;
 
     if (!host || !port || !user || !pass || !from) {
       debugWarn('Email configuration incomplete. Email notifications will be disabled.');
@@ -152,11 +152,11 @@ class EmailService {
       </p>
 
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        Your Sunday Huddle commissioner account password was reset by a system administrator on ${new Date().toLocaleString()}.
+        Your Sunday Huddle commissioner account password was reset on ${new Date().toLocaleString()}.
       </p>
 
       ${createInfoBox(`
-        If you did not request this change, contact your system administrator immediately and do not use the new credentials.
+        If you did not request this change, contact Sunday Huddle support immediately and do not use the new credentials.
       `, 'warning')}
 
       <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
@@ -609,6 +609,126 @@ class EmailService {
         </p>
       </div>
     `;
+    return this.sendEmail({ to: email, subject, html });
+  }
+  async sendStatusChangeNotification(email: string, displayName: string, isActive: boolean): Promise<boolean> {
+    const action = isActive ? 'Activated' : 'Deactivated';
+    const subject = `Your Sunday Huddle Account Has Been ${action}`;
+    const accentColor = isActive ? '#1e6e43' : '#7f1d1d';
+    const badgeColor  = isActive ? '#4ade80' : '#f87171';
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid ${accentColor};">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:0;font-size:22px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Account ${action}</h1>
+        </div>
+        <div style="height:1px;background:#1e2a3a;margin:0 0 28px;"></div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 20px;">
+          Hi ${displayName}, your Sunday Huddle commissioner account has been <strong style="color:${badgeColor};">${action.toLowerCase()}</strong>.
+        </p>
+        ${isActive
+          ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;"><tr><td style="background:#091a0f;border-left:3px solid #1e6e43;padding:14px 18px;border-radius:0 6px 6px 0;"><p style="margin:0;color:#4ade80;font-size:14px;line-height:1.65;">You can now sign in to your dashboard and manage your pools.</p></td></tr></table>`
+          : `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;"><tr><td style="background:#1c0808;border-left:3px solid #7f1d1d;padding:14px 18px;border-radius:0 6px 6px 0;"><p style="margin:0;color:#f87171;font-size:14px;line-height:1.65;">Your account access has been suspended. Contact Sunday Huddle support if you believe this was an error.</p></td></tr></table>`
+        }
+        <p style="color:#64748b;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+          © ${new Date().getFullYear()} Sunday Huddle. All rights reserved.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendPlanChangeNotification(email: string, displayName: string, newPlan: string, trialDays?: number): Promise<boolean> {
+    const planLabel = newPlan.charAt(0).toUpperCase() + newPlan.slice(1);
+    const planColor = newPlan === 'pro' ? '#4ade80' : newPlan === 'standard' ? '#fcd34d' : '#94a3b8';
+    const subject = `Your Sunday Huddle Plan Has Been Updated`;
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:0;font-size:22px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Plan Updated</h1>
+        </div>
+        <div style="height:1px;background:#1e2a3a;margin:0 0 28px;"></div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 20px;">
+          Hi ${displayName}, your Sunday Huddle subscription plan has been updated.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;">
+          <tr>
+            <td style="background:#0d1f17;border-left:3px solid #1e6e43;padding:16px 18px;border-radius:0 6px 6px 0;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.15em;color:#64748b;text-transform:uppercase;font-weight:700;">New Plan</p>
+              <p style="margin:0;font-size:22px;font-weight:900;color:${planColor};text-transform:uppercase;letter-spacing:0.06em;">${planLabel}</p>
+              ${trialDays && trialDays > 0
+                ? `<p style="margin:6px 0 0;font-size:13px;color:#fcd34d;">+ ${trialDays}-day trial — Standard access while trial is active.</p>`
+                : ''}
+            </td>
+          </tr>
+        </table>
+        <p style="color:#64748b;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+          Questions? Reply to this email.<br>
+          © ${new Date().getFullYear()} Sunday Huddle. All rights reserved.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendPromotionEmail(email: string, displayName: string): Promise<boolean> {
+    const subject = 'Unlock More with Sunday Huddle — Upgrade Your Plan';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const loginUrl = `${baseUrl}/admin/login`;
+
+    const planTable = `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:18px 0;border-collapse:collapse;">
+        <thead>
+          <tr style="background-color:#141c26;">
+            <th style="padding:10px 14px;text-align:left;color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #1e2a3a;">Feature</th>
+            <th style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #1e2a3a;">Free</th>
+            <th style="padding:10px 14px;text-align:center;color:#fcd34d;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #1e2a3a;">Standard</th>
+            <th style="padding:10px 14px;text-align:center;color:#4ade80;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #1e2a3a;">Pro</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px 14px;color:#f1f5f9;font-size:14px;border:1px solid #1e2a3a;">Pools</td>
+            <td style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:14px;border:1px solid #1e2a3a;">1</td>
+            <td style="padding:10px 14px;text-align:center;color:#fcd34d;font-size:14px;border:1px solid #1e2a3a;">1</td>
+            <td style="padding:10px 14px;text-align:center;color:#4ade80;font-size:14px;font-weight:700;border:1px solid #1e2a3a;">3</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 14px;color:#f1f5f9;font-size:14px;background-color:#0d1117;border:1px solid #1e2a3a;">Participants per Pool</td>
+            <td style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:14px;background-color:#0d1117;border:1px solid #1e2a3a;">15</td>
+            <td style="padding:10px 14px;text-align:center;color:#fcd34d;font-size:14px;background-color:#0d1117;border:1px solid #1e2a3a;">30</td>
+            <td style="padding:10px 14px;text-align:center;color:#4ade80;font-size:14px;font-weight:700;background-color:#0d1117;border:1px solid #1e2a3a;">75</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 14px;color:#f1f5f9;font-size:14px;border:1px solid #1e2a3a;">Email Notifications</td>
+            <td style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:14px;border:1px solid #1e2a3a;">Basic</td>
+            <td style="padding:10px 14px;text-align:center;color:#fcd34d;font-size:14px;border:1px solid #1e2a3a;">Full</td>
+            <td style="padding:10px 14px;text-align:center;color:#4ade80;font-size:14px;font-weight:700;border:1px solid #1e2a3a;">Full</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    const content = `
+      <p style="margin:0 0 20px;color:#f1f5f9;font-size:16px;line-height:1.6;">Hi ${displayName},</p>
+      <p style="margin:0 0 20px;color:#94a3b8;font-size:15px;line-height:1.6;">
+        You're currently on the <strong style="color:#f1f5f9;">Free Plan</strong>. Upgrade today to run bigger pools, host more participants, and unlock the full Sunday Huddle experience.
+      </p>
+      ${planTable}
+      <p style="margin:16px 0 0;color:#94a3b8;font-size:14px;line-height:1.6;text-align:center;">
+        Ready to level up? Contact Sunday Huddle support to upgrade.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Unlock More',
+      content,
+      buttonText: 'Sign In to Dashboard',
+      buttonUrl: loginUrl,
+      footerText: 'You received this because you are a Sunday Huddle commissioner. Questions? Reply to this email.',
+    });
+
     return this.sendEmail({ to: email, subject, html });
   }
 }

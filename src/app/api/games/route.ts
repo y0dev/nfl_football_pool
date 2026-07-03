@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog, debugError } from '@/lib/utils';
 
-// Create Supabase client dynamically to avoid build-time issues
-function createSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    debugError('Missing Supabase environment variables:', {
-      NEXT_PUBLIC_SUPABASE_URL: !!supabaseUrl,
-      NEXT_PUBLIC_SUPABASE_SERVICE_KEY: !!supabaseServiceKey
-    });
-    throw new Error('Missing Supabase environment variables');
-  }
-  
-  return createClient(supabaseUrl, supabaseServiceKey)
-}
-
-const API_KEY = process.env.API_SPORTS_KEY
+const API_KEY = process.env.API_SPORTS_KEY || process.env.NEXT_PUBLIC_API_SPORTS_KEY;
 const BASE_URL = 'https://v3.football.api-sports.io'
 
 interface NFLGame {
@@ -198,7 +182,7 @@ export async function POST(request: NextRequest) {
     // Convert and upsert games
     const gamesToUpsert = apiGames.map(game => NFLAPI.convertGameToDatabaseFormat(game))
     
-    const supabase = createSupabaseClient()
+    const supabase = getSupabaseServiceClient()
     const { data, error } = await supabase
       .from('games')
       .upsert(gamesToUpsert, { onConflict: 'id' })
@@ -228,7 +212,7 @@ export async function GET(request: NextRequest) {
 
     if (action === 'last-update') {
       // Get the last game update time
-      const supabase = createSupabaseClient();
+      const supabase = getSupabaseServiceClient();
       const { data, error } = await supabase
         .from('games')
         .select('updated_at')
@@ -252,7 +236,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: return all games
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServiceClient();
     const { data: games, error } = await supabase
       .from('games')
       .select('*')

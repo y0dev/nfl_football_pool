@@ -16,14 +16,26 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
+    const { data: targetAdmin, error: fetchError } = await supabase
+      .from('admins')
+      .select('email, full_name')
+      .eq('id', adminId)
+      .eq('is_super_admin', false)
+      .single();
+
+    if (fetchError || !targetAdmin) {
+      return NextResponse.json({ success: false, error: 'Commissioner not found' }, { status: 404 });
+    }
+
     const updateData: Record<string, unknown> = {
       plan,
       updated_at: new Date().toISOString(),
     };
 
-    if (trialDays && Number(trialDays) > 0) {
+    const trialDaysNum = Number(trialDays);
+    if (trialDays && trialDaysNum > 0) {
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + Number(trialDays));
+      trialEndsAt.setDate(trialEndsAt.getDate() + trialDaysNum);
       updateData.trial_ends_at = trialEndsAt.toISOString();
     }
 
@@ -36,6 +48,19 @@ export async function POST(request: NextRequest) {
     if (error) {
       debugError('[SH][API][AUTH] Update plan error:', error.message);
       return NextResponse.json({ success: false, error: 'Failed to update plan' }, { status: 500 });
+    }
+
+    // Send notification email (best-effort)
+    try {
+      const { emailService } = await import('@/lib/email');
+      await emailService.sendPlanChangeNotification(
+        targetAdmin.email,
+        targetAdmin.full_name || 'Commissioner',
+        plan,
+        trialDaysNum > 0 ? trialDaysNum : undefined,
+      );
+    } catch (e) {
+      debugError('Plan change notification email failed:', e);
     }
 
     return NextResponse.json({ success: true });

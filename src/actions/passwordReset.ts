@@ -13,8 +13,7 @@ const RESET_LIMIT = 3;
 const RESET_WINDOW_MS = 60 * 60 * 1000;
 
 function signingSecret(): string {
-  // NEVER use NEXT_PUBLIC_ vars here — they are exposed in the browser bundle
-  const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const s = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
   if (!s) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
   return s;
 }

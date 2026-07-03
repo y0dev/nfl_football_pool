@@ -1,4 +1,3 @@
-import { adminService } from './admin-service';
 import { AdminDomainMapper } from './admin-domain.mapper';
 import { AdminDomainRules } from './admin-domain.rules';
 import { AdminUser } from './admin-domain.types';
@@ -16,8 +15,10 @@ async function apiFetch(endpoint: string, method: string, body: object, callerEm
 
 export const AdminDomainService = {
   async fetchAll(): Promise<AdminUser[]> {
-    const rows = await adminService.getAdmins();
-    return AdminDomainMapper.toList(rows);
+    const res = await fetch('/api/super-admin/admins');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load users');
+    return AdminDomainMapper.toList(data.admins);
   },
 
   async toggle(user: AdminUser, callerEmail: string): Promise<void> {
