@@ -18,6 +18,8 @@
 !src/hooks/**
 !tests/e2e
 !tests/e2e/**
+!tests/api
+!tests/api/**
 !tests/utils
 !tests/utils/**
 !next.config.js
