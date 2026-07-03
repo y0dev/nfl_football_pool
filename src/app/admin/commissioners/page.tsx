@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import {
   ArrowLeft, Search, Users, Eye, EyeOff,
   RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle, Zap,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Send,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Footer } from '@/components/layout/Footer';
+import { useToast } from '@/hooks/use-toast';
 import { useAdminDomain } from '@/lib/admin-domain.client';
 import { AdminUser } from '@/lib/admin-domain.types';
 import { AdminDomainRules } from '@/lib/admin-domain.rules';
@@ -51,8 +52,9 @@ const inputStyle = {
 };
 
 function CommissionersManagementContent() {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const { commissioners, stats, isLoading, refresh, actions } = useAdminDomain();
 
   const [searchTerm, setSearchTerm]                   = useState('');
@@ -74,6 +76,7 @@ function CommissionersManagementContent() {
   const [planFetching, setPlanFetching] = useState(false);
   const [planSaving, setPlanSaving]     = useState(false);
   const [planError, setPlanError]       = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -110,6 +113,25 @@ function CommissionersManagementContent() {
     setResetOpen(false);
     setNewPassword('');
     setSelected(null);
+  };
+
+  const promoTargetCount = commissioners.filter(c => c.plan === 'free' || c.isTrialActive).length;
+
+  const handleSendPromo = async () => {
+    setPromoLoading(true);
+    try {
+      const res = await fetch('/api/super-admin/send-promotion', {
+        method: 'POST',
+        headers: { 'x-admin-email': user?.email ?? '' },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to send promotions');
+      toast({ title: 'Promotions Sent', description: `Sent to ${data.sent} commissioner${data.sent !== 1 ? 's' : ''}` });
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to send', variant: 'destructive' });
+    } finally {
+      setPromoLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -221,6 +243,53 @@ function CommissionersManagementContent() {
                 <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.15rem' }}>{sub}</div>
               </div>
             ))}
+          </div>
+
+          {/* Plan breakdown */}
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.1rem 1.5rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' as const }}>
+            <div>
+              <div style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', color: textDim, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>Accounts by Plan</div>
+              <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap' as const }}>
+                {([
+                  { label: 'Free',     value: stats.byPlan.free,     color: textDim },
+                  { label: 'Standard', value: stats.byPlan.standard, color: gold },
+                  { label: 'Pro',      value: stats.byPlan.pro,      color: greenHi },
+                ]).map(({ label, value, color }) => (
+                  <div key={label}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '2rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', color: text, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '0.25rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  disabled={promoLoading || promoTargetCount === 0}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: promoTargetCount === 0 ? 'transparent' : 'oklch(74% 0.16 72 / 0.1)', color: promoTargetCount === 0 ? textDim : gold, border: `1px solid ${promoTargetCount === 0 ? border : 'oklch(74% 0.16 72 / 0.45)'}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: promoTargetCount === 0 ? 'not-allowed' : 'pointer', opacity: promoLoading ? 0.6 : 1, flexShrink: 0 }}
+                >
+                  <Send style={{ width: 13, height: 13 }} />
+                  {promoLoading ? 'Sending…' : `Send Promo${promoTargetCount > 0 ? ` (${promoTargetCount})` : ''}`}
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Send Promotional Email
+                  </AlertDialogTitle>
+                  <AlertDialogDescription style={{ color: textMid }}>
+                    Send an upgrade offer to <strong style={{ color: text }}>{promoTargetCount} commissioner{promoTargetCount !== 1 ? 's' : ''}</strong> on the free plan or active trial. They will receive an email with plan comparison and a link to sign in.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleSendPromo} style={{ background: gold, color: 'oklch(13% 0.025 255)', border: 'none' }}>
+                    {promoLoading ? 'Sending…' : 'Send Emails'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </section>

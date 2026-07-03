@@ -60,6 +60,11 @@ export function useAdminDomain(): AdminDomainResult {
     inactive: users.filter(u => !u.isActive).length,
     superAdmins: superAdmins.length,
     commissioners: commissioners.length,
+    byPlan: {
+      free: commissioners.filter(u => u.plan === 'free').length,
+      standard: commissioners.filter(u => u.plan === 'standard').length,
+      pro: commissioners.filter(u => u.plan === 'pro').length,
+    },
   }), [users, commissioners, superAdmins]);
 
   const actions: AdminDomainActions = {

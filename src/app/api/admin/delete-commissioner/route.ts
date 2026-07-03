@@ -72,9 +72,25 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to delete commissioner' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Commissioner deleted successfully' 
+    // Clean up Supabase Auth user (best-effort)
+    try {
+      await supabase.auth.admin.deleteUser(adminId);
+    } catch { /* non-fatal — older accounts may not have an auth user */ }
+
+    // Send farewell email (best-effort)
+    try {
+      const { emailService } = await import('@/lib/email');
+      await emailService.sendAccountDeletionConfirmation(
+        targetAdmin.email,
+        targetAdmin.full_name || 'Commissioner',
+      );
+    } catch (e) {
+      debugError('[SH][API][ADMIN] Farewell email failed:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Commissioner deleted successfully'
     });
 
   } catch (error) {

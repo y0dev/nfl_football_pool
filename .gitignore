@@ -30,3 +30,5 @@
 !supabase
 !docs
 !tests
+!samples
+!samples/**

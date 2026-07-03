@@ -18,4 +18,5 @@ export interface AdminDomainStats {
   inactive: number;
   superAdmins: number;
   commissioners: number;
+  byPlan: { free: number; standard: number; pro: number };
 }
