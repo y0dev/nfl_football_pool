@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
+
 // Pin singletons to globalThis so Next.js module re-evaluation (HMR, Strict Mode)
 // doesn't create additional GoTrueClient instances in the same browser/process context.
 const g = globalThis as typeof globalThis & {
@@ -32,6 +33,9 @@ export function getSupabaseServiceClient() {
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
+
+  console.log('Supabase URL:', supabaseUrl);
+  console.log('Supabase Service Key:', supabaseServiceKey ? '***' : 'Not Set');
 
   if (!supabaseUrl) {
     throw new Error('Supabase URL is required. Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your environment variables.');
