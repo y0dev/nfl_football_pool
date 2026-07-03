@@ -31,8 +31,7 @@ export function getSupabaseServiceClient() {
   if (g.__supabaseServiceClient) return g.__supabaseServiceClient;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  // Prefer the private key — NEXT_PUBLIC_ variables are exposed in the client bundle
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
+  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl) {
     throw new Error('Supabase URL is required. Please set NEXT_PUBLIC_SUPABASE_SERVICE_KEY or SUPABASE_URL in your environment variables.');
