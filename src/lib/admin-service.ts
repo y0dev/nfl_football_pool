@@ -321,7 +321,7 @@ class AdminService {
       
       const { data: admins, error } = await this.supabase
         .from('admins')
-        .select('id, email, full_name, is_super_admin, is_active, created_at')
+        .select('id, email, full_name, is_super_admin, is_active, created_at, plan, trial_ends_at')
         .order('full_name');
 
       debugLog('AdminService: Raw query result:', { data: admins, error });

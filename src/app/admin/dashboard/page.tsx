@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ComponentType, type CSSProperties } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Link2,
   Check,
+  Zap,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -29,6 +30,7 @@ import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl, debugError} from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
 import { Footer } from '@/components/layout/Footer';
@@ -58,11 +60,11 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const quarterOptions = [
   { value: 'all',      label: 'All Quarters' },
-  { value: 'Q1',       label: 'Quarter 1 (Weeks 1–4)' },
-  { value: 'Q2',       label: 'Quarter 2 (Weeks 5–8)' },
-  { value: 'Q3',       label: 'Quarter 3 (Weeks 9–12)' },
-  { value: 'Q4',       label: 'Quarter 4 (Weeks 13–16)' },
-  { value: 'Playoffs', label: 'Playoffs (Weeks 17–20)' },
+  { value: 'Q1',       label: 'Quarter 1 (Weeks 1-4)' },
+  { value: 'Q2',       label: 'Quarter 2 (Weeks 5-8)' },
+  { value: 'Q3',       label: 'Quarter 3 (Weeks 9-12)' },
+  { value: 'Q4',       label: 'Quarter 4 (Weeks 13-16)' },
+  { value: 'Playoffs', label: 'Playoffs (Weeks 17-20)' },
 ];
 
 interface Pool {
@@ -71,6 +73,91 @@ interface Pool {
   season: number;
   is_active: boolean;
   is_closed?: boolean;
+}
+
+interface QuickAction {
+  icon: ComponentType<{ style?: CSSProperties }>;
+  accent: string;
+  title: string;
+  onClick: () => void;
+}
+
+function QuickActionsPanel({
+  actions, selectedQuarter, setSelectedQuarter, isGeneratingWinners, handleGeneratePeriodWinners,
+}: {
+  actions: QuickAction[];
+  selectedQuarter: string;
+  setSelectedQuarter: (v: string) => void;
+  isGeneratingWinners: boolean;
+  handleGeneratePeriodWinners: () => void;
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
+        <span style={{ display: 'block', width: 3, height: 16, background: green, borderRadius: 2, flexShrink: 0 }} />
+        <h2 style={{ ...bc, fontWeight: 800, fontSize: '0.8rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+          Quick Actions
+        </h2>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        {actions.map(({ icon: Icon, accent, title, onClick }) => (
+          <button
+            key={title}
+            onClick={onClick}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.55rem',
+              padding: '0.55rem 0.65rem', width: '100%',
+              background: 'transparent', border: `1px solid ${border}`, borderRadius: 7,
+              color: text, textAlign: 'left', cursor: 'pointer',
+              ...b, fontSize: '0.76rem', fontWeight: 600,
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = card; e.currentTarget.style.borderColor = accent; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = border; }}
+          >
+            <Icon style={{ width: 14, height: 14, color: accent, flexShrink: 0 }} />
+            {title}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${border}`, marginTop: '0.75rem', paddingTop: '0.75rem' }}>
+        <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', ...bc, fontWeight: 700, fontSize: '0.68rem', color: textDim, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+          <Trophy style={{ width: 12, height: 12, color: gold }} /> Period Winners
+        </p>
+        <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+          <SelectTrigger style={{ width: '100%', fontSize: '0.76rem' }}>
+            <SelectValue placeholder="Select quarter" />
+          </SelectTrigger>
+          <SelectContent>
+            {quarterOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          onClick={handleGeneratePeriodWinners}
+          disabled={isGeneratingWinners}
+          style={{
+            marginTop: '0.5rem', width: '100%',
+            padding: '0.5rem 0.75rem',
+            background: isGeneratingWinners ? 'oklch(35% 0.08 155)' : green,
+            color: text, border: 'none', borderRadius: 6,
+            ...bc, fontWeight: 700, fontSize: '0.72rem',
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+            cursor: isGeneratingWinners ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+          }}
+        >
+          {isGeneratingWinners
+            ? <><RefreshCw style={{ width: 12, height: 12 }} className="animate-spin" /> Generating…</>
+            : <><Trophy style={{ width: 12, height: 12 }} /> Generate Winners</>
+          }
+        </button>
+      </div>
+    </>
+  );
 }
 
 function AdminDashboardContent() {
@@ -118,6 +205,7 @@ function AdminDashboardContent() {
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [quickActionsMobileOpen, setQuickActionsMobileOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -501,12 +589,23 @@ function AdminDashboardContent() {
     { label: 'Commissioners',  value: admins.filter(a => !a.is_super_admin).length,        sub: 'Pool managers' },
   ];
 
+  const now = new Date();
+  const commissionerAdmins = admins.filter(a => !a.is_super_admin);
+  const payingCommissioners = commissionerAdmins.filter(a => a.plan === 'standard' || a.plan === 'pro').length;
+  const freeCommissioners   = commissionerAdmins.filter(a => (a.plan ?? 'free') === 'free').length;
+  const trialingCommissioners = commissionerAdmins.filter(a => a.trial_ends_at && new Date(a.trial_ends_at) > now).length;
+  const planItems = [
+    { label: 'Paying',   value: payingCommissioners,   sub: 'Standard + Pro plans', color: greenHi },
+    { label: 'Free',     value: freeCommissioners,     sub: 'Free plan',            color: textDim },
+    { label: 'On Trial',  value: trialingCommissioners,  sub: 'Temporary Standard access', color: amber },
+  ];
+
   const actions = [
-    { icon: Users,    accent: green,                   title: 'Manage Commissioners', desc: 'Create and manage commissioner accounts',    label: 'Manage Commissioners', onClick: () => router.push(createPageUrl('admincommissioners')) },
-    { icon: Shield,   accent: green,                   title: 'Manage Admins',        desc: 'Reset passwords and manage admin accounts',  label: 'Manage Admins',        onClick: () => router.push('/admin/manage-admins') },
-    { icon: Trophy,   accent: gold,                    title: 'Playoff Management',   desc: 'Manage playoff teams and games',              label: 'Manage Playoffs',      onClick: () => router.push('/admin/playoffs') },
-    { icon: Calendar, accent: green,                   title: 'NFL Sync',             desc: 'Synchronize NFL game data',                  label: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
-    { icon: Calendar, accent: 'oklch(65% 0.12 290)',  title: 'Season Games',         desc: 'Import and manage full season schedules',    label: 'Season Games',         onClick: () => router.push('/admin/season-games') },
+    { icon: Users,    accent: green,                    title: 'Manage Commissioners', onClick: () => router.push(createPageUrl('admincommissioners')) },
+    { icon: Shield,   accent: green,                    title: 'Manage Admins',        onClick: () => router.push('/admin/manage-admins') },
+    { icon: Trophy,   accent: gold,                     title: 'Playoff Management',   onClick: () => router.push('/admin/playoffs') },
+    { icon: Calendar, accent: green,                    title: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
+    { icon: Calendar, accent: 'oklch(65% 0.12 290)',    title: 'Season Games',         onClick: () => router.push('/admin/season-games') },
   ];
 
   return (
@@ -787,6 +886,35 @@ function AdminDashboardContent() {
       {/* ── green rule ── */}
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
+      {/* ── COMMISSIONER PLANS ── */}
+      <section style={{ background: surface, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2, flexShrink: 0 }} />
+              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+                Commissioner Plans
+              </h2>
+            </div>
+            <button
+              onClick={() => router.push('/admin/commissioners')}
+              style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: greenHi, background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              Manage &amp; Send Promo →
+            </button>
+          </div>
+          <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
+            {planItems.map(({ label, value, sub, color }) => (
+              <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2rem', color, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</div>
+                <div style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.3rem' }}>{label}</div>
+                <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '0.15rem' }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── OFFSEASON BANNER ── */}
       {currentSeasonType === 0 && (
         <section style={{ background: bg, padding: '2rem 0' }}>
@@ -796,8 +924,56 @@ function AdminDashboardContent() {
         </section>
       )}
 
+      {/* ── WEEK SCOREBOARD ── */}
+      <section
+       id="week-scoreboard"
+       style={{ background: bg, padding: '3.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
+            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              {weekTitle}
+            </h3>
+            <span style={{ ...bc, fontSize: '0.72rem', color: textDim, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {seasonLabel}
+            </span>
+          </div>
+
+          <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+            {/* Column headers */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
+              background: card, borderBottom: `1px solid ${border}`,
+              padding: '0.625rem 1.25rem',
+            }}>
+              {['Games', 'Last Sync'].map(h => (
+                <div key={h} style={{ textAlign: 'center' }}>
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>{h}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Values */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', padding: '1.75rem 1.25rem', gap: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
+                  {dashboardStats.totalGames}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>scheduled</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ ...bc, fontWeight: 700, fontSize: '1.1rem', color: text, lineHeight: 1 }}>
+                  {lastGameUpdate ? lastGameUpdate.toLocaleTimeString() : '—'}
+                </div>
+                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>last game sync</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── POOL WORKSPACE ── */}
-      <section style={{ background: bg, padding: '3.5rem 0' }}>
+      <section style={{ background: surface, padding: '3.5rem 0' }}>
         <div id='pool-workspace' className="lp-inner">
 
           {/* Header row */}
@@ -830,7 +1006,7 @@ function AdminDashboardContent() {
             <div>
               {/* Pool info card */}
               <div style={{
-                background: surface,
+                background: card,
                 border: `1px solid ${border}`,
                 borderTop: `3px solid ${green}`,
                 borderRadius: 10,
@@ -1057,7 +1233,7 @@ function AdminDashboardContent() {
               )}
             </div>
           ) : !poolsLoading ? (
-            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>
               <Trophy style={{ width: 24, height: 24, color: textDim, margin: '0 auto 0.75rem' }} />
               <p style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>No Pools Yet</p>
               <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.4rem' }}>Create a pool to manage it here.</p>
@@ -1081,156 +1257,50 @@ function AdminDashboardContent() {
         </div>
       </section>
 
-      {/* ── QUICK ACTIONS ── */}
-      <section style={{ background: surface, padding: '3rem 0' }}>
-        <div className="lp-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
-            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-              Quick Actions
-            </h2>
-          </div>
-
-          <div className="admin-actions-grid">
-            {actions.map(({ icon: Icon, accent, title, desc, label, onClick }) => (
-              <div key={title} style={{
-                background: card,
-                border: `1px solid ${border}`,
-                borderLeft: `3px solid ${accent}`,
-                borderRadius: 8,
-                padding: '1.5rem',
-                display: 'flex', flexDirection: 'column', gap: '0.75rem',
-              }}>
-                <div>
-                  <Icon style={{ width: 20, height: 20, color: accent, marginBottom: '0.5rem' }} />
-                  <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.3rem' }}>
-                    {title}
-                  </h3>
-                  <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.55, color: textMid }}>
-                    {desc}
-                  </p>
-                </div>
-                <button
-                  onClick={onClick}
-                  style={{
-                    marginTop: 'auto',
-                    padding: '0.5rem 1rem',
-                    background: green, color: text,
-                    border: 'none', borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.8rem',
-                    letterSpacing: '0.08em', textTransform: 'uppercase',
-                    cursor: 'pointer', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = greenHi)}
-                  onMouseLeave={e => (e.currentTarget.style.background = green)}
-                >
-                  {label}
-                </button>
-              </div>
-            ))}
-
-            {/* Generate Period Winners — has extra Select UI */}
-            <div style={{
-              background: card,
-              border: `1px solid ${border}`,
-              borderLeft: `3px solid ${gold}`,
-              borderRadius: 8,
-              padding: '1.5rem',
-              display: 'flex', flexDirection: 'column', gap: '0.75rem',
-            }}>
-              <div>
-                <Trophy style={{ width: 20, height: 20, color: gold, marginBottom: '0.5rem' }} />
-                <h3 style={{ ...bc, fontWeight: 700, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', marginBottom: '0.3rem' }}>
-                  Generate Period Winners
-                </h3>
-                <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.55, color: textMid }}>
-                  Calculate and generate period winners for all pools
-                </p>
-              </div>
-              <div>
-                <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 600, color: textDim, display: 'block', marginBottom: '0.375rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Select Quarter
-                </label>
-                <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                  <SelectTrigger style={{ width: '100%' }}>
-                    <SelectValue placeholder="Select quarter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {quarterOptions.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <button
-                onClick={handleGeneratePeriodWinners}
-                disabled={isGeneratingWinners}
-                style={{
-                  marginTop: 'auto',
-                  padding: '0.5rem 1rem',
-                  background: isGeneratingWinners ? 'oklch(35% 0.08 155)' : green,
-                  color: text, border: 'none', borderRadius: 6,
-                  ...bc, fontWeight: 700, fontSize: '0.8rem',
-                  letterSpacing: '0.08em', textTransform: 'uppercase',
-                  cursor: isGeneratingWinners ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                }}
-              >
-                {isGeneratingWinners
-                  ? <><RefreshCw style={{ width: 13, height: 13 }} className="animate-spin" /> Generating…</>
-                  : <><Trophy style={{ width: 13, height: 13 }} /> Generate Winners</>
-                }
-              </button>
-            </div>
-          </div>
+      {/* ── QUICK ACTIONS (floating sidebar — wide viewports) ── */}
+      <aside className="admin-qa-float" style={{ position: 'fixed', top: 88, maxHeight: 'calc(100vh - 112px)', overflowY: 'auto', zIndex: 40 }}>
+        <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '1rem', boxShadow: '0 12px 28px oklch(0% 0 0 / 0.4)' }}>
+          <QuickActionsPanel
+            actions={actions}
+            selectedQuarter={selectedQuarter}
+            setSelectedQuarter={setSelectedQuarter}
+            isGeneratingWinners={isGeneratingWinners}
+            handleGeneratePeriodWinners={handleGeneratePeriodWinners}
+          />
         </div>
-      </section>
+      </aside>
 
-      {/* ── WEEK SCOREBOARD ── */}
-      <section style={{ background: bg, padding: '3.5rem 0' }}>
-        <div className="lp-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
-            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-              {weekTitle}
-            </h3>
-            <span style={{ ...bc, fontSize: '0.72rem', color: textDim, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              {seasonLabel}
-            </span>
-          </div>
+      {/* ── QUICK ACTIONS (FAB — narrow viewports, below 900px) ── */}
+      <button
+        className="admin-qa-fab"
+        onClick={() => setQuickActionsMobileOpen(true)}
+        aria-label="Open quick actions"
+        style={{
+          position: 'fixed', bottom: '1.25rem', right: '1.25rem',
+          width: 52, height: 52, borderRadius: '50%',
+          background: green, color: text, border: 'none',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 8px 20px oklch(0% 0 0 / 0.45)',
+          cursor: 'pointer', zIndex: 45,
+        }}
+      >
+        <Zap style={{ width: 22, height: 22 }} />
+      </button>
 
-          <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-            {/* Column headers */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
-              background: card, borderBottom: `1px solid ${border}`,
-              padding: '0.625rem 1.25rem',
-            }}>
-              {['Games', 'Last Sync'].map(h => (
-                <div key={h} style={{ textAlign: 'center' }}>
-                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>{h}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Values */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', padding: '1.75rem 1.25rem', gap: '1rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ ...bc, fontWeight: 900, fontSize: '2.5rem', color: greenHi, lineHeight: 1, letterSpacing: '0.02em' }}>
-                  {dashboardStats.totalGames}
-                </div>
-                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>scheduled</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ ...bc, fontWeight: 700, fontSize: '1.1rem', color: text, lineHeight: 1 }}>
-                  {lastGameUpdate ? lastGameUpdate.toLocaleTimeString() : '—'}
-                </div>
-                <div style={{ ...b, fontSize: '0.7rem', color: textDim, marginTop: '0.25rem' }}>last game sync</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Dialog open={quickActionsMobileOpen} onOpenChange={setQuickActionsMobileOpen}>
+        <DialogContent style={{ maxWidth: '22rem', background: surface, border: `1px solid ${border}` }}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">Quick Actions</DialogTitle>
+          </DialogHeader>
+          <QuickActionsPanel
+            actions={actions}
+            selectedQuarter={selectedQuarter}
+            setSelectedQuarter={setSelectedQuarter}
+            isGeneratingWinners={isGeneratingWinners}
+            handleGeneratePeriodWinners={handleGeneratePeriodWinners}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* ── RECENT ACTIVITY ── */}
       <section style={{ background: bg, padding: '3.5rem 0' }}>
