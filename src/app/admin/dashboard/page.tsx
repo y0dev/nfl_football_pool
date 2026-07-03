@@ -632,6 +632,7 @@ function AdminDashboardContent() {
 
   const selectedPool = pools.find(p => p.id === selectedPoolId) ?? null;
   const selectedPoolHasPlayoffs = selectedPool?.season_scope?.includes(3) ?? false;
+  const selectedPoolHasRegularSeason = selectedPool?.season_scope?.includes(2) ?? true;
   const gamesSeasonTypeWeeks = GAMES_SEASON_TYPES.find(t => t.value === gamesSeasonType)?.weeks ?? 18;
   const gamesForSelectedWeek = gamesByWeek.find(w => w.week === gamesWeek)?.games ?? [];
   const poolStats = [
@@ -1268,7 +1269,10 @@ function AdminDashboardContent() {
                   { id: 'season-review',  label: 'Season Review',  icon: Calendar },
                   { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
                   { id: 'settings',       label: 'Settings',       icon: Settings },
-                ] as const).filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs).map(({ id, label, icon: Icon }) => {
+                ] as const)
+                  .filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs)
+                  .filter(t => t.id !== 'season-review' || selectedPoolHasRegularSeason)
+                  .map(({ id, label, icon: Icon }) => {
                   const active = activePoolTab === id;
                   return (
                     <button
@@ -1380,11 +1384,11 @@ function AdminDashboardContent() {
 
               {/* Override Picks tab */}
               {activePoolTab === 'override-picks' && (
-                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={selectedPool.season} />
+                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={selectedPool.season} seasonScope={selectedPool.season_scope} />
               )}
 
               {/* Season Review tab */}
-              {activePoolTab === 'season-review' && (
+              {activePoolTab === 'season-review' && selectedPoolHasRegularSeason && (
                 <SeasonReviewPanel poolId={selectedPoolId} season={selectedPool.season} />
               )}
 

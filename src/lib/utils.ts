@@ -179,6 +179,14 @@ export const MAX_WEEKS_REGULAR_SEASON = 18;
 const MAX_WEEKS_POSTSEASON = 4;
 export const DEFAULT_WEEK = 1;
 
+// season_type value -> label + week count, shared by anything that lets a user
+// pick a season type/week (override picks, games browser, season-games admin).
+export const SEASON_TYPE_OPTIONS = [
+  { value: 1, label: 'Preseason',      weeks: MAX_WEEKS_PRESEASON },
+  { value: 2, label: 'Regular Season', weeks: MAX_WEEKS_REGULAR_SEASON },
+  { value: 3, label: 'Playoffs',       weeks: MAX_WEEKS_POSTSEASON },
+] as const;
+
 // Confidence Points Configuration
 const MIN_CONFIDENCE_POINTS = 1;
 const MAX_CONFIDENCE_POINTS = 16;

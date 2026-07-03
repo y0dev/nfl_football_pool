@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Target, Users, Calendar, Edit, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE } from '@/lib/utils';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, SEASON_TYPE_OPTIONS } from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 
@@ -49,15 +49,30 @@ interface OverridePicksPanelProps {
   poolId: string;
   poolName: string;
   currentSeason: number;
+  seasonScope?: number[];
 }
 
-export function OverridePicksPanel({ poolId, poolName, currentSeason }: OverridePicksPanelProps) {
+export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScope }: OverridePicksPanelProps) {
   const { toast } = useToast();
-  const [weeks, setWeeks] = useState<number[]>([]);
+
+  // Only offer season types this pool actually covers, and the correct week
+  // range for whichever one is selected — a pool scoped to Regular Season
+  // only shouldn't let a commissioner override picks for Playoffs weeks.
+  const seasonTypes = useMemo(() => {
+    const scope = seasonScope && seasonScope.length > 0 ? seasonScope : [1, 2, 3];
+    const allowed = SEASON_TYPE_OPTIONS.filter(t => scope.includes(t.value));
+    return allowed.length > 0 ? allowed : SEASON_TYPE_OPTIONS.filter(t => t.value === 2);
+  }, [seasonScope]);
+
   const [selectedWeek, setSelectedWeek] = useState<string>('');
-  const [seasonTypes, setSeasonTypes] = useState<{ value: number; label: string }[]>([]);
-  const [selectedSeasonType, setSelectedSeasonType] = useState<string>('2');
+  const [selectedSeasonType, setSelectedSeasonType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const weeks = useMemo(() => {
+    const type = seasonTypes.find(t => t.value.toString() === selectedSeasonType) ?? seasonTypes[0];
+    const count = type?.weeks ?? 18;
+    return Array.from({ length: count }, (_, i) => i + 1);
+  }, [selectedSeasonType, seasonTypes]);
   const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
@@ -142,38 +157,32 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason }: Override
 
   useEffect(() => {
     const init = async () => {
+      const scopeValues = seasonTypes.map(t => t.value);
+      const defaultType = seasonTypes.find(t => t.value === 2) ?? seasonTypes[0];
       try {
         const client = getSupabaseClient();
         const { data: game } = await client
           .from('games').select('week, season_type')
+          .in('season_type', scopeValues)
           .order('week', { ascending: false }).limit(1).single();
 
-        const weekList = Array.from({ length: 18 }, (_, i) => i + 1);
-        const stList = [
-          { value: 1, label: 'Preseason' },
-          { value: 2, label: 'Regular Season' },
-          { value: 3, label: 'Playoffs' },
-        ];
-        setWeeks(weekList);
-        setSeasonTypes(stList);
-        if (game) {
-          setSelectedWeek(String(game.week));
+        if (game && scopeValues.includes(game.season_type)) {
           setSelectedSeasonType(String(game.season_type));
+          setSelectedWeek(String(game.week));
+        } else {
+          setSelectedSeasonType(String(defaultType?.value ?? 2));
+          setSelectedWeek('1');
         }
       } catch {
-        setWeeks(Array.from({ length: 18 }, (_, i) => i + 1));
-        setSeasonTypes([
-          { value: 1, label: 'Preseason' },
-          { value: 2, label: 'Regular Season' },
-          { value: 3, label: 'Playoffs' },
-        ]);
+        setSelectedSeasonType(String(defaultType?.value ?? 2));
+        setSelectedWeek('1');
       } finally {
         setIsLoading(false);
       }
     };
     init();
     loadAllParticipants();
-  }, [poolId, loadAllParticipants]);
+  }, [poolId, loadAllParticipants, seasonTypes]);
 
   useEffect(() => {
     if (selectedWeek && selectedSeasonType) {
@@ -309,7 +318,7 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason }: Override
           </div>
           <div>
             <label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Season Type</label>
-            <Select value={selectedSeasonType} onValueChange={setSelectedSeasonType}>
+            <Select value={selectedSeasonType} onValueChange={(v) => { setSelectedSeasonType(v); setSelectedWeek('1'); }}>
               <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
                 <SelectValue placeholder="Season type" />
               </SelectTrigger>
