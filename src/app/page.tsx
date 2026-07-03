@@ -120,7 +120,7 @@ function LandingPage() {
 
   const getGameScore = (game: Game) => {
     if (game.status === 'scheduled') return '';
-    return `${game.away_score} – ${game.home_score}`;
+    return `${game.away_score} - ${game.home_score}`;
   };
 
   // Derive title from actual loaded data, not the calendar-based isOffseason() check
@@ -146,7 +146,7 @@ function LandingPage() {
   const features = [
     { icon: Trophy,   label: 'Weekly Competition', body: 'Confidence points separate the bold from the lucky — assign more points to games you are sure about.',   accent: gold },
     { icon: Users,    label: 'Commissioner Tools',  body: 'Create a pool, invite players, manage picks, and track standings. Everything you need to run a great season.', accent: greenHi },
-    { icon: Calendar, label: 'All Season Long',     body: 'Q1–Q4 period prizes, playoff pools, and email reminders keep every week on the line through February.',   accent: gold },
+    { icon: Calendar, label: 'All Season Long',     body: 'Q1-Q4 period prizes, playoff pools, and email reminders keep every week on the line through February.',   accent: gold },
   ];
 
   const commissionerSteps = [

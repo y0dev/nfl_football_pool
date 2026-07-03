@@ -369,10 +369,10 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
                   <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Period 1">Period 1 (Weeks 1–4)</SelectItem>
-                  <SelectItem value="Period 2">Period 2 (Weeks 5–9)</SelectItem>
-                  <SelectItem value="Period 3">Period 3 (Weeks 10–14)</SelectItem>
-                  <SelectItem value="Period 4">Period 4 (Weeks 15–18)</SelectItem>
+                  <SelectItem value="Period 1">Period 1 (Weeks 1-4)</SelectItem>
+                  <SelectItem value="Period 2">Period 2 (Weeks 5-9)</SelectItem>
+                  <SelectItem value="Period 3">Period 3 (Weeks 10-14)</SelectItem>
+                  <SelectItem value="Period 4">Period 4 (Weeks 15-18)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

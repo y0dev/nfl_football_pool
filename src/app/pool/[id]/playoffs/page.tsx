@@ -678,7 +678,7 @@ function PlayoffsPageContent() {
                 Submit Playoff Confidence Points
               </p>
               <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.25rem' }}>
-                Assign confidence points (1–{sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '').length}) to each playoff team. Points cannot be changed after submission. Each number can only be used once.
+                Assign confidence points (1-{sortedPlayoffTeams.filter(t => t.team_name && t.team_name.trim() !== '').length}) to each playoff team. Points cannot be changed after submission. Each number can only be used once.
               </p>
 
               {/* Participant Selection */}

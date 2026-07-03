@@ -167,7 +167,7 @@ export function SharePoolButton({ poolId, poolName, seasonScope }: SharePoolButt
               </SelectContent>
             </Select>
             <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>
-              {getSeasonTypeName(selectedSeasonType)} · Weeks 1–{getMaxWeeks(selectedSeasonType)}
+              {getSeasonTypeName(selectedSeasonType)} · Weeks 1-{getMaxWeeks(selectedSeasonType)}
             </p>
           </div>
 
