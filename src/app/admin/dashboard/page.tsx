@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, type ComponentType, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
+import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -22,12 +23,13 @@ import {
   Link2,
   Check,
   Zap,
+  Clock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog, createPageUrl, debugError} from '@/lib/utils';
+import { debugLog, createPageUrl, debugError, getTeam, getTeamAbbreviation } from '@/lib/utils';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -67,12 +69,32 @@ const quarterOptions = [
   { value: 'Playoffs', label: 'Playoffs (Weeks 17-20)' },
 ];
 
+const GAMES_SEASON_TYPES = [
+  { value: 1, label: 'Preseason', weeks: 4 },
+  { value: 2, label: 'Regular Season', weeks: 18 },
+  { value: 3, label: 'Playoffs', weeks: 4 },
+];
+const gamesCurrentYear = new Date().getFullYear();
+const GAMES_YEARS = [gamesCurrentYear - 1, gamesCurrentYear, gamesCurrentYear + 1];
+
+interface WeekGame {
+  id: string;
+  home_team: string;
+  away_team: string;
+  kickoff_time: string;
+  status: string;
+  winner?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+}
+
 interface Pool {
   id: string;
   name: string;
   season: number;
   is_active: boolean;
   is_closed?: boolean;
+  season_scope?: number[];
 }
 
 interface QuickAction {
@@ -207,6 +229,41 @@ function AdminDashboardContent() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
+  // Games browser (season/week toggle)
+  const [gamesSeasonYear, setGamesSeasonYear] = useState(gamesCurrentYear);
+  const [gamesSeasonType, setGamesSeasonType] = useState(2);
+  const [gamesWeek, setGamesWeek]             = useState(1);
+  const [gamesByWeek, setGamesByWeek]         = useState<{ week: number; games: WeekGame[] }[]>([]);
+  const [gamesListLoading, setGamesListLoading] = useState(false);
+  const gamesToggleSeeded = useRef(false);
+
+  // Seed the games browser to "this week" once real season/week data loads, then
+  // leave it alone so manual toggling isn't fought by later re-renders.
+  useEffect(() => {
+    if (!gamesToggleSeeded.current && currentSeasonType && currentSeasonType !== 0) {
+      gamesToggleSeeded.current = true;
+      setGamesSeasonYear(currentSeason);
+      setGamesSeasonType(currentSeasonType);
+      setGamesWeek(currentWeek);
+    }
+  }, [currentSeason, currentSeasonType, currentWeek]);
+
+  useEffect(() => {
+    const loadGamesForSeason = async () => {
+      setGamesListLoading(true);
+      try {
+        const res = await fetch(`/api/admin/season-games?season=${gamesSeasonYear}&seasonType=${gamesSeasonType}`);
+        const data = await res.json();
+        if (data.success) setGamesByWeek(data.weeks ?? []);
+      } catch (err) {
+        debugError('Error loading games for season:', err);
+      } finally {
+        setGamesListLoading(false);
+      }
+    };
+    loadGamesForSeason();
+  }, [gamesSeasonYear, gamesSeasonType]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -319,7 +376,8 @@ function AdminDashboardContent() {
       if (data.success && Array.isArray(data.pools)) {
         const sorted: Pool[] = [...data.pools].sort((a: Pool, b: Pool) => b.season - a.season);
         setPools(sorted);
-        if (sorted.length > 0) setSelectedPoolId(sorted[0].id);
+        const stillExists = sorted.some(p => p.id === selectedPoolId);
+        if (sorted.length > 0 && !stillExists) setSelectedPoolId(sorted[0].id);
       }
     } catch (err) {
       debugError('Error loading pools:', err);
@@ -499,6 +557,7 @@ function AdminDashboardContent() {
       await loadDashboardStats();
       await loadLastGameUpdate();
       await loadRecentActivity();
+      await loadPools();
       setLastRefresh(new Date());
       toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
     } catch {
@@ -572,6 +631,9 @@ function AdminDashboardContent() {
 
 
   const selectedPool = pools.find(p => p.id === selectedPoolId) ?? null;
+  const selectedPoolHasPlayoffs = selectedPool?.season_scope?.includes(3) ?? false;
+  const gamesSeasonTypeWeeks = GAMES_SEASON_TYPES.find(t => t.value === gamesSeasonType)?.weeks ?? 18;
+  const gamesForSelectedWeek = gamesByWeek.find(w => w.week === gamesWeek)?.games ?? [];
   const poolStats = [
     { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
     { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
@@ -981,6 +1043,119 @@ function AdminDashboardContent() {
               </div>
             </div>
           </div>
+
+          {/* Games browser — toggle season / week, list games for that week */}
+          <div style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Season</p>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  {GAMES_YEARS.map(y => (
+                    <button
+                      key={y}
+                      onClick={() => setGamesSeasonYear(y)}
+                      style={{ padding: '0.4rem 0.7rem', background: gamesSeasonYear === y ? green : 'transparent', color: gamesSeasonYear === y ? text : textMid, border: `1px solid ${gamesSeasonYear === y ? green : border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.76rem', letterSpacing: '0.04em', cursor: 'pointer' }}
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Type</p>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  {GAMES_SEASON_TYPES.map(st => (
+                    <button
+                      key={st.value}
+                      onClick={() => { setGamesSeasonType(st.value); setGamesWeek(1); }}
+                      style={{ padding: '0.4rem 0.7rem', background: gamesSeasonType === st.value ? green : 'transparent', color: gamesSeasonType === st.value ? text : textMid, border: `1px solid ${gamesSeasonType === st.value ? green : border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.76rem', letterSpacing: '0.04em', cursor: 'pointer' }}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Week pills */}
+            <div className="hide-scrollbar" style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', marginBottom: '1rem' }}>
+              {Array.from({ length: gamesSeasonTypeWeeks }, (_, i) => i + 1).map(w => (
+                <button
+                  key={w}
+                  onClick={() => setGamesWeek(w)}
+                  style={{
+                    width: 36, height: 36, flexShrink: 0, borderRadius: 8,
+                    background: gamesWeek === w ? green : card,
+                    color: gamesWeek === w ? text : textMid,
+                    border: `1px solid ${gamesWeek === w ? green : border}`,
+                    ...bc, fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+                  }}
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+
+            {/* Games list */}
+            {gamesListLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: textDim, ...b, fontSize: '0.85rem' }}>Loading games…</div>
+            ) : gamesForSelectedWeek.length === 0 ? (
+              <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+                <p style={{ ...b, fontSize: '0.85rem', color: textDim }}>No games scheduled for Week {gamesWeek}.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {gamesForSelectedWeek.map(g => {
+                  const away = getTeam(getTeamAbbreviation(g.away_team));
+                  const home = getTeam(getTeamAbbreviation(g.home_team));
+                  const statusNorm = g.status?.toLowerCase();
+                  const isFinal = statusNorm === 'final' || statusNorm === 'post';
+                  const isLive = statusNorm === 'in_progress' || statusNorm === 'live';
+                  const winnerCity = g.winner ? getTeam(getTeamAbbreviation(g.winner)).city : null;
+                  let kickoffLabel = '';
+                  try { kickoffLabel = format(new Date(g.kickoff_time), 'EEE MMM d, h:mm a'); } catch { kickoffLabel = g.kickoff_time; }
+
+                  return (
+                    <div
+                      key={g.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem',
+                        background: card, border: `1px solid ${border}`, borderRadius: 10,
+                        padding: '0.75rem 1rem',
+                      }}
+                    >
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: away.color, ...bc, fontWeight: 900, fontSize: '0.65rem', color: '#fff' }}>
+                        {away.abbreviation}
+                      </div>
+                      <span style={{ ...b, fontSize: '0.72rem', color: textDim, flexShrink: 0 }}>@</span>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: home.color, ...bc, fontWeight: 900, fontSize: '0.65rem', color: '#fff' }}>
+                        {home.abbreviation}
+                      </div>
+                      <p style={{ ...b, fontSize: '0.85rem', color: text, flex: 1, minWidth: 0 }}>
+                        {away.city} at {home.city}
+                      </p>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        {isFinal && winnerCity ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.78rem', color: greenHi }}>
+                            <Check size={13} /> {winnerCity}
+                          </span>
+                        ) : isLive ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', ...bc, fontWeight: 700, fontSize: '0.78rem', color: liveRed }}>
+                            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, animation: 'pulse 1.4s ease-in-out infinite' }} />
+                            {g.away_score ?? 0}-{g.home_score ?? 0}
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...b, fontSize: '0.75rem', color: textDim }}>
+                            <Clock size={12} /> {kickoffLabel}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -1093,7 +1268,7 @@ function AdminDashboardContent() {
                   { id: 'season-review',  label: 'Season Review',  icon: Calendar },
                   { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
                   { id: 'settings',       label: 'Settings',       icon: Settings },
-                ] as const).map(({ id, label, icon: Icon }) => {
+                ] as const).filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs).map(({ id, label, icon: Icon }) => {
                   const active = activePoolTab === id;
                   return (
                     <button
@@ -1214,7 +1389,7 @@ function AdminDashboardContent() {
               )}
 
               {/* Playoffs tab */}
-              {activePoolTab === 'playoffs' && (
+              {activePoolTab === 'playoffs' && selectedPoolHasPlayoffs && (
                 <div>
                   <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
