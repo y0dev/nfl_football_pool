@@ -197,6 +197,11 @@ export function PoolPicksContent() {
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
+  useEffect(() => {
+    if (!poolName) return;
+    document.title = `${poolName} - ${getWeekTitle()} | Sunday Huddle`;
+  }, [poolName, currentWeek, currentSeasonType]);
+
   const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
     if (!poolId) return false;
 
