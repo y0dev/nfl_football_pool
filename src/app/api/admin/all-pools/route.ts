@@ -7,7 +7,7 @@ export async function GET(_request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     const { data: pools, error } = await supabase
       .from('pools')
-      .select('id, name, is_active, season, created_by, created_at, participants(count)')
+      .select('id, name, is_active, season, season_scope, created_by, created_at, participants(count)')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

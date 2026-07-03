@@ -73,6 +73,7 @@ interface Pool {
   season: number;
   is_active: boolean;
   is_closed?: boolean;
+  season_scope?: number[];
 }
 
 interface QuickAction {
@@ -319,7 +320,8 @@ function AdminDashboardContent() {
       if (data.success && Array.isArray(data.pools)) {
         const sorted: Pool[] = [...data.pools].sort((a: Pool, b: Pool) => b.season - a.season);
         setPools(sorted);
-        if (sorted.length > 0) setSelectedPoolId(sorted[0].id);
+        const stillExists = sorted.some(p => p.id === selectedPoolId);
+        if (sorted.length > 0 && !stillExists) setSelectedPoolId(sorted[0].id);
       }
     } catch (err) {
       debugError('Error loading pools:', err);
@@ -499,6 +501,7 @@ function AdminDashboardContent() {
       await loadDashboardStats();
       await loadLastGameUpdate();
       await loadRecentActivity();
+      await loadPools();
       setLastRefresh(new Date());
       toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
     } catch {
@@ -572,6 +575,7 @@ function AdminDashboardContent() {
 
 
   const selectedPool = pools.find(p => p.id === selectedPoolId) ?? null;
+  const selectedPoolHasPlayoffs = selectedPool?.season_scope?.includes(3) ?? false;
   const poolStats = [
     { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
     { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
@@ -1093,7 +1097,7 @@ function AdminDashboardContent() {
                   { id: 'season-review',  label: 'Season Review',  icon: Calendar },
                   { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
                   { id: 'settings',       label: 'Settings',       icon: Settings },
-                ] as const).map(({ id, label, icon: Icon }) => {
+                ] as const).filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs).map(({ id, label, icon: Icon }) => {
                   const active = activePoolTab === id;
                   return (
                     <button
@@ -1214,7 +1218,7 @@ function AdminDashboardContent() {
               )}
 
               {/* Playoffs tab */}
-              {activePoolTab === 'playoffs' && (
+              {activePoolTab === 'playoffs' && selectedPoolHasPlayoffs && (
                 <div>
                   <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
