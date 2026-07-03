@@ -7,6 +7,9 @@ export interface AdminUser {
   role: AdminRole;
   isActive: boolean;
   createdAt: string;
+  plan: string;
+  isTrialActive: boolean;
+  daysLeft: number;
 }
 
 export interface AdminDomainStats {

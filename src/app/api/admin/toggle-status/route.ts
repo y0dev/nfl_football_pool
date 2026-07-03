@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Update the active status
     const { error: updateError } = await supabase
       .from('admins')
-      .update({ 
+      .update({
         is_active: isActive,
         updated_at: new Date().toISOString()
       })
@@ -57,9 +57,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to update status' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Commissioner ${isActive ? 'activated' : 'deactivated'} successfully` 
+    // Send notification email (best-effort)
+    try {
+      const { emailService } = await import('@/lib/email');
+      await emailService.sendStatusChangeNotification(
+        targetAdmin.email,
+        targetAdmin.full_name || 'Commissioner',
+        isActive,
+      );
+    } catch (e) {
+      debugError('Status notification email failed:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Commissioner ${isActive ? 'activated' : 'deactivated'} successfully`
     });
 
   } catch (error) {

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   ArrowLeft, Search, Users, Eye, EyeOff,
   RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle, Zap,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -35,6 +36,13 @@ const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
+const PAGE_SIZE = 10;
+
+function planColor(plan: string) {
+  if (plan === 'pro')      return greenHi;
+  if (plan === 'standard') return gold;
+  return textDim;
+}
 
 const inputStyle = {
   ...b, background: surface, border: `1px solid ${border}`, color: text,
@@ -48,6 +56,7 @@ function CommissionersManagementContent() {
   const { commissioners, stats, isLoading, refresh, actions } = useAdminDomain();
 
   const [searchTerm, setSearchTerm]                   = useState('');
+  const [page, setPage]                               = useState(0);
   const [isLoggingOut, setIsLoggingOut]               = useState(false);
   const [isProcessing, setIsProcessing]               = useState(false);
   const [selected, setSelected]                       = useState<AdminUser | null>(null);
@@ -68,11 +77,15 @@ function CommissionersManagementContent() {
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
-    if (!q) return commissioners;
-    return commissioners.filter(c =>
-      c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
-    );
+    return q
+      ? commissioners.filter(c => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+      : commissioners;
   }, [commissioners, searchTerm]);
+
+  useEffect(() => { setPage(0); }, [searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const handleToggle = async (c: AdminUser) => {
     setIsProcessing(true);
@@ -223,6 +236,11 @@ function CommissionersManagementContent() {
               All Commissioners ({filtered.length})
             </h3>
           </div>
+          {filtered.length > 0 && (
+            <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginBottom: '1rem', marginTop: '-0.75rem' }}>
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </p>
+          )}
 
           <div style={{ marginBottom: '1.25rem', maxWidth: 400 }}>
             <div style={{ position: 'relative' }}>
@@ -244,7 +262,7 @@ function CommissionersManagementContent() {
                   {searchTerm ? 'No commissioners match your search.' : 'No commissioners created yet.'}
                 </p>
               </div>
-            ) : filtered.map((c) => (
+            ) : paginated.map((c) => (
               <div key={c.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
@@ -258,6 +276,9 @@ function CommissionersManagementContent() {
                         <span style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: text }}>{c.name || 'Unnamed Commissioner'}</span>
                         <span style={{ ...bc, fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.1em', color: c.isActive ? greenHi : liveRed, background: c.isActive ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(50% 0.22 25 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
                           {c.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.1em', color: planColor(c.plan), background: `${planColor(c.plan)}1a`, border: `1px solid ${planColor(c.plan)}55`, padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                          {c.plan}{c.isTrialActive ? ` · ${c.daysLeft}d trial` : ''}
                         </span>
                       </div>
                       <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{c.email}</p>
@@ -330,6 +351,35 @@ function CommissionersManagementContent() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0.6rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, color: page === 0 ? textDim : textMid, cursor: page === 0 ? 'not-allowed' : 'pointer', opacity: page === 0 ? 0.4 : 1 }}
+              >
+                <ChevronLeft style={{ width: 14, height: 14 }} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPage(i)}
+                  style={{ minWidth: '2rem', padding: '0.4rem 0.5rem', background: page === i ? green : 'transparent', border: `1px solid ${page === i ? green : border}`, borderRadius: 5, color: page === i ? text : textMid, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem' }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+                style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0.6rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, color: page === totalPages - 1 ? textDim : textMid, cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', opacity: page === totalPages - 1 ? 0.4 : 1 }}
+              >
+                <ChevronRight style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
