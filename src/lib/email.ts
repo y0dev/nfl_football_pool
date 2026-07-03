@@ -32,11 +32,11 @@ class EmailService {
 
   private initializeTransporter() {
     
-    const host = process.env.NEXT_PUBLIC_SMTP_HOST || process.env.SMTP_HOST;
-    const port = process.env.NEXT_PUBLIC_SMTP_PORT || process.env.SMTP_PORT;
-    const user = process.env.NEXT_PUBLIC_SMTP_USER || process.env.SMTP_USER;
-    const pass = process.env.NEXT_PUBLIC_SMTP_PASS || process.env.SMTP_PASS;
-    const from = process.env.NEXT_PUBLIC_SMTP_FROM || process.env.SMTP_FROM;
+    const host = process.env.SMTP_HOST || process.env.NEXT_PUBLIC_SMTP_HOST;
+    const port = process.env.SMTP_PORT || process.env.NEXT_PUBLIC_SMTP_PORT;
+    const user = process.env.SMTP_USER || process.env.NEXT_PUBLIC_SMTP_USER;
+    const pass = process.env.SMTP_PASS || process.env.NEXT_PUBLIC_SMTP_PASS;
+    const from = process.env.SMTP_FROM || process.env.NEXT_PUBLIC_SMTP_FROM;
 
     if (!host || !port || !user || !pass || !from) {
       debugWarn('Email configuration incomplete. Email notifications will be disabled.');

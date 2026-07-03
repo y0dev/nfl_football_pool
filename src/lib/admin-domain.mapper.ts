@@ -1,5 +1,5 @@
 import { AdminUser } from './admin-domain.types';
-import { Admin } from './admin-service';
+import type { Admin } from './admin-service';
 
 export const AdminDomainMapper = {
   fromApi(row: Admin): AdminUser {

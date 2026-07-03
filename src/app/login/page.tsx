@@ -61,6 +61,16 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Only allow relative same-origin paths to prevent open-redirect attacks
+  const nextParam = searchParams.get('next');
+  const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : null;
+
+  function postLoginRedirect(isSuperAdmin: boolean) {
+    window.location.href = safeNext ?? (isSuperAdmin ? createPageUrl('admindashboard') : createPageUrl('dashboard'));
+  }
+
   useEffect(() => {
     const oauthError = searchParams.get('error');
     if (oauthError === 'no-account') {
@@ -79,9 +89,7 @@ function LoginContent() {
 
     // is_super_admin is in React state after verifyAdminStatus runs — redirect immediately
     if (user.is_super_admin !== undefined) {
-      window.location.href = user.is_super_admin
-        ? createPageUrl('admindashboard')
-        : createPageUrl('dashboard');
+      postLoginRedirect(user.is_super_admin === true);
       return;
     }
 
@@ -91,6 +99,7 @@ function LoginContent() {
       verifyCalledRef.current = true;
       verifyAdminStatus().catch(() => {});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, verifyAdminStatus]);
 
   const form = useForm<LoginFormData>({
@@ -105,11 +114,7 @@ function LoginContent() {
       const result = await loginUser(data.email, data.password);
       if (result.success && result.user) {
         await signIn(result.user);
-        if (result.user.is_super_admin) {
-          window.location.href = createPageUrl('admindashboard');
-        } else {
-          window.location.href = createPageUrl('dashboard');
-        }
+        postLoginRedirect(result.user.is_super_admin === true);
       } else {
         setLoginError(result.error || 'Incorrect email or password. Please check your credentials and try again.');
       }
