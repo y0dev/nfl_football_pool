@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     url: siteUrl,
     locale: 'en_US',
     images: [{
-      url: '/brand/initials.png',
+      url: '/brand/sh-icon.png',
       alt: 'Sunday Huddle',
     }],
   },
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     site: '@sundayhuddle',
     title: 'Sunday Huddle',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
-    images: ['/brand/initials.png'],
+    images: ['/brand/sh-icon.png'],
   },
   other: {
     'classification': 'Sports',
