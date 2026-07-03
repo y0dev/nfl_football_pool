@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, debugError, isOffseason } from './utils';
+import { debugLog, debugError } from './utils';
 export interface DashboardStats {
   totalPools: number;
   activePools: number;
@@ -98,20 +98,6 @@ class AdminService {
   ): Promise<DashboardStats> {
     try {
       debugLog('AdminService: Getting dashboard stats for:', { adminEmail, isSuperAdmin });
-
-      const now = new Date();
-      
-      if (isOffseason(now)) {
-        return {
-          totalPools: 0,
-          activePools: 0,
-          totalParticipants: 0,
-          totalGames: 0,
-          pendingSubmissions: 0,
-          completedSubmissions: 0
-        };
-      }
-          
 
       let poolsQuery = this.supabase
         .from('pools')
@@ -321,7 +307,7 @@ class AdminService {
       
       const { data: admins, error } = await this.supabase
         .from('admins')
-        .select('id, email, full_name, is_super_admin, is_active, created_at')
+        .select('id, email, full_name, is_super_admin, is_active, created_at, plan, trial_ends_at')
         .order('full_name');
 
       debugLog('AdminService: Raw query result:', { data: admins, error });

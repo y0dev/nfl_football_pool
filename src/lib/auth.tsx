@@ -162,26 +162,19 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
     }
 
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const res = await fetch(`/api/admin/verify-status?adminId=${encodeURIComponent(user.id)}`);
+      const data = await res.json();
 
-      const { data: admin, error } = await supabase
-        .from('admins')
-        .select('id, is_active, is_super_admin')
-        .eq('id', user.id)
-        .eq('is_active', true)
-        .single();
+      debugLog('[Auth:verifyAdminStatus] DB result — found:', !!data?.isAdmin, '| is_super_admin:', data?.isSuperAdmin);
 
-      debugLog('[Auth:verifyAdminStatus] DB result — found:', !!admin, '| is_super_admin:', admin?.is_super_admin);
-
-      if (error || !admin) return false;
+      if (!data.success || !data.isAdmin) return false;
 
       adminVerifiedAt.current = Date.now();
 
       // Set is_super_admin in React state only — do NOT persist to localStorage
-      setUser((prev) => prev ? { ...prev, is_super_admin: admin.is_super_admin } : prev);
+      setUser((prev) => prev ? { ...prev, is_super_admin: data.isSuperAdmin } : prev);
 
-      return requireSuperAdmin ? admin.is_super_admin === true : true;
+      return requireSuperAdmin ? data.isSuperAdmin === true : true;
     } catch (error) {
       debugError('Error verifying admin status:', error);
       return false;

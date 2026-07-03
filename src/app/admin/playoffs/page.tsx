@@ -1048,7 +1048,7 @@ function PlayoffManagementContent() {
                 </Select>
               </div>
               <div>
-                <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Seed (1–7)</label>
+                <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Seed (1-7)</label>
                 <Select value={editingTeam.seed.toString()} onValueChange={(v) => setEditingTeam({ ...editingTeam, seed: parseInt(v) })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>

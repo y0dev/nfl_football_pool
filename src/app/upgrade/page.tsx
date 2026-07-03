@@ -26,7 +26,7 @@ const FREE_FEATURES = [
   'Up to 15 participants',
   'Weekly picks & confidence points',
   'Live leaderboard',
-  'Period standings (Q1–Q4)',
+  'Period standings (Q1-Q4)',
 ];
 
 const STANDARD_FEATURES = [
@@ -34,7 +34,7 @@ const STANDARD_FEATURES = [
   'Up to 30 participants',
   'Weekly picks & confidence points',
   'Live leaderboard',
-  'Period standings (Q1–Q4)',
+  'Period standings (Q1-Q4)',
   'Email pick reminders',
   'Tiebreaker questions',
   'Season & playoff tracking',

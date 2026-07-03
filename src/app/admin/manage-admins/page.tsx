@@ -46,7 +46,7 @@ const inputStyle = {
 function ManageAdminsContent() {
   const { signOut } = useAuth();
   const router = useRouter();
-  const { users, stats, isLoading, actions } = useAdminDomain();
+  const { superAdmins, isLoading, actions } = useAdminDomain();
 
   const [searchTerm, setSearchTerm]   = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -60,11 +60,11 @@ function ManageAdminsContent() {
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(u =>
+    if (!q) return superAdmins;
+    return superAdmins.filter(u =>
       u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     );
-  }, [users, searchTerm]);
+  }, [superAdmins, searchTerm]);
 
   const handleToggle = async (u: AdminUser) => {
     setIsProcessing(true);
@@ -119,11 +119,9 @@ function ManageAdminsContent() {
   }
 
   const statItems = [
-    { label: 'Total Admins',    value: stats.total,         color: gold },
-    { label: 'Administrators',  value: stats.superAdmins,   color: purple },
-    { label: 'Commissioners',   value: stats.commissioners, color: greenHi },
-    { label: 'Active',          value: stats.active,        color: greenHi },
-    { label: 'Inactive',        value: stats.inactive,      color: liveRed },
+    { label: 'Total Admins', value: superAdmins.length,                             color: gold },
+    { label: 'Active',       value: superAdmins.filter(u => u.isActive).length,     color: greenHi },
+    { label: 'Inactive',     value: superAdmins.filter(u => !u.isActive).length,    color: liveRed },
   ];
 
   return (
@@ -164,7 +162,7 @@ function ManageAdminsContent() {
             <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
             <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>Overview</h2>
           </div>
-          <div className="admin-5col-grid" style={{ marginBottom: 0 }}>
+          <div className="admin-3col-grid" style={{ marginBottom: 0 }}>
             {statItems.map(({ label, value, color }) => (
               <div key={label} style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: '1rem' }}>
                 <div style={{ ...bc, fontWeight: 900, fontSize: '2rem', color, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</div>
@@ -209,7 +207,6 @@ function ManageAdminsContent() {
               </div>
             ) : (
               filtered.map((u) => {
-                const isSuperAdmin = u.role === 'SUPER_ADMIN';
                 return (
                   <div key={u.id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -222,8 +219,8 @@ function ManageAdminsContent() {
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
                             <span style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: text }}>{u.name || 'No Name'}</span>
-                            <span style={{ ...bc, fontWeight: 600, fontSize: '0.62rem', letterSpacing: '0.1em', color: isSuperAdmin ? purple : greenHi, background: isSuperAdmin ? 'oklch(65% 0.12 290 / 0.15)' : 'oklch(46% 0.14 155 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              {isSuperAdmin ? <><Crown style={{ width: 9, height: 9 }} /> Admin</> : <><Shield style={{ width: 9, height: 9 }} /> Commissioner</>}
+                            <span style={{ ...bc, fontWeight: 600, fontSize: '0.62rem', letterSpacing: '0.1em', color: purple, background: 'oklch(65% 0.12 290 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Crown style={{ width: 9, height: 9 }} /> Admin
                             </span>
                             <span style={{ ...bc, fontWeight: 600, fontSize: '0.62rem', letterSpacing: '0.1em', color: u.isActive ? greenHi : liveRed, background: u.isActive ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(50% 0.22 25 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
                               {u.isActive ? 'Active' : 'Inactive'}

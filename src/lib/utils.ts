@@ -15,9 +15,7 @@ export function isOffseason(date: Date = new Date()): boolean {
   const day = date.getDate();
   return (
     (month === 2 && day >= 10) ||
-    (month === 3) ||
-    (month === 4) ||
-    (month === 5 && day <= 14)
+    (month >= 3 && month <= 7)
   );
 }
 

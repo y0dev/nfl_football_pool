@@ -388,21 +388,21 @@ class NFLAPIService {
     const kickoff = add(laborDay, 3); // Thu
 
     if (seasonType === 1) {
-      // Preseason: Thu–Mon (same rhythm as regular season)
+      // Preseason: Thu-Mon (same rhythm as regular season)
       const thu = add(kickoff, -(5 - week) * 7);
       return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
     }
 
     if (seasonType === 2) {
-      // Regular season: Thu–Mon
+      // Regular season: Thu-Mon
       const thu = add(kickoff, (week - 1) * 7);
       return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
     }
 
     // Postseason: anchored to Week 18 Sunday
     const week18Sun = add(kickoff, 17 * 7 + 3);
-    // Week 1 Wild Card: Sat–Mon (+6 to +8)
-    // Week 2 Divisional: Sat–Sun (+13 to +14)
+    // Week 1 Wild Card: Sat-Mon (+6 to +8)
+    // Week 2 Divisional: Sat-Sun (+13 to +14)
     // Week 3 Championship: Sun (+21)
     // Week 4 Super Bowl: Sun (+35)
     const startOffsets = [6, 13, 21, 35];
@@ -469,7 +469,7 @@ class NFLAPIService {
 
   // Get games for a single calendar date (YYYYMMDD).
   // Use this when you only want one day's games (e.g. just Thursday night, just Sunday).
-  // For a full week across Thu–Mon, use getWeekGames() with weekDateRange() instead.
+  // For a full week across Thu-Mon, use getWeekGames() with weekDateRange() instead.
   async getGamesByDate(date: string): Promise<NFLGame[]> {
     return this.getWeekGames(date, date);
   }

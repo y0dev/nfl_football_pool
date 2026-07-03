@@ -77,6 +77,7 @@ function CommissionersManagementContent() {
   const [planSaving, setPlanSaving]     = useState(false);
   const [planError, setPlanError]       = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
+  const [promoGroup, setPromoGroup]     = useState<'free' | 'standard'>('free');
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -115,14 +116,19 @@ function CommissionersManagementContent() {
     setSelected(null);
   };
 
-  const promoTargetCount = commissioners.filter(c => c.plan === 'free' || c.isTrialActive).length;
+  const promoCounts = {
+    free:     commissioners.filter(c => c.isActive && c.plan === 'free').length,
+    standard: commissioners.filter(c => c.isActive && c.plan === 'standard').length,
+  };
+  const promoTargetCount = promoCounts[promoGroup];
 
   const handleSendPromo = async () => {
     setPromoLoading(true);
     try {
       const res = await fetch('/api/super-admin/send-promotion', {
         method: 'POST',
-        headers: { 'x-admin-email': user?.email ?? '' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
+        body: JSON.stringify({ group: promoGroup }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to send promotions');
@@ -266,11 +272,11 @@ function CommissionersManagementContent() {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button
-                  disabled={promoLoading || promoTargetCount === 0}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: promoTargetCount === 0 ? 'transparent' : 'oklch(74% 0.16 72 / 0.1)', color: promoTargetCount === 0 ? textDim : gold, border: `1px solid ${promoTargetCount === 0 ? border : 'oklch(74% 0.16 72 / 0.45)'}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: promoTargetCount === 0 ? 'not-allowed' : 'pointer', opacity: promoLoading ? 0.6 : 1, flexShrink: 0 }}
+                  disabled={promoLoading || (promoCounts.free === 0 && promoCounts.standard === 0)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: (promoCounts.free === 0 && promoCounts.standard === 0) ? 'transparent' : 'oklch(74% 0.16 72 / 0.1)', color: (promoCounts.free === 0 && promoCounts.standard === 0) ? textDim : gold, border: `1px solid ${(promoCounts.free === 0 && promoCounts.standard === 0) ? border : 'oklch(74% 0.16 72 / 0.45)'}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: (promoCounts.free === 0 && promoCounts.standard === 0) ? 'not-allowed' : 'pointer', opacity: promoLoading ? 0.6 : 1, flexShrink: 0 }}
                 >
                   <Send style={{ width: 13, height: 13 }} />
-                  {promoLoading ? 'Sending…' : `Send Promo${promoTargetCount > 0 ? ` (${promoTargetCount})` : ''}`}
+                  {promoLoading ? 'Sending…' : 'Send Promo'}
                 </button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -279,12 +285,40 @@ function CommissionersManagementContent() {
                     Send Promotional Email
                   </AlertDialogTitle>
                   <AlertDialogDescription style={{ color: textMid }}>
-                    Send an upgrade offer to <strong style={{ color: text }}>{promoTargetCount} commissioner{promoTargetCount !== 1 ? 's' : ''}</strong> on the free plan or active trial. They will receive an email with plan comparison and a link to sign in.
+                    Choose which group of active commissioners should receive an upgrade offer email with a plan comparison and a link to sign in.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+
+                <div>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Target Group</p>
+                  <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem' }}>
+                    {(['free', 'standard'] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setPromoGroup(g)}
+                        style={{
+                          flex: 1, padding: '0.4rem 0.5rem',
+                          background: promoGroup === g ? (g === 'standard' ? 'oklch(74% 0.16 72 / 0.2)' : 'oklch(30% 0.03 255)') : 'transparent',
+                          color: promoGroup === g ? (g === 'standard' ? gold : textMid) : textDim,
+                          border: `1px solid ${promoGroup === g ? (g === 'standard' ? 'oklch(74% 0.16 72 / 0.5)' : border) : 'transparent'}`,
+                          borderRadius: 4,
+                          ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {g === 'free' ? 'Free Only' : 'Standard'}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ ...b, fontSize: '0.78rem', color: textMid, marginTop: '0.5rem' }}>
+                    Will send to <strong style={{ color: text }}>{promoTargetCount} commissioner{promoTargetCount !== 1 ? 's' : ''}</strong> on the {promoGroup} plan.
+                  </p>
+                </div>
+
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSendPromo} style={{ background: gold, color: 'oklch(13% 0.025 255)', border: 'none' }}>
+                  <AlertDialogAction onClick={handleSendPromo} disabled={promoTargetCount === 0} style={{ background: gold, color: 'oklch(13% 0.025 255)', border: 'none', opacity: promoTargetCount === 0 ? 0.5 : 1 }}>
                     {promoLoading ? 'Sending…' : 'Send Emails'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -297,7 +331,7 @@ function CommissionersManagementContent() {
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
       {/* ── LIST ── */}
-      <section style={{ background: bg, padding: '3rem 0' }}>
+      <section id="commissioners-list" style={{ background: bg, padding: '3rem 0' }}>
         <div className="lp-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
@@ -307,7 +341,7 @@ function CommissionersManagementContent() {
           </div>
           {filtered.length > 0 && (
             <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginBottom: '1rem', marginTop: '-0.75rem' }}>
-              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+              Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
           )}
 
@@ -362,7 +396,7 @@ function CommissionersManagementContent() {
                       onClick={() => handleOpenPlan(c)}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'oklch(46% 0.14 155 / 0.12)', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
                     >
-                      <Zap style={{ width: 11, height: 11 }} /> Upgrade Plan
+                      <Zap style={{ width: 11, height: 11 }} /> Change Plan
                     </button>
                     <button
                       onClick={() => { setSelected(c); setResetOpen(true); }}
@@ -459,7 +493,7 @@ function CommissionersManagementContent() {
         <DialogContent style={{ maxWidth: '26rem', background: card, border: `1px solid ${border}` }}>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              <Zap style={{ width: 15, height: 15, color: greenHi }} /> Upgrade Plan
+              <Zap style={{ width: 15, height: 15, color: greenHi }} /> Change Plan
             </DialogTitle>
             <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
               {planTarget?.name || planTarget?.email}
