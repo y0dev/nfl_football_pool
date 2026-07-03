@@ -17,16 +17,27 @@ export function BrandLogo({ variant = 'icon', size = 40, className }: BrandLogoP
   if (variant === 'horizontal') {
     // Aspect ratio of sh-logo.png: 1254 / 630 ≈ 1.99
     const w = Math.round(size * 1.99);
+    const radius = Math.round(size * 0.12);
     return (
-      <Image
-        src="/brand/sh-logo.png"
-        alt="Sunday Huddle"
-        width={w}
-        height={size}
-        style={{ objectFit: 'contain', display: 'block' }}
+      <div
         className={className}
-        priority
-      />
+        style={{
+          width: w,
+          height: size,
+          borderRadius: radius,
+          overflow: 'hidden',
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
+        <Image
+          src="/brand/sh-logo.png"
+          alt="Sunday Huddle"
+          fill
+          style={{ objectFit: 'cover' }}
+          priority
+        />
+      </div>
     );
   }
 
