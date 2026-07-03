@@ -249,9 +249,18 @@ function AdminDashboardContent() {
         loadDashboardStats();
         loadLastGameUpdate();
       }
-      generateNotifications();
     }
   }, [currentWeek, currentSeasonType, isSuperAdmin]);
+
+  // Notifications must reflect the DB-fetched dashboardStats, never the zeroed
+  // initial state — regenerate only once loadDashboardStats has actually resolved.
+  useEffect(() => {
+    if (currentSeasonType === 0) {
+      setNotifications([]);
+      return;
+    }
+    generateNotifications();
+  }, [dashboardStats, currentSeasonType]);
 
   useEffect(() => {
     const handleOpenCreatePool = () => setCreatePoolDialogOpen(true);
@@ -490,7 +499,6 @@ function AdminDashboardContent() {
       await loadDashboardStats();
       await loadLastGameUpdate();
       await loadRecentActivity();
-      generateNotifications();
       setLastRefresh(new Date());
       toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
     } catch {
@@ -666,7 +674,11 @@ function AdminDashboardContent() {
               </button>
 
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={() => {
+                  const next = !showNotifications;
+                  setShowNotifications(next);
+                  if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 style={{
                   position: 'relative',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
