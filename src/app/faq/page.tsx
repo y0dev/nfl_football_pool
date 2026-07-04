@@ -28,31 +28,31 @@ const faqs = [
   },
   {
     q: 'What happens if I pick the wrong team?',
-    a: 'You earn zero points for that pick, no matter how many confidence points you assigned it. That’s what makes confidence points risky — betting big on the wrong game costs you the most.',
+    a: 'You earn zero points for that pick, no matter how many confidence points you assigned it. That\'s what makes confidence points risky — betting big on the wrong game costs you the most.',
   },
   {
     q: 'Can I change my picks after I submit them?',
-    a: 'Yes, up until that specific game kicks off. Once a game starts, its pick locks in — but picks for the other games that week stay open until each one starts.',
+    a: 'Yes, the commissioner can make changes for you up until the kicks off of the first game of that week. Once the first game starts, the pick are locks in for that week — but picks for the other games that week stay open until each one starts.',
   },
   {
     q: 'Does my pool include the playoffs?',
-    a: 'It depends on how your commissioner set it up. Some pools run regular season only, some add playoffs, and some run preseason through the Super Bowl. Check with your commissioner, or look at the tabs available on your pool’s dashboard — a Playoffs tab only appears if your pool includes it.',
+    a: 'It depends on how your commissioner set it up. Some pools run regular season only, some add playoffs, and some run preseason through the Super Bowl. Check with your commissioner, or look at the tabs available on your pool\'s dashboard — a Playoffs tab only appears if your pool includes it.',
   },
   {
     q: 'What breaks a tie?',
-    a: 'Your predicted total combined score for that week’s Monday Night Football game (or the Super Bowl, during that week). Closest guess to the actual combined score wins the tie.',
+    a: 'Your predicted total combined score for that week\'s Monday Night Football game (or the Super Bowl, during that week). Closest guess to the actual combined score wins the tie.',
   },
   {
     q: 'Who wins the season?',
-    a: 'Whoever has the most total points across the regular season. Preseason and playoff points are tracked separately and don’t count toward the season championship.',
+    a: 'Whoever has the most total points across the regular season. Preseason and playoff points are tracked separately and don\'t count toward the season championship.',
   },
   {
     q: 'What are quarter winners?',
     a: 'The regular season is split into four quarters. Standings are tallied at the end of each one and a quarter winner is crowned, if your commissioner has period prizes turned on for the pool.',
   },
   {
-    q: 'What’s the point of the preseason weeks?',
-    a: 'If a commissioner opts into preseason, it works like a normal pick’em week — pick winners, assign points, see standings. It’s just practice: preseason results don’t count toward quarter prizes or the season championship.',
+    q: 'What\'s the point of the preseason weeks?',
+    a: 'If a commissioner opts into preseason, it works like a normal pick\'em week — pick winners, assign points, see standings. It\'s just practice: preseason results don\'t count toward quarter prizes or the season championship.',
   },
 ];
 
