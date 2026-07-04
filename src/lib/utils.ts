@@ -91,6 +91,10 @@ export function createPageUrl(page: string): string {
       return "/admin/account";
     case "landing":
       return "/";
+    case "howitworks":
+      return "/how-it-works";
+    case "faq":
+      return "/faq";
     default:
       // For dynamic routes like pool picks with specific pool ID
       if (normalized.startsWith("poolpicks?")) {

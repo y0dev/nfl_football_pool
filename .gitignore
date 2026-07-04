@@ -22,6 +22,7 @@
 !tests/api/**
 !tests/utils
 !tests/utils/**
+!tests/how-it-works-faq.spec.ts
 !next.config.js
 !playwright.config.ts
 !tsconfig.json
