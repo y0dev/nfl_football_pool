@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Users, Trophy, Calendar, Shield, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
@@ -185,7 +186,17 @@ function LandingPage() {
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
+              <div className="lp-nav-links">
+                <Link href="/how-it-works" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
+                  How It Works
+                </Link>
+                <Link href="/faq" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
+                  FAQ
+                </Link>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
               {user ? (
                 <button
                   onClick={() => {
@@ -240,6 +251,7 @@ function LandingPage() {
                   </button>
                 </>
               )}
+              </div>
             </div>
           </div>
         </div>

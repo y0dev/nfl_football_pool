@@ -413,6 +413,18 @@ input[type="url"], textarea {
   }
 }
 
+/* Public nav — How It Works / FAQ links hide below tablet width to keep the auth actions primary on mobile */
+.lp-nav-links {
+  display: none;
+  align-items: center;
+  gap: 1.25rem;
+}
+@media (min-width: 768px) {
+  .lp-nav-links {
+    display: flex;
+  }
+}
+
 /* Admin pools page — search expands full-width when toolbar wraps */
 .admin-pools-search {
   position: relative;
