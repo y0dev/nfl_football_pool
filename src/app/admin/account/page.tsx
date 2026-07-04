@@ -7,7 +7,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl } from '@/lib/utils';
 
@@ -67,6 +67,16 @@ function AccountSettingsContent() {
       .then(d => { if (d.success) setIsOAuthAccount(d.isOAuth); })
       .catch(() => setIsOAuthAccount(false));
   }, [user?.id]);
+
+  const [planStatus, setPlanStatus] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+
+  useEffect(() => {
+    if (!user?.id || user.is_super_admin) return;
+    fetch(`/api/admin/plan-status?adminId=${user.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setPlanStatus(d); })
+      .catch(() => {});
+  }, [user?.id, user?.is_super_admin]);
 
   // Change password
   const [currentPw, setCurrentPw] = useState('');
@@ -196,6 +206,38 @@ function AccountSettingsContent() {
               </div>
             </div>
           </div>
+
+          {/* Plan & billing */}
+          {!user?.is_super_admin && planStatus && (
+            <div style={cardSt}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <CreditCard style={{ width: 15, height: 15, color: greenHi }} />
+                <p style={sectionTitle}>Plan &amp; Billing</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {planStatus.plan.charAt(0).toUpperCase() + planStatus.plan.slice(1)}
+                    {planStatus.isTrialActive && <span style={{ color: textDim, fontWeight: 700, fontSize: '0.7rem', marginLeft: '0.5rem' }}>TRIAL · {planStatus.daysLeft}d left</span>}
+                  </p>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginTop: '0.2rem' }}>
+                    {planStatus.plan === 'free' ? 'One pool, up to 15 participants.' : 'Manage your plan, or switch back to Free.'}
+                  </p>
+                </div>
+                <Link
+                  href="/upgrade"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.5rem 1rem', background: green, color: text,
+                    borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem',
+                    letterSpacing: '0.07em', textTransform: 'uppercase', textDecoration: 'none',
+                  }}
+                >
+                  Manage Plan
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Change password */}
           <div style={cardSt}>

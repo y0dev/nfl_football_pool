@@ -39,3 +39,25 @@ test.describe('How It Works & FAQ pages', () => {
     await expect(page).toHaveURL(/\/how-it-works$/);
   });
 });
+
+test.describe('Pricing page', () => {
+  test('loads plan cards and links to signup', async ({ page }) => {
+    await page.goto('/pricing');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByRole('heading', { name: /Run Your Season/i })).toBeVisible();
+    await expect(page.getByText('Add-on Pools', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Get Started' }).click();
+    await expect(page).toHaveURL(/\/register$/);
+  });
+
+  test('is reachable from the landing page nav', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('nav').getByRole('link', { name: 'Pricing' }).click();
+    await expect(page).toHaveURL(/\/pricing$/);
+  });
+});
