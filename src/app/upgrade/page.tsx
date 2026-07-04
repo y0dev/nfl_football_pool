@@ -63,18 +63,18 @@ function UpgradeContent() {
         borderBottom: `1px solid ${border}`,
       }}>
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
               <BrandLogo variant="icon" size={28} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 Sunday Huddle
               </span>
             </div>
             <button
               onClick={() => router.back()}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: `1px solid ${border}`, color: textMid, borderRadius: 6, padding: '0.4rem 0.8rem', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: `1px solid ${border}`, color: textMid, borderRadius: 6, padding: '0.4rem 0.8rem', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
             >
-              <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+              <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
             </button>
           </div>
         </div>

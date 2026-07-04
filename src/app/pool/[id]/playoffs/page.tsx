@@ -427,8 +427,8 @@ function PlayoffsPageContent() {
         borderBottom: `1px solid ${border}`,
       }}>
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
               <button
                 onClick={() => router.back()}
                 style={{
@@ -438,12 +438,12 @@ function PlayoffsPageContent() {
                   border: `1px solid ${border}`, borderRadius: 5,
                   ...bc, fontWeight: 600, fontSize: '0.72rem',
                   letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer',
+                  cursor: 'pointer', flexShrink: 0,
                 }}
               >
-                <ArrowLeft style={{ width: 12, height: 12 }} /> Back
+                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
               </button>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 Sunday Huddle
               </span>
             </div>
@@ -459,7 +459,7 @@ function PlayoffsPageContent() {
                 cursor: 'pointer',
               }}
             >
-              <LogOut style={{ width: 11, height: 11 }} /> Sign Out
+              <LogOut style={{ width: 11, height: 11 }} /> <span className="pools-nav-label">Sign Out</span>
             </button>
           </div>
         </div>

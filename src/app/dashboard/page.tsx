@@ -570,16 +570,16 @@ function CommissionerDashboardContent() {
         borderBottom: `1px solid ${border}`,
       }}>
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Trophy style={{ width: 14, height: 14, color: text }} />
               </div>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 Sunday Huddle
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setCreatePoolDialogOpen(true)}
                 style={{
@@ -593,7 +593,7 @@ function CommissionerDashboardContent() {
                 }}
               >
                 <Plus style={{ width: 11, height: 11 }} />
-                New Pool
+                <span className="pools-nav-label">New Pool</span>
               </button>
               <button
                 onClick={handleLogout}
@@ -606,11 +606,11 @@ function CommissionerDashboardContent() {
                   ...bc, fontWeight: 600, fontSize: '0.72rem',
                   letterSpacing: '0.07em', textTransform: 'uppercase',
                   cursor: isLoggingOut ? 'not-allowed' : 'pointer',
-                  opacity: isLoggingOut ? 0.5 : 1,
+                  opacity: isLoggingOut ? 0.5 : 1, whiteSpace: 'nowrap',
                 }}
               >
                 <LogOut style={{ width: 11, height: 11 }} />
-                {isLoggingOut ? 'Logging out…' : 'Logout'}
+                <span className="pools-nav-label">{isLoggingOut ? 'Logging out…' : 'Logout'}</span>
               </button>
             </div>
           </div>
