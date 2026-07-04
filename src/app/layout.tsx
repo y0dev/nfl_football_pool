@@ -31,7 +31,9 @@ export const metadata: Metadata = {
     'sports entertainment', 'fantasy football', 'pick em',
   ],
   icons: {
-    icon: '/brand/sh-icon.png',
+    // Circle-masked icon for browser tabs; iOS fills transparency with
+    // black and rounds corners itself, so apple keeps the square source.
+    icon: '/brand/sh-icon-circle.png',
     apple: '/brand/sh-icon.png',
   },
   openGraph: {
