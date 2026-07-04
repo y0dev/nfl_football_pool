@@ -197,6 +197,11 @@ export function PoolPicksContent() {
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
+  useEffect(() => {
+    if (!poolName) return;
+    document.title = `${poolName} - ${getWeekTitle()} | Sunday Huddle`;
+  }, [poolName, currentWeek, currentSeasonType]);
+
   const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
     if (!poolId) return false;
 
@@ -1337,7 +1342,7 @@ export function PoolPicksContent() {
               </div>
             </details>
 
-            {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+            {currentSeasonType !== 1 && PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
               <div style={{ background: `oklch(65% 0.12 290 / 0.08)`, border: `1px solid oklch(65% 0.12 290 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                   <Crown style={{ width: 16, height: 16, color: purple }} />
@@ -1701,7 +1706,7 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
+          {currentSeasonType !== 1 && PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
             <div style={{ background: `oklch(65% 0.12 290 / 0.08)`, border: `1px solid oklch(65% 0.12 290 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                 <Crown style={{ width: 15, height: 15, color: purple }} />

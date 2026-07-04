@@ -79,7 +79,7 @@ function CommissionerDashboardContent() {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
-  const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string}>>([]);
+  const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string, season_scope?: number[]}>>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [importPicksOpen, setImportPicksOpen] = useState(false);
   const [selectedPoolForImport, setSelectedPoolForImport] = useState<{id: string, name: string} | null>(null);
@@ -278,7 +278,8 @@ function CommissionerDashboardContent() {
         .from('scores')
         .select('participant_id, points, correct_picks')
         .eq('pool_id', poolId)
-        .eq('season', currentSeason);
+        .eq('season', currentSeason)
+        .eq('season_type', currentSeasonType);
 
       if (seasonScores && seasonScores.length > 0) {
         const totalsMap = new Map<string, { points: number; correctPicks: number }>();
@@ -548,6 +549,8 @@ function CommissionerDashboardContent() {
   ];
 
   const selectedPool = availablePools.find(p => p.id === selectedPoolId) ?? null;
+  const selectedPoolHasPlayoffs = selectedPool?.season_scope?.includes(3) ?? false;
+  const selectedPoolHasRegularSeason = selectedPool?.season_scope?.includes(2) ?? true;
 
   const activityAccent = (type: string) => {
     if (type === 'pool_created') return greenHi;
@@ -840,7 +843,10 @@ function CommissionerDashboardContent() {
                   { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
                   { id: 'export',         label: 'Export',         icon: Download },
                   { id: 'settings',       label: 'Settings',       icon: Settings },
-                ] as const).map(({ id, label, icon: Icon }) => {
+                ] as const)
+                  .filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs)
+                  .filter(t => t.id !== 'season-review' || selectedPoolHasRegularSeason)
+                  .map(({ id, label, icon: Icon }) => {
                   const active = activePoolTab === id;
                   return (
                     <button
@@ -952,16 +958,16 @@ function CommissionerDashboardContent() {
 
               {/* Override Picks tab */}
               {activePoolTab === 'override-picks' && selectedPool && (
-                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={currentSeason} />
+                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={currentSeason} seasonScope={selectedPool.season_scope} />
               )}
 
               {/* Season Review tab */}
-              {activePoolTab === 'season-review' && (
+              {activePoolTab === 'season-review' && selectedPoolHasRegularSeason && (
                 <SeasonReviewPanel poolId={selectedPoolId} season={currentSeason} />
               )}
 
               {/* Playoffs tab */}
-              {activePoolTab === 'playoffs' && selectedPool && (
+              {activePoolTab === 'playoffs' && selectedPool && selectedPoolHasPlayoffs && (
                 <div>
                   <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>

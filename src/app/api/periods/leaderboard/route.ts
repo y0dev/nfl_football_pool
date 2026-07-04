@@ -731,6 +731,7 @@ async function applyTopThreeTieBreakerLogicForPeriod(
         .eq('pool_id', poolId)
         .eq('week', week)
         .eq('season', season)
+        .eq('season_type', 2) // Periods are always the regular season
         .in('participant_id', entries.slice(0, 4).map(e => e.participant_id));
 
       if (!error && weekTieBreakers && weekTieBreakers.length > 0) {

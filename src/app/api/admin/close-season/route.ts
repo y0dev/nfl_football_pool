@@ -15,11 +15,14 @@ async function computeSeasonWinner(
   poolId: string,
   season: number
 ) {
-  // Compute directly from picks + game outcomes (authoritative even when scores table is empty)
+  // Compute directly from picks + game outcomes (authoritative even when scores table is empty).
+  // Season winner is always the regular season champion — preseason/playoff
+  // games must not blend into the total.
   const { data: games, error: gamesError } = await supabase
     .from('games')
     .select('id, winner')
     .eq('season', season)
+    .eq('season_type', 2)
     .not('winner', 'is', null);
 
   if (gamesError || !games || games.length === 0) return null;
@@ -69,7 +72,8 @@ async function computeSeasonWinner(
     .from('weekly_winners')
     .select('winner_participant_id')
     .eq('pool_id', poolId)
-    .eq('season', season);
+    .eq('season', season)
+    .eq('season_type', 2);
 
   for (const w of weeklyWinners ?? []) {
     const p = totalsMap.get(w.winner_participant_id);
@@ -115,7 +119,7 @@ export async function POST(request: NextRequest) {
     // Fetch target pools
     let query = supabase
       .from('pools')
-      .select('id, name, season, is_active, pool_type');
+      .select('id, name, season, is_active, pool_type, season_scope');
 
     if (poolId) {
       query = query.eq('id', poolId);
@@ -161,8 +165,13 @@ export async function POST(request: NextRequest) {
         .eq('season', pool.season)
         .single();
 
+      const poolSeasonScope = (pool as { season_scope?: number[] }).season_scope ?? [2];
+
       if (existingWinner) {
         winnersAlreadyExist.push(pool.name);
+      } else if (!poolSeasonScope.includes(2)) {
+        // Season winner is a regular-season concept — nothing to compute for
+        // a pool that doesn't include regular season in scope.
       } else {
         const winner = await computeSeasonWinner(supabase, pool.id, pool.season);
         if (!winner) {

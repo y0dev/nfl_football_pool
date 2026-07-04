@@ -16,6 +16,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Q1-Q4 periods are a regular-season construct — a pool that doesn't
+    // include regular season in its scope has no periods to report.
+    const supabase = getSupabaseServiceClient();
+    const { data: pool } = await supabase
+      .from('pools')
+      .select('season_scope')
+      .eq('id', poolId)
+      .single();
+
+    if (pool && !(pool.season_scope ?? [2]).includes(2)) {
+      return NextResponse.json({ success: true, periodWinners: [] });
+    }
+
     // Define the periods for the season
     const periods = [
       { name: 'Q1', startWeek: 1, endWeek: 4 },
@@ -71,9 +84,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
 
     // Get all active pools for the season
-    const { data: pools, error: poolsError } = await supabase
+    const { data: allPools, error: poolsError } = await supabase
       .from('pools')
-      .select('id, name')
+      .select('id, name, season_scope')
       .eq('season', parseInt(season))
       .eq('is_active', true);
 
@@ -85,11 +98,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Q1-Q4 periods are a regular-season construct — skip pools that don't
+    // include regular season (season_type 2) in scope (e.g. preseason-only),
+    // since generating a "Q1" winner from their weeks 1-4 preseason data
+    // would be meaningless and mislabel it as a regular-season quarter.
+    const pools = (allPools ?? []).filter(p => (p.season_scope ?? [2]).includes(2));
+    const skippedPools = (allPools ?? []).filter(p => !(p.season_scope ?? [2]).includes(2));
+
     if (!pools || pools.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No active pools found for the season',
-        poolsProcessed: 0
+        message: 'No active pools with regular season in scope for the season',
+        poolsProcessed: 0,
+        poolsSkipped: skippedPools.length,
       });
     }
 
@@ -193,6 +214,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `Successfully processed ${poolsProcessed} pools`,
       poolsProcessed,
+      poolsSkipped: skippedPools.length,
       poolsWithWinners,
       generatedWinners,
       noWinners,

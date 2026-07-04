@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       .in('period_name', ['Q1', 'Q2', 'Q3', 'Q4'])
       .order('period_name');
 
-    // Get all weekly winners
+    // Get all weekly winners — season review is a regular-season concept
     const { data: weeklyWinners } = await supabase
       .from('weekly_winners')
       .select(`
@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('pool_id', poolId)
       .eq('season', seasonNum)
+      .eq('season_type', 2)
       .order('week');
 
     // Get all participant scores for the season
@@ -104,6 +105,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('pool_id', poolId)
       .eq('season', seasonNum)
+      .eq('season_type', 2)
       .order('participant_id, week');
 
     // Get total games for the season
