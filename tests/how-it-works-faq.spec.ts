@@ -61,3 +61,17 @@ test.describe('Pricing page', () => {
     await expect(page).toHaveURL(/\/pricing$/);
   });
 });
+
+test.describe('404 page', () => {
+  test('shows on-brand not-found page and links home', async ({ page }) => {
+    const response = await page.goto('/this-page-does-not-exist');
+    expect(response?.status()).toBe(404);
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByRole('heading', { name: 'Incomplete Pass' })).toBeVisible();
+    await expect(page.getByText('Looking for a pool?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Go Home' }).click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+});
