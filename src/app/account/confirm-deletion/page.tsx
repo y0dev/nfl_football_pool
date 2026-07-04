@@ -111,7 +111,7 @@ function ConfirmDeletionContent() {
 
             <div style={{ background: 'oklch(62% 0.22 25 / 0.08)', border: `1px solid oklch(62% 0.22 25 / 0.3)`, borderRadius: 8, padding: '1rem 1.15rem', marginBottom: '1.5rem' }}>
               <p style={{ ...b, fontSize: '0.82rem', color: 'oklch(75% 0.12 25)', margin: 0, lineHeight: 1.6 }}>
-                <strong style={{ color: text }}>This cannot be undone.</strong> Your account will be permanently removed. Pools and participant data will remain intact.
+                <strong style={{ color: text }}>This cannot be undone.</strong> Your account will be permanently removed, along with any pools you created and all of their picks, scores, and participants. Pools created by other commissioners that you participate in are not affected.
               </p>
             </div>
 
