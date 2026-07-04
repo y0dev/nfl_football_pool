@@ -167,7 +167,7 @@ export default function HowItWorksPage() {
           </div>
 
           <p style={{ ...b, fontSize: '0.82rem', lineHeight: 1.65, color: textDim, marginTop: '1.25rem' }}>
-            You can update any pick until that game kicks off. Once a game starts, that pick locks — but picks for the rest of the week stay open until each of those games starts too.
+            You can update your picks until the first game of the week kicks off. Once that game starts, your picks for the whole week lock in — after that, only your commissioner can make changes for you.
           </p>
         </div>
       </section>
