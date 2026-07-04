@@ -21,6 +21,7 @@ export interface WeeklyWinner {
   pool_id: string;
   week: number;
   season: number;
+  season_type: number;
   winner_participant_id: string;
   winner_name: string;
   winner_points: number;
@@ -79,30 +80,35 @@ export interface PeriodWinner {
 export async function getOrCalculateWeeklyWinners(
   poolId: string,
   week: number,
-  season: number
+  season: number,
+  seasonType: number = 2
 ): Promise<WeeklyWinner | null> {
   try {
     const supabase = getSupabaseClient();
-    
-    // First, try to get existing winners from database
+
+    // First, try to get existing winners from database. season_type matters
+    // here — preseason, regular season, and playoffs each number their own
+    // weeks independently, so week 4 of one is not week 4 of another.
     const { data: existingWinners, error: fetchError } = await supabase
       .from('weekly_winners')
       .select('*')
       .eq('pool_id', poolId)
       .eq('week', week)
       .eq('season', season)
+      .eq('season_type', seasonType)
       .single();
 
     if (existingWinners && !fetchError) {
       return existingWinners;
     }
 
-    // Check if all games for this week are finished
+    // Check if all games for this week (in this season_type) are finished
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('status')
       .eq('week', week)
-      .eq('season', season);
+      .eq('season', season)
+      .eq('season_type', seasonType);
 
     if (gamesError) {
       debugError('Error checking games status:', gamesError);
@@ -110,12 +116,12 @@ export async function getOrCalculateWeeklyWinners(
     }
 
     if (!games || games.length === 0) {
-      debugLog(`No games found for week ${week}, season ${season}`);
+      debugLog(`No games found for week ${week}, season ${season}, seasonType ${seasonType}`);
       return null;
     }
 
     // Check if all games are finished
-    const allGamesFinished = games.every(game => 
+    const allGamesFinished = games.every(game =>
       game.status === 'final' || game.status === 'post' || game.status === 'cancelled'
     );
 
@@ -126,8 +132,8 @@ export async function getOrCalculateWeeklyWinners(
 
     // All games finished, calculate winners
     debugLog(`All games finished for week ${week}, season ${season}. Calculating winners...`);
-    const calculatedWinner = await calculateWeeklyWinners(poolId, week, season);
-    
+    const calculatedWinner = await calculateWeeklyWinners(poolId, week, season, seasonType);
+
     if (calculatedWinner) {
       // Save the calculated winner to database
       await saveWeeklyWinner(calculatedWinner);
@@ -229,12 +235,15 @@ export async function getOrCalculatePeriodWinners(
       return existingWinner;
     }
 
-    // Check if all NFL games in the period range are finished.
-    // Pools created mid-season won't have weekly_winner records for pre-creation weeks,
-    // so we gate on game completion rather than weekly_winner row count.
+    // Check if all NFL games in the period range are finished. Periods (Q1-Q4)
+    // are a regular-season construct, so this must scope to season_type 2 and
+    // the requested year — otherwise it can match preseason/playoff games
+    // that happen to share the same week numbers, or games from other years.
     const { data: periodGames, error: gamesCheckError } = await supabase
       .from('games')
       .select('week, status')
+      .eq('season', season)
+      .eq('season_type', 2)
       .gte('week', startWeek)
       .lte('week', endWeek);
 
@@ -275,12 +284,14 @@ export async function getOrCalculatePeriodWinners(
 export async function calculateWeeklyWinners(
   poolId: string,
   week: number,
-  season: number
+  season: number,
+  seasonType: number = 2
 ): Promise<WeeklyWinner | null> {
   try {
     const supabase = getSupabaseClient();
-    
-    // Get all scores for the week
+
+    // Get all scores for the week — must scope to season_type since preseason,
+    // regular season, and playoffs each number their weeks independently.
     const { data: scores, error: scoresError } = await supabase
       .from('scores')
       .select(`
@@ -293,6 +304,7 @@ export async function calculateWeeklyWinners(
       .eq('pool_id', poolId)
       .eq('week', week)
       .eq('season', season)
+      .eq('season_type', seasonType)
       .order('points', { ascending: false });
 
     if (scoresError) throw scoresError;
@@ -307,31 +319,15 @@ export async function calculateWeeklyWinners(
 
     if (poolError) throw poolError;
 
-    // Get season type from games table
-    const { data: games, error: gamesError } = await supabase
-      .from('games')
-      .select('season_type')
-      .eq('week', week)
-      .eq('season', season)
-      .limit(1)
-      .single();
-
-    if (gamesError) {
-      debugError('Error fetching season type:', gamesError);
-      return null;
-    }
-
-    const seasonType = games?.season_type || 2; // Default to regular season
-
     // Find the highest score
     const maxPoints = scores[0].points;
-    
+
     // If all participants have 0 points, there's no winner
     if (maxPoints === 0) {
       debugLog(`All participants have 0 points for week ${week}, season ${season}. No winner declared.`);
       return null;
     }
-    
+
     const topScorers = scores.filter(score => score.points === maxPoints);
 
     if (topScorers.length === 1) {
@@ -341,6 +337,7 @@ export async function calculateWeeklyWinners(
         pool_id: poolId,
         week,
         season,
+        season_type: seasonType,
         winner_participant_id: winner.participant_id,
         winner_name: (winner.participants as ParticipantData[])?.[0]?.name || 'Unknown',
         winner_points: winner.points,
@@ -364,6 +361,7 @@ export async function calculateWeeklyWinners(
           pool_id: poolId,
           week,
           season,
+          season_type: seasonType,
           winner_participant_id: winner.participant_id,
           winner_name: (winner.participants as ParticipantData[])?.[0]?.name || 'Unknown',
           winner_points: winner.points,
@@ -378,6 +376,7 @@ export async function calculateWeeklyWinners(
           poolId,
           week,
           season,
+          seasonType,
           topScorers.map(s => ({
             participant_id: s.participant_id,
             participant_name: (s.participants as ParticipantData[])?.[0]?.name || 'Unknown',
@@ -393,6 +392,7 @@ export async function calculateWeeklyWinners(
             pool_id: poolId,
             week,
             season,
+            season_type: seasonType,
             winner_participant_id: winner.participant_id,
             winner_name: winner.participant_name,
             winner_points: winner.points,
@@ -425,7 +425,8 @@ async function calculateSeasonWinners(
   try {
     const supabase = getSupabaseClient();
     
-    // Get all scores for the season
+    // Get all scores for the season — the season champion is the regular
+    // season champion; preseason/playoff scores must not blend in.
     const { data: scores, error: scoresError } = await supabase
       .from('scores')
       .select(`
@@ -436,7 +437,8 @@ async function calculateSeasonWinners(
         participants!inner(name)
       `)
       .eq('pool_id', poolId)
-      .eq('season', season);
+      .eq('season', season)
+      .eq('season_type', 2);
 
     if (scoresError) throw scoresError;
     if (!scores || scores.length === 0) return null;
@@ -472,7 +474,8 @@ async function calculateSeasonWinners(
       .from('weekly_winners')
       .select('winner_participant_id')
       .eq('pool_id', poolId)
-      .eq('season', season);
+      .eq('season', season)
+      .eq('season_type', 2);
 
     if (!weeklyError && weeklyWinners) {
       weeklyWinners.forEach(winner => {
@@ -580,7 +583,7 @@ async function calculatePeriodWinners(
   try {
     const supabase = getSupabaseClient();
     
-    // Get all scores for the period
+    // Get all scores for the period — periods are always regular season
     const { data: scores, error: scoresError } = await supabase
       .from('scores')
       .select(`
@@ -592,6 +595,7 @@ async function calculatePeriodWinners(
       `)
       .eq('pool_id', poolId)
       .eq('season', season)
+      .eq('season_type', 2)
       .gte('week', startWeek)
       .lte('week', endWeek);
 
@@ -630,6 +634,7 @@ async function calculatePeriodWinners(
       .select('winner_participant_id')
       .eq('pool_id', poolId)
       .eq('season', season)
+      .eq('season_type', 2)
       .gte('week', startWeek)
       .lte('week', endWeek);
 
@@ -819,7 +824,7 @@ async function saveWeeklyWinner(winner: WeeklyWinner): Promise<void> {
     
     const { error } = await supabase
       .from('weekly_winners')
-      .upsert(winner, { onConflict: 'pool_id,week,season' });
+      .upsert(winner, { onConflict: 'pool_id,week,season,season_type' });
 
     if (error) {
       debugError('Error saving weekly winner:', error);
@@ -1506,6 +1511,7 @@ async function resolveTieBreaker(
   poolId: string,
   week: number,
   season: number,
+  seasonType: number,
   tiedParticipants: Array<{
     participant_id: string;
     participant_name: string;
@@ -1524,7 +1530,7 @@ async function resolveTieBreaker(
 }>> {
   try {
     const supabase = getSupabaseClient();
-    
+
     // Get tie breaker answers for the tied participants
     const { data: tieBreakers, error: tieBreakerError } = await supabase
       .from('tie_breakers')
@@ -1532,6 +1538,7 @@ async function resolveTieBreaker(
       .eq('pool_id', poolId)
       .eq('week', week)
       .eq('season', season)
+      .eq('season_type', seasonType)
       .in('participant_id', tiedParticipants.map(p => p.participant_id));
 
     if (tieBreakerError) throw tieBreakerError;
@@ -1614,12 +1621,14 @@ async function resolveSeasonTieBreaker(
       return tiedParticipants.sort((a, b) => b.weeks_won - a.weeks_won);
     }
 
-    // Get tie breaker answers for the tied participants (use the most recent week)
+    // Get tie breaker answers for the tied participants (use the most recent week).
+    // Season winner is always the regular season champion.
     const { data: tieBreakers, error: tieBreakerError } = await supabase
       .from('tie_breakers')
       .select('participant_id, answer, week')
       .eq('pool_id', poolId)
       .eq('season', season)
+      .eq('season_type', 2)
       .in('participant_id', tiedParticipants.map(p => p.participant_id))
       .order('week', { ascending: false });
 
@@ -1690,12 +1699,14 @@ async function resolvePeriodTieBreaker(
       return tiedParticipants.sort((a, b) => b.weeks_won - a.weeks_won);
     }
 
-    // Get tie breaker answers for the tied participants (use the most recent week in the period)
+    // Get tie breaker answers for the tied participants (use the most recent
+    // week in the period). Periods are always the regular season.
     const { data: tieBreakers, error: tieBreakerError } = await supabase
       .from('tie_breakers')
       .select('participant_id, answer, week')
       .eq('pool_id', poolId)
       .eq('season', season)
+      .eq('season_type', 2)
       .gte('week', startWeek)
       .lte('week', endWeek)
       .in('participant_id', tiedParticipants.map(p => p.participant_id))

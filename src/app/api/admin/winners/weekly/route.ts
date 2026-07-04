@@ -9,6 +9,8 @@ export async function GET(request: NextRequest) {
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
     const week = searchParams.get('week'); // Optional: specific week
+    const seasonTypeParam = searchParams.get('seasonType');
+    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
 
     if (!poolId || !season) {
       return NextResponse.json(
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     if (week) {
       // Get or calculate winner for specific week
-      const weeklyWinner = await getOrCalculateWeeklyWinners(poolId, parseInt(week), parseInt(season));
+      const weeklyWinner = await getOrCalculateWeeklyWinners(poolId, parseInt(week), parseInt(season), seasonType);
       
       if (weeklyWinner) {
         return NextResponse.json({

@@ -210,3 +210,47 @@ The system automatically resolves ties using the following hierarchy:
 3. **Performance**: Optimized indexes for fast queries
 4. **Flexibility**: Support for custom periods and tie breaker methods
 5. **Audit Trail**: Complete history of winner calculations
+
+## season_type on scores, weekly_winners, tie_breakers
+
+Preseason, regular season, and playoffs each number their weeks independently
+(preseason week 1, regular season week 1, and playoffs "week 1" a.k.a. Wild
+Card are three different sets of games), but these three tables only ever
+keyed a row by `(pool_id, week, season)`. A pool scoped to more than one
+season type (e.g. "Preseason + Regular Season") could have two real weeks
+sharing the same week number, and there was no way to tell them apart.
+
+`weekly_winners` and `tie_breakers` already had a `season_type` **column**
+added in production ahead of this repo catching up its migration history and
+TypeScript types — but `weekly_winners`' UNIQUE constraint was still only
+`(pool_id, week, season)`, so it actively rejected a second legitimate row for
+a different season_type instead of allowing it. `scores` was missing the
+column entirely.
+
+Migration: `docs/migrations/add-season-type-to-scoring-tables.sql`
+
+1. Adds `season_type` to `scores` (default 2, matching every row it has ever
+   practically held).
+2. Widens `weekly_winners`' unique constraint to `(pool_id, week, season,
+   season_type)`.
+3. Widens `scores`' own unique constraint the same way.
+
+App code updated in the same change: `src/lib/winner-calculator.ts` now
+threads `season_type` through weekly/period/season winner calculation and
+tie-breaker resolution (period and season winners are always regular season —
+`season_type = 2`); several API routes and two client pages that read
+`scores`/`weekly_winners`/`tie_breakers` now filter by it too.
+
+Known **not** touched, and why:
+
+- `supabase/functions/update-games/index.ts` — placeholder/scaffold code
+  (comments literally say "Simulate checking if game is finished"), not
+  invoked anywhere in the app. Not real production code.
+- `src/actions/adminActions.ts`'s `calculateWeeklyScores`/`updateScoresInDatabase`,
+  `src/actions/loadPicksForLeaderboard.ts`, `src/lib/tie-breakers.ts`'s
+  `applyTieBreakers`, `/api/admin/calculate-tie-breakers`,
+  `/api/admin/weekly-stats` — none have any caller anywhere in the app
+  (verified via search). Dead code, left alone.
+- `scripts/seed.ts` — already broken independent of this: its `picks` and
+  `scores` inserts use a stale `user_id` column instead of `participant_id`,
+  predating this change.

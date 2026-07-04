@@ -122,7 +122,8 @@ export async function exportWeeklyPicks(
          `)
          .eq('pool_id', poolId)
          .eq('week', week)
-         .eq('season', season);
+         .eq('season', season)
+         .eq('season_type', seasonType);
 
        if (!tieBreakerError && tieBreakers) {
          mondayNightScores = tieBreakers;

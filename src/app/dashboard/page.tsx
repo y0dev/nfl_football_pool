@@ -278,7 +278,8 @@ function CommissionerDashboardContent() {
         .from('scores')
         .select('participant_id, points, correct_picks')
         .eq('pool_id', poolId)
-        .eq('season', currentSeason);
+        .eq('season', currentSeason)
+        .eq('season_type', currentSeasonType);
 
       if (seasonScores && seasonScores.length > 0) {
         const totalsMap = new Map<string, { points: number; correctPicks: number }>();

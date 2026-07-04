@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('pool_id', poolId)
       .eq('season', seasonNum)
+      .eq('season_type', 2) // Regular season, matches the games query below
       .order('week');
 
     if (scoresError) {

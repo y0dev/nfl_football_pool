@@ -274,6 +274,7 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type: number
           points: number
           correct_picks: number
           total_picks: number
@@ -290,6 +291,7 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type?: number
           points: number
           correct_picks: number
           total_picks: number
@@ -306,6 +308,7 @@ type Database = {
           pool_id?: string
           week?: number
           season?: number
+          season_type?: number
           points?: number
           correct_picks?: number
           total_picks?: number
@@ -324,9 +327,13 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type: number
           answer: number
+          game_id: string | null
           submitted_at: string
           is_winner: boolean
+          rank: number | null
+          tie_breaker_used: boolean
           tie_breaker_rank: number | null
           created_at: string
           updated_at: string
@@ -337,9 +344,13 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type?: number
           answer: number
+          game_id?: string | null
           submitted_at?: string
           is_winner?: boolean
+          rank?: number | null
+          tie_breaker_used?: boolean
           tie_breaker_rank?: number | null
           created_at?: string
           updated_at?: string
@@ -350,9 +361,13 @@ type Database = {
           pool_id?: string
           week?: number
           season?: number
+          season_type?: number
           answer?: number
+          game_id?: string | null
           submitted_at?: string
           is_winner?: boolean
+          rank?: number | null
+          tie_breaker_used?: boolean
           tie_breaker_rank?: number | null
           created_at?: string
           updated_at?: string
@@ -364,6 +379,7 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type: number
           winner_participant_id: string | null
           winner_name: string
           winner_points: number
@@ -382,6 +398,7 @@ type Database = {
           pool_id: string
           week: number
           season: number
+          season_type?: number
           winner_participant_id?: string | null
           winner_name: string
           winner_points: number
@@ -400,6 +417,7 @@ type Database = {
           pool_id?: string
           week?: number
           season?: number
+          season_type?: number
           winner_participant_id?: string | null
           winner_name?: string
           winner_points?: number
@@ -740,6 +758,7 @@ CREATE TABLE IF NOT EXISTS scores (
   pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
   week INTEGER NOT NULL,
   season INTEGER NOT NULL,
+  season_type INTEGER NOT NULL DEFAULT 2,
   points INTEGER DEFAULT 0,
   correct_picks INTEGER DEFAULT 0,
   total_picks INTEGER DEFAULT 0,
@@ -749,7 +768,7 @@ CREATE TABLE IF NOT EXISTS scores (
   tie_breaker_rank INTEGER NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(participant_id, pool_id, week, season)
+  UNIQUE(participant_id, pool_id, week, season, season_type)
 );
 `;
 
@@ -761,13 +780,17 @@ CREATE TABLE IF NOT EXISTS tie_breakers (
   pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
   week INTEGER NOT NULL,
   season INTEGER NOT NULL,
+  season_type INTEGER NOT NULL DEFAULT 2,
   answer DECIMAL(10,2) NOT NULL,
+  game_id TEXT NULL,
   submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_winner BOOLEAN DEFAULT false,
+  rank INTEGER NULL,
+  tie_breaker_used BOOLEAN DEFAULT false,
   tie_breaker_rank INTEGER NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(participant_id, pool_id, week, season)
+  UNIQUE(participant_id, pool_id, week, season, season_type)
 );
 `;
 
@@ -778,6 +801,7 @@ CREATE TABLE IF NOT EXISTS weekly_winners (
   pool_id UUID REFERENCES pools(id) ON DELETE CASCADE,
   week INTEGER NOT NULL,
   season INTEGER NOT NULL,
+  season_type INTEGER NOT NULL DEFAULT 2,
   winner_participant_id UUID REFERENCES participants(id) ON DELETE SET NULL,
   winner_name VARCHAR(255) NOT NULL,
   winner_points INTEGER NOT NULL,
@@ -790,7 +814,7 @@ CREATE TABLE IF NOT EXISTS weekly_winners (
   total_participants INTEGER NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(pool_id, week, season)
+  UNIQUE(pool_id, week, season, season_type)
 );
 `;
 

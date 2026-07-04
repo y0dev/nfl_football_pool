@@ -211,8 +211,9 @@ async function handleDataSubmission(request: NextRequest) {
               pool_id: poolId,
               week: pool.current_week || 1,
               season: pool.season,
-              value: participant.tieBreaker
-            }, { onConflict: 'participant_id,pool_id,week,season' });
+              season_type: pool.current_season_type || 2,
+              answer: participant.tieBreaker
+            }, { onConflict: 'participant_id,pool_id,week,season,season_type' });
 
           if (tieBreakerError) {
             errors.push(`Failed to insert tie breaker for ${participant.participantName}`);

@@ -34,9 +34,9 @@ export async function GET(request: NextRequest) {
       query = query.eq('week', parseInt(week));
     }
 
-    // Note: scores table doesn't have season_type column
-    // Scores are stored by week and season (year) only
-    // For playoffs, weeks 1-4 represent playoff rounds
+    if (seasonType) {
+      query = query.eq('season_type', parseInt(seasonType));
+    }
 
     if (season) {
       query = query.eq('season', parseInt(season));
