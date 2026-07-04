@@ -413,15 +413,28 @@ input[type="url"], textarea {
   }
 }
 
-/* Public nav — How It Works / FAQ links hide below tablet width to keep the auth actions primary on mobile */
+/* Public nav — How It Works / FAQ / Pricing links. Wrap to their own centered
+   row below the brand/auth buttons on narrow screens instead of disappearing. */
 .lp-nav-links {
-  display: none;
+  display: flex;
   align-items: center;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  order: 3;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid oklch(26% 0.03 255);
 }
 @media (min-width: 768px) {
   .lp-nav-links {
-    display: flex;
+    width: auto;
+    order: 0;
+    gap: 1.25rem;
+    padding-top: 0;
+    margin-top: 0;
+    border-top: none;
   }
 }
 

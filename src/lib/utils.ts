@@ -95,6 +95,10 @@ export function createPageUrl(page: string): string {
       return "/how-it-works";
     case "faq":
       return "/faq";
+    case "pricing":
+      return "/pricing";
+    case "upgrade":
+      return "/upgrade";
     default:
       // For dynamic routes like pool picks with specific pool ID
       if (normalized.startsWith("poolpicks?")) {
