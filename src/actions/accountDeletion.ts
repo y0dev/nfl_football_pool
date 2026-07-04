@@ -96,6 +96,19 @@ export async function confirmAccountDeletion(token: string): Promise<{ success: 
   if (!admin) return { success: false, error: 'Account not found.' };
   if (admin.is_super_admin) return { success: false, error: 'Super admin accounts cannot be self-deleted.' };
 
+  // Delete pools this admin owns (created_by). Cascades to that pool's own
+  // participants/picks/scores/etc. Pools owned by other commissioners that
+  // this admin merely participates in elsewhere are left untouched.
+  const { error: poolsDeleteError } = await supabase
+    .from('pools')
+    .delete()
+    .eq('created_by', admin.email);
+
+  if (poolsDeleteError) {
+    debugError('Deleting owned pools failed:', poolsDeleteError.code);
+    return { success: false, error: 'Failed to delete account. Please try again.' };
+  }
+
   const { error: deleteError } = await supabase.from('admins').delete().eq('id', adminId);
   if (deleteError) {
     debugError('Account deletion failed:', deleteError.code);

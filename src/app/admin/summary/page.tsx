@@ -171,8 +171,8 @@ function AdminSummaryContent() {
         borderBottom: `1px solid ${border}`,
       }}>
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
               <button
                 onClick={() => router.back()}
                 style={{
@@ -182,18 +182,18 @@ function AdminSummaryContent() {
                   border: `1px solid ${border}`, borderRadius: 5,
                   ...bc, fontWeight: 600, fontSize: '0.72rem',
                   letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer',
+                  cursor: 'pointer', flexShrink: 0,
                 }}
               >
                 <ArrowLeft style={{ width: 12, height: 12 }} />
-                Back
+                <span className="pools-nav-label">Back</span>
               </button>
-              <div style={{ width: 1, height: 20, background: border }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <BarChart3 style={{ width: 14, height: 14, color: text }} />
                 </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                   Operation Summary
                 </span>
               </div>
@@ -207,11 +207,11 @@ function AdminSummaryContent() {
                 border: `1px solid ${border}`, borderRadius: 5,
                 ...bc, fontWeight: 600, fontSize: '0.72rem',
                 letterSpacing: '0.07em', textTransform: 'uppercase',
-                cursor: 'pointer',
+                cursor: 'pointer', flexShrink: 0,
               }}
             >
               <Printer style={{ width: 11, height: 11 }} />
-              Print
+              <span className="pools-nav-label">Print</span>
             </button>
           </div>
         </div>

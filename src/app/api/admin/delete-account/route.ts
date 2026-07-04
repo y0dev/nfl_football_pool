@@ -47,7 +47,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Password is incorrect' }, { status: 401 });
     }
 
-    // Delete admin record first (FK constraints may exist)
+    // Delete pools this admin owns (created_by). Cascades to that pool's own
+    // participants/picks/scores/etc. Pools owned by other commissioners that
+    // this admin merely participates in elsewhere are left untouched.
+    const { error: deletePoolsError } = await supabase
+      .from('pools')
+      .delete()
+      .eq('created_by', admin.email);
+
+    if (deletePoolsError) {
+      debugError('[SH][API][AUTH] Delete owned pools error:', deletePoolsError.code);
+      return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
+    }
+
+    // Delete admin record (FK constraints may exist)
     const { error: deleteAdminError } = await supabase
       .from('admins')
       .delete()

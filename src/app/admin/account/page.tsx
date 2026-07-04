@@ -255,7 +255,7 @@ function AccountSettingsContent() {
                 <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: errRed, textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Danger Zone</p>
               </div>
               <p style={{ ...b, fontSize: '0.82rem', color: textDim, marginBottom: '1rem' }}>
-                Permanently delete your commissioner account. This cannot be undone. Your pools and pool data will remain intact.
+                Permanently delete your commissioner account. This cannot be undone. Any pools you created will be deleted along with all their picks, scores, and participants. Pools created by other commissioners that you participate in are not affected.
               </p>
               {deleteSent ? (
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.9rem 1rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.35)`, borderRadius: 8 }}>
@@ -291,7 +291,7 @@ function AccountSettingsContent() {
                       style={{ marginTop: 2, flexShrink: 0, accentColor: errRed }}
                     />
                     <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>
-                      I understand this is permanent and cannot be undone
+                      I understand this is permanent, cannot be undone, and will delete any pools I created
                     </span>
                   </label>
 

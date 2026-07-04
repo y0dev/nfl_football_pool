@@ -506,7 +506,7 @@ class EmailService {
           <tr>
             <td style="background:#091a0f;border-left:3px solid #1e6e43;padding:14px 18px;border-radius:0 6px 6px 0;">
               <p style="margin:0;color:#4ade80;font-size:14px;line-height:1.65;">
-                Your pools, standings, and participant data remain intact — only your commissioner account has been removed.
+                Any pools you created have been deleted along with their picks, scores, and participants. Pools created by other commissioners that you participated in are not affected.
               </p>
             </td>
           </tr>
