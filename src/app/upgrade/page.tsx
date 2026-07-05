@@ -12,6 +12,7 @@ import {
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { useToast } from '@/hooks/use-toast';
+import { isPricingVisible } from '@/lib/billing';
 
 type Plan = 'free' | 'standard' | 'pro';
 
@@ -20,6 +21,10 @@ interface PlanStatus {
   isTrialActive: boolean;
   daysLeft: number;
   trialEndsAt: string | null;
+  poolLimit?: number;
+  participantLimit?: number;
+  addonPools?: number;
+  billing?: { pricingVisible: boolean; stripeEnabled: boolean };
 }
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -69,8 +74,10 @@ function UpgradeContent() {
   const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
   const [isLoadingPlan, setIsLoadingPlan] = useState(true);
   const [isDowngrading, setIsDowngrading] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const totalAddon = extraPools * 15;
+  const pricingVisible = isPricingVisible();
 
   useEffect(() => {
     if (!user?.id) return;
@@ -82,7 +89,37 @@ function UpgradeContent() {
       .finally(() => setIsLoadingPlan(false));
   }, [user?.id]);
 
+  // Surface the result of a Stripe Checkout redirect
+  useEffect(() => {
+    const checkout = new URLSearchParams(window.location.search).get('checkout');
+    if (checkout === 'success') {
+      toast({ title: 'Payment Received', description: 'Your plan will update within a minute. Thanks!' });
+    } else if (checkout === 'cancelled') {
+      toast({ title: 'Checkout Cancelled', description: 'No charge was made.' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const currentPlan = planStatus?.plan ?? 'free';
+  const stripeEnabled = planStatus?.billing?.stripeEnabled ?? false;
+
+  const handleCheckout = async (product: 'standard' | 'addon_pool', quantity = 1) => {
+    if (!user?.id) return;
+    setIsCheckingOut(true);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: user.id, product, quantity }),
+      });
+      const data = await res.json();
+      if (!data.success || !data.url) throw new Error(data.error || 'Failed to start checkout');
+      window.location.href = data.url;
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to start checkout', variant: 'destructive' });
+      setIsCheckingOut(false);
+    }
+  };
 
   const handleDowngrade = async () => {
     if (!user?.id) return;
@@ -139,13 +176,15 @@ function UpgradeContent() {
       <section style={{ padding: 'clamp(2.5rem, 6vw, 4rem) 0 2rem' }}>
         <div className="lp-inner" style={{ textAlign: 'center' }}>
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.67rem', letterSpacing: '0.28em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.75rem' }}>
-            Plans &amp; Pricing
+            {pricingVisible ? 'Plans & Pricing' : 'Your Plan'}
           </p>
           <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(2rem, 5vw, 3rem)', color: text, textTransform: 'uppercase', letterSpacing: '-0.01em', marginBottom: '0.75rem' }}>
             Run Your Season, <span style={{ color: gold }}>Your Way</span>
           </h1>
           <p style={{ ...b, fontSize: '0.95rem', color: textMid, maxWidth: '48ch', margin: '0 auto' }}>
-            Pricing is per season — roughly 6 months of NFL action. Cancel or change plans between seasons, no lock-in.
+            {pricingVisible
+              ? 'Pricing is per season — roughly 6 months of NFL action. Cancel or change plans between seasons, no lock-in.'
+              : 'Your current plan and limits at a glance.'}
           </p>
         </div>
       </section>
@@ -169,6 +208,41 @@ function UpgradeContent() {
       {/* Plans */}
       <section style={{ padding: '1rem 0 3rem' }}>
         <div className="lp-inner">
+          {!pricingVisible ? (
+            /* Pricing hidden (pre-launch): current plan + limits only, no dollar amounts */
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.75rem', maxWidth: 560, margin: '0 auto' }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Current Plan</p>
+              <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: text, textTransform: 'uppercase', marginBottom: '1rem' }}>
+                {currentPlan}
+                {planStatus?.isTrialActive && <span style={{ ...b, fontWeight: 700, fontSize: '0.72rem', color: gold, marginLeft: '0.6rem', letterSpacing: '0.05em' }}>TRIAL · {planStatus.daysLeft}d left</span>}
+              </p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                {[
+                  `${planStatus?.poolLimit ?? 1} pool${(planStatus?.poolLimit ?? 1) === 1 ? '' : 's'}`,
+                  `Up to ${planStatus?.participantLimit ?? 15} participants per pool`,
+                  'Up to 2 free preseason test pools (max 15 players each)',
+                ].map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                    <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ ...b, fontSize: '0.85rem', color: textMid }}>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              {currentPlan !== 'free' && (
+                <button
+                  onClick={handleDowngrade}
+                  disabled={isDowngrading}
+                  style={{ width: '100%', padding: '0.55rem 1rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', color: textMid, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isDowngrading ? 'not-allowed' : 'pointer', opacity: isDowngrading ? 0.6 : 1, marginBottom: '1rem' }}
+                >
+                  {isDowngrading ? 'Downgrading…' : 'Downgrade to Free'}
+                </button>
+              )}
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, lineHeight: 1.6 }}>
+                Paid upgrades aren&apos;t available yet — plans and pricing will be announced soon.
+              </p>
+            </div>
+          ) : (
+          <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'start' }}>
 
             {/* Free */}
@@ -246,6 +320,24 @@ function UpgradeContent() {
                   ))}
                 </ul>
                 {currentPlan === 'free' ? (
+                  stripeEnabled ? (
+                    <button
+                      onClick={() => handleCheckout('standard')}
+                      disabled={isCheckingOut}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0.6rem 1rem',
+                        background: green, color: text,
+                        border: 'none', borderRadius: 6,
+                        ...bc, fontWeight: 700, fontSize: '0.78rem',
+                        letterSpacing: '0.08em', textTransform: 'uppercase',
+                        cursor: isCheckingOut ? 'not-allowed' : 'pointer',
+                        opacity: isCheckingOut ? 0.6 : 1,
+                      }}
+                    >
+                      {isCheckingOut ? 'Redirecting…' : 'Upgrade to Standard'}
+                    </button>
+                  ) : (
                   <a
                     href="mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($30/season)."
                     style={{
@@ -260,6 +352,7 @@ function UpgradeContent() {
                   >
                     Upgrade to Standard
                   </a>
+                  )
                 ) : (
                   <div style={{ padding: '0.55rem 1rem', background: 'oklch(46% 0.14 155 / 0.15)', border: `1px solid ${green}`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: greenHi, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                     {planStatus?.isTrialActive ? 'Current Plan (Trial)' : 'Current Plan'}
@@ -307,6 +400,25 @@ function UpgradeContent() {
                   </div>
                 </div>
 
+                {stripeEnabled ? (
+                  <button
+                    onClick={() => handleCheckout('addon_pool', extraPools)}
+                    disabled={isCheckingOut}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0.6rem 1rem',
+                      background: 'oklch(74% 0.16 72 / 0.12)', color: gold,
+                      border: `1px solid oklch(74% 0.16 72 / 0.4)`,
+                      borderRadius: 6,
+                      ...bc, fontWeight: 700, fontSize: '0.78rem',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: isCheckingOut ? 'not-allowed' : 'pointer',
+                      opacity: isCheckingOut ? 0.6 : 1,
+                    }}
+                  >
+                    {isCheckingOut ? 'Redirecting…' : `Buy ${extraPools} Extra Pool${extraPools !== 1 ? 's' : ''}`}
+                  </button>
+                ) : (
                 <a
                   href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Add-on Pools&body=I'd like to add ${extraPools} extra pool${extraPools !== 1 ? 's' : ''} to my Standard plan ($${totalAddon}/season).`}
                   style={{
@@ -322,6 +434,7 @@ function UpgradeContent() {
                 >
                   Request {extraPools} Extra Pool{extraPools !== 1 ? 's' : ''}
                 </a>
+                )}
               </div>
             </div>
 
@@ -329,8 +442,12 @@ function UpgradeContent() {
 
           {/* Footer note */}
           <p style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', marginTop: '2rem' }}>
-            Payments are handled manually for now. You will receive a confirmation email once your plan is active.
+            {stripeEnabled
+              ? 'Payments are processed securely by Stripe. Your plan updates automatically after checkout.'
+              : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
           </p>
+          </>
+          )}
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, ChevronDown } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { isPricingVisible } from '@/lib/billing';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const bg      = 'oklch(13% 0.025 255)';
@@ -117,9 +118,11 @@ export default function FaqPage() {
                 <Link href="/faq" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', textDecoration: 'none' }}>
                   FAQ
                 </Link>
-                <Link href="/pricing" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                  Pricing
-                </Link>
+                {isPricingVisible() && (
+                  <Link href="/pricing" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
+                    Pricing
+                  </Link>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>

@@ -163,6 +163,14 @@ async function handleDataSubmission(request: NextRequest) {
         if (existingParticipant) {
           participantId = existingParticipant.id;
         } else {
+          // New participant — enforce the pool's participant limit
+          const { checkParticipantCapacity } = await import('@/lib/plan');
+          const capacity = await checkParticipantCapacity(poolId);
+          if (!capacity.allowed) {
+            errors.push(`${participant.participantName}: ${capacity.message ?? 'pool is full'}`);
+            continue;
+          }
+
           const { data: newParticipant, error: createError } = await supabase
             .from('participants')
             .insert({
