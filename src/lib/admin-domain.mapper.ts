@@ -23,6 +23,7 @@ export const AdminDomainMapper = {
       plan,
       isTrialActive,
       daysLeft,
+      billingExempt: row.billing_exempt ?? false,
     };
   },
 

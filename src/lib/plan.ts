@@ -28,12 +28,15 @@ export interface PlanInfo {
   poolLimit: number;
   /** Participants allowed per (non-preseason) pool. */
   participantLimit: number;
+  /** Comped by the site admin — keeps their plan without ever paying. */
+  billingExempt: boolean;
 }
 
 type AdminPlanRow = {
   plan?: string | null;
   trial_ends_at?: string | null;
   addon_pools?: number | null;
+  billing_exempt?: boolean | null;
 } | null;
 
 function computePlanInfo(row: AdminPlanRow): PlanInfo {
@@ -58,6 +61,7 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     addonPools,
     poolLimit: LIMITS[plan].pools + addonPools,
     participantLimit: LIMITS[plan].participants,
+    billingExempt: row?.billing_exempt ?? false,
   };
 }
 

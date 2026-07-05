@@ -57,6 +57,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Comped accounts never pay — their plan is managed by the site admin
+    if (admin.billing_exempt === true) {
+      return NextResponse.json(
+        { success: false, error: 'This account does not require payment — your plan is managed by the site admin.' },
+        { status: 400 }
+      );
+    }
+
     // Add-on pools sit on top of Standard — require it first
     if (product === 'addon_pool' && (admin.plan ?? 'free') !== 'standard') {
       return NextResponse.json(

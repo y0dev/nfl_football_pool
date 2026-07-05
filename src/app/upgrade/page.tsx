@@ -24,6 +24,7 @@ interface PlanStatus {
   poolLimit?: number;
   participantLimit?: number;
   addonPools?: number;
+  billingExempt?: boolean;
   billing?: { pricingVisible: boolean; stripeEnabled: boolean };
 }
 
@@ -101,7 +102,9 @@ function UpgradeContent() {
   }, []);
 
   const currentPlan = planStatus?.plan ?? 'free';
-  const stripeEnabled = planStatus?.billing?.stripeEnabled ?? false;
+  const billingExempt = planStatus?.billingExempt ?? false;
+  // Comped accounts never see pay CTAs — their plan is managed by the site admin
+  const stripeEnabled = (planStatus?.billing?.stripeEnabled ?? false) && !billingExempt;
 
   const handleCheckout = async (product: 'standard' | 'addon_pool', quantity = 1) => {
     if (!user?.id) return;
@@ -215,6 +218,7 @@ function UpgradeContent() {
               <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: text, textTransform: 'uppercase', marginBottom: '1rem' }}>
                 {currentPlan}
                 {planStatus?.isTrialActive && <span style={{ ...b, fontWeight: 700, fontSize: '0.72rem', color: gold, marginLeft: '0.6rem', letterSpacing: '0.05em' }}>TRIAL · {planStatus.daysLeft}d left</span>}
+                {billingExempt && <span style={{ ...b, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', marginLeft: '0.6rem', letterSpacing: '0.05em' }}>COMPED</span>}
               </p>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
                 {[
@@ -320,7 +324,11 @@ function UpgradeContent() {
                   ))}
                 </ul>
                 {currentPlan === 'free' ? (
-                  stripeEnabled ? (
+                  billingExempt ? (
+                    <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      Managed by site admin
+                    </div>
+                  ) : stripeEnabled ? (
                     <button
                       onClick={() => handleCheckout('standard')}
                       disabled={isCheckingOut}
@@ -400,7 +408,11 @@ function UpgradeContent() {
                   </div>
                 </div>
 
-                {stripeEnabled ? (
+                {billingExempt ? (
+                  <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    Managed by site admin
+                  </div>
+                ) : stripeEnabled ? (
                   <button
                     onClick={() => handleCheckout('addon_pool', extraPools)}
                     disabled={isCheckingOut}
@@ -442,7 +454,9 @@ function UpgradeContent() {
 
           {/* Footer note */}
           <p style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', marginTop: '2rem' }}>
-            {stripeEnabled
+            {billingExempt
+              ? 'Your account is comped — the site admin manages your plan and no payment is ever required.'
+              : stripeEnabled
               ? 'Payments are processed securely by Stripe. Your plan updates automatically after checkout.'
               : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
           </p>
