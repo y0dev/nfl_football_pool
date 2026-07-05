@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createPool } from '@/actions/createPool';
 import { addParticipantToPool } from '@/actions/adminActions';
 import { useAuth } from '@/lib/auth';
+import { isPricingVisible } from '@/lib/billing';
 import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS, debugError, debugWarn} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
@@ -265,10 +266,17 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
               limitReached ? (
                 <div style={{ padding: '0.85rem 1rem', background: `oklch(74% 0.16 72 / 0.08)`, border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 8 }}>
                   <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: 'oklch(74% 0.16 72)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Pool Limit Reached</p>
-                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade your plan to run additional pools.</p>
-                  <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    View upgrade options →
-                  </a>
+                  {/* Preseason test pools have a flat cap — upgrading doesn't raise it */}
+                  {isPricingVisible() && !errorMsg.toLowerCase().includes('preseason') ? (
+                    <>
+                      <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade your plan to run additional pools.</p>
+                      <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                        View upgrade options →
+                      </a>
+                    </>
+                  ) : (
+                    <p style={{ ...b, fontSize: '0.82rem', color: textMid, margin: 0 }}>{errorMsg}</p>
+                  )}
                 </div>
               ) : (
                 <p style={{ ...b, fontSize: '0.8rem', color: red, padding: '0.5rem 0.75rem', background: `${red}18`, border: `1px solid ${red}44`, borderRadius: 6 }}>{errorMsg}</p>

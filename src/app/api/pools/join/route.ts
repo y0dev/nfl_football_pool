@@ -72,12 +72,23 @@ export async function POST(request: NextRequest) {
 
     if (existingParticipant) {
       return NextResponse.json(
-        { 
+        {
           message: 'Already joined',
           participant: existingParticipant,
           poolName: pool.name
         },
         { status: 200 }
+      );
+    }
+
+    // Enforce the pool's participant limit (plan-based, or the flat preseason
+    // test-pool cap) before adding anyone new
+    const { checkParticipantCapacity } = await import('@/lib/plan');
+    const capacity = await checkParticipantCapacity(poolId);
+    if (!capacity.allowed) {
+      return NextResponse.json(
+        { error: capacity.message ?? 'This pool is full and not accepting new participants.' },
+        { status: 403 }
       );
     }
 

@@ -2,7 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
-import { getAdminPlanByEmail, LIMITS, Plan } from '@/lib/plan';
+import { checkPoolCapacity, isPreseasonOnlyScope, Plan } from '@/lib/plan';
 
 export type CreatePoolResult =
   | { success: true; data: Record<string, unknown> }
@@ -20,20 +20,18 @@ export async function createPool(poolData: {
   try {
     const supabase = getSupabaseServiceClient();
 
-    const planInfo = await getAdminPlanByEmail(poolData.created_by);
-    const poolLimit = LIMITS[planInfo.plan].pools;
-    const { count: poolCount } = await supabase
-      .from('pools')
-      .select('*', { count: 'exact', head: true })
-      .eq('created_by', poolData.created_by);
+    // Preseason-only pools are free test pools with their own separate cap;
+    // they never count against (or consume) the plan's pool limit.
+    const isPreseason = isPreseasonOnlyScope(poolData.season_scope ?? [2]);
+    const capacity = await checkPoolCapacity(poolData.created_by, { preseason: isPreseason });
 
-    if ((poolCount ?? 0) >= poolLimit) {
+    if (!capacity.allowed) {
       return {
         success: false,
-        error: `Your ${planInfo.plan} plan allows ${poolLimit} pool${poolLimit === 1 ? '' : 's'}.`,
+        error: capacity.message ?? 'Pool limit reached.',
         limitReached: true,
-        plan: planInfo.plan,
-        limit: poolLimit,
+        plan: capacity.plan,
+        limit: capacity.limit,
       };
     }
 
