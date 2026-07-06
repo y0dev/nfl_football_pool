@@ -375,6 +375,15 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
     const { getSupabaseServiceClient } = await import('@/lib/supabase');
     const supabase = getSupabaseServiceClient();
 
+    // Email is optional here, but when provided it must be real
+    if (email?.trim()) {
+      const { validateEmail } = await import('@/lib/email-validation');
+      const emailCheck = validateEmail(email);
+      if (!emailCheck.valid) {
+        throw new Error(emailCheck.error ?? 'Invalid email address.');
+      }
+    }
+
     // Plan limit check (preseason test pools cap at 15 on every plan)
     const { checkParticipantCapacity } = await import('@/lib/plan');
     const capacity = await checkParticipantCapacity(poolId);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
+import { validateEmail } from '@/lib/email-validation';
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {
@@ -16,6 +17,14 @@ export async function POST(request: NextRequest) {
     if (!email || !password || !fullName) {
       return NextResponse.json(
         { success: false, error: 'Email, password, and full name are required' },
+        { status: 400 }
+      );
+    }
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return NextResponse.json(
+        { success: false, error: emailCheck.error },
         { status: 400 }
       );
     }
