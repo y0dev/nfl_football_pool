@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
         targetAdmin.full_name || 'Commissioner',
         plan,
         trialDaysNum > 0 ? trialDaysNum : undefined,
+        billingExempt === true,
       );
     } catch (e) {
       debugError('Plan change notification email failed:', e);
