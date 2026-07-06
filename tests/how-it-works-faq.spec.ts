@@ -46,7 +46,10 @@ test.describe('Pricing page', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('heading', { name: /Run Your Season/i })).toBeVisible();
-    await expect(page.getByText('Add-on Pools', { exact: true })).toBeVisible();
+    // Add-ons are a cost band below the two plans, not a third plan card
+    await expect(page.getByText('Add-Ons', { exact: true })).toBeVisible();
+    await expect(page.getByText('Extra Pools', { exact: true })).toBeVisible();
+    await expect(page.getByText('Most popular')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Get Started' }).click();
     await expect(page).toHaveURL(/\/register$/);
