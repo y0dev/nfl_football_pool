@@ -179,7 +179,7 @@ function RemindersContent() {
     try {
       const response = await fetch('/api/admin/send-reminders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
         body: JSON.stringify({
           participantIds: Array.from(selectedParticipants),
           week: currentWeek,

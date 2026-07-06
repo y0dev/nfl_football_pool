@@ -98,6 +98,36 @@ export async function getAdminPlanByEmail(email: string): Promise<PlanInfo> {
   return computePlanInfo(data as AdminPlanRow);
 }
 
+/**
+ * Batch plan lookup keyed by email — for jobs that span many pools (e.g.
+ * reminder sends) so each owner is resolved with one query total.
+ * Unknown emails resolve to free-plan defaults.
+ */
+export async function getAdminPlansByEmails(emails: string[]): Promise<Map<string, PlanInfo>> {
+  const result = new Map<string, PlanInfo>();
+  const unique = [...new Set(emails.filter(Boolean))];
+  if (unique.length === 0) return result;
+
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from('admins')
+    .select('*')
+    .in('email', unique);
+
+  for (const email of unique) {
+    const row = (data ?? []).find(a => a.email === email) ?? null;
+    result.set(email, computePlanInfo(row as AdminPlanRow));
+  }
+  return result;
+}
+
+// Email pick reminders are a Standard feature
+export const REMINDERS_PLAN_MESSAGE = 'Email pick reminders require the Standard plan.';
+
+export function planAllowsReminders(planInfo: PlanInfo): boolean {
+  return planInfo.plan !== 'free';
+}
+
 export function trialEndDate(daysFromNow = 14): string {
   const d = new Date();
   d.setDate(d.getDate() + daysFromNow);
