@@ -128,6 +128,17 @@ export function planAllowsReminders(planInfo: PlanInfo): boolean {
   return planInfo.plan !== 'free';
 }
 
+// The commissioner multi-pool leaderboard tool (/leaderboard) is a Standard
+// feature — same boundary as reminders. A trial counts as Standard (it
+// already resolves to 'standard' in computePlanInfo); once the trial ends
+// and the plan reverts to free, access reverts too.
+export const LEADERBOARD_TOOL_PLAN_MESSAGE =
+  'The full leaderboard tool requires the Standard plan. Upgrade to see live standings across your pools.';
+
+export function planAllowsLeaderboardTool(planInfo: PlanInfo): boolean {
+  return planInfo.plan !== 'free';
+}
+
 export function trialEndDate(daysFromNow = 14): string {
   const d = new Date();
   d.setDate(d.getDate() + daysFromNow);
