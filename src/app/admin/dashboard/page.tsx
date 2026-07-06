@@ -678,6 +678,7 @@ function AdminDashboardContent() {
     { icon: Trophy,   accent: gold,                     title: 'Playoff Management',   onClick: () => router.push('/admin/playoffs') },
     { icon: Calendar, accent: green,                    title: 'NFL Sync',             onClick: () => router.push(createPageUrl('adminnflsync')) },
     { icon: Calendar, accent: 'oklch(65% 0.12 290)',    title: 'Season Games',         onClick: () => router.push('/admin/season-games') },
+    { icon: BarChart3, accent: 'oklch(59% 0.18 230)',    title: 'Leaderboard',          onClick: () => router.push('/leaderboard') },
   ];
 
   return (
