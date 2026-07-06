@@ -56,17 +56,9 @@ export function Footer({
       }}
     >
       <div className="footer-inner">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 240px))",
-            justifyContent: "space-between",
-            gap: "2rem",
-            paddingBottom: "1.75rem",
-          }}
-        >
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "2rem", paddingBottom: "1.75rem" }}>
           {/* Company info */}
-          <div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
               <BrandLogo variant="icon" size={24} />
               <span
@@ -87,22 +79,26 @@ export function Footer({
             </p>
           </div>
 
-          {/* Page links */}
-          <div>
-            <p style={headingStyle}>Explore</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-              {pageLinks.map(({ label, href }) => (
-                <Link key={href} href={href} style={linkStyle}>
-                  {label}
-                </Link>
-              ))}
+          {/* Explore + Follow grouped together — side by side on larger screens
+              (see .footer-links-group in globals.css), stacked on mobile. */}
+          <div className="footer-links-group">
+            {/* Page links */}
+            <div style={{ minWidth: 160 }}>
+              <p style={headingStyle}>Explore</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+                {pageLinks.map(({ label, href }) => (
+                  <Link key={href} href={href} style={linkStyle}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Socials — none yet, reserved for future use */}
-          <div>
-            <p style={headingStyle}>Follow</p>
-            <p style={{ fontFamily: font, fontSize: "0.82rem", color: textDim }}>Coming soon</p>
+            {/* Socials — none yet, reserved for future use */}
+            <div style={{ minWidth: 160 }}>
+              <p style={headingStyle}>Follow</p>
+              <p style={{ fontFamily: font, fontSize: "0.82rem", color: textDim }}>Coming soon</p>
+            </div>
           </div>
         </div>
 

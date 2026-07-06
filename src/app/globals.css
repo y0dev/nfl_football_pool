@@ -118,6 +118,22 @@ input[type="url"], textarea {
   }
 }
 
+/* Explore + Follow footer columns — stacked on mobile, side by side on
+   larger screens (placed next to each other as a pair, separate from the
+   company info column). */
+.footer-links-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .footer-links-group {
+    flex-direction: row;
+    gap: 3rem;
+  }
+}
+
 @media (min-width: 1440px) {
   .footer-inner {
     max-width: 100%;
