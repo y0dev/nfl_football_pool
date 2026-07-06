@@ -17,6 +17,15 @@ export function isPreseasonOnlyScope(scope: unknown): boolean {
   return Array.isArray(scope) && scope.length === 1 && Number(scope[0]) === 1;
 }
 
+// Season & playoff tracking is a Standard feature: pools whose scope includes
+// the postseason (season_type 3) require a paid plan.
+export function scopeIncludesPlayoffs(scope: unknown): boolean {
+  return Array.isArray(scope) && scope.some(t => Number(t) === 3);
+}
+
+export const PLAYOFF_SCOPE_MESSAGE =
+  'Season & playoff tracking requires the Standard plan. Free pools cover the regular season only.';
+
 export interface PlanInfo {
   plan: Plan;
   isTrialActive: boolean;
