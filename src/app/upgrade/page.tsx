@@ -13,6 +13,8 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
+import { getStandardPricing, getAddonPricing } from '@/lib/pricing';
+import { PriceTag } from '@/components/pricing/price-tag';
 
 type Plan = 'free' | 'standard' | 'pro';
 
@@ -77,7 +79,9 @@ function UpgradeContent() {
   const [isDowngrading, setIsDowngrading] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  const totalAddon = extraPools * 15;
+  const standardPrice = getStandardPricing();
+  const addonPrice = getAddonPricing();
+  const totalAddon = extraPools * addonPrice.effective;
   const pricingVisible = isPricingVisible();
 
   useEffect(() => {
@@ -308,10 +312,7 @@ function UpgradeContent() {
               </div>
               <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Standard</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginBottom: '0.4rem' }}>
-                  <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$30</span>
-                  <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/season</span>
-                </div>
+                <PriceTag price={standardPrice} suffix="/season" />
                 <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Everything you need to run a great pool all season.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
@@ -347,7 +348,7 @@ function UpgradeContent() {
                     </button>
                   ) : (
                   <a
-                    href="mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($30/season)."
+                    href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       padding: '0.6rem 1rem',
@@ -373,10 +374,7 @@ function UpgradeContent() {
             <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Add-on Pools</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginBottom: '0.4rem' }}>
-                  <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$15</span>
-                  <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/pool/season</span>
-                </div>
+                <PriceTag price={addonPrice} suffix="/pool/season" />
                 <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Add more pools on top of Standard. Each extra pool includes all Standard features.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
