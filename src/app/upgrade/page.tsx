@@ -13,6 +13,8 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
+import { getStandardPricing, getAddonPricing } from '@/lib/pricing';
+import { PriceTag } from '@/components/pricing/price-tag';
 
 type Plan = 'free' | 'standard' | 'pro';
 
@@ -24,6 +26,7 @@ interface PlanStatus {
   poolLimit?: number;
   participantLimit?: number;
   addonPools?: number;
+  billingExempt?: boolean;
   billing?: { pricingVisible: boolean; stripeEnabled: boolean };
 }
 
@@ -42,7 +45,7 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  '1 pool',
+  '1 pool (regular season)',
   'Up to 15 participants',
   'Weekly picks & confidence points',
   'Live leaderboard',
@@ -56,7 +59,6 @@ const STANDARD_FEATURES = [
   'Live leaderboard',
   'Period standings (Q1-Q4)',
   'Email pick reminders',
-  'Tiebreaker questions',
   'Season & playoff tracking',
 ];
 
@@ -76,7 +78,9 @@ function UpgradeContent() {
   const [isDowngrading, setIsDowngrading] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  const totalAddon = extraPools * 15;
+  const standardPrice = getStandardPricing();
+  const addonPrice = getAddonPricing();
+  const totalAddon = extraPools * addonPrice.effective;
   const pricingVisible = isPricingVisible();
 
   useEffect(() => {
@@ -101,7 +105,9 @@ function UpgradeContent() {
   }, []);
 
   const currentPlan = planStatus?.plan ?? 'free';
-  const stripeEnabled = planStatus?.billing?.stripeEnabled ?? false;
+  const billingExempt = planStatus?.billingExempt ?? false;
+  // Comped accounts never see pay CTAs — their plan is managed by the site admin
+  const stripeEnabled = (planStatus?.billing?.stripeEnabled ?? false) && !billingExempt;
 
   const handleCheckout = async (product: 'standard' | 'addon_pool', quantity = 1) => {
     if (!user?.id) return;
@@ -215,6 +221,7 @@ function UpgradeContent() {
               <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: text, textTransform: 'uppercase', marginBottom: '1rem' }}>
                 {currentPlan}
                 {planStatus?.isTrialActive && <span style={{ ...b, fontWeight: 700, fontSize: '0.72rem', color: gold, marginLeft: '0.6rem', letterSpacing: '0.05em' }}>TRIAL · {planStatus.daysLeft}d left</span>}
+                {billingExempt && <span style={{ ...b, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', marginLeft: '0.6rem', letterSpacing: '0.05em' }}>COMPED</span>}
               </p>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
                 {[
@@ -243,7 +250,8 @@ function UpgradeContent() {
             </div>
           ) : (
           <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'start' }}>
+          {/* Two plans: Free and Standard — that's the price */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'start', maxWidth: 720, margin: '0 auto' }}>
 
             {/* Free */}
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -284,7 +292,7 @@ function UpgradeContent() {
                           Downgrade to Free?
                         </AlertDialogTitle>
                         <AlertDialogDescription style={{ color: textMid }}>
-                          You&apos;ll lose email pick reminders, tiebreaker questions, and any pools beyond your first. This takes effect immediately.
+                          You&apos;ll lose email pick reminders, season &amp; playoff tracking, and any pools beyond your first. This takes effect immediately.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -298,16 +306,10 @@ function UpgradeContent() {
             </div>
 
             {/* Standard */}
-            <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: '1rem', right: '1rem', ...bc, fontWeight: 700, fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.2rem 0.5rem', background: `${green}30`, color: greenHi, border: `1px solid ${green}50`, borderRadius: 4 }}>
-                Most popular
-              </div>
+            <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Standard</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginBottom: '0.4rem' }}>
-                  <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$30</span>
-                  <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/season</span>
-                </div>
+                <PriceTag price={standardPrice} suffix="/season" />
                 <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Everything you need to run a great pool all season.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
@@ -320,7 +322,11 @@ function UpgradeContent() {
                   ))}
                 </ul>
                 {currentPlan === 'free' ? (
-                  stripeEnabled ? (
+                  billingExempt ? (
+                    <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      Managed by site admin
+                    </div>
+                  ) : stripeEnabled ? (
                     <button
                       onClick={() => handleCheckout('standard')}
                       disabled={isCheckingOut}
@@ -339,7 +345,7 @@ function UpgradeContent() {
                     </button>
                   ) : (
                   <a
-                    href="mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($30/season)."
+                    href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       padding: '0.6rem 1rem',
@@ -361,18 +367,21 @@ function UpgradeContent() {
               </div>
             </div>
 
-            {/* Add-on pools */}
-            <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
-                <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Add-on Pools</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginBottom: '0.4rem' }}>
-                  <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$15</span>
-                  <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/pool/season</span>
-                </div>
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Add more pools on top of Standard. Each extra pool includes all Standard features.</p>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.5rem' }}>
+          </div>
+
+          {/* Add-ons: extra cost on top of Standard, not a plan of its own */}
+          <div style={{ maxWidth: 720, margin: '1.5rem auto 0' }}>
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.67rem', letterSpacing: '0.28em', color: gold, textTransform: 'uppercase', textAlign: 'center', marginBottom: '0.75rem' }}>
+              Add-Ons
+            </p>
+            <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${gold}`, borderRadius: 10, padding: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: '1 1 260px', minWidth: 240 }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Extra Pools</p>
+                <PriceTag price={addonPrice} suffix="/pool/season" />
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
+                  Running more than one pool? Add extra pools on top of Standard — an add-on cost, not a separate plan.
+                </p>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {ADDON_FEATURES.map(f => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
                       <Check style={{ width: 14, height: 14, color: gold, flexShrink: 0, marginTop: 2 }} />
@@ -380,7 +389,9 @@ function UpgradeContent() {
                     </li>
                   ))}
                 </ul>
+              </div>
 
+              <div style={{ flex: '1 1 260px', minWidth: 240 }}>
                 {/* Pool counter */}
                 <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
                   <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.6rem' }}>Extra pools needed</p>
@@ -400,7 +411,11 @@ function UpgradeContent() {
                   </div>
                 </div>
 
-                {stripeEnabled ? (
+                {billingExempt ? (
+                  <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    Managed by site admin
+                  </div>
+                ) : stripeEnabled ? (
                   <button
                     onClick={() => handleCheckout('addon_pool', extraPools)}
                     disabled={isCheckingOut}
@@ -442,7 +457,9 @@ function UpgradeContent() {
 
           {/* Footer note */}
           <p style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', marginTop: '2rem' }}>
-            {stripeEnabled
+            {billingExempt
+              ? 'Your account is comped — the site admin manages your plan and no payment is ever required.'
+              : stripeEnabled
               ? 'Payments are processed securely by Stripe. Your plan updates automatically after checkout.'
               : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
           </p>

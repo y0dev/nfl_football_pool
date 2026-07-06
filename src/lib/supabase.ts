@@ -70,6 +70,11 @@ type Database = {
           is_active: boolean
           plan: string | null
           trial_ends_at: string | null
+          // Billing migration columns (see docs/stripe-billing-setup.md) —
+          // optional until the migration runs; code reads them defensively
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
         }
         Insert: {
           id?: string
@@ -83,6 +88,9 @@ type Database = {
           is_active?: boolean
           plan?: string | null
           trial_ends_at?: string | null
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
         }
         Update: {
           id?: string
@@ -96,6 +104,9 @@ type Database = {
           is_active?: boolean
           plan?: string | null
           trial_ends_at?: string | null
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
         }
       }
       pools: {
@@ -670,6 +681,10 @@ CREATE TABLE IF NOT EXISTS admins (
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;
+-- Billing migration (full version in docs/stripe-billing-setup.md):
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS billing_exempt BOOLEAN NOT NULL DEFAULT false;
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS addon_pools INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
 `;
 
 // fallow-ignore-next-line unused-export

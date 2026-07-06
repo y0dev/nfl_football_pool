@@ -21,12 +21,24 @@ import {
   CalendarDays,
   LogOut,
   RefreshCw,
+  Lock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
 import { WeeklyWinner, SeasonWinner, PeriodWinner } from '@/types/winners';
 import { Footer } from '@/components/layout/Footer';
+import { LEADERBOARD_TOOL_PLAN_MESSAGE } from '@/lib/plan';
+
+// Fake preview rows shown behind the upgrade overlay for free-plan
+// commissioners — never real participant data.
+const TEASER_POOL_ID = '__teaser__';
+const TEASER_LEADERBOARD: LeaderboardEntryWithPicks[] = [
+  { participant_id: 't1', participant_name: 'Jordan A.', total_points: 84, correct_picks: 11, total_picks: 16, game_points: {}, picks: [] },
+  { participant_id: 't2', participant_name: 'Casey M.',  total_points: 76, correct_picks: 10, total_picks: 16, game_points: {}, picks: [] },
+  { participant_id: 't3', participant_name: 'Riley T.',  total_points: 71, correct_picks: 9,  total_picks: 16, game_points: {}, picks: [] },
+  { participant_id: 't4', participant_name: 'Sam K.',    total_points: 63, correct_picks: 8,  total_picks: 16, game_points: {}, picks: [] },
+];
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -96,6 +108,11 @@ function LeaderboardContent() {
   const [activeTab, setActiveTab] = useState('weekly');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
+  // Standard-plan gate: super admins always pass; commissioners need a
+  // paying (non-free) plan. Free or expired-trial accounts see this same
+  // page rendered with fake teaser data behind an upgrade overlay.
+  const [isGated, setIsGated] = useState(false);
+
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
@@ -103,7 +120,26 @@ function LeaderboardContent() {
           debugLog('Checking admin status for user:', user.email);
           const superAdminStatus = await verifyAdminStatus(true);
           setIsSuperAdmin(superAdminStatus);
-          await loadData(superAdminStatus);
+
+          let gated = false;
+          if (!superAdminStatus) {
+            try {
+              const res = await fetch(`/api/admin/plan-status?adminId=${user.id}`);
+              const data = await res.json();
+              gated = !(data.success && data.plan !== 'free');
+            } catch {
+              // If the plan check itself fails, fail closed (gated) rather
+              // than leak real pool data on an error.
+              gated = true;
+            }
+          }
+          setIsGated(gated);
+
+          if (gated) {
+            loadTeaserData();
+          } else {
+            await loadData(superAdminStatus);
+          }
         }
       } catch (error) {
         debugError('Error checking admin status:', error);
@@ -125,16 +161,39 @@ function LeaderboardContent() {
       }
     };
 
+    // Fake preview so the gated page never touches real pool/participant
+    // data — no real API calls are made for a gated commissioner.
+    const loadTeaserData = () => {
+      const now = new Date();
+      setCurrentWeek(1);
+      setCurrentSeasonType(2);
+      setSelectedWeek(1);
+      setSelectedSeasonType(2);
+      setPools([{
+        id: TEASER_POOL_ID,
+        name: 'Your Pool (preview)',
+        created_by: user?.email || '',
+        season: DEFAULT_POOL_SEASON,
+        is_active: true,
+        created_at: now.toISOString(),
+      }]);
+      setSelectedPool(TEASER_POOL_ID);
+      setSelectedPoolSeason(DEFAULT_POOL_SEASON);
+      setLeaderboardWithPicks(TEASER_LEADERBOARD);
+      setIsLoading(false);
+    };
+
     checkAdminStatus();
   }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
+    if (isGated) return; // teaser data is already set directly — no real fetches
     if (selectedPool && selectedWeek && selectedSeasonType) {
       loadLeaderboardData();
       loadGamesData();
       loadWinnerData();
     }
-  }, [selectedPool, selectedWeek, selectedSeasonType]);
+  }, [selectedPool, selectedWeek, selectedSeasonType, isGated]);
 
   const loadPoolsData = async (superAdminStatus: boolean) => {
     try {
@@ -295,7 +354,8 @@ function LeaderboardContent() {
   }
 
   return (
-    <div style={{ background: bg, minHeight: '100vh' }}>
+    <div style={{ background: bg, minHeight: '100vh', position: 'relative' }}>
+      <div style={isGated ? { filter: 'blur(6px)', pointerEvents: 'none', userSelect: 'none' } : undefined} aria-hidden={isGated || undefined}>
 
       {/* NAV */}
       <nav style={{
@@ -880,6 +940,58 @@ function LeaderboardContent() {
 
       {/* FOOTER */}
       <Footer pageName="Leaderboard" />
+      </div>
+
+      {isGated && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'oklch(13% 0.025 255 / 0.55)', padding: '1rem',
+        }}>
+          <div style={{
+            background: card, border: `1px solid ${green}`, borderRadius: 12,
+            padding: '2rem', maxWidth: 420, width: '100%', textAlign: 'center',
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%', background: `${green}25`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem',
+            }}>
+              <Lock style={{ width: 22, height: 22, color: greenHi }} />
+            </div>
+            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.15rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.6rem' }}>
+              Standard Plan Required
+            </h2>
+            <p style={{ ...b, fontSize: '0.88rem', color: textMid, lineHeight: 1.6, marginBottom: '1.5rem' }}>
+              {LEADERBOARD_TOOL_PLAN_MESSAGE} The data behind this preview is fake — your real pools stay private until you upgrade.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => router.push('/upgrade')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  padding: '0.6rem 1.2rem', background: green, color: text,
+                  border: 'none', borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.78rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                Upgrade to Standard
+              </button>
+              <button
+                onClick={() => router.push(isSuperAdmin ? '/admin/dashboard' : '/dashboard')}
+                style={{
+                  padding: '0.6rem 1.2rem', background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 6,
+                  ...bc, fontWeight: 700, fontSize: '0.78rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

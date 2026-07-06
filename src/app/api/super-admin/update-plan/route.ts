@@ -4,7 +4,7 @@ import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const { adminId, plan, trialDays } = await request.json();
+    const { adminId, plan, trialDays, billingExempt } = await request.json();
 
     if (!adminId || !plan) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
@@ -39,11 +39,33 @@ export async function POST(request: NextRequest) {
       updateData.trial_ends_at = trialEndsAt.toISOString();
     }
 
-    const { error } = await supabase
+    // Comped marker: whether this commissioner has to pay for their plan.
+    // Column arrives with the billing migration — retry without it if the
+    // DB doesn't have it yet so plan changes never fail on the flag.
+    if (typeof billingExempt === 'boolean') {
+      updateData.billing_exempt = billingExempt;
+    }
+
+    let warning: string | undefined;
+    let { error } = await supabase
       .from('admins')
       .update(updateData)
       .eq('id', adminId)
       .eq('is_super_admin', false);
+
+    if (error && 'billing_exempt' in updateData &&
+        (error.message.includes('billing_exempt') || error.message.includes('schema cache'))) {
+      debugError('[SH][API][AUTH] billing_exempt column missing — retrying plan update without it (run the billing migration)');
+      const { billing_exempt, ...withoutFlag } = updateData;
+      ({ error } = await supabase
+        .from('admins')
+        .update(withoutFlag)
+        .eq('id', adminId)
+        .eq('is_super_admin', false));
+      if (!error) {
+        warning = 'Plan saved, but the billing (Pays/Comped) setting was not — the billing_exempt column is missing. Run the billing DB migration first.';
+      }
+    }
 
     if (error) {
       debugError('[SH][API][AUTH] Update plan error:', error.message);
@@ -58,12 +80,13 @@ export async function POST(request: NextRequest) {
         targetAdmin.full_name || 'Commissioner',
         plan,
         trialDaysNum > 0 ? trialDaysNum : undefined,
+        billingExempt === true,
       );
     } catch (e) {
       debugError('Plan change notification email failed:', e);
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(warning ? { warning } : {}) });
   } catch {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }

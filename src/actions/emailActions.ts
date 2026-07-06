@@ -293,12 +293,25 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
     }
 
     // Get all active pools
-    const { data: pools, error: poolsError } = await supabase
+    const { data: allPools, error: poolsError } = await supabase
       .from('pools')
       .select('id, name, created_by')
       .eq('is_active', true);
 
-    if (poolsError || !pools) {
+    if (poolsError || !allPools) {
+      return;
+    }
+
+    // Email pick reminders are a Standard feature — skip pools whose owner
+    // is on the free plan
+    const { getAdminPlansByEmails, planAllowsReminders } = await import('@/lib/plan');
+    const ownerPlans = await getAdminPlansByEmails(allPools.map(p => p.created_by));
+    const pools = allPools.filter(p => {
+      const planInfo = ownerPlans.get(p.created_by);
+      return planInfo ? planAllowsReminders(planInfo) : false;
+    });
+
+    if (pools.length === 0) {
       return;
     }
 

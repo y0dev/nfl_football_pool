@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn } from '@/lib/utils';
+import { validateEmail } from '@/lib/email-validation';
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
       debugLog('Validation failed: missing fields');
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      debugLog('Validation failed: invalid email');
+      return NextResponse.json(
+        { success: false, error: emailCheck.error },
         { status: 400 }
       );
     }

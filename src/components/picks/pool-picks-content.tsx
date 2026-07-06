@@ -1409,8 +1409,9 @@ export function PoolPicksContent() {
               { label: 'Share', icon: Share2, onClick: handleShare },
               { label: showGameDetails ? 'Unlock Week' : 'Game Details', icon: showGameDetails ? Unlock : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
+              { label: 'Leaderboard', icon: BarChart3, onClick: () => router.push(`/pool/${poolId}/leaderboard`) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
-              ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard', icon: BarChart3, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
+              ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
             ].map(({ label, icon: Icon, onClick }) => (
               <button key={label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
                 <Icon style={{ width: 12, height: 12 }} /> {label}

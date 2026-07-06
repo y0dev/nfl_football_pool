@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PROTECTED = ['/admin', '/dashboard'];
+// /leaderboard is the commissioner multi-pool tool (pick any pool you own
+// from a dropdown) — not the public per-pool view, which lives at
+// /pool/[id]/leaderboard and needs no login.
+const PROTECTED = ['/admin', '/dashboard', '/leaderboard'];
 
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;

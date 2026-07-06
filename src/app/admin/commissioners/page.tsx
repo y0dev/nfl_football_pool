@@ -70,8 +70,9 @@ function CommissionersManagementContent() {
   // Plan upgrade
   const [planOpen, setPlanOpen]         = useState(false);
   const [planTarget, setPlanTarget]     = useState<AdminUser | null>(null);
-  const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; billingExempt: boolean } | null>(null);
   const [planSelected, setPlanSelected] = useState<'free' | 'standard' | 'pro'>('free');
+  const [planExempt, setPlanExempt]     = useState(false);
   const [planTrialDays, setPlanTrialDays] = useState(0);
   const [planFetching, setPlanFetching] = useState(false);
   const [planSaving, setPlanSaving]     = useState(false);
@@ -150,6 +151,7 @@ function CommissionersManagementContent() {
     setPlanTarget(c);
     setPlanCurrent(null);
     setPlanSelected('free');
+    setPlanExempt(c.billingExempt);
     setPlanTrialDays(0);
     setPlanError('');
     setPlanOpen(true);
@@ -158,8 +160,9 @@ function CommissionersManagementContent() {
       const res = await fetch(`/api/admin/plan-status?adminId=${c.id}`);
       const data = await res.json();
       if (data.success) {
-        setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft });
+        setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft, billingExempt: data.billingExempt ?? false });
         setPlanSelected(data.plan as 'free' | 'standard' | 'pro');
+        setPlanExempt(data.billingExempt ?? false);
       }
     } catch { /* ignore */ } finally {
       setPlanFetching(false);
@@ -174,11 +177,15 @@ function CommissionersManagementContent() {
       const res = await fetch('/api/super-admin/update-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminId: planTarget.id, plan: planSelected, trialDays: planTrialDays }),
+        body: JSON.stringify({ adminId: planTarget.id, plan: planSelected, trialDays: planTrialDays, billingExempt: planExempt }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to update plan');
+      if (data.warning) {
+        toast({ title: 'Partially Saved', description: data.warning, variant: 'destructive' });
+      }
       setPlanOpen(false);
+      refresh();
     } catch (e) {
       setPlanError(e instanceof Error ? e.message : 'Failed to update plan');
     } finally {
@@ -387,6 +394,11 @@ function CommissionersManagementContent() {
                         <span style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.1em', color: planColor(c.plan), background: `${planColor(c.plan)}1a`, border: `1px solid ${planColor(c.plan)}55`, padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
                           {c.plan}{c.isTrialActive ? ` · ${c.daysLeft}d trial` : ''}
                         </span>
+                        {c.billingExempt && (
+                          <span title="This account never has to pay for its plan" style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.1em', color: 'oklch(70% 0.12 270)', background: 'oklch(70% 0.12 270 / 0.12)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                            Comped
+                          </span>
+                        )}
                       </div>
                       <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{c.email}</p>
                       <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
@@ -521,6 +533,11 @@ function CommissionersManagementContent() {
                       Trial · {planCurrent.daysLeft}d left
                     </span>
                   )}
+                  {planCurrent.billingExempt && (
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, color: 'oklch(70% 0.12 270)', background: 'oklch(70% 0.12 270 / 0.12)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Comped
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -558,6 +575,45 @@ function CommissionersManagementContent() {
                 {planSelected === 'free' && '1 pool · 15 participants per pool'}
                 {planSelected === 'standard' && '1 pool · 30 participants per pool'}
                 {planSelected === 'pro' && '3 pools · 75 participants per pool'}
+              </p>
+            </div>
+
+            {/* Billing: does this commissioner have to pay? */}
+            <div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Billing</p>
+              <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem' }}>
+                {([
+                  { value: false, label: 'Pays' },
+                  { value: true,  label: 'Comped' },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setPlanExempt(value)}
+                    style={{
+                      flex: 1, padding: '0.4rem 0.5rem',
+                      background: planExempt === value
+                        ? value ? 'oklch(70% 0.12 270 / 0.18)' : 'oklch(30% 0.03 255)'
+                        : 'transparent',
+                      color: planExempt === value
+                        ? value ? 'oklch(70% 0.12 270)' : textMid
+                        : textDim,
+                      border: `1px solid ${planExempt === value
+                        ? value ? 'oklch(70% 0.12 270 / 0.5)' : border
+                        : 'transparent'}`,
+                      borderRadius: 4,
+                      ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
+                {planExempt
+                  ? 'Comped: keeps this plan without paying — checkout is disabled and no payment is ever requested.'
+                  : 'Pays: this commissioner is expected to pay for paid plans once billing is live.'}
               </p>
             </div>
 

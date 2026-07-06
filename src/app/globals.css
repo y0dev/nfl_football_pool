@@ -100,6 +100,48 @@ input[type="url"], textarea {
   }
 }
 
+/* Footer container — same as .lp-inner up to desktop, but widens to fill
+   the viewport (instead of capping at 1200px) on larger screens. */
+.footer-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .footer-inner {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Explore + Follow footer columns — stacked on mobile, side by side on
+   larger screens (placed next to each other as a pair, separate from the
+   company info column). */
+.footer-links-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .footer-links-group {
+    flex-direction: row;
+    gap: 3rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .footer-inner {
+    max-width: 100%;
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
 /* Hero: stacked on mobile, side-by-side on desktop */
 .lp-hero-row {
   display: flex;

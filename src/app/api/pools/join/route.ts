@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
+import { validateEmail } from '@/lib/email-validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,9 +15,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (process.env.NODE_ENV === 'production' && email.split('@')[1]?.toLowerCase() === 'test') {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
       return NextResponse.json(
-        { error: 'Test email addresses are not allowed.' },
+        { error: emailCheck.error },
         { status: 400 }
       );
     }

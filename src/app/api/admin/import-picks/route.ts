@@ -163,6 +163,16 @@ async function handleDataSubmission(request: NextRequest) {
         if (existingParticipant) {
           participantId = existingParticipant.id;
         } else {
+          // Imported email is optional, but when present it must be real
+          if (participant.participantEmail?.trim()) {
+            const { validateEmail } = await import('@/lib/email-validation');
+            const emailCheck = validateEmail(participant.participantEmail);
+            if (!emailCheck.valid) {
+              errors.push(`${participant.participantName}: ${emailCheck.error ?? 'invalid email'}`);
+              continue;
+            }
+          }
+
           // New participant — enforce the pool's participant limit
           const { checkParticipantCapacity } = await import('@/lib/plan');
           const capacity = await checkParticipantCapacity(poolId);

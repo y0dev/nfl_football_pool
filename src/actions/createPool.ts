@@ -2,7 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
-import { checkPoolCapacity, isPreseasonOnlyScope, Plan } from '@/lib/plan';
+import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, Plan } from '@/lib/plan';
 
 export type CreatePoolResult =
   | { success: true; data: Record<string, unknown> }
@@ -29,6 +29,18 @@ export async function createPool(poolData: {
       return {
         success: false,
         error: capacity.message ?? 'Pool limit reached.',
+        limitReached: true,
+        plan: capacity.plan,
+        limit: capacity.limit,
+      };
+    }
+
+    // Season & playoff tracking is Standard-only — free pools can't include
+    // the postseason in their scope
+    if (capacity.plan === 'free' && scopeIncludesPlayoffs(poolData.season_scope)) {
+      return {
+        success: false,
+        error: PLAYOFF_SCOPE_MESSAGE,
         limitReached: true,
         plan: capacity.plan,
         limit: capacity.limit,

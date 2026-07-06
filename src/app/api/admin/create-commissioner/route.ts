@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
+import { validateEmail } from '@/lib/email-validation';
 
 export async function POST(request: NextRequest) {
     try {
@@ -20,9 +21,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (process.env.NODE_ENV === 'production' && email.split('@')[1]?.toLowerCase() === 'test') {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      debugLog('Validation failed: invalid email');
       return NextResponse.json(
-        { success: false, error: 'Test email addresses are not allowed.' },
+        { success: false, error: emailCheck.error },
         { status: 400 }
       );
     }

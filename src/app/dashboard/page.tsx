@@ -596,6 +596,21 @@ function CommissionerDashboardContent() {
                 <span className="pools-nav-label">New Pool</span>
               </button>
               <button
+                onClick={() => router.push('/leaderboard')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.35rem 0.7rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <BarChart3 style={{ width: 11, height: 11 }} />
+                <span className="pools-nav-label">Leaderboard</span>
+              </button>
+              <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
                 style={{

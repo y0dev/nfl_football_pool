@@ -10,6 +10,8 @@ export interface AdminUser {
   plan: string;
   isTrialActive: boolean;
   daysLeft: number;
+  /** Comped by the site admin — this account never has to pay for its plan. */
+  billingExempt: boolean;
 }
 
 export interface AdminDomainStats {

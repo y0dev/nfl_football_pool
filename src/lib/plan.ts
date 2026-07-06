@@ -17,6 +17,15 @@ export function isPreseasonOnlyScope(scope: unknown): boolean {
   return Array.isArray(scope) && scope.length === 1 && Number(scope[0]) === 1;
 }
 
+// Season & playoff tracking is a Standard feature: pools whose scope includes
+// the postseason (season_type 3) require a paid plan.
+export function scopeIncludesPlayoffs(scope: unknown): boolean {
+  return Array.isArray(scope) && scope.some(t => Number(t) === 3);
+}
+
+export const PLAYOFF_SCOPE_MESSAGE =
+  'Season & playoff tracking requires the Standard plan. Free pools cover the regular season only.';
+
 export interface PlanInfo {
   plan: Plan;
   isTrialActive: boolean;
@@ -28,12 +37,15 @@ export interface PlanInfo {
   poolLimit: number;
   /** Participants allowed per (non-preseason) pool. */
   participantLimit: number;
+  /** Comped by the site admin — keeps their plan without ever paying. */
+  billingExempt: boolean;
 }
 
 type AdminPlanRow = {
   plan?: string | null;
   trial_ends_at?: string | null;
   addon_pools?: number | null;
+  billing_exempt?: boolean | null;
 } | null;
 
 function computePlanInfo(row: AdminPlanRow): PlanInfo {
@@ -58,6 +70,7 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     addonPools,
     poolLimit: LIMITS[plan].pools + addonPools,
     participantLimit: LIMITS[plan].participants,
+    billingExempt: row?.billing_exempt ?? false,
   };
 }
 
@@ -83,6 +96,47 @@ export async function getAdminPlanByEmail(email: string): Promise<PlanInfo> {
     .single();
 
   return computePlanInfo(data as AdminPlanRow);
+}
+
+/**
+ * Batch plan lookup keyed by email — for jobs that span many pools (e.g.
+ * reminder sends) so each owner is resolved with one query total.
+ * Unknown emails resolve to free-plan defaults.
+ */
+export async function getAdminPlansByEmails(emails: string[]): Promise<Map<string, PlanInfo>> {
+  const result = new Map<string, PlanInfo>();
+  const unique = [...new Set(emails.filter(Boolean))];
+  if (unique.length === 0) return result;
+
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from('admins')
+    .select('*')
+    .in('email', unique);
+
+  for (const email of unique) {
+    const row = (data ?? []).find(a => a.email === email) ?? null;
+    result.set(email, computePlanInfo(row as AdminPlanRow));
+  }
+  return result;
+}
+
+// Email pick reminders are a Standard feature
+export const REMINDERS_PLAN_MESSAGE = 'Email pick reminders require the Standard plan.';
+
+export function planAllowsReminders(planInfo: PlanInfo): boolean {
+  return planInfo.plan !== 'free';
+}
+
+// The commissioner multi-pool leaderboard tool (/leaderboard) is a Standard
+// feature — same boundary as reminders. A trial counts as Standard (it
+// already resolves to 'standard' in computePlanInfo); once the trial ends
+// and the plan reverts to free, access reverts too.
+export const LEADERBOARD_TOOL_PLAN_MESSAGE =
+  'The full leaderboard tool requires the Standard plan. Upgrade to see live standings across your pools.';
+
+export function planAllowsLeaderboardTool(planInfo: PlanInfo): boolean {
+  return planInfo.plan !== 'free';
 }
 
 export function trialEndDate(daysFromNow = 14): string {

@@ -2,7 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError, debugWarn } from '@/lib/utils';
-import { checkPoolCapacity, isPreseasonOnlyScope } from '@/lib/plan';
+import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
 
 export async function updatePool(poolId: string, updates: {
   name?: string;
@@ -37,6 +37,19 @@ export async function updatePool(poolId: string, updates: {
       });
       if (!capacity.allowed) {
         throw new Error(capacity.message ?? 'Pool limit reached for the selected season scope.');
+      }
+    }
+
+    // Season & playoff tracking is Standard-only — block re-scoping a pool
+    // into the postseason on the free plan
+    if (
+      current?.created_by &&
+      scopeIncludesPlayoffs(updates.season_scope) &&
+      !scopeIncludesPlayoffs(current?.season_scope)
+    ) {
+      const planInfo = await getAdminPlanByEmail(current.created_by);
+      if (planInfo.plan === 'free') {
+        throw new Error(PLAYOFF_SCOPE_MESSAGE);
       }
     }
   }
