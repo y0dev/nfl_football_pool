@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, SEASON_TYPE_OPTIONS } from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
+import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
@@ -160,15 +161,14 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
       const scopeValues = seasonTypes.map(t => t.value);
       const defaultType = seasonTypes.find(t => t.value === 2) ?? seasonTypes[0];
       try {
-        const client = getSupabaseClient();
-        const { data: game } = await client
-          .from('games').select('week, season_type')
-          .in('season_type', scopeValues)
-          .order('week', { ascending: false }).limit(1).single();
-
-        if (game && scopeValues.includes(game.season_type)) {
-          setSelectedSeasonType(String(game.season_type));
-          setSelectedWeek(String(game.week));
+        // Default to the actual current week (first week if the season
+        // hasn't started yet, the in-progress week once it has) rather than
+        // just the latest week with games loaded — a commissioner shouldn't
+        // land on the season finale by default.
+        const current = await loadCurrentWeek();
+        if (current.season_type && (scopeValues as number[]).includes(current.season_type)) {
+          setSelectedSeasonType(String(current.season_type));
+          setSelectedWeek(String(current.week_number));
         } else {
           setSelectedSeasonType(String(defaultType?.value ?? 2));
           setSelectedWeek('1');
