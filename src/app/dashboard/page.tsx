@@ -289,13 +289,14 @@ function CommissionerDashboardContent() {
           else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
         });
         let leaderId = '';
-        let leaderPts = -1;
+        let leaderPts = 0;
         totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
         if (leaderId) {
           const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
           const ld = totalsMap.get(leaderId)!;
           setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
         } else {
+          // Nobody has recorded points yet — no leader to show.
           setPoolLeader(null);
         }
         // Build ranked leaderboard
@@ -308,13 +309,8 @@ function CommissionerDashboardContent() {
           }))
           .sort((a, b) => b.points - a.points);
         setLeaderboardEntries(ranked);
-      } else if (allParticipants && allParticipants.length > 0) {
-        // No scores yet — show first participant at 0
-        setPoolLeader({ name: allParticipants[0].name, points: 0, correctPicks: 0 });
-        setLeaderboardEntries(
-          (allParticipants ?? []).map(p => ({ participantId: p.id, name: p.name, points: 0, correctPicks: 0 }))
-        );
       } else {
+        // No scores recorded yet — nothing to rank.
         setPoolLeader(null);
         setLeaderboardEntries([]);
       }
@@ -952,20 +948,23 @@ function CommissionerDashboardContent() {
                     <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {leaderboardEntries.map((entry, index) => (
-                        <div key={entry.participantId} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
-                          <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: index === 0 ? 'oklch(74% 0.16 72 / 0.18)' : 'oklch(26% 0.03 255)', color: index === 0 ? gold : textDim, border: `1px solid ${index === 0 ? 'oklch(74% 0.16 72 / 0.4)' : border}` }}>
-                            {index + 1}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{entry.name}</p>
-                            <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>{entry.correctPicks} correct picks</p>
+                      {leaderboardEntries.map((entry, index) => {
+                        const isLeader = index === 0 && entry.points > 0;
+                        return (
+                          <div key={entry.participantId} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
+                            <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: isLeader ? 'oklch(74% 0.16 72 / 0.18)' : 'oklch(26% 0.03 255)', color: isLeader ? gold : textDim, border: `1px solid ${isLeader ? 'oklch(74% 0.16 72 / 0.4)' : border}` }}>
+                              {index + 1}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{entry.name}</p>
+                              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>{entry.correctPicks} correct picks</p>
+                            </div>
+                            <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: isLeader ? gold : greenHi, letterSpacing: '0.02em' }}>
+                              {entry.points} <span style={{ ...b, fontWeight: 400, fontSize: '0.72rem', color: textDim }}>pts</span>
+                            </p>
                           </div>
-                          <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: index === 0 ? gold : greenHi, letterSpacing: '0.02em' }}>
-                            {entry.points} <span style={{ ...b, fontWeight: 400, fontSize: '0.72rem', color: textDim }}>pts</span>
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
