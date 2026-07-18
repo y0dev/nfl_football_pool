@@ -136,6 +136,8 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   debugLog('Monday night scores:', mondayNightScores);
 
   const isPeriodWeek = PERIOD_WEEKS.includes(weekNumber as typeof PERIOD_WEEKS[number]);
+  // Nobody has actually scored yet (week ungraded) — don't crown a leader.
+  const hasScores = leaderboardData.some(entry => (entry.total_points || 0) > 0);
 
   const thStyle: React.CSSProperties = {
     ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em',
@@ -149,7 +151,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {leaderboardData.map((entry, index) => {
           const score = mondayNightScores.get(entry.participant_id);
-          const rankColor = index === 0 ? gold : index === 1 ? textMid : index === 2 ? amber : textDim;
+          const rankColor = !hasScores ? textDim : index === 0 ? gold : index === 1 ? textMid : index === 2 ? amber : textDim;
           return (
             <div
               key={entry.participant_id || index}
@@ -162,9 +164,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
-                  {index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
-                  {index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
+                  {hasScores && index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
+                  {hasScores && index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
+                  {hasScores && index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
                   <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: rankColor, letterSpacing: '0.05em' }}>
                     #{index + 1}
                   </span>
@@ -250,10 +252,10 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
             <tr key={entry.participant_id || index} style={{ borderBottom: `1px solid ${border}`, background: index % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.5)' }}>
               <td style={{ ...b, fontSize: '0.875rem', color: text, padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  {index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
-                  {index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
-                  {index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
-                  <span style={{ color: index < 3 ? text : textMid, fontWeight: index < 3 ? 700 : 400 }}>{index + 1}</span>
+                  {hasScores && index === 0 && <Trophy style={{ width: 13, height: 13, color: gold }} />}
+                  {hasScores && index === 1 && <Trophy style={{ width: 13, height: 13, color: textMid }} />}
+                  {hasScores && index === 2 && <Trophy style={{ width: 13, height: 13, color: amber }} />}
+                  <span style={{ color: hasScores && index < 3 ? text : textMid, fontWeight: hasScores && index < 3 ? 700 : 400 }}>{index + 1}</span>
                 </div>
               </td>
               <td style={{ ...b, fontSize: '0.875rem', color: text, fontWeight: 600, padding: '0.5rem 0.75rem', verticalAlign: 'middle', maxWidth: '14rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

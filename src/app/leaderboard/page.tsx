@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugLog, createPageUrl, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, debugError} from '@/lib/utils';
+import { debugLog, createPageUrl, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
 import {
   ArrowLeft,
   Trophy,
@@ -65,6 +65,7 @@ interface Pool {
   season: number;
   is_active: boolean;
   created_at: string;
+  season_scope?: number[];
 }
 
 const TABS = [
@@ -85,6 +86,7 @@ function LeaderboardContent() {
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedSeasonType, setSelectedSeasonType] = useState(2);
   const [selectedPoolSeason, setSelectedPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
+  const [selectedPoolSeasonScope, setSelectedPoolSeasonScope] = useState<number[]>(SEASON_TYPE_OPTIONS.map(o => o.value));
   const [pools, setPools] = useState<Pool[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardWithPicks, setLeaderboardWithPicks] = useState<LeaderboardEntryWithPicks[]>([]);
@@ -186,14 +188,33 @@ function LeaderboardContent() {
     checkAdminStatus();
   }, [user, verifyAdminStatus, router]);
 
+  // Restrict the leaderboard to the season types the selected pool actually
+  // covers (same season_scope clamping the picks page uses), so a
+  // regular-season-only pool can't be viewed as if it had playoffs.
+  useEffect(() => {
+    if (isGated || !selectedPool) return;
+    const poolData = pools.find(p => p.id === selectedPool);
+    if (!poolData) return;
+    const scope = (Array.isArray(poolData.season_scope) && poolData.season_scope.length > 0)
+      ? poolData.season_scope
+      : [2];
+    setSelectedPoolSeasonScope(prev =>
+      prev.length === scope.length && prev.every((v, i) => v === scope[i]) ? prev : scope
+    );
+    if (!scope.includes(selectedSeasonType)) {
+      setSelectedSeasonType([...scope].sort((a, b) => a - b)[0]);
+      setSelectedWeek(1);
+    }
+  }, [selectedPool, pools, isGated, selectedSeasonType]);
+
   useEffect(() => {
     if (isGated) return; // teaser data is already set directly — no real fetches
-    if (selectedPool && selectedWeek && selectedSeasonType) {
+    if (selectedPool && selectedWeek && selectedSeasonType && selectedPoolSeasonScope.includes(selectedSeasonType)) {
       loadLeaderboardData();
       loadGamesData();
       loadWinnerData();
     }
-  }, [selectedPool, selectedWeek, selectedSeasonType, isGated]);
+  }, [selectedPool, selectedWeek, selectedSeasonType, selectedPoolSeasonScope, isGated]);
 
   const loadPoolsData = async (superAdminStatus: boolean) => {
     try {
@@ -524,9 +545,9 @@ function LeaderboardContent() {
                         <SelectValue placeholder="Select season type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Preseason</SelectItem>
-                        <SelectItem value="2">Regular Season</SelectItem>
-                        <SelectItem value="3">Postseason</SelectItem>
+                        {SEASON_TYPE_OPTIONS.filter(({ value }) => selectedPoolSeasonScope.includes(value)).map(({ value, label }) => (
+                          <SelectItem key={value} value={value.toString()}>{label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -648,7 +669,11 @@ function LeaderboardContent() {
                   </p>
                 </div>
 
-                {leaderboardWithPicks.length > 0 ? (
+                {leaderboardWithPicks.length > 0 ? (() => {
+                  const sortedLeaderboard = filteredAndSortedLeaderboard();
+                  // Nobody has actually scored yet — don't crown a leader.
+                  const hasScores = sortedLeaderboard.some(entry => entry.total_points > 0);
+                  return (
                   <div style={{ overflowX: 'auto', width: '100%' }}>
                     <Table style={{ width: 'max-content', minWidth: '100%' }}>
                       <TableHeader>
@@ -661,14 +686,14 @@ function LeaderboardContent() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredAndSortedLeaderboard().map((entry, index) => (
+                        {sortedLeaderboard.map((entry, index) => (
                           <TableRow key={entry.participant_id} style={{ borderBottom: `1px solid ${border}`, background: index % 2 === 0 ? 'transparent' : 'oklch(18% 0.028 255 / 0.5)' }}>
                             <TableCell style={{ ...b, fontSize: '0.875rem', color: text }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {index === 0 && <Trophy style={{ width: 14, height: 14, color: gold }} />}
-                                {index === 1 && <Trophy style={{ width: 14, height: 14, color: textMid }} />}
-                                {index === 2 && <Trophy style={{ width: 14, height: 14, color: amber }} />}
-                                <span style={{ color: index < 3 ? text : textMid }}>{index + 1}</span>
+                                {hasScores && index === 0 && <Trophy style={{ width: 14, height: 14, color: gold }} />}
+                                {hasScores && index === 1 && <Trophy style={{ width: 14, height: 14, color: textMid }} />}
+                                {hasScores && index === 2 && <Trophy style={{ width: 14, height: 14, color: amber }} />}
+                                <span style={{ color: hasScores && index < 3 ? text : textMid }}>{index + 1}</span>
                               </div>
                             </TableCell>
                             <TableCell style={{ ...b, fontSize: '0.875rem', color: text, fontWeight: 600 }}>
@@ -688,7 +713,8 @@ function LeaderboardContent() {
                       </TableBody>
                     </Table>
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                     <BarChart3 style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
                     <h3 style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', marginBottom: '0.4rem' }}>No Leaderboard Data</h3>

@@ -104,16 +104,18 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
 
   const avgScore = Math.round(leaderboard.reduce((sum, entry) => sum + entry.average_points, 0) / leaderboard.length) || 0;
   const maxWeeksPlayed = Math.max(...leaderboard.map(e => e.weeks_played)) || 0;
+  // Nobody has actually scored yet — don't crown a leader.
+  const hasScores = leaderboard.some(entry => (entry.total_points || 0) > 0);
 
   // Position accent colors
   const positionAccent = (idx: number) =>
-    idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : border;
+    !hasScores ? border : idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : border;
 
   const positionLabel = (idx: number) =>
     idx === 0 ? '1st' : idx === 1 ? '2nd' : idx === 2 ? '3rd' : `#${idx + 1}`;
 
   const positionLabelColor = (idx: number) =>
-    idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : textDim;
+    !hasScores ? textDim : idx === 0 ? gold : idx === 1 ? textMid : idx === 2 ? amber : textDim;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -150,9 +152,9 @@ export function SeasonLeaderboard({ poolId, season, currentWeek, currentSeasonTy
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: index < 3 ? '0.65rem' : 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                  {index === 0 && <Trophy style={{ width: 14, height: 14, color: gold }} />}
-                  {index === 1 && <Trophy style={{ width: 14, height: 14, color: textMid }} />}
-                  {index === 2 && <Trophy style={{ width: 14, height: 14, color: amber }} />}
+                  {hasScores && index === 0 && <Trophy style={{ width: 14, height: 14, color: gold }} />}
+                  {hasScores && index === 1 && <Trophy style={{ width: 14, height: 14, color: textMid }} />}
+                  {hasScores && index === 2 && <Trophy style={{ width: 14, height: 14, color: amber }} />}
                   <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: positionLabelColor(index) }}>
                     {positionLabel(index)}
                   </span>

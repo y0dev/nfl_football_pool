@@ -119,6 +119,9 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
     );
   }
 
+  // Nobody has actually scored yet — don't crown a leader.
+  const hasScores = entries.some(e => (e.total_points || 0) > 0);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
@@ -138,9 +141,9 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
         <div
           key={e.participant_id}
           style={{
-            background: idx < 3 ? surface : card,
-            border: `1px solid ${idx < 3 ? greenHi + '50' : border}`,
-            borderLeft: idx < 3 ? `4px solid ${idx === 0 ? gold : idx === 1 ? textMid : amber}` : `1px solid ${border}`,
+            background: hasScores && idx < 3 ? surface : card,
+            border: `1px solid ${hasScores && idx < 3 ? greenHi + '50' : border}`,
+            borderLeft: hasScores && idx < 3 ? `4px solid ${idx === 0 ? gold : idx === 1 ? textMid : amber}` : `1px solid ${border}`,
             borderRadius: 8,
             padding: '0.85rem 1rem',
             display: 'flex',
@@ -150,7 +153,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: idx < 3 ? text : textDim, width: '1.5rem', textAlign: 'right' }}>
+            <div style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: hasScores && idx < 3 ? text : textDim, width: '1.5rem', textAlign: 'right' }}>
               {idx + 1}
             </div>
             <div style={{ ...b, fontSize: '0.9rem', fontWeight: 600, color: text }}>{e.name}</div>

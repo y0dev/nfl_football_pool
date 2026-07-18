@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { GameCard } from '@/components/picks/game-card';
@@ -20,7 +21,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 
 // Design tokens
@@ -112,6 +113,7 @@ function WeekNav({
   onPrev,
   onCurrent,
   onNext,
+  onJumpToWeek,
 }: {
   currentWeek: number;
   currentSeasonType: number;
@@ -120,6 +122,7 @@ function WeekNav({
   onPrev: () => void;
   onCurrent: () => void;
   onNext: () => void;
+  onJumpToWeek: (week: number, seasonType: number) => void;
 }) {
   const isCurrentWeek = currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType;
   const scopeSorted = [...seasonScope].sort((a, b) => a - b);
@@ -128,17 +131,54 @@ function WeekNav({
   const prevDisabled = currentSeasonType <= minScope && currentWeek <= 1;
   const nextDisabled = currentSeasonType >= maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
   const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
+  // When a pool spans more than one season type (e.g. regular season +
+  // playoffs), list every week across all of them in one dropdown — marking
+  // where a new season type begins — instead of only the current type.
+  const weekOptions = scopeSorted.flatMap((seasonType, groupIndex) =>
+    Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => ({
+      week: i + 1,
+      seasonType,
+      isSeasonStart: i === 0 && groupIndex > 0,
+      seasonLabel: SEASON_TYPE_OPTIONS.find((o) => o.value === seasonType)?.label ?? '',
+    }))
+  );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <button onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>
+    <div className="week-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <button className='week-nav-prev' onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>
         <ChevronLeft style={{ width: 13, height: 13 }} /> Prev
       </button>
-      <button onClick={onCurrent} style={{ ...btnBase, background: isCurrentWeek ? green : 'transparent', color: isCurrentWeek ? text : textMid, borderColor: isCurrentWeek ? green : border }}>
+      <button className='week-nav-current' onClick={onCurrent} style={{ ...btnBase, background: isCurrentWeek ? green : 'transparent', color: isCurrentWeek ? text : textMid, borderColor: isCurrentWeek ? green : border }}>
         <Calendar style={{ width: 12, height: 12 }} /> Current
       </button>
-      <button onClick={onNext} disabled={nextDisabled} style={{ ...btnBase, background: 'transparent', color: nextDisabled ? textDim : textMid, opacity: nextDisabled ? 0.4 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}>
+      <button className='week-nav-next' onClick={onNext} disabled={nextDisabled} style={{ ...btnBase, background: 'transparent', color: nextDisabled ? textDim : textMid, opacity: nextDisabled ? 0.4 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}>
         Next <ChevronRight style={{ width: 13, height: 13 }} />
       </button>
+      <Select
+        value={`${currentSeasonType}-${currentWeek}`}
+        onValueChange={(v) => {
+          const [seasonType, week] = v.split('-').map(Number);
+          onJumpToWeek(week, seasonType);
+        }}
+      >
+        <SelectTrigger aria-label="Jump to week" className="week-nav-select-trigger">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {weekOptions.map(({ week, seasonType, isSeasonStart, seasonLabel }) => (
+            <SelectItem key={`${seasonType}-${week}`} value={`${seasonType}-${week}`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>Week {week}</span>
+                {isSeasonStart && (
+                  <span
+                    title={`Start of ${seasonLabel}`}
+                    style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: amber, flexShrink: 0 }}
+                  />
+                )}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -1206,6 +1246,7 @@ export function PoolPicksContent() {
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                 onCurrent={navigateToCurrentWeek}
                 onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+                onJumpToWeek={(week, seasonType) => navigateToWeek(week, seasonType)}
               />
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
@@ -1274,6 +1315,7 @@ export function PoolPicksContent() {
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
                 onCurrent={navigateToCurrentWeek}
                 onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+                onJumpToWeek={(week, seasonType) => navigateToWeek(week, seasonType)}
               />
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
@@ -1396,6 +1438,7 @@ export function PoolPicksContent() {
               onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
               onCurrent={navigateToCurrentWeek}
               onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+              onJumpToWeek={(week, seasonType) => navigateToWeek(week, seasonType)}
             />
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>

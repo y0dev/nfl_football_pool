@@ -829,6 +829,22 @@ button[role="combobox"] svg {
   opacity:     1 !important;
 }
 
+/* Picks-page week-jump dropdown — compact, sized like its sibling
+   Prev/Current/Next buttons rather than the app-wide full-width Select. */
+.week-nav button[role="combobox"].week-nav-select-trigger {
+  width:         auto !important;
+  min-width:     0 !important;
+  height:        auto !important;
+  padding:       0.4rem 0.6rem !important;
+  gap:           0.3rem !important;
+  font-size:     0.72rem !important;
+  font-weight:   600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  background-color: transparent !important;
+  border-color:  oklch(26% 0.03 255) !important;
+}
+
 /* ── 5. shadcn SelectContent popover ──
    Radix renders SelectContent in a portal OUTSIDE .admin-theme,
    so [data-radix-popper-content-wrapper] is used as the anchor instead. */
