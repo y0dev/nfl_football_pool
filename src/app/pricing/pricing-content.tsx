@@ -24,29 +24,33 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  'Create your Huddle and one pool for the regular season',
+  'Create your Huddle with one NFL Confidence Pool',
   'Invite up to 15 participants',
-  'Weekly picks with confidence points',
-  'Live leaderboard, updated as scores post',
-  'Automatic Q1–Q4 period standings',
+  'Weekly confidence picks',
+  'Live leaderboard with real-time scoring',
+  'Automatic Q1-Q4 period standings',
+  'Mobile-friendly for commissioners and participants',
 ];
 
-const STANDARD_CORE_FEATURES = [
-  'Run your Huddle\'s pool for up to 30 participants',
-  'Weekly picks with confidence points',
-  'Live leaderboard, updated as scores post',
-  'Automatic Q1–Q4 period standings',
+const STANDARD_HUDDLE_FEATURES = [
+  'Run your Huddle with up to 30 participants',
+  'Full regular season and playoffs',
+  'Add multiple pools to your Huddle',
+  'Live leaderboard with real-time scoring',
+  'Automatic Q1-Q4 period standings',
 ];
 
-const STANDARD_COMMISSIONER_FEATURES = [
-  'Automatically remind participants when picks are due',
-  'Full season & playoff tracking, start to finish',
+const STANDARD_COMMISSIONER_TOOLS = [
+  'Automatic reminder emails before picks lock',
+  'Commissioner dashboard',
+  'View who has and hasn\'t submitted picks',
+  'Full season & playoff tracking',
 ];
 
 const ADDON_FEATURES = [
-  'Run another pool inside the same Huddle',
-  'Invite up to 30 participants for that pool',
-  'Every Standard feature included',
+  'Create an additional pool inside your Huddle',
+  'Supports up to 30 participants',
+  'Includes every Standard feature',
 ];
 
 export default function PricingContent() {
@@ -216,7 +220,7 @@ export default function PricingContent() {
               </div>
               <div style={{ padding: '1.25rem' }}>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {STANDARD_CORE_FEATURES.map(f => (
+                  {STANDARD_HUDDLE_FEATURES.map(f => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
                       <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
                       <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
@@ -227,7 +231,7 @@ export default function PricingContent() {
                   Commissioner Tools
                 </p>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                  {STANDARD_COMMISSIONER_FEATURES.map(f => (
+                  {STANDARD_COMMISSIONER_TOOLS.map(f => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
                       <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
                       <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
