@@ -24,27 +24,29 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  '1 pool (regular season)',
-  'Up to 15 participants',
-  'Weekly picks & confidence points',
-  'Live leaderboard',
-  'Period standings (Q1-Q4)',
+  'Create your Huddle and one pool for the regular season',
+  'Invite up to 15 participants',
+  'Weekly picks with confidence points',
+  'Live leaderboard, updated as scores post',
+  'Automatic Q1–Q4 period standings',
 ];
 
-const STANDARD_FEATURES = [
-  '1 pool',
-  'Up to 30 participants',
-  'Weekly picks & confidence points',
-  'Live leaderboard',
-  'Period standings (Q1-Q4)',
-  'Email pick reminders',
-  'Season & playoff tracking',
+const STANDARD_CORE_FEATURES = [
+  'Run your Huddle\'s pool for up to 30 participants',
+  'Weekly picks with confidence points',
+  'Live leaderboard, updated as scores post',
+  'Automatic Q1–Q4 period standings',
+];
+
+const STANDARD_COMMISSIONER_FEATURES = [
+  'Automatically remind participants when picks are due',
+  'Full season & playoff tracking, start to finish',
 ];
 
 const ADDON_FEATURES = [
-  'Each additional pool',
-  'Up to 30 participants per pool',
-  'All Standard features included',
+  'Run another pool inside the same Huddle',
+  'Invite up to 30 participants for that pool',
+  'Every Standard feature included',
 ];
 
 export default function PricingContent() {
@@ -148,10 +150,10 @@ export default function PricingContent() {
             color: text, textTransform: 'uppercase',
             marginBottom: '1rem',
           }}>
-            Run Your Season, <span style={{ color: gold }}>Your Way</span>
+            Everything You Need To <span style={{ color: gold }}>Run Your Huddle</span>
           </h1>
           <p style={{ ...b, fontSize: '1rem', lineHeight: 1.72, color: textMid, maxWidth: '52ch', margin: '0 auto' }}>
-            Pricing is per season — roughly 6 months of NFL action. Start free, upgrade when you need more room.
+            Pricing is per season — roughly 6 months of NFL action. Start free, upgrade when your Huddle needs more room.
           </p>
         </div>
       </section>
@@ -172,7 +174,7 @@ export default function PricingContent() {
                   <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$0</span>
                   <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/season</span>
                 </div>
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Get started with a single pool for a small group.</p>
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Create your first Huddle and compete with friends and family.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
@@ -199,15 +201,33 @@ export default function PricingContent() {
             </div>
 
             {/* Standard */}
-            <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+              <span style={{
+                position: 'absolute', top: 0, right: '1.25rem', transform: 'translateY(-50%)',
+                background: green, color: text, ...bc, fontWeight: 800, fontSize: '0.6rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.25rem 0.6rem', borderRadius: 999,
+              }}>
+                Most Popular
+              </span>
               <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Standard</p>
                 <PriceTag price={standardPrice} suffix="/season" />
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Everything you need to run a great pool all season.</p>
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Built for commissioners who run recurring leagues every season.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {STANDARD_CORE_FEATURES.map(f => (
+                    <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                      <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.16em', color: textDim, textTransform: 'uppercase', margin: '0.9rem 0 0.6rem' }}>
+                  Commissioner Tools
+                </p>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                  {STANDARD_FEATURES.map(f => (
+                  {STANDARD_COMMISSIONER_FEATURES.map(f => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
                       <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
                       <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
@@ -224,7 +244,7 @@ export default function PricingContent() {
                     letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
                   }}
                 >
-                  Get Started
+                  Start Your Huddle
                 </button>
               </div>
             </div>
@@ -241,7 +261,7 @@ export default function PricingContent() {
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Extra Pools</p>
                 <PriceTag price={addonPrice} suffix="/pool/season" />
                 <p style={{ ...b, fontSize: '0.82rem', color: textMid, lineHeight: 1.6 }}>
-                  Running more than one pool? Add extra pools on top of Standard — this is an add-on cost, not a separate plan.
+                  Running more than one pool in your Huddle? Add extra pools on top of Standard — this is an add-on cost, not a separate plan.
                 </p>
               </div>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: '1 1 220px', minWidth: 200 }}>
