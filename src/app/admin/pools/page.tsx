@@ -61,7 +61,9 @@ function AdminPoolsContent() {
 
   const loadPools = async () => {
     try {
-      const res = await fetch('/api/admin/all-pools');
+      const res = await fetch('/api/admin/all-pools', {
+        headers: { 'x-admin-email': user?.email ?? '' },
+      });
       const data = await res.json();
       if (data.success) setPools(data.pools || []);
       else toast({ title: 'Error', description: 'Failed to load pools', variant: 'destructive' });
@@ -357,7 +359,7 @@ function AdminPoolsContent() {
 export default function AdminPoolsPage() {
   return (
     <AuthProvider>
-      <AdminGuard>
+      <AdminGuard requireSuperAdmin>
         <AdminPoolsContent />
       </AdminGuard>
     </AuthProvider>
