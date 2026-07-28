@@ -118,11 +118,17 @@ type Database = {
           created_at: string
           is_active: boolean
           season: number
+          pool_type: string
+          is_private: boolean
+          join_password: string | null
           tie_breaker_method: string
           tie_breaker_question: string | null
           tie_breaker_answer: number | null
           require_access_code: boolean
           season_scope: number[]
+          huddle_id: string | null
+          competition_type: string
+          type_settings: Record<string, unknown>
         }
         Insert: {
           id?: string
@@ -132,11 +138,17 @@ type Database = {
           created_at?: string
           is_active?: boolean
           season?: number
+          pool_type?: string
+          is_private?: boolean
+          join_password?: string | null
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
           require_access_code?: boolean
           season_scope?: number[]
+          huddle_id?: string | null
+          competition_type?: string
+          type_settings?: Record<string, unknown>
         }
         Update: {
           id?: string
@@ -146,11 +158,67 @@ type Database = {
           created_at?: string
           is_active?: boolean
           season?: number
+          pool_type?: string
+          is_private?: boolean
+          join_password?: string | null
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
           require_access_code?: boolean
           season_scope?: number[]
+          huddle_id?: string | null
+          competition_type?: string
+          type_settings?: Record<string, unknown>
+        }
+      }
+      huddles: {
+        Row: {
+          id: string
+          name: string
+          commissioner_email: string
+          settings: Record<string, unknown>
+          is_active: boolean
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          commissioner_email: string
+          settings?: Record<string, unknown>
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          commissioner_email?: string
+          settings?: Record<string, unknown>
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      // Not yet wired into app logic — schema only. See docs/database-schema-updates.md.
+      huddle_co_commissioners: {
+        Row: {
+          huddle_id: string
+          admin_email: string
+          invited_at: string
+          accepted_at: string | null
+        }
+        Insert: {
+          huddle_id: string
+          admin_email: string
+          invited_at?: string
+          accepted_at?: string | null
+        }
+        Update: {
+          huddle_id?: string
+          admin_email?: string
+          invited_at?: string
+          accepted_at?: string | null
         }
       }
       admin_pools: {
@@ -698,13 +766,47 @@ CREATE TABLE IF NOT EXISTS pools (
   is_active BOOLEAN DEFAULT true,
   season INTEGER NOT NULL,
   pool_type VARCHAR(20) DEFAULT 'normal',
+  is_private BOOLEAN NOT NULL DEFAULT false,
+  join_password TEXT,
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
   tie_breaker_answer INTEGER,
   require_access_code BOOLEAN DEFAULT true,
-  season_scope INTEGER[] DEFAULT '{2}'
+  season_scope INTEGER[] DEFAULT '{2}',
+  huddle_id UUID REFERENCES huddles(id) ON DELETE SET NULL,
+  competition_type VARCHAR(20) NOT NULL DEFAULT 'NFL_CONFIDENCE',
+  type_settings JSONB NOT NULL DEFAULT '{}'::jsonb
 );
--- Migration: ALTER TABLE pools ADD COLUMN IF NOT EXISTS season_scope INTEGER[] DEFAULT '{2}';
+-- Migrations: see docs/migrations/add-pool-join-password.sql and
+-- docs/migrations/add-huddles.sql (huddle_id / competition_type /
+-- type_settings / is_private / season_scope).
+`;
+
+// fallow-ignore-next-line unused-export
+export const huddlesTable = `
+CREATE TABLE IF NOT EXISTS huddles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  commissioner_email VARCHAR(255) NOT NULL,
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- See docs/migrations/add-huddles.sql
+`;
+
+// Not yet wired into app logic — schema only. See docs/database-schema-updates.md.
+// fallow-ignore-next-line unused-export
+export const huddleCoCommissionersTable = `
+CREATE TABLE IF NOT EXISTS huddle_co_commissioners (
+  huddle_id UUID REFERENCES huddles(id) ON DELETE CASCADE,
+  admin_email VARCHAR(255) NOT NULL,
+  invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  accepted_at TIMESTAMP WITH TIME ZONE,
+  PRIMARY KEY (huddle_id, admin_email)
+);
+-- See docs/migrations/add-huddles.sql
 `;
 
 // fallow-ignore-next-line unused-export
@@ -994,6 +1096,16 @@ ALTER TABLE games ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminder_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE huddles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE huddle_co_commissioners ENABLE ROW LEVEL SECURITY;
+
+-- Huddles table policies — commissioner/admin-only. Participants never
+-- query huddles directly, so no participant-facing SELECT policy exists.
+CREATE POLICY "Service role can manage huddles" ON huddles
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role can manage huddle co-commissioners" ON huddle_co_commissioners
+  FOR ALL USING (auth.role() = 'service_role');
 
 -- Admins table policies
 CREATE POLICY "Admins can view their own profile" ON admins
