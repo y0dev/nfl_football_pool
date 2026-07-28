@@ -254,3 +254,94 @@ Known **not** touched, and why:
 - `scripts/seed.ts` — already broken independent of this: its `picks` and
   `scores` inserts use a stale `user_id` column instead of `participant_id`,
   predating this change.
+
+## Huddles (parent entity for pools)
+
+A commissioner's overall league is now a **Huddle**; a **Pool** is a specific
+competition inside it (e.g. an NFL Confidence Pool). Previously pools were a
+flat list with no grouping — a commissioner could already own multiple pools
+(`pools.created_by = admins.email`, one-to-many), but there was nothing
+representing "the league" as its own entity.
+
+Migration: `docs/migrations/add-huddles.sql`, backfill in
+`docs/migrations/add-huddles-backfill.sql` (run second — creates exactly one
+Huddle per existing commissioner and points all of their pools at it).
+
+1. New `huddles` table: `commissioner_email` mirrors `pools.created_by` (a
+   plain string, not an FK — kept consistent with the existing ownership
+   model rather than introducing a second identity representation).
+2. New `huddle_co_commissioners` table — schema only, **not wired into any
+   authorization logic yet**. Reserved for a future co-commissioner invite
+   feature. The pre-existing `admin_pools` table (a different shape: FK to
+   `admins.id`, keyed by `pool_id` not `huddle_id`) is left untouched — it
+   was already dead code before this change and still is.
+3. `pools.huddle_id` — nullable FK to `huddles`, `ON DELETE SET NULL` (not
+   `CASCADE`): deleting a Huddle must never cascade-delete pools, picks, or
+   scores.
+4. `pools.competition_type` — **a new, separate axis from the existing
+   `pool_type` column.** `pool_type` (`'normal'` / `'knockout'`) is an
+   NFL-confidence-internal bracket concept and is untouched by this change.
+   `competition_type` is the cross-sport/format discriminator: currently
+   `NFL_CONFIDENCE` (the only value the app will actually create —
+   `src/actions/createPool.ts` rejects anything else server-side even if a
+   client somehow submits it), with `NCAA_CONFIDENCE`, `SURVIVOR`, `PICKEM`,
+   `MARCH_MADNESS` reserved for future pool types. See
+   `src/lib/poolTypes.ts` for the registry that drives both the UI picker
+   and this server-side validation. (Wired up in the "Wire up Huddles and
+   pool types" pass below — `poolTypes.ts` and the create-pool validation
+   did not exist when this section was first written.)
+5. `pools.type_settings` (JSONB) — per-competition-type configuration (e.g.
+   a future survivor pool's "no repeat picks" rule) lives here, not as new
+   `pools` columns, so adding a sixth `competition_type` later is a
+   CHECK-constraint widen, not a schema migration.
+6. Fixed pre-existing drift while this file was already being touched:
+   `pools.is_private` has been written by `src/actions/createPool.ts` since
+   pool search/privacy shipped, but was never added to a checked-in
+   migration or to the TS `Database` type before now.
+
+Known **not** touched, and why:
+
+- Plan/capacity limits (`src/lib/plan.ts`, `checkPoolCapacity`) stay keyed
+  on `created_by` email exactly as before. This pass creates exactly one
+  Huddle per commissioner, so "pools per Huddle" and "pools per
+  commissioner" are numerically identical today — there was no behavior to
+  change. Once a commissioner can own more than one Huddle (not built yet),
+  that's a real product decision for a future change, not this one.
+- No participant-facing RLS policy on `huddles` — participants stay
+  pool-scoped (no global participant account) and never query Huddles
+  directly; "a Huddle's participants" is a derived cross-pool view in app
+  code, not a new table or FK.
+
+## Wire up Huddles and pool types
+
+The previous section's schema shipped without any app code behind it. This
+pass wires it up:
+
+1. `docs/migrations/add-huddles-backfill.sql` now exists (it was referenced
+   above but never checked in) — creates one Huddle per distinct existing
+   commissioner and backfills `pools.huddle_id`. Run it manually via the
+   Supabase SQL editor, after `add-huddles.sql`.
+2. `src/lib/poolTypes.ts` now exists — the registry of `CompetitionType`
+   values (label, description, `available` flag) that drives both the
+   create-pool dropdown and server-side validation.
+3. `src/lib/huddles.ts` — `getOrCreateHuddleForCommissioner(email)`, a
+   find-or-create helper so commissioners created after the backfill still
+   get exactly one Huddle, lazily, the first time they create a pool.
+4. `src/actions/createPool.ts` — now accepts `competition_type`, rejects any
+   value where `POOL_TYPES` marks `available: false` (making the claim in
+   the section above actually true), and sets `huddle_id` on every pool it
+   creates via the helper above.
+5. `src/components/pools/create-pool-dialog.tsx` — added a "Competition Type"
+   picker above the pool name field, driven by `POOL_TYPES`; unavailable
+   types render disabled with a "(Coming Soon)" suffix.
+6. `src/app/admin/pools/page.tsx` and `src/app/api/admin/all-pools/route.ts`
+   — pool cards now show a competition-type badge; the API route's explicit
+   column list was widened to include `competition_type`/`huddle_id`.
+7. Removed the dead, unexported `Pool` interface in `src/types/game.ts` (no
+   references anywhere in the app) rather than updating it to match the
+   current schema, since nothing consumed it.
+
+Known **still not** touched, and why (unchanged from the previous section):
+no Huddle switcher/management UI, no co-commissioner wiring, `admin_pools`
+still dead code. Multi-Huddle-per-commissioner remains a future product
+decision, not something this pass changes.

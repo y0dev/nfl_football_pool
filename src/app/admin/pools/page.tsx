@@ -12,6 +12,7 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { Footer } from '@/components/layout/Footer';
+import { POOL_TYPES } from '@/lib/poolTypes';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -38,6 +39,8 @@ interface Pool {
   season: number;
   created_by: string;
   created_at: string;
+  competition_type: string;
+  huddle_id: string | null;
   participants: { count: number }[];
 }
 
@@ -285,6 +288,9 @@ function AdminPoolsContent() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
                           <span style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, letterSpacing: '0.02em' }}>{pool.name}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                            {POOL_TYPES.find(t => t.id === pool.competition_type)?.label ?? pool.competition_type}
+                          </span>
                           {pool.is_active ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: greenHi, background: 'oklch(46% 0.14 155 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
                               <ShieldCheck style={{ width: 9, height: 9 }} /> Active

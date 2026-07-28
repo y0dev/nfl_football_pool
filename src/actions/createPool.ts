@@ -3,6 +3,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, Plan } from '@/lib/plan';
+import { getOrCreateHuddleForCommissioner } from '@/lib/huddles';
+import { CompetitionType, DEFAULT_COMPETITION_TYPE, isAvailableCompetitionType } from '@/lib/poolTypes';
 
 export type CreatePoolResult =
   | { success: true; data: Record<string, unknown> }
@@ -13,11 +15,17 @@ export async function createPool(poolData: {
   created_by: string;
   season?: number;
   pool_type?: 'normal' | 'knockout';
+  competition_type?: CompetitionType;
   join_password?: string;
   season_scope?: number[];
   is_private?: boolean;
 }): Promise<CreatePoolResult> {
   try {
+    const competitionType = poolData.competition_type ?? DEFAULT_COMPETITION_TYPE;
+    if (!isAvailableCompetitionType(competitionType)) {
+      return { success: false, error: `${competitionType} pools are coming soon and can't be created yet.` };
+    }
+
     const supabase = getSupabaseServiceClient();
 
     // Preseason-only pools are free test pools with their own separate cap;
@@ -47,6 +55,8 @@ export async function createPool(poolData: {
       };
     }
 
+    const huddleId = await getOrCreateHuddleForCommissioner(poolData.created_by);
+
     const { data, error } = await supabase
       .from('pools')
       .insert({
@@ -54,6 +64,8 @@ export async function createPool(poolData: {
         created_by: poolData.created_by,
         season: poolData.season || DEFAULT_POOL_SEASON,
         pool_type: poolData.pool_type || 'normal',
+        competition_type: competitionType,
+        huddle_id: huddleId,
         is_active: true,
         is_private: poolData.is_private ?? false,
         season_scope: poolData.season_scope ?? [2],
