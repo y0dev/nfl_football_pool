@@ -22,12 +22,16 @@ export type InitiatePoolTransferResult =
  * recipient (toEmail) confirm via their own emailed link — see
  * confirmPoolTransfer. Pre-checks the destination's pool and participant
  * limits up front so the sender gets immediate, specific feedback instead
- * of finding out after both parties have already confirmed.
+ * of finding out after both parties have already confirmed. removeFromSourceRoster
+ * is the sender's choice of whether to also clean up their own League roster
+ * once the pool moves — applied at confirm time (see confirmPoolTransfer),
+ * since that's when the participants actually leave.
  */
 export async function initiatePoolTransfer(
   poolId: string,
   fromEmail: string,
-  toEmail: string
+  toEmail: string,
+  removeFromSourceRoster = false
 ): Promise<InitiatePoolTransferResult> {
   try {
     const supabase = getSupabaseServiceClient();
@@ -85,6 +89,7 @@ export async function initiatePoolTransfer(
         pool_id: poolId,
         from_email: normalizedFrom,
         to_email: recipient.email,
+        remove_from_source_roster: removeFromSourceRoster,
         expires_at: expiresAt,
       })
       .select('from_token, to_token')
@@ -113,7 +118,7 @@ export async function initiatePoolTransfer(
 
 export type ConfirmPoolTransferResult =
   | { success: true; status: 'waiting'; poolName: string; otherEmail: string }
-  | { success: true; status: 'completed'; poolName: string }
+  | { success: true; status: 'completed'; poolName: string; removedFromSourceRoster: number }
   | { success: false; error: string };
 
 /**
@@ -220,12 +225,15 @@ export async function confirmPoolTransfer(token: string, callerEmail: string): P
     // docs/migrations/backfill-huddle-members-from-participants.sql.
     const { data: participants } = await supabase
       .from('participants')
-      .select('id, name, email')
+      .select('id, name, email, huddle_member_id')
       .eq('pool_id', pool.id)
       .eq('is_active', true)
       .not('email', 'is', null);
 
+    const sourceHuddleMemberIds = new Set<string>();
     for (const participant of participants ?? []) {
+      if (participant.huddle_member_id) sourceHuddleMemberIds.add(participant.huddle_member_id);
+
       const email = participant.email!.toLowerCase();
       const { data: existingMember } = await supabase
         .from('huddle_members')
@@ -254,6 +262,29 @@ export async function confirmPoolTransfer(token: string, callerEmail: string): P
         .eq('id', participant.id);
     }
 
+    // Sender's choice, captured at initiation — clean up the source
+    // League's roster, but only remove a roster entry if no OTHER active
+    // participant (in a different pool still in that Huddle) still needs
+    // it. Never touches anyone still genuinely part of that Huddle.
+    let removedFromSourceRoster = 0;
+    if (request.remove_from_source_roster) {
+      for (const memberId of sourceHuddleMemberIds) {
+        const { count } = await supabase
+          .from('participants')
+          .select('id', { count: 'exact', head: true })
+          .eq('huddle_member_id', memberId)
+          .eq('is_active', true);
+
+        if ((count ?? 0) === 0) {
+          const { error: deactivateError } = await supabase
+            .from('huddle_members')
+            .update({ is_active: false })
+            .eq('id', memberId);
+          if (!deactivateError) removedFromSourceRoster++;
+        }
+      }
+    }
+
     await supabase
       .from('pool_transfer_requests')
       .update({ status: 'completed', completed_at: now })
@@ -264,7 +295,7 @@ export async function confirmPoolTransfer(token: string, callerEmail: string): P
       emailService.sendPoolTransferCompleted(request.to_email, pool.name, request.from_email),
     ]);
 
-    return { success: true, status: 'completed', poolName: pool.name };
+    return { success: true, status: 'completed', poolName: pool.name, removedFromSourceRoster };
   } catch (error) {
     debugError('Unexpected error confirming pool transfer:', error);
     return { success: false, error: 'An unexpected error occurred. Please try again.' };

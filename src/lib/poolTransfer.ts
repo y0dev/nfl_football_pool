@@ -12,6 +12,7 @@ export type TransferPoolResult =
       huddleId: string;
       huddleName: string;
       mergedMembers: number;
+      removedFromSourceRoster: number;
     }
   | { success: false; error: string };
 
@@ -32,7 +33,8 @@ export type TransferPoolResult =
 export async function transferPoolToCommissioner(
   poolId: string,
   newCommissionerEmail: string,
-  callerEmail: string
+  callerEmail: string,
+  removeFromSourceRoster = false
 ): Promise<TransferPoolResult> {
   try {
     const supabase = getSupabaseServiceClient();
@@ -96,13 +98,16 @@ export async function transferPoolToCommissioner(
     // commissioner's Huddle.
     const { data: participants } = await supabase
       .from('participants')
-      .select('id, name, email')
+      .select('id, name, email, huddle_member_id')
       .eq('pool_id', poolId)
       .eq('is_active', true)
       .not('email', 'is', null);
 
     let mergedMembers = 0;
+    const sourceHuddleMemberIds = new Set<string>();
     for (const participant of participants ?? []) {
+      if (participant.huddle_member_id) sourceHuddleMemberIds.add(participant.huddle_member_id);
+
       const email = participant.email!.toLowerCase();
       const { data: existingMember } = await supabase
         .from('huddle_members')
@@ -132,6 +137,29 @@ export async function transferPoolToCommissioner(
         .eq('id', participant.id);
     }
 
+    // Optionally clean up the source League's roster — but only remove a
+    // roster entry if no OTHER active participant (in a different pool
+    // still in that Huddle) still needs it. Never touches anyone who's
+    // still actually in that Huddle.
+    let removedFromSourceRoster = 0;
+    if (removeFromSourceRoster) {
+      for (const memberId of sourceHuddleMemberIds) {
+        const { count } = await supabase
+          .from('participants')
+          .select('id', { count: 'exact', head: true })
+          .eq('huddle_member_id', memberId)
+          .eq('is_active', true);
+
+        if ((count ?? 0) === 0) {
+          const { error: deactivateError } = await supabase
+            .from('huddle_members')
+            .update({ is_active: false })
+            .eq('id', memberId);
+          if (!deactivateError) removedFromSourceRoster++;
+        }
+      }
+    }
+
     await supabase.from('audit_logs').insert({
       action: 'transfer_pool',
       admin_id: caller.id,
@@ -143,6 +171,7 @@ export async function transferPoolToCommissioner(
         previous_owner: previousOwner,
         new_owner: newCommissionerEmail,
         merged_members: mergedMembers,
+        removed_from_source_roster: removedFromSourceRoster,
       },
     });
 
@@ -155,6 +184,7 @@ export async function transferPoolToCommissioner(
       huddleId: newHuddle.id,
       huddleName: newHuddle.name,
       mergedMembers,
+      removedFromSourceRoster,
     };
   } catch (error) {
     debugError('Unexpected error transferring pool:', error);

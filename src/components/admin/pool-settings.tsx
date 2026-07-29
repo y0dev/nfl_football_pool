@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { loadPool } from '@/actions/loadPools';
@@ -61,6 +62,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [closeSeasonResult, setCloseSeasonResult] = useState<{ winner?: string; message?: string } | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferEmail, setTransferEmail] = useState('');
+  const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
   const { toast } = useToast();
@@ -195,12 +197,13 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     if (!user?.email) return;
     setIsTransferring(true);
     try {
-      const result = await initiatePoolTransfer(poolId, user.email, transferEmail);
+      const result = await initiatePoolTransfer(poolId, user.email, transferEmail, transferRemoveFromSource);
       if (!result.success) {
         toast({ title: 'Error', description: result.error, variant: 'destructive' });
         return;
       }
       setTransferEmail('');
+      setTransferRemoveFromSource(false);
       setTransferOpen(false);
       toast({ title: 'Transfer Requested', description: `Check your email to confirm — ${transferEmail} has been asked to confirm too.` });
     } finally {
@@ -437,13 +440,28 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
               <ArrowLeftRight style={{ width: 13, height: 13 }} /> Transfer This Pool
             </button>
           ) : (
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <input
-                placeholder="commissioner@example.com"
-                value={transferEmail}
-                onChange={e => setTransferEmail(e.target.value)}
-                style={{ ...inputStyle, flex: '1 1 220px' }}
-              />
+            <div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  placeholder="commissioner@example.com"
+                  value={transferEmail}
+                  onChange={e => setTransferEmail(e.target.value)}
+                  style={{ ...inputStyle, flex: '1 1 220px' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', margin: '0.75rem 0' }}>
+                <Checkbox
+                  checked={transferRemoveFromSource}
+                  onCheckedChange={(v) => setTransferRemoveFromSource(v === true)}
+                  style={{ marginTop: '0.15rem' }}
+                />
+                <span style={{ ...b, fontSize: '0.78rem', color: textMid, lineHeight: 1.5 }}>
+                  Also remove these participants from my League roster — only removes someone if they&apos;re not still in another pool here.
+                </span>
+              </label>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
                 onClick={handleInitiateTransfer}
@@ -454,11 +472,12 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
               </button>
               <button
                 type="button"
-                onClick={() => { setTransferOpen(false); setTransferEmail(''); }}
+                onClick={() => { setTransferOpen(false); setTransferEmail(''); setTransferRemoveFromSource(false); }}
                 style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
                 Cancel
               </button>
+              </div>
             </div>
           )}
         </div>

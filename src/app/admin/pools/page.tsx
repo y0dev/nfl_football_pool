@@ -4,13 +4,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Trophy, Users, Plus, LogOut, RefreshCw, Search,
-  ChevronRight, ShieldCheck, ShieldOff, Share2,
+  ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Footer } from '@/components/layout/Footer';
 import { POOL_TYPES } from '@/lib/poolTypes';
 
@@ -59,6 +61,10 @@ function AdminPoolsContent() {
   const [createOpen, setCreateOpen]     = useState(false);
   const [currentWeek, setCurrentWeek]   = useState(1);
   const [seasonType, setSeasonType]     = useState(2);
+  const [transferPool, setTransferPool] = useState<Pool | null>(null);
+  const [transferEmail, setTransferEmail] = useState('');
+  const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   const loadPools = async () => {
     try {
@@ -113,6 +119,46 @@ function AdminPoolsContent() {
     setIsRefreshing(true);
     await loadPools();
     setIsRefreshing(false);
+  };
+
+  const closeTransferDialog = () => {
+    setTransferPool(null);
+    setTransferEmail('');
+    setTransferRemoveFromSource(false);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferPool || !transferEmail.trim()) return;
+    setIsTransferring(true);
+    try {
+      const res = await fetch('/api/admin/transfer-pool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
+        body: JSON.stringify({
+          poolId: transferPool.id,
+          newCommissionerEmail: transferEmail.trim(),
+          removeFromSourceRoster: transferRemoveFromSource,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        toast({ title: 'Transfer Failed', description: data.error ?? 'Failed to transfer pool', variant: 'destructive' });
+        return;
+      }
+      const cleanupNote = transferRemoveFromSource
+        ? ` Removed ${data.pool.removedFromSourceRoster} participant(s) from the source League's roster.`
+        : '';
+      toast({
+        title: 'Pool Transferred',
+        description: `"${data.pool.name}" moved to ${data.pool.newOwner}.${cleanupNote}`,
+      });
+      closeTransferDialog();
+      await loadPools();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to transfer pool', variant: 'destructive' });
+    } finally {
+      setIsTransferring(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -353,6 +399,13 @@ function AdminPoolsContent() {
                               <Share2 style={{ width: 12, height: 12 }} /> Share
                             </button>
                             <button
+                              onClick={() => setTransferPool(pool)}
+                              title="Transfer this pool to another commissioner"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                            >
+                              <ArrowLeftRight style={{ width: 12, height: 12 }} /> Transfer
+                            </button>
+                            <button
                               onClick={() => router.push(`/admin/pool/${pool.id}`)}
                               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
                             >
@@ -381,6 +434,64 @@ function AdminPoolsContent() {
           toast({ title: 'Pool Created', description: 'New pool is now visible in the list.' });
         }}
       />
+
+      <Dialog open={!!transferPool} onOpenChange={(open) => { if (!open) closeTransferDialog(); }}>
+        <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
+          <DialogHeader>
+            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: gold, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Transfer Pool
+            </DialogTitle>
+            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+              Move &quot;{transferPool?.name}&quot; — and its participants — to a different commissioner&apos;s League. Immediate, no approval needed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '0.5rem 0' }}>
+            <div>
+              <label style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.35rem' }}>
+                Destination Commissioner Email
+              </label>
+              <input
+                autoFocus
+                placeholder="commissioner@example.com"
+                value={transferEmail}
+                onChange={e => setTransferEmail(e.target.value)}
+                style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem' }}
+              />
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer' }}>
+              <Checkbox
+                checked={transferRemoveFromSource}
+                onCheckedChange={(v) => setTransferRemoveFromSource(v === true)}
+                style={{ marginTop: '0.15rem' }}
+              />
+              <span style={{ ...b, fontSize: '0.8rem', color: textMid, lineHeight: 1.5 }}>
+                Also remove these participants from the source commissioner&apos;s League roster — only removes someone if they&apos;re not still in another pool there.
+              </span>
+            </label>
+          </div>
+
+          <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={closeTransferDialog}
+              style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleTransfer}
+              disabled={isTransferring || !transferEmail.trim()}
+              style={{ ...bc, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: (isTransferring || !transferEmail.trim()) ? surface : gold, color: (isTransferring || !transferEmail.trim()) ? textDim : 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (isTransferring || !transferEmail.trim()) ? 'not-allowed' : 'pointer' }}
+            >
+              <ArrowLeftRight style={{ width: 12, height: 12 }} />
+              {isTransferring ? 'Transferring…' : 'Transfer Pool'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

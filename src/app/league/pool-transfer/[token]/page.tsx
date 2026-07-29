@@ -24,7 +24,7 @@ type ViewState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'waiting'; poolName: string; otherEmail: string }
-  | { kind: 'completed'; poolName: string };
+  | { kind: 'completed'; poolName: string; removedFromSourceRoster: number };
 
 function PoolTransferConfirmContent() {
   const params = useParams();
@@ -40,7 +40,7 @@ function PoolTransferConfirmContent() {
       if (!result.success) {
         setState({ kind: 'error', message: result.error });
       } else if (result.status === 'completed') {
-        setState({ kind: 'completed', poolName: result.poolName });
+        setState({ kind: 'completed', poolName: result.poolName, removedFromSourceRoster: result.removedFromSourceRoster });
       } else {
         setState({ kind: 'waiting', poolName: result.poolName, otherEmail: result.otherEmail });
       }
@@ -85,11 +85,14 @@ function PoolTransferConfirmContent() {
   }
 
   if (state.kind === 'completed') {
+    const rosterNote = state.removedFromSourceRoster > 0
+      ? ` ${state.removedFromSourceRoster} participant(s) were also removed from the source League's roster.`
+      : '';
     return wrap(
       <CheckCircle2 style={{ width: 32, height: 32, color: greenHi, margin: '0 auto' }} />,
       green,
       'Transfer Complete',
-      `"${state.poolName}" and its participants have finished transferring. Both parties have been emailed a confirmation.`
+      `"${state.poolName}" and its participants have finished transferring. Both parties have been emailed a confirmation.${rosterNote}`
     );
   }
 

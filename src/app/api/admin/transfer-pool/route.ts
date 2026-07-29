@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { poolId, newCommissionerEmail } = await request.json();
+    const { poolId, newCommissionerEmail, removeFromSourceRoster } = await request.json();
     if (!poolId || !newCommissionerEmail) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await transferPoolToCommissioner(poolId, newCommissionerEmail, callerEmail);
+    const result = await transferPoolToCommissioner(poolId, newCommissionerEmail, callerEmail, Boolean(removeFromSourceRoster));
 
     if (!result.success) {
       const status = result.error === 'Insufficient permissions.' ? 403 : 400;
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         huddleId: result.huddleId,
         huddleName: result.huddleName,
         mergedMembers: result.mergedMembers,
+        removedFromSourceRoster: result.removedFromSourceRoster,
       },
     });
   } catch (error) {

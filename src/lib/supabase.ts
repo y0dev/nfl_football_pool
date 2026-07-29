@@ -356,6 +356,7 @@ type Database = {
           to_confirmed_at: string | null
           completed_at: string | null
           failure_reason: string | null
+          remove_from_source_roster: boolean
           expires_at: string
           created_at: string
         }
@@ -371,6 +372,7 @@ type Database = {
           to_confirmed_at?: string | null
           completed_at?: string | null
           failure_reason?: string | null
+          remove_from_source_roster?: boolean
           expires_at: string
           created_at?: string
         }
@@ -386,6 +388,7 @@ type Database = {
           to_confirmed_at?: string | null
           completed_at?: string | null
           failure_reason?: string | null
+          remove_from_source_roster?: boolean
           expires_at?: string
           created_at?: string
         }
@@ -983,6 +986,9 @@ CREATE TABLE IF NOT EXISTS pool_transfer_requests (
   to_confirmed_at TIMESTAMP WITH TIME ZONE,
   completed_at TIMESTAMP WITH TIME ZONE,
   failure_reason TEXT,
+  -- Sender's choice, captured at request time, applied once the transfer
+  -- actually executes (both sides confirmed) — see confirmPoolTransfer.
+  remove_from_source_roster BOOLEAN NOT NULL DEFAULT false,
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
