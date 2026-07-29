@@ -13,7 +13,7 @@ import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
 import { initiatePoolTransfer } from '@/actions/poolTransfers';
 import { Trash2, Lock, Settings, Save, ArrowLeftRight } from 'lucide-react';
-import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, debugError} from '@/lib/utils';
+import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, getNFLSeasonYear, debugError} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -62,8 +62,16 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferEmail, setTransferEmail] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
+  const [poolSeason, setPoolSeason] = useState<number | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Settings for a pool from a season that's already ended are locked —
+  // they describe how that season was actually run, so changing them after
+  // the fact would corrupt historical standings. Closing the season,
+  // transferring the pool, and deleting it are separate actions and stay
+  // available.
+  const isLocked = poolSeason !== null && poolSeason < getNFLSeasonYear();
 
   const form = useForm<PoolSettingsData>({
     resolver: zodResolver(poolSettingsSchema),
@@ -84,6 +92,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         setIsLoading(true);
         const pool = await loadPool(poolId);
         if (pool) {
+          setPoolSeason(pool.season);
           form.reset({
             name: pool.name,
             season: pool.season,
@@ -120,7 +129,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
       debugError('Failed to update pool settings:', error);
-      toast({ title: 'Error', description: 'Failed to update pool settings', variant: 'destructive' });
+      const message = error instanceof Error ? error.message : 'Failed to update pool settings';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -221,12 +231,22 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
         {/* General Settings */}
-        <div style={{ ...cardStyle, borderLeft: `3px solid ${green}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            <Settings style={{ width: 16, height: 16, color: greenHi }} />
+        <div style={{ ...cardStyle, borderLeft: `3px solid ${isLocked ? textDim : green}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: isLocked ? '0.75rem' : '1.25rem' }}>
+            <Settings style={{ width: 16, height: 16, color: isLocked ? textDim : greenHi }} />
             <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>General Settings</p>
           </div>
 
+          {isLocked && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.6rem 0.85rem', marginBottom: '1.25rem' }}>
+              <Lock style={{ width: 13, height: 13, color: textDim, flexShrink: 0 }} />
+              <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                This pool is from the {poolSeason} season, which has ended. Settings can no longer be changed.
+              </p>
+            </div>
+          )}
+
+          <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, opacity: isLocked ? 0.55 : 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Pool Name */}
             <FormField
@@ -362,6 +382,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
               {isSaving ? 'Saving…' : 'Save Settings'}
             </button>
           </div>
+          </fieldset>
         </div>
 
         {/* Close Season */}

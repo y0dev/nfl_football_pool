@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError, debugWarn } from '@/lib/utils';
+import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
 
 export async function updatePool(poolId: string, updates: {
@@ -17,16 +17,25 @@ export async function updatePool(poolId: string, updates: {
 }) {
   const supabase = getSupabaseServiceClient();
 
+  const { data: current } = await supabase
+    .from('pools')
+    .select('created_by, season, season_scope')
+    .eq('id', poolId)
+    .single();
+
+  // Pools from a season that has already ended are locked — their settings
+  // describe how that season was actually run, so changing them after the
+  // fact (e.g. season_scope, tie-breaker method) would corrupt historical
+  // standings. Closing the season, transferring the pool, and deleting it
+  // all go through separate paths and aren't affected by this.
+  if (current && current.season < getNFLSeasonYear()) {
+    throw new Error('This pool is from a previous season and its settings can no longer be changed.');
+  }
+
   // Re-scoping a pool moves it between the free preseason-test bucket and the
   // plan bucket — re-check the destination bucket's limit so scope changes
   // can't be used to dodge either cap.
   if (updates.season_scope) {
-    const { data: current } = await supabase
-      .from('pools')
-      .select('created_by, season_scope')
-      .eq('id', poolId)
-      .single();
-
     const wasPreseason = isPreseasonOnlyScope(current?.season_scope);
     const willBePreseason = isPreseasonOnlyScope(updates.season_scope);
 
