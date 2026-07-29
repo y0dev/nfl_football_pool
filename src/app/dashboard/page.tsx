@@ -13,13 +13,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Users,
-  Edit,
-  Calendar,
   BarChart3,
-  Link2,
-  Check,
-  Settings,
-  Download,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -30,15 +24,11 @@ import { Game } from '@/types/game';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { PoolWorkspace } from '@/components/pools/pool-workspace';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
-import { ParticipantManagement } from '@/components/admin/participant-management';
-import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
-import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
-import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
-import { PoolSettings } from '@/components/admin/pool-settings';
-import { ExportData } from '@/components/admin/export-data';
+import { loadHuddleForCommissioner } from '@/actions/huddles';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -97,14 +87,8 @@ function CommissionerDashboardContent() {
   }>>([]);
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
-  const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
-  const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
-  const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
-  const [weekGamesCount, setWeekGamesCount] = useState(0);
-  const [activePoolTab, setActivePoolTab] = useState<'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review' | 'playoffs' | 'export' | 'settings'>('overview');
-  const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [leagueName, setLeagueName] = useState<string>('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -128,6 +112,10 @@ function CommissionerDashboardContent() {
           generateNotifications();
           loadRecentActivity();
           await loadGames();
+
+          loadHuddleForCommissioner(user.email)
+            .then(h => setLeagueName(h.name))
+            .catch(err => debugError('[SH][UI][POOL] Failed to load League (huddles table may not be migrated yet):', err));
 
           fetch(`/api/admin/plan-status?adminId=${user.id}`)
             .then(r => r.json())
@@ -191,13 +179,6 @@ function CommissionerDashboardContent() {
     }
   }, [currentWeek, currentSeasonType]);
 
-  useEffect(() => {
-    if (selectedPoolId) {
-      setActivePoolTab('overview');
-      loadSelectedPoolStats(selectedPoolId);
-    }
-  }, [selectedPoolId, currentWeek, currentSeasonType]);
-
   const loadDashboardStats = async () => {
     try {
       if (!user?.email) return;
@@ -235,87 +216,6 @@ function CommissionerDashboardContent() {
       debugLog('Loaded games for countdown:', gamesData.length);
     } catch (error) {
       debugError('Error loading games for countdown:', error);
-    }
-  };
-
-  const loadSelectedPoolStats = async (poolId: string) => {
-    try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-
-      // Parallel: participant list + current week games
-      const [{ data: allParticipants }, { data: weekGames }] = await Promise.all([
-        supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
-        supabase.from('games').select('id').eq('week', currentWeek).eq('season_type', currentSeasonType),
-      ]);
-
-      const total = allParticipants?.length ?? 0;
-      const gameIds = weekGames?.map(g => g.id) ?? [];
-      setWeekGamesCount(gameIds.length);
-
-      let submittedIds = new Set<string>();
-      if (gameIds.length > 0) {
-        const { data: picks } = await supabase
-          .from('picks')
-          .select('participant_id')
-          .eq('pool_id', poolId)
-          .in('game_id', gameIds);
-        submittedIds = new Set((picks ?? []).map(p => p.participant_id));
-      }
-
-      const completed = submittedIds.size;
-      const pending = Math.max(0, total - completed);
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      setSelectedPoolStats({ participants: total, completed, pending, completionRate });
-
-      // Missing participants for this week
-      setMissingParticipants(
-        (allParticipants ?? []).filter(p => !submittedIds.has(p.id))
-      );
-
-      // Pool leader — season total from scores table
-      const { data: seasonScores } = await supabase
-        .from('scores')
-        .select('participant_id, points, correct_picks')
-        .eq('pool_id', poolId)
-        .eq('season', currentSeason)
-        .eq('season_type', currentSeasonType);
-
-      if (seasonScores && seasonScores.length > 0) {
-        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
-        seasonScores.forEach(s => {
-          const e = totalsMap.get(s.participant_id);
-          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
-          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
-        });
-        let leaderId = '';
-        let leaderPts = 0;
-        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
-        if (leaderId) {
-          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
-          const ld = totalsMap.get(leaderId)!;
-          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
-        } else {
-          // Nobody has recorded points yet — no leader to show.
-          setPoolLeader(null);
-        }
-        // Build ranked leaderboard
-        const ranked = [...totalsMap.entries()]
-          .map(([id, { points, correctPicks }]) => ({
-            participantId: id,
-            name: (allParticipants ?? []).find(p => p.id === id)?.name ?? 'Unknown',
-            points,
-            correctPicks,
-          }))
-          .sort((a, b) => b.points - a.points);
-        setLeaderboardEntries(ranked);
-      } else {
-        // No scores recorded yet — nothing to rank.
-        setPoolLeader(null);
-        setLeaderboardEntries([]);
-      }
-    } catch (error) {
-      debugError('Error loading pool stats:', error);
     }
   };
 
@@ -457,14 +357,6 @@ function CommissionerDashboardContent() {
     setNotifications(newNotifications);
   };
 
-  const handleCopyPicksLink = async () => {
-    if (!selectedPoolId) return;
-    const url = `${window.location.origin}/pool/${selectedPoolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
-    await navigator.clipboard.writeText(url);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
-  };
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -537,16 +429,7 @@ function CommissionerDashboardContent() {
     );
   }
 
-  const poolStats = [
-    { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
-    { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
-    { label: 'Completed',    value: String(selectedPoolStats.completed),    sub: 'Picks submitted', accent: greenHi },
-    { label: 'Completion',   value: `${selectedPoolStats.completionRate}%`, sub: 'Rate',            accent: 'oklch(59% 0.18 230)' },
-  ];
-
   const selectedPool = availablePools.find(p => p.id === selectedPoolId) ?? null;
-  const selectedPoolHasPlayoffs = selectedPool?.season_scope?.includes(3) ?? false;
-  const selectedPoolHasRegularSeason = selectedPool?.season_scope?.includes(2) ?? true;
 
   const activityAccent = (type: string) => {
     if (type === 'pool_created') return greenHi;
@@ -577,19 +460,20 @@ function CommissionerDashboardContent() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
-                onClick={() => setCreatePoolDialogOpen(true)}
+                onClick={() => router.push('/league')}
+                title="Manage your League roster and pools"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.3rem',
                   padding: '0.35rem 0.7rem',
-                  background: green, color: text,
-                  border: 'none', borderRadius: 5,
-                  ...bc, fontWeight: 700, fontSize: '0.72rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 5,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
                   letterSpacing: '0.07em', textTransform: 'uppercase',
                   cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                <Plus style={{ width: 11, height: 11 }} />
-                <span className="pools-nav-label">New Pool</span>
+                <Users style={{ width: 11, height: 11 }} />
+                <span className="pools-nav-label">My League</span>
               </button>
               <button
                 onClick={() => router.push('/leaderboard')}
@@ -633,7 +517,7 @@ function CommissionerDashboardContent() {
         <div style={{ background: 'oklch(28% 0.08 60)', borderBottom: `1px solid oklch(40% 0.12 60)` }}>
           <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
             <p style={{ ...b, fontSize: '0.8rem', color: 'oklch(85% 0.09 60)', margin: 0 }}>
-              <strong style={{ color: amber }}>Standard trial</strong> — {planInfo.daysLeft} day{planInfo.daysLeft !== 1 ? 's' : ''} remaining. After it ends your account reverts to the free tier (1 pool, 15 participants).
+              <strong style={{ color: amber }}>Standard trial</strong> — {planInfo.daysLeft} day{planInfo.daysLeft !== 1 ? 's' : ''} remaining. After it ends your account reverts to the free tier (2 pools, 15 participants).
             </p>
           </div>
         </div>
@@ -642,7 +526,7 @@ function CommissionerDashboardContent() {
         <div style={{ background: 'oklch(20% 0.03 255)', borderBottom: `1px solid ${border}` }}>
           <div className="lp-inner" style={{ paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
             <p style={{ ...b, fontSize: '0.8rem', color: textMid, margin: 0 }}>
-              Free plan — limited to 1 pool and 15 participants per pool.
+              Free plan — limited to 2 pools and 15 participants per pool.
             </p>
           </div>
         </div>
@@ -683,6 +567,7 @@ function CommissionerDashboardContent() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   {[
                     { label: 'Status', value: 'Active', sub: 'Account standing' },
+                    { label: 'Leagues', value: leagueName ? '1' : '0', sub: 'Your Huddle' },
                     { label: 'Pools', value: String(dashboardStats.totalPools), sub: `${dashboardStats.activePools} active` },
                     { label: 'Members', value: String(dashboardStats.totalParticipants), sub: 'Across all pools' },
                   ].map(({ label, value, sub }) => (
@@ -763,6 +648,47 @@ function CommissionerDashboardContent() {
             </div>
           )}
 
+          {/* Your League */}
+          {leagueName && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
+              background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${gold}`, borderRadius: 8,
+              padding: '1rem 1.25rem', marginBottom: '1.5rem',
+            }}>
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: gold, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                  Your League
+                </p>
+                <p style={{ ...bc, fontWeight: 800, fontSize: '1.2rem', color: text }}>{leagueName}</p>
+                <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.15rem' }}>
+                  {availablePools.length} pool{availablePools.length === 1 ? '' : 's'} in this League
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setCreatePoolDialogOpen(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem',
+                    background: green, color: text, border: 'none', borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                  }}
+                >
+                  <Plus style={{ width: 12, height: 12 }} /> Create Pool
+                </button>
+                <button
+                  onClick={() => router.push('/league')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem',
+                    background: 'transparent', color: text, border: `1px solid ${border}`, borderRadius: 6,
+                    ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                  }}
+                >
+                  <Users style={{ width: 12, height: 12 }} /> Manage League
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Pool Workspace */}
           <div id='pool-workspace' style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase' }}>
@@ -784,242 +710,15 @@ function CommissionerDashboardContent() {
 
           {selectedPool ? (
             <div style={{ marginBottom: '2.5rem' }}>
-              {/* Pool info card */}
-              <div style={{
-                background: surface,
-                border: `1px solid ${border}`,
-                borderTop: `3px solid ${green}`,
-                borderRadius: 10,
-                padding: '1.25rem 1.5rem',
-                marginBottom: '0.75rem',
-              }}>
-                {/* Top row: pool identity */}
-                <div
-                  className='pool-identity'
-                  style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '1rem', marginBottom: '1rem', borderBottom: `1px solid ${border}` }}
-                >
-                  <div>
-                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool</p>
-                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{selectedPool.name}</p>
-                  </div>
-                  <div>
-                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Year</p>
-                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentSeason}</p>
-                  </div>
-                  <div>
-                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
-                    <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
-                  </div>
-                  <div style={{ marginLeft: 'auto' }}>
-                    <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Picks Page</p>
-                    <button
-                      onClick={handleCopyPicksLink}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        padding: '0.3rem 0.65rem',
-                        background: linkCopied ? 'oklch(46% 0.14 155 / 0.15)' : 'transparent',
-                        color: linkCopied ? greenHi : textMid,
-                        border: `1px solid ${linkCopied ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
-                        borderRadius: 5, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-                      }}
-                    >
-                      {linkCopied
-                        ? <><Check style={{ width: 11, height: 11 }} /> Copied!</>
-                        : <><Link2 style={{ width: 11, height: 11 }} /> Copy Link</>}
-                    </button>
-                  </div>
-                </div>
-                {/* Bottom row: pool stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
-                  {poolStats.map(({ label, value, sub, accent }) => (
-                    <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.875rem 1rem' }}>
-                      <p style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: accent, lineHeight: 1, letterSpacing: '0.02em' }}>{value}</p>
-                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', color: text, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: '0.25rem' }}>{label}</p>
-                      <p style={{ ...b, fontSize: '0.65rem', color: textDim, marginTop: '0.1rem' }}>{sub}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pool tab bar */}
-              <div style={{ background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8, padding: '0.25rem', display: 'flex', gap: '0.15rem', overflowX: 'auto', marginBottom: '0.75rem' }} className="hide-scrollbar">
-                {([
-                  { id: 'overview',       label: 'Overview',       icon: TrendingUp },
-                  { id: 'players',        label: 'Players',        icon: Users },
-                  { id: 'leaderboard',    label: 'Leaderboard',    icon: BarChart3 },
-                  { id: 'override-picks', label: 'Override Picks', icon: Edit },
-                  { id: 'season-review',  label: 'Season Review',  icon: Calendar },
-                  { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
-                  { id: 'export',         label: 'Export',         icon: Download },
-                  { id: 'settings',       label: 'Settings',       icon: Settings },
-                ] as const)
-                  .filter(t => t.id !== 'playoffs' || selectedPoolHasPlayoffs)
-                  .filter(t => t.id !== 'season-review' || selectedPoolHasRegularSeason)
-                  .map(({ id, label, icon: Icon }) => {
-                  const active = activePoolTab === id;
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setActivePoolTab(id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.3rem',
-                        padding: '0.45rem 0.75rem', flexShrink: 0,
-                        background: active ? green : 'transparent',
-                        color: active ? text : textMid,
-                        border: `1px solid ${active ? green : 'transparent'}`,
-                        borderRadius: 6, cursor: 'pointer',
-                        ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
-                      }}
-                    >
-                      <Icon style={{ width: 13, height: 13 }} />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Overview tab */}
-              {activePoolTab === 'overview' && (
-                <>
-                  {poolLeader && (
-                    <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderLeft: `4px solid ${gold}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'oklch(74% 0.16 72 / 0.18)', border: `1px solid oklch(74% 0.16 72 / 0.45)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Trophy style={{ width: 18, height: 18, color: gold }} />
-                      </div>
-                      <div>
-                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Pool Leader</p>
-                        <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, letterSpacing: '0.02em' }}>
-                          {poolLeader.name}
-                          <span style={{ color: textMid, fontWeight: 600, fontSize: '0.9rem' }}>{' '}· {poolLeader.points} pts</span>
-                        </p>
-                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>
-                          {poolLeader.correctPicks} correct pick{poolLeader.correctPicks !== 1 ? 's' : ''} this season
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {currentSeasonType !== 0 && missingParticipants.length > 0 && (
-                    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
-                        <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
-                        <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing Picks — Week {currentWeek}</p>
-                        <span style={{ marginLeft: 'auto', ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.15rem 0.5rem' }}>
-                          {missingParticipants.length} pending
-                        </span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
-                        {missingParticipants.map(p => (
-                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.55rem 0.75rem' }}>
-                            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'oklch(72% 0.16 60 / 0.15)', border: '1px solid oklch(72% 0.16 60 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 800, fontSize: '0.72rem', color: amber }}>
-                              {p.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
-                    <div style={{ background: 'oklch(18% 0.04 155)', border: `1px solid oklch(32% 0.1 155)`, borderRadius: 10, padding: '0.875rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
-                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                        All picks submitted for Week {currentWeek}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Players tab */}
-              {activePoolTab === 'players' && selectedPool && (
-                <ParticipantManagement poolId={selectedPoolId} poolName={selectedPool.name} />
-              )}
-
-              {/* Leaderboard tab */}
-              {activePoolTab === 'leaderboard' && (
-                <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-                    <Trophy style={{ width: 16, height: 16, color: gold }} />
-                    <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Season Standings</p>
-                  </div>
-                  {leaderboardEntries.length === 0 ? (
-                    <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {leaderboardEntries.map((entry, index) => {
-                        const isLeader = index === 0 && entry.points > 0;
-                        return (
-                          <div key={entry.participantId} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderRadius: 8 }}>
-                            <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: isLeader ? 'oklch(74% 0.16 72 / 0.18)' : 'oklch(26% 0.03 255)', color: isLeader ? gold : textDim, border: `1px solid ${isLeader ? 'oklch(74% 0.16 72 / 0.4)' : border}` }}>
-                              {index + 1}
-                            </span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{entry.name}</p>
-                              <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>{entry.correctPicks} correct picks</p>
-                            </div>
-                            <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: isLeader ? gold : greenHi, letterSpacing: '0.02em' }}>
-                              {entry.points} <span style={{ ...b, fontWeight: 400, fontSize: '0.72rem', color: textDim }}>pts</span>
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Override Picks tab */}
-              {activePoolTab === 'override-picks' && selectedPool && (
-                <OverridePicksPanel poolId={selectedPoolId} poolName={selectedPool.name} currentSeason={currentSeason} seasonScope={selectedPool.season_scope} />
-              )}
-
-              {/* Season Review tab */}
-              {activePoolTab === 'season-review' && selectedPoolHasRegularSeason && (
-                <SeasonReviewPanel poolId={selectedPoolId} season={currentSeason} />
-              )}
-
-              {/* Playoffs tab */}
-              {activePoolTab === 'playoffs' && selectedPool && selectedPoolHasPlayoffs && (
-                <div>
-                  <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <Trophy style={{ width: 14, height: 14, color: greenHi }} />
-                      <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Playoff Confidence Points</p>
-                    </div>
-                    <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>Manage playoff confidence points and view participant submission status</p>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => router.push(`/pool/${selectedPoolId}/playoffs`)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-                      >
-                        <Trophy style={{ width: 12, height: 12 }} /> Manage Playoff Confidence Points
-                      </button>
-                    </div>
-                  </div>
-                  <PlayoffParticipantsList poolId={selectedPoolId} poolSeason={currentSeason} />
-                </div>
-              )}
-
-              {/* Export tab */}
-              {activePoolTab === 'export' && selectedPool && (
-                <ExportData
-                  poolId={selectedPoolId}
-                  poolName={selectedPool.name}
-                  currentWeek={currentWeek}
-                  currentSeason={currentSeason}
-                />
-              )}
-
-              {/* Settings tab */}
-              {activePoolTab === 'settings' && selectedPool && (
-                <PoolSettings
-                  poolId={selectedPoolId}
-                  poolName={selectedPool.name}
-                  onPoolDeleted={() => { setSelectedPoolId(''); setActivePoolTab('overview'); }}
-                />
-              )}
+              <PoolWorkspace
+                poolId={selectedPoolId}
+                poolName={selectedPool.name}
+                season={currentSeason}
+                seasonScope={selectedPool.season_scope}
+                currentWeek={currentWeek}
+                currentSeasonType={currentSeasonType}
+                onPoolDeleted={() => setSelectedPoolId('')}
+              />
             </div>
           ) : (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '2rem', textAlign: 'center', marginBottom: '2.5rem' }}>
@@ -1101,6 +800,7 @@ function CommissionerDashboardContent() {
         open={createPoolDialogOpen}
         onOpenChange={setCreatePoolDialogOpen}
         onPoolCreated={handlePoolCreated}
+        leagueName={leagueName}
       />
     </div>
   );

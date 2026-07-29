@@ -41,6 +41,7 @@ interface Pool {
   created_at: string;
   competition_type: string;
   huddle_id: string | null;
+  huddles: { name: string } | null;
   participants: { count: number }[];
 }
 
@@ -138,6 +139,17 @@ function AdminPoolsContent() {
     active:   pools.filter(p => p.is_active).length,
     inactive: pools.filter(p => !p.is_active).length,
   }), [pools]);
+
+  const groupedByLeague = useMemo(() => {
+    const groups = new Map<string, { leagueName: string; huddleId: string | null; pools: Pool[] }>();
+    for (const pool of filtered) {
+      const key = pool.huddle_id ?? 'none';
+      const leagueName = pool.huddles?.name ?? 'No League';
+      if (!groups.has(key)) groups.set(key, { leagueName, huddleId: pool.huddle_id, pools: [] });
+      groups.get(key)!.pools.push(pool);
+    }
+    return [...groups.values()].sort((a, b2) => a.leagueName.localeCompare(b2.leagueName));
+  }, [filtered]);
 
   if (isLoading) {
     return (
@@ -262,8 +274,8 @@ function AdminPoolsContent() {
             </div>
           </div>
 
-          {/* pool cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {/* pool cards, grouped by League */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {filtered.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
                 <Trophy style={{ width: 40, height: 40, color: textDim, margin: '0 auto 1rem' }} />
@@ -272,71 +284,88 @@ function AdminPoolsContent() {
                 </p>
               </div>
             ) : (
-              filtered.map(pool => {
-                const participantCount = pool.participants?.[0]?.count ?? 0;
-                return (
-                  <div
-                    key={pool.id}
-                    style={{ background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${pool.is_active ? green : border}`, borderRadius: 8, padding: '1.25rem' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-
-                      {/* icon */}
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: pool.is_active ? `linear-gradient(135deg, ${green}, oklch(59% 0.15 155))` : `linear-gradient(135deg, oklch(26% 0.03 255), oklch(30% 0.03 255))`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Trophy style={{ width: 16, height: 16, color: pool.is_active ? text : textDim }} />
-                      </div>
-
-                      {/* info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                          <span style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, letterSpacing: '0.02em' }}>{pool.name}</span>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
-                            {POOL_TYPES.find(t => t.id === pool.competition_type)?.label ?? pool.competition_type}
-                          </span>
-                          {pool.is_active ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: greenHi, background: 'oklch(46% 0.14 155 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
-                              <ShieldCheck style={{ width: 9, height: 9 }} /> Active
-                            </span>
-                          ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
-                              <ShieldOff style={{ width: 9, height: 9 }} /> Inactive
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...b, fontSize: '0.78rem', color: textMid }}>
-                            <Users style={{ width: 12, height: 12, color: textDim }} />
-                            {participantCount} participant{participantCount !== 1 ? 's' : ''}
-                          </span>
-                          <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{pool.season} Season</span>
-                          <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>by {pool.created_by}</span>
-                          <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
-                            Created {new Date(pool.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* actions */}
-                      <div className="admin-pool-card-actions">
-                        <button
-                          onClick={() => handleShare(pool.id, pool.name)}
-                          title="Share pool link"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-                        >
-                          <Share2 style={{ width: 12, height: 12 }} /> Share
-                        </button>
-                        <button
-                          onClick={() => router.push(`/admin/pool/${pool.id}`)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-                        >
-                          Manage Pool <ChevronRight style={{ width: 13, height: 13 }} />
-                        </button>
-                      </div>
-
-                    </div>
+              groupedByLeague.map(group => (
+                <div key={group.leagueName} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase' }}>
+                      {group.leagueName} ({group.pools.length})
+                    </p>
+                    {group.huddleId && (
+                      <button
+                        onClick={() => router.push(`/admin/league/${group.huddleId}`)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.15rem 0.5rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 4, ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        View League <ChevronRight style={{ width: 10, height: 10 }} />
+                      </button>
+                    )}
                   </div>
-                );
-              })
+                  {group.pools.map(pool => {
+                    const participantCount = pool.participants?.[0]?.count ?? 0;
+                    return (
+                      <div
+                        key={pool.id}
+                        style={{ background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${pool.is_active ? green : border}`, borderRadius: 8, padding: '1.25rem' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+
+                          {/* icon */}
+                          <div style={{ width: 40, height: 40, borderRadius: '50%', background: pool.is_active ? `linear-gradient(135deg, ${green}, oklch(59% 0.15 155))` : `linear-gradient(135deg, oklch(26% 0.03 255), oklch(30% 0.03 255))`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Trophy style={{ width: 16, height: 16, color: pool.is_active ? text : textDim }} />
+                          </div>
+
+                          {/* info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                              <span style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, letterSpacing: '0.02em' }}>{pool.name}</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                                {POOL_TYPES.find(t => t.id === pool.competition_type)?.label ?? pool.competition_type}
+                              </span>
+                              {pool.is_active ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: greenHi, background: 'oklch(46% 0.14 155 / 0.15)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                                  <ShieldCheck style={{ width: 9, height: 9 }} /> Active
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                                  <ShieldOff style={{ width: 9, height: 9 }} /> Inactive
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...b, fontSize: '0.78rem', color: textMid }}>
+                                <Users style={{ width: 12, height: 12, color: textDim }} />
+                                {participantCount} participant{participantCount !== 1 ? 's' : ''}
+                              </span>
+                              <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{pool.season} Season</span>
+                              <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>by {pool.created_by}</span>
+                              <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                                Created {new Date(pool.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* actions */}
+                          <div className="admin-pool-card-actions">
+                            <button
+                              onClick={() => handleShare(pool.id, pool.name)}
+                              title="Share pool link"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                            >
+                              <Share2 style={{ width: 12, height: 12 }} /> Share
+                            </button>
+                            <button
+                              onClick={() => router.push(`/admin/pool/${pool.id}`)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.875rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                            >
+                              Manage Pool <ChevronRight style={{ width: 13, height: 13 }} />
+                            </button>
+                          </div>
+
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
             )}
           </div>
         </div>
