@@ -1,120 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, debugError, debugWarn} from '@/lib/utils';
+import { transferPoolToCommissioner } from '@/lib/poolTransfer';
+import { debugError } from '@/lib/utils';
 
+// Super-admin only. Immediate, no approval needed — a super admin can
+// already see every account, so there's no identity ambiguity to resolve
+// (contrast with /api/huddle-transfers, the commissioner-facing equivalent
+// that requires both parties to confirm by email).
 export async function POST(request: NextRequest) {
   try {
-    debugLog('Transfer pool started');
-    const { poolId, newCommissionerEmail } = await request.json();
-    debugLog('Transfer pool data received:', { poolId, newCommissionerEmail });
+    const callerEmail = request.headers.get('x-admin-email');
+    if (!callerEmail) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Validate input
+    const { poolId, newCommissionerEmail } = await request.json();
     if (!poolId || !newCommissionerEmail) {
-      debugLog('Validation failed: missing fields');
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const supabase = getSupabaseServiceClient();
-    debugLog('Supabase service client created');
+    const result = await transferPoolToCommissioner(poolId, newCommissionerEmail, callerEmail);
 
-    // Verify the new commissioner exists and is active
-    debugLog('Verifying new commissioner...');
-    const { data: newCommissioner, error: commissionerError } = await supabase
-      .from('admins')
-      .select('id, email, is_active, is_super_admin')
-      .eq('email', newCommissionerEmail)
-      .eq('is_active', true)
-      .single();
-
-    if (commissionerError || !newCommissioner) {
-      debugLog('New commissioner not found or inactive:', commissionerError);
-      return NextResponse.json(
-        { success: false, error: 'New commissioner not found or account is inactive' },
-        { status: 404 }
-      );
+    if (!result.success) {
+      const status = result.error === 'Insufficient permissions.' ? 403 : 400;
+      return NextResponse.json(result, { status });
     }
 
-    if (newCommissioner.is_super_admin) {
-      debugLog('Cannot transfer pool to super admin');
-      return NextResponse.json(
-        { success: false, error: 'Cannot transfer pool to super admin account' },
-        { status: 400 }
-      );
-    }
-
-    // Get current pool information
-    debugLog('Getting current pool information...');
-    const { data: currentPool, error: poolError } = await supabase
-      .from('pools')
-      .select('id, name, created_by, is_active')
-      .eq('id', poolId)
-      .single();
-
-    if (poolError || !currentPool) {
-      debugLog('Pool not found:', poolError);
-      return NextResponse.json(
-        { success: false, error: 'Pool not found' },
-        { status: 404 }
-      );
-    }
-
-    debugLog('Transferring pool:', currentPool.name, 'from', currentPool.created_by, 'to', newCommissionerEmail);
-
-    // Transfer the pool ownership
-    debugLog('Updating pool ownership...');
-    const { error: updateError } = await supabase
-      .from('pools')
-      .update({ created_by: newCommissionerEmail })
-      .eq('id', poolId);
-
-    if (updateError) {
-      debugLog('Error updating pool ownership:', updateError);
-      return NextResponse.json(
-        { success: false, error: `Failed to transfer pool: ${updateError.message}` },
-        { status: 500 }
-      );
-    }
-
-    debugLog('Pool ownership updated successfully');
-
-    // Log the transfer
-    try {
-      debugLog('Logging to audit_logs...');
-      await supabase
-        .from('audit_logs')
-        .insert({
-          action: 'transfer_pool',
-          admin_id: newCommissioner.id,
-          entity: 'pool',
-          entity_id: poolId,
-          details: { 
-            pool_id: poolId,
-            pool_name: currentPool.name,
-            previous_owner: currentPool.created_by,
-            new_owner: newCommissionerEmail
-          }
-        });
-      debugLog('Audit log created successfully');
-    } catch (auditError) {
-      debugWarn('Failed to log pool transfer to audit_logs:', auditError);
-      // Don't fail the transfer if audit logging fails
-    }
-
-    debugLog('Pool transfer completed successfully, returning success response');
     return NextResponse.json({
       success: true,
-      message: `Pool "${currentPool.name}" has been transferred to ${newCommissionerEmail}`,
+      message: `Pool "${result.poolName}" has been transferred to ${result.toEmail}`,
       pool: {
-        id: poolId,
-        name: currentPool.name,
-        previousOwner: currentPool.created_by,
-        newOwner: newCommissionerEmail
-      }
+        id: result.poolId,
+        name: result.poolName,
+        previousOwner: result.fromEmail,
+        newOwner: result.toEmail,
+        huddleId: result.huddleId,
+        huddleName: result.huddleName,
+        mergedMembers: result.mergedMembers,
+      },
     });
-
   } catch (error) {
     debugError('Transfer pool error:', error);
     return NextResponse.json(

@@ -48,3 +48,27 @@ test.describe('GET /api/admin/all-pools — super-admin only', () => {
     expect(body.success).toBe(false);
   });
 });
+
+// /api/admin/transfer-pool previously had NO auth check at all — any caller
+// could move any pool to any commissioner. Now super-admin only, same
+// x-admin-email pattern as /api/admin/all-pools above.
+test.describe('POST /api/admin/transfer-pool — super-admin only', () => {
+  test('rejects requests with no x-admin-email header', async ({ request }) => {
+    const res = await request.post('/api/admin/transfer-pool', {
+      data: { poolId: '00000000-0000-0000-0000-000000000000', newCommissionerEmail: 'someone@example.com' },
+    });
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+  });
+
+  test('rejects a caller that is not a super admin (or does not exist)', async ({ request }) => {
+    const res = await request.post('/api/admin/transfer-pool', {
+      headers: { 'x-admin-email': 'not-a-real-admin@example.com' },
+      data: { poolId: '00000000-0000-0000-0000-000000000000', newCommissionerEmail: 'someone@example.com' },
+    });
+    expect(res.status()).toBe(403);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+  });
+});
