@@ -8,9 +8,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2, Lock, Settings, Save } from 'lucide-react';
+import { initiatePoolTransfer } from '@/actions/poolTransfers';
+import { Trash2, Lock, Settings, Save, ArrowLeftRight } from 'lucide-react';
 import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, debugError} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
@@ -19,6 +21,7 @@ const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const amber   = 'oklch(72% 0.16 60)';
+const gold    = 'oklch(74% 0.16 72)';
 const red     = 'oklch(60% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -56,7 +59,11 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isClosingSeason, setIsClosingSeason] = useState(false);
   const [closeSeasonResult, setCloseSeasonResult] = useState<{ winner?: string; message?: string } | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferEmail, setTransferEmail] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const form = useForm<PoolSettingsData>({
     resolver: zodResolver(poolSettingsSchema),
@@ -171,6 +178,23 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       toast({ title: 'Error', description: 'Failed to close season', variant: 'destructive' });
     } finally {
       setIsClosingSeason(false);
+    }
+  };
+
+  const handleInitiateTransfer = async () => {
+    if (!user?.email) return;
+    setIsTransferring(true);
+    try {
+      const result = await initiatePoolTransfer(poolId, user.email, transferEmail);
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      setTransferEmail('');
+      setTransferOpen(false);
+      toast({ title: 'Transfer Requested', description: `Check your email to confirm — ${transferEmail} has been asked to confirm too.` });
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -371,6 +395,51 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             <Lock style={{ width: 13, height: 13 }} />
             {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
           </button>
+        </div>
+
+        {/* Transfer to Another League */}
+        <div style={{ ...cardStyle, borderLeft: `3px solid ${gold}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <ArrowLeftRight style={{ width: 16, height: 16, color: gold }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: gold, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Transfer To Another League</p>
+          </div>
+          <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
+            Hand this pool off — with its participants — to another commissioner&apos;s League. They must already have a Sunday Huddle account. Nothing changes until you both confirm by email, and it won&apos;t go through if it would put their account over its pool or participant limits.
+          </p>
+
+          {!transferOpen ? (
+            <button
+              type="button"
+              onClick={() => setTransferOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+            >
+              <ArrowLeftRight style={{ width: 13, height: 13 }} /> Transfer This Pool
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                placeholder="commissioner@example.com"
+                value={transferEmail}
+                onChange={e => setTransferEmail(e.target.value)}
+                style={{ ...inputStyle, flex: '1 1 220px' }}
+              />
+              <button
+                type="button"
+                onClick={handleInitiateTransfer}
+                disabled={isTransferring || !transferEmail.trim()}
+                style={{ padding: '0.5rem 0.9rem', background: gold, color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (isTransferring || !transferEmail.trim()) ? 'not-allowed' : 'pointer', opacity: (isTransferring || !transferEmail.trim()) ? 0.6 : 1 }}
+              >
+                {isTransferring ? 'Sending…' : 'Send Transfer Request'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTransferOpen(false); setTransferEmail(''); }}
+                style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Danger Zone */}

@@ -301,3 +301,88 @@ export async function checkHuddleCapacity(commissionerEmail: string): Promise<Hu
       : `Your ${planInfo.plan} plan allows ${limit} Huddle${limit === 1 ? '' : 's'}.`,
   };
 }
+
+export interface PoolTransferCapacity {
+  allowed: boolean;
+  poolLimitExceeded: boolean;
+  poolCount: number;
+  poolLimit: number;
+  participantLimitExceeded: boolean;
+  participantCount: number;
+  participantLimit: number;
+  destinationPlan: Plan;
+  message?: string;
+}
+
+/**
+ * Checks whether moving a pool into a destination Huddle would exceed the
+ * destination commissioner's limits. Two independent checks:
+ *   - pool count in the destination Huddle (via checkPoolCapacity, so it
+ *     respects the preseason/regular split the same way pool creation does)
+ *   - the pool's current active participant count against the destination's
+ *     per-pool participant limit — the count itself doesn't change on a
+ *     transfer, only the limit it's judged against does, since the pool may
+ *     be moving to a different plan
+ * Huddle-count isn't checked here: a pool transfer moves into an EXISTING
+ * Huddle, it never creates a new one, so there's nothing to exceed there.
+ */
+export async function checkPoolTransferCapacity(
+  poolId: string,
+  destinationHuddleId: string,
+  destinationCommissionerEmail: string
+): Promise<PoolTransferCapacity> {
+  const supabase = getSupabaseServiceClient();
+
+  const { data: pool } = await supabase
+    .from('pools')
+    .select('season_scope')
+    .eq('id', poolId)
+    .single();
+
+  const isPreseason = isPreseasonOnlyScope(pool?.season_scope);
+
+  const poolCapacity = await checkPoolCapacity(destinationCommissionerEmail, {
+    preseason: isPreseason,
+    excludePoolId: poolId,
+    huddleId: destinationHuddleId,
+  });
+
+  const destinationPlan = await getAdminPlanByEmail(destinationCommissionerEmail);
+  const participantLimit = isPreseason ? PRESEASON_LIMITS.participants : destinationPlan.participantLimit;
+
+  const { count } = await supabase
+    .from('participants')
+    .select('*', { count: 'exact', head: true })
+    .eq('pool_id', poolId)
+    .eq('is_active', true);
+
+  const participantCount = count ?? 0;
+  const participantLimitExceeded = participantCount > participantLimit;
+  const poolLimitExceeded = !poolCapacity.allowed;
+  const allowed = !poolLimitExceeded && !participantLimitExceeded;
+
+  const messages: string[] = [];
+  if (poolLimitExceeded) {
+    messages.push(
+      poolCapacity.message ?? `The destination Huddle is at its pool limit (${poolCapacity.count}/${poolCapacity.limit}).`
+    );
+  }
+  if (participantLimitExceeded) {
+    const over = participantCount - participantLimit;
+    messages.push(
+      `This pool has ${participantCount} participants, but the destination's ${destinationPlan.plan} plan allows ${participantLimit} per pool — remove ${over} participant${over === 1 ? '' : 's'} before transferring.`
+    );
+  }
+
+  return {
+    allowed,
+    poolLimitExceeded,
+    poolCount: poolCapacity.count,
+    poolLimit: poolCapacity.limit,
+    participantLimitExceeded,
+    participantCount,
+    participantLimit,
+    destinationPlan: destinationPlan.plan,
+    message: messages.length > 0 ? messages.join(' ') : undefined,
+  };
+}
