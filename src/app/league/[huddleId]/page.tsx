@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, ShieldOff } from 'lucide-react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { loadHuddleById, LeagueDirectoryEntry } from '@/actions/huddles';
+import { loadOwnedHuddleForCommissioner } from '@/actions/huddles';
+import { HuddleRecord } from '@/lib/huddles';
 import { LeagueManager } from '@/components/league/league-manager';
 import { debugError } from '@/lib/utils';
 
@@ -17,20 +18,20 @@ const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 
-function AdminLeagueContent() {
+function HuddleContent() {
   const params = useParams();
-  const huddleId = params.id as string;
+  const huddleId = params.huddleId as string;
   const { user } = useAuth();
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [league, setLeague] = useState<LeagueDirectoryEntry | null>(null);
+  const [huddle, setHuddle] = useState<HuddleRecord | null>(null);
 
   useEffect(() => {
     if (!user?.email || !huddleId) return;
-    loadHuddleById(huddleId, user.email)
-      .then(setLeague)
-      .catch(err => debugError('Failed to load league:', err))
+    loadOwnedHuddleForCommissioner(huddleId, user.email)
+      .then(setHuddle)
+      .catch(err => debugError('Failed to load Huddle:', err))
       .finally(() => setIsLoading(false));
   }, [huddleId, user?.email]);
 
@@ -42,19 +43,19 @@ function AdminLeagueContent() {
     );
   }
 
-  if (!league) {
+  if (!huddle) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, padding: '2rem' }}>
         <div style={{ textAlign: 'center' }}>
           <ShieldOff style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
           <p style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            League not found
+            Huddle not found
           </p>
           <button
-            onClick={() => router.push('/admin/dashboard')}
+            onClick={() => router.push('/league')}
             style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
-            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to Dashboard
+            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to My Huddles
           </button>
         </div>
       </div>
@@ -63,22 +64,19 @@ function AdminLeagueContent() {
 
   return (
     <LeagueManager
-      huddleId={league.id}
-      initialName={league.name}
-      onBack={() => router.push('/admin/dashboard')}
-      backLabel="All Leagues"
-      isAdminView
-      commissionerEmail={league.commissionerEmail}
-      initialIsActive={league.isActive}
+      huddleId={huddle.id}
+      initialName={huddle.name}
+      onBack={() => router.push('/league')}
+      backLabel="My Huddles"
     />
   );
 }
 
-export default function AdminLeaguePage() {
+export default function HuddlePage() {
   return (
     <AuthProvider>
-      <AdminGuard requireSuperAdmin>
-        <AdminLeagueContent />
+      <AdminGuard>
+        <HuddleContent />
       </AdminGuard>
     </AuthProvider>
   );

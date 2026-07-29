@@ -67,7 +67,7 @@ function PoolManageContent() {
         setCurrentWeek(week.week);
         setCurrentSeasonType(week.seasonType);
       } catch (error) {
-        debugError('[SH][UI][POOL] Failed to load pool:', error);
+        debugError('Failed to load pool:', error);
         toast({ title: 'Error', description: 'Failed to load this pool.', variant: 'destructive' });
       } finally {
         setIsLoading(false);

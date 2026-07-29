@@ -9,10 +9,47 @@ export async function loadHuddleForCommissioner(email: string): Promise<HuddleRe
   return getOrCreateHuddleRecordForCommissioner(email);
 }
 
-/** All Huddles a commissioner owns, oldest first — for the /league switcher
- * once a commissioner has more than one (Standard plan). */
-export async function loadAllHuddlesForCommissioner(email: string): Promise<HuddleRecord[]> {
-  return loadHuddlesForCommissioner(email);
+export interface CommissionerHuddleSummary {
+  id: string;
+  name: string;
+  poolCount: number;
+}
+
+/** Every Huddle a commissioner owns, oldest first, with each one's pool
+ * count — backs the "My Huddles" list page. */
+export async function loadAllHuddlesForCommissioner(email: string): Promise<CommissionerHuddleSummary[]> {
+  const huddles = await loadHuddlesForCommissioner(email);
+  if (huddles.length === 0) return [];
+
+  const supabase = getSupabaseServiceClient();
+  const { data: pools } = await supabase
+    .from('pools')
+    .select('huddle_id')
+    .in('huddle_id', huddles.map(h => h.id));
+
+  const poolCountByHuddle = new Map<string, number>();
+  for (const p of pools ?? []) {
+    if (!p.huddle_id) continue;
+    poolCountByHuddle.set(p.huddle_id, (poolCountByHuddle.get(p.huddle_id) ?? 0) + 1);
+  }
+
+  return huddles.map(h => ({ id: h.id, name: h.name, poolCount: poolCountByHuddle.get(h.id) ?? 0 }));
+}
+
+/** Look up a single Huddle by id, scoped to its owning commissioner — backs
+ * /league/[huddleId]. Returns null if it doesn't exist or belongs to
+ * someone else, so the page can 404 rather than leak another commissioner's
+ * Huddle by id guessing. */
+export async function loadOwnedHuddleForCommissioner(huddleId: string, email: string): Promise<HuddleRecord | null> {
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from('huddles')
+    .select('id, name')
+    .eq('id', huddleId)
+    .eq('commissioner_email', email)
+    .maybeSingle();
+
+  return data ?? null;
 }
 
 export type CreateAdditionalHuddleResult =

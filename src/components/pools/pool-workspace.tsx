@@ -128,7 +128,7 @@ export function PoolWorkspace({
         setLeaderboardEntries([]);
       }
     } catch (error) {
-      debugError('[SH][UI][POOL] Error loading pool workspace stats:', error);
+      debugError('Error loading pool workspace stats:', error);
     }
   }, [poolId, season, currentWeek, currentSeasonType]);
 

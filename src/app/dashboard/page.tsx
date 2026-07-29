@@ -89,6 +89,7 @@ function CommissionerDashboardContent() {
   const [games, setGames] = useState<Game[]>([]);
   const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
+  const [leagueId, setLeagueId] = useState<string>('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -114,8 +115,8 @@ function CommissionerDashboardContent() {
           await loadGames();
 
           loadHuddleForCommissioner(user.email)
-            .then(h => setLeagueName(h.name))
-            .catch(err => debugError('[SH][UI][POOL] Failed to load League (huddles table may not be migrated yet):', err));
+            .then(h => { setLeagueName(h.name); setLeagueId(h.id); })
+            .catch(err => debugError('Failed to load League (huddles table may not be migrated yet):', err));
 
           fetch(`/api/admin/plan-status?adminId=${user.id}`)
             .then(r => r.json())
@@ -461,7 +462,7 @@ function CommissionerDashboardContent() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 onClick={() => router.push('/league')}
-                title="Manage your League roster and pools"
+                title="View and manage your Huddles"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.3rem',
                   padding: '0.35rem 0.7rem',
@@ -473,7 +474,7 @@ function CommissionerDashboardContent() {
                 }}
               >
                 <Users style={{ width: 11, height: 11 }} />
-                <span className="pools-nav-label">My League</span>
+                <span className="pools-nav-label">My Huddles</span>
               </button>
               <button
                 onClick={() => router.push('/leaderboard')}
@@ -676,7 +677,7 @@ function CommissionerDashboardContent() {
                   <Plus style={{ width: 12, height: 12 }} /> Create Pool
                 </button>
                 <button
-                  onClick={() => router.push('/league')}
+                  onClick={() => router.push(leagueId ? `/league/${leagueId}` : '/league')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem',
                     background: 'transparent', color: text, border: `1px solid ${border}`, borderRadius: 6,

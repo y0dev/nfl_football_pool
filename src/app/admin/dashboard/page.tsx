@@ -211,6 +211,7 @@ function AdminDashboardContent() {
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [poolsLoading, setPoolsLoading] = useState(false);
   const [leagueName, setLeagueName] = useState<string>('');
+  const [leagueId, setLeagueId] = useState<string>('');
   const [myPoolCount, setMyPoolCount] = useState(0);
   const [allLeagues, setAllLeagues] = useState<LeagueDirectoryEntry[]>([]);
   const [allLeaguesLoading, setAllLeaguesLoading] = useState(true);
@@ -281,14 +282,14 @@ function AdminDashboardContent() {
               await loadPools();
               await loadRecentActivity();
               loadHuddleForCommissioner(user.email)
-                .then(h => setLeagueName(h.name))
-                .catch(err => debugError('[SH][UI][POOL] Failed to load League (huddles table may not be migrated yet):', err));
+                .then(h => { setLeagueName(h.name); setLeagueId(h.id); })
+                .catch(err => debugError('Failed to load League (huddles table may not be migrated yet):', err));
               loadMyPools(user.email)
                 .then(mine => setMyPoolCount(mine.length))
-                .catch(err => debugError('[SH][UI][POOL] Failed to load own pool count:', err));
+                .catch(err => debugError('Failed to load own pool count:', err));
               loadAllHuddlesForSuperAdmin(user.email)
                 .then(setAllLeagues)
-                .catch(err => debugError('[SH][UI][POOL] Failed to load League directory:', err))
+                .catch(err => debugError('Failed to load League directory:', err))
                 .finally(() => setAllLeaguesLoading(false));
             }
           } catch (error) {
@@ -715,7 +716,7 @@ function AdminDashboardContent() {
 
               <button
                 onClick={() => router.push('/league')}
-                title="Manage your League roster and pools"
+                title="View and manage your Huddles"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
                   padding: '0.4rem 0.75rem',
@@ -727,7 +728,7 @@ function AdminDashboardContent() {
                 }}
               >
                 <Users style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">My League</span>
+                <span className="pools-nav-label">My Huddles</span>
               </button>
 
               <button
@@ -1126,7 +1127,7 @@ function AdminDashboardContent() {
                   <Plus style={{ width: 12, height: 12 }} /> Create Pool
                 </button>
                 <button
-                  onClick={() => router.push('/league')}
+                  onClick={() => router.push(leagueId ? `/league/${leagueId}` : '/league')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem',
                     background: 'transparent', color: text, border: `1px solid ${border}`, borderRadius: 6,
