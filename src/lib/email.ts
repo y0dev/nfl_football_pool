@@ -753,6 +753,91 @@ class EmailService {
 
     return this.sendEmail({ to: email, subject, html });
   }
+
+  // Sent to the commissioner who initiated a Huddle transfer, asking them
+  // to confirm their own request before it can take effect.
+  async sendHuddleTransferConfirmation(fromEmail: string, huddleName: string, toEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `Confirm: Transfer "${huddleName}" to ${toEmail}`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        You requested to transfer your Huddle <strong style="color: #f1f5f9;">${huddleName}</strong> — and every pool in it — to <strong style="color: #f1f5f9;">${toEmail}</strong>.
+      </p>
+      ${createInfoBox(`
+        <strong>Nothing happens until both of you confirm.</strong><br>
+        Click below to confirm your side. ${toEmail} will get their own confirmation email — the transfer only completes once you've both confirmed.
+      `, 'warning')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Didn't request this? Ignore this email — the transfer link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Confirm Huddle Transfer',
+      content,
+      buttonText: 'Confirm Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: fromEmail, subject, html });
+  }
+
+  // Sent to the recipient of a Huddle transfer, asking them to accept it.
+  async sendHuddleTransferApprovalRequest(toEmail: string, toName: string, huddleName: string, fromEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `${fromEmail} wants to transfer "${huddleName}" to you`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${toName},
+      </p>
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        <strong style="color: #f1f5f9;">${fromEmail}</strong> wants to transfer their Huddle <strong style="color: #f1f5f9;">${huddleName}</strong> — and every pool in it — to your account.
+      </p>
+      ${createInfoBox(`
+        <strong>Accepting this makes you the commissioner</strong> of ${huddleName}: its roster, its pools, and everything in them.
+        The transfer only completes once you've both confirmed.
+      `, 'info')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Weren't expecting this? Ignore this email — the link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Accept Huddle Transfer',
+      content,
+      buttonText: 'Accept Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: toEmail, subject, html });
+  }
+
+  // Sent to both parties once a Huddle transfer has fully completed.
+  async sendHuddleTransferCompleted(recipientEmail: string, huddleName: string, otherPartyEmail: string): Promise<boolean> {
+    const subject = `Transfer complete: "${huddleName}"`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        The transfer of <strong style="color: #f1f5f9;">${huddleName}</strong> between you and <strong style="color: #f1f5f9;">${otherPartyEmail}</strong> is complete.
+      </p>
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Sign in to your dashboard to see the current state of this Huddle.
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: 'Huddle Transfer Complete',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: recipientEmail, subject, html });
+  }
 }
 
 // Export a singleton instance

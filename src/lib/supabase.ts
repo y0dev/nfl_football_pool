@@ -296,6 +296,53 @@ type Database = {
           created_at?: string
         }
       }
+      huddle_transfer_requests: {
+        Row: {
+          id: string
+          huddle_id: string
+          from_email: string
+          to_email: string
+          status: string
+          from_token: string
+          to_token: string
+          from_confirmed_at: string | null
+          to_confirmed_at: string | null
+          completed_at: string | null
+          failure_reason: string | null
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          huddle_id: string
+          from_email: string
+          to_email: string
+          status?: string
+          from_token?: string
+          to_token?: string
+          from_confirmed_at?: string | null
+          to_confirmed_at?: string | null
+          completed_at?: string | null
+          failure_reason?: string | null
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          huddle_id?: string
+          from_email?: string
+          to_email?: string
+          status?: string
+          from_token?: string
+          to_token?: string
+          from_confirmed_at?: string | null
+          to_confirmed_at?: string | null
+          completed_at?: string | null
+          failure_reason?: string | null
+          expires_at?: string
+          created_at?: string
+        }
+      }
       games: {
         Row: {
           id: string
@@ -853,6 +900,29 @@ CREATE TABLE IF NOT EXISTS huddle_members (
 `;
 
 // fallow-ignore-next-line unused-export
+export const huddleTransferRequestsTable = `
+CREATE TABLE IF NOT EXISTS huddle_transfer_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  huddle_id UUID NOT NULL REFERENCES huddles(id) ON DELETE CASCADE,
+  from_email VARCHAR(255) NOT NULL,
+  to_email VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | completed | cancelled | failed
+  from_token UUID NOT NULL DEFAULT gen_random_uuid(),
+  to_token UUID NOT NULL DEFAULT gen_random_uuid(),
+  from_confirmed_at TIMESTAMP WITH TIME ZONE,
+  to_confirmed_at TIMESTAMP WITH TIME ZONE,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  failure_reason TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_huddle_transfer_requests_huddle_id ON huddle_transfer_requests (huddle_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_huddle_transfer_requests_from_token ON huddle_transfer_requests (from_token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_huddle_transfer_requests_to_token ON huddle_transfer_requests (to_token);
+-- See docs/migrations/add-huddle-transfer-requests.sql
+`;
+
+// fallow-ignore-next-line unused-export
 export const adminPoolsTable = `
 CREATE TABLE IF NOT EXISTS admin_pools (
   admin_id UUID REFERENCES admins(id) ON DELETE CASCADE,
@@ -1144,6 +1214,7 @@ ALTER TABLE reminder_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_co_commissioners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE huddle_transfer_requests ENABLE ROW LEVEL SECURITY;
 
 -- Huddles table policies — commissioner/admin-only. Participants never
 -- query huddles directly, so no participant-facing SELECT policy exists.
@@ -1155,6 +1226,12 @@ CREATE POLICY "Service role can manage huddle co-commissioners" ON huddle_co_com
 
 -- League roster — same commissioner/admin-only model as huddles above.
 CREATE POLICY "Service role can manage huddle members" ON huddle_members
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- Transfer requests carry tokens that must never be readable except via the
+-- service client (server actions validate the token themselves) — no
+-- client-side policy of any kind.
+CREATE POLICY "Service role can manage huddle transfer requests" ON huddle_transfer_requests
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Admins table policies

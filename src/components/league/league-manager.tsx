@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { renameHuddle, setHuddleActive } from '@/actions/huddles';
+import { initiateHuddleTransfer } from '@/actions/huddleTransfers';
 import { loadHuddleMembers, addHuddleMember, removeHuddleMember, addHuddleMemberToPool, HuddleMember } from '@/actions/huddleMembers';
 import { loadPoolsByHuddleId } from '@/actions/loadPools';
 import { getPoolParticipants, removeParticipantFromPool } from '@/actions/adminActions';
@@ -78,6 +79,9 @@ export function LeagueManager({
   const [createPoolOpen, setCreatePoolOpen] = useState(false);
   const [isActiveState, setIsActiveState] = useState(initialIsActive);
   const [isTogglingActive, setIsTogglingActive] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferEmail, setTransferEmail] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +114,23 @@ export function LeagueManager({
     }
     setLeagueName(nameDraft.trim());
     setEditingName(false);
+  };
+
+  const handleInitiateTransfer = async () => {
+    if (!user?.email) return;
+    setIsTransferring(true);
+    try {
+      const result = await initiateHuddleTransfer(huddleId, user.email, transferEmail);
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      setTransferEmail('');
+      setTransferOpen(false);
+      toast({ title: 'Transfer Requested', description: `Check your email to confirm — ${transferEmail} has been asked to confirm too.` });
+    } finally {
+      setIsTransferring(false);
+    }
   };
 
   const handleToggleActive = async () => {
@@ -219,6 +240,11 @@ export function LeagueManager({
               <button onClick={() => { setNameDraft(leagueName); setEditingName(true); }} title="Rename League" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
                 <Pencil style={{ width: 11, height: 11 }} /> Rename
               </button>
+              {!isAdminView && (
+                <button onClick={() => setTransferOpen(v => !v)} title="Transfer this Huddle to another commissioner" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  <ArrowLeftRight style={{ width: 11, height: 11 }} /> Transfer Huddle
+                </button>
+              )}
               {isAdminView && (
                 <button
                   onClick={handleToggleActive}
@@ -237,6 +263,36 @@ export function LeagueManager({
                   {isActiveState ? 'Active' : 'Inactive'} — {isTogglingActive ? 'Updating…' : `Click to ${isActiveState ? 'deactivate' : 'activate'}`}
                 </button>
               )}
+            </div>
+          )}
+
+          {transferOpen && (
+            <div style={{ marginTop: '1.25rem', background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${gold}`, borderRadius: 8, padding: '1.1rem 1.25rem', maxWidth: 520 }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Transfer This Huddle</p>
+              <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                Hands off {leagueName} — its roster and every pool in it — to another commissioner. They must already have a Sunday Huddle account. Nothing changes until you both confirm by email.
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  placeholder="commissioner@example.com"
+                  value={transferEmail}
+                  onChange={e => setTransferEmail(e.target.value)}
+                  style={{ ...inputStyle, flex: '1 1 220px' }}
+                />
+                <button
+                  onClick={handleInitiateTransfer}
+                  disabled={isTransferring || !transferEmail.trim()}
+                  style={{ padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (isTransferring || !transferEmail.trim()) ? 'not-allowed' : 'pointer', opacity: (isTransferring || !transferEmail.trim()) ? 0.6 : 1 }}
+                >
+                  {isTransferring ? 'Sending…' : 'Send Transfer Request'}
+                </button>
+                <button
+                  onClick={() => { setTransferOpen(false); setTransferEmail(''); }}
+                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </div>
