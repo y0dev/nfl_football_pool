@@ -24,14 +24,14 @@ export async function GET(request: NextRequest) {
 
     const { data: pools, error } = await supabase
       .from('pools')
-      .select('id, name, is_active, season, season_scope, created_by, created_at, competition_type, huddle_id, participants(count)')
+      .select('id, name, is_active, season, season_scope, created_by, created_at, competition_type, huddle_id, huddles(name), participants(count)')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return NextResponse.json({ success: true, pools: pools || [] });
   } catch (error) {
-    debugError('[SH][API][DB] All pools error:', error);
+    debugError('All pools error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load pools' }, { status: 500 });
   }
 }

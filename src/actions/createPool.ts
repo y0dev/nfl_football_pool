@@ -3,7 +3,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, Plan } from '@/lib/plan';
-import { getOrCreateHuddleForCommissioner } from '@/lib/huddles';
+import { getOrCreateHuddleRecordForCommissioner } from '@/lib/huddles';
 import { CompetitionType, DEFAULT_COMPETITION_TYPE, isAvailableCompetitionType } from '@/lib/poolTypes';
 
 export type CreatePoolResult =
@@ -19,6 +19,9 @@ export async function createPool(poolData: {
   join_password?: string;
   season_scope?: number[];
   is_private?: boolean;
+  /** Target Huddle for this pool. Omit to fall back to the commissioner's
+   * first/primary Huddle (single-Huddle callers). Must belong to created_by. */
+  huddle_id?: string;
 }): Promise<CreatePoolResult> {
   try {
     const competitionType = poolData.competition_type ?? DEFAULT_COMPETITION_TYPE;
@@ -28,10 +31,26 @@ export async function createPool(poolData: {
 
     const supabase = getSupabaseServiceClient();
 
+    let huddle: { id: string; name: string };
+    if (poolData.huddle_id) {
+      const { data: owned } = await supabase
+        .from('huddles')
+        .select('id, name')
+        .eq('id', poolData.huddle_id)
+        .eq('commissioner_email', poolData.created_by)
+        .maybeSingle();
+      if (!owned) {
+        return { success: false, error: 'That Huddle was not found for your account.' };
+      }
+      huddle = owned;
+    } else {
+      huddle = await getOrCreateHuddleRecordForCommissioner(poolData.created_by);
+    }
+
     // Preseason-only pools are free test pools with their own separate cap;
     // they never count against (or consume) the plan's pool limit.
     const isPreseason = isPreseasonOnlyScope(poolData.season_scope ?? [2]);
-    const capacity = await checkPoolCapacity(poolData.created_by, { preseason: isPreseason });
+    const capacity = await checkPoolCapacity(poolData.created_by, { preseason: isPreseason, huddleId: huddle.id });
 
     if (!capacity.allowed) {
       return {
@@ -55,8 +74,6 @@ export async function createPool(poolData: {
       };
     }
 
-    const huddleId = await getOrCreateHuddleForCommissioner(poolData.created_by);
-
     const { data, error } = await supabase
       .from('pools')
       .insert({
@@ -65,7 +82,7 @@ export async function createPool(poolData: {
         season: poolData.season || DEFAULT_POOL_SEASON,
         pool_type: poolData.pool_type || 'normal',
         competition_type: competitionType,
-        huddle_id: huddleId,
+        huddle_id: huddle.id,
         is_active: true,
         is_private: poolData.is_private ?? false,
         season_scope: poolData.season_scope ?? [2],
@@ -75,7 +92,7 @@ export async function createPool(poolData: {
       .single();
 
     if (error) {
-      debugError('[SH][API][POOL] Insert failed:', error);
+      debugError('Insert failed:', error);
       return { success: false, error: 'Failed to create pool. Please try again.' };
     }
 
@@ -94,7 +111,8 @@ export async function createPool(poolData: {
           admin.email,
           admin.full_name || poolData.created_by,
           poolData.name,
-          data.id
+          data.id,
+          huddle.name
         );
       }
     } catch (emailError) {
@@ -103,7 +121,7 @@ export async function createPool(poolData: {
 
     return { success: true, data };
   } catch (error) {
-    debugError('[SH][API][POOL] Unexpected error:', error);
+    debugError('Unexpected error:', error);
     return { success: false, error: 'An unexpected error occurred. Please try again.' };
   }
 }

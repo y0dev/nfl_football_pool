@@ -44,9 +44,14 @@ interface CreatePoolDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPoolCreated: () => void;
+  leagueName?: string;
+  /** Target Huddle for the new pool. Omit to fall back to the commissioner's
+   * first/primary Huddle — pass this explicitly whenever the caller has a
+   * specific Huddle in view (e.g. a commissioner with more than one). */
+  huddleId?: string;
 }
 
-export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
+export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName, huddleId }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [limitReached, setLimitReached] = useState(false);
@@ -74,6 +79,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         join_password: data.join_password || undefined,
         is_private: data.is_private,
+        huddle_id: huddleId,
       });
 
       if (!result.success) {
@@ -87,7 +93,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         try {
           await addParticipantToPool(pool.id as string, user.full_name || user.email, user.email);
         } catch (selfError) {
-          debugWarn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
+          debugWarn('Could not add commissioner as participant:', selfError);
         }
       }
 
@@ -109,7 +115,9 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
       <DialogContent style={{ maxWidth: '30rem', background: card, border: `1px solid ${border}` }}>
         <DialogHeader>
           <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Create New Pool</DialogTitle>
-          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.25rem' }}>Set up a new pool inside your Huddle for the current season.</DialogDescription>
+          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.25rem' }}>
+            {leagueName ? <>Set up a new pool inside <strong style={{ color: textMid }}>{leagueName}</strong> for the current season.</> : 'Set up a new pool inside your League for the current season.'}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
