@@ -180,18 +180,18 @@ class EmailService {
   }
 
   // Template for pool invitation
-  async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string): Promise<boolean> {
+  async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string, huddleName?: string): Promise<boolean> {
     const subject = `You're Invited to Join ${poolName}! 🏈`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${participantName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        You've been invited to join <strong style="color: #f1f5f9;">${poolName}</strong> in our Sunday Huddle!
+        You've been invited to join <strong style="color: #f1f5f9;">${poolName}</strong>${huddleName ? ` in <strong style="color: #f1f5f9;">${huddleName}</strong>` : ' in our Sunday Huddle'}!
       </p>
-      
+
       ${createInfoBox(`
         <strong>How it works:</strong><br>
         • Pick the winner for each NFL game<br>
@@ -221,18 +221,18 @@ class EmailService {
   }
 
   // Template for pick reminder
-  async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string): Promise<boolean> {
+  async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string, huddleName?: string): Promise<boolean> {
     const subject = `⏰ Week ${weekNumber} Picks Due - ${poolName}`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${participantName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        Don't forget to submit your picks for <strong style="color: #f1f5f9;">${poolName}</strong> - Week ${weekNumber}!
+        Don't forget to submit your picks for <strong style="color: #f1f5f9;">${poolName}</strong>${huddleName ? ` (${huddleName})` : ''} - Week ${weekNumber}!
       </p>
-      
+
       ${createInfoBox(`
         <strong>⏰ Deadline:</strong> ${deadline}<br><br>
         Make sure to submit your picks before the deadline to stay in the competition!
@@ -359,20 +359,20 @@ class EmailService {
   }
 
   // Template for pool creation notification
-  async sendPoolCreationNotification(adminEmail: string, adminName: string, poolName: string, poolId: string): Promise<boolean> {
+  async sendPoolCreationNotification(adminEmail: string, adminName: string, poolName: string, poolId: string, huddleName?: string): Promise<boolean> {
     const subject = `🎉 Your Pool "${poolName}" Has Been Created!`;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const poolUrl = `${baseUrl}/pool/${poolId}`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${adminName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        Great news! Your pool <strong style="color: #f1f5f9;">"${poolName}"</strong> has been successfully created.
+        Great news! Your pool <strong style="color: #f1f5f9;">"${poolName}"</strong>${huddleName ? ` in <strong style="color: #f1f5f9;">${huddleName}</strong>` : ''} has been successfully created.
       </p>
-      
+
       ${createInfoBox(`
         <strong>Pool Details:</strong><br>
         Name: ${poolName}<br>

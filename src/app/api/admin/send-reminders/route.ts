@@ -44,12 +44,12 @@ export async function POST(request: NextRequest) {
 
     const { data: allParticipants, error: participantsError } = await supabase
       .from('participants')
-      .select('id, name, email, pool_id, pools!inner(name, created_by)')
+      .select('id, name, email, pool_id, pools!inner(name, created_by, huddles(name))')
       .in('id', participantIds)
       .eq('is_active', true);
 
     if (participantsError || !allParticipants || allParticipants.length === 0) {
-      debugError('[SH][API][PICKS] Failed to fetch participants:', participantsError);
+      debugError('Failed to fetch participants:', participantsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch participants' },
         { status: 500 }
@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
 
     const results = await Promise.all(
       participants.map(async (participant) => {
-        const poolName = (participant.pools as unknown as { name: string }).name;
+        const poolInfo = participant.pools as unknown as { name: string; huddles: { name: string } | null };
+        const poolName = poolInfo.name;
+        const huddleName = poolInfo.huddles?.name;
         const poolLink = `${baseUrl}`;
 
         try {
@@ -103,7 +105,8 @@ export async function POST(request: NextRequest) {
             poolName,
             week,
             poolLink,
-            deadline
+            deadline,
+            huddleName
           );
 
           if (sent) {
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
 
           return { success: sent, participantId: participant.id };
         } catch (error) {
-          debugError(`[SH][API][PICKS] Reminder failed for ${participant.email}:`, error);
+          debugError(`Reminder failed for ${participant.email}:`, error);
           return { success: false, participantId: participant.id };
         }
       })
@@ -136,7 +139,7 @@ export async function POST(request: NextRequest) {
       results: { successful, failed, planSkipped, total: allParticipants.length },
     });
   } catch (error) {
-    debugError('[SH][API][PICKS] Error sending reminders:', error);
+    debugError('Error sending reminders:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
