@@ -85,7 +85,7 @@ export async function DELETE(request: NextRequest) {
         targetAdmin.full_name || 'Commissioner',
       );
     } catch (e) {
-      debugError('[SH][API][ADMIN] Farewell email failed:', e);
+      debugError('Farewell email failed:', e);
     }
 
     return NextResponse.json({

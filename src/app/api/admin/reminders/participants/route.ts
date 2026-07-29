@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, participants });
   } catch (error) {
-    debugError('[SH][API][DB] Reminders participants error:', error);
+    debugError('Reminders participants error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load participants' }, { status: 500 });
   }
 }

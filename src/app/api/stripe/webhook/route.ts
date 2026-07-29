@@ -4,7 +4,7 @@ import { isStripeConfigured } from '@/lib/billing';
 import { getStripe } from '@/lib/stripe';
 import { debugError, debugLog } from '@/lib/utils';
 
-// [SH][API][BILLING] Stripe webhook — the single place purchases take effect.
+// Stripe webhook — the single place purchases take effect.
 // Plan changes happen here (not on the success redirect) so they can't be
 // forged by hitting a URL. Configure the endpoint in the Stripe dashboard as
 // <site>/api/stripe/webhook.
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       const quantity = Math.max(1, Number(session.metadata?.quantity) || 1);
 
       if (!adminId || !product) {
-        debugError('[SH][API][BILLING] checkout.session.completed missing metadata', session.id);
+        debugError('checkout.session.completed missing metadata', session.id);
         return NextResponse.json({ received: true });
       }
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
           .update({ plan: 'standard', trial_ends_at: null, updated_at: new Date().toISOString() })
           .eq('id', adminId);
         if (error) throw error;
-        debugLog(`[SH][API][BILLING] Admin ${adminId} upgraded to standard (session ${session.id})`);
+        debugLog(`Admin ${adminId} upgraded to standard (session ${session.id})`);
       } else if (product === 'addon_pool') {
         // Increment purchased add-on pools (column added by the billing migration)
         const { data: admin, error: fetchError } = await supabase

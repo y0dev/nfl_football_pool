@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       .eq('created_by', admin.email);
 
     if (deletePoolsError) {
-      debugError('[SH][API][AUTH] Delete owned pools error:', deletePoolsError.code);
+      debugError('Delete owned pools error:', deletePoolsError.code);
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (deleteAdminError) {
-      debugError('[SH][API][AUTH] Delete admin record error:', deleteAdminError.code);
+      debugError('Delete admin record error:', deleteAdminError.code);
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    debugError('[SH][API][AUTH] Delete account error:', error instanceof Error ? error.message : 'unknown');
+    debugError('Delete account error:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

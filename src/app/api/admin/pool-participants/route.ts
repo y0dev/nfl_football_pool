@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, participants: data || [] });
   } catch (error) {
-    debugError('[SH][API][DB] Pool participants error:', error);
+    debugError('Pool participants error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load participants' }, { status: 500 });
   }
 }

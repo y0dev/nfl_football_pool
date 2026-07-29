@@ -4,7 +4,7 @@ import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
 import { getStripe, getPriceId, BillingProduct } from '@/lib/stripe';
 import { debugError } from '@/lib/utils';
 
-// [SH][API][BILLING] Create a Stripe Checkout session for a plan purchase.
+// Create a Stripe Checkout session for a plan purchase.
 // Returns 503 until Stripe is configured and pricing is unhidden, so the
 // route can ship ahead of billing going live.
 export async function POST(request: NextRequest) {
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, url: session.url });
   } catch (error) {
-    debugError('[SH][API][BILLING] Checkout session error:', error);
+    debugError('Checkout session error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to start checkout' },
       { status: 500 }

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       .eq('id', adminId);
 
     if (updateError) {
-      debugError('[SH][API][AUTH] Password update failed:', updateError);
+      debugError('Password update failed:', updateError);
       return NextResponse.json({ success: false, error: 'Failed to update password' }, { status: 500 });
     }
 
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
         targetAdmin.full_name || 'Commissioner'
       );
     } catch (emailError) {
-      debugWarn('[SH][API][AUTH] Password reset notification email failed:', emailError);
+      debugWarn('Password reset notification email failed:', emailError);
     }
 
     return NextResponse.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
-    debugError('[SH][API][AUTH] Password reset error:', error);
+    debugError('Password reset error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

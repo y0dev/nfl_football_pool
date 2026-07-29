@@ -67,7 +67,7 @@ export async function updatePool(poolId: string, updates: {
   // don't exist yet (join_password / is_private require a DB migration).
   const msg = (error as any)?.message ?? '';
   if (msg.includes('join_password') || msg.includes('is_private') || msg.includes('schema cache')) {
-    debugWarn('[SH][LOGIC][POOL] Retrying updatePool without schema-missing columns:', msg);
+    debugWarn('Retrying updatePool without schema-missing columns:', msg);
     const { join_password, is_private, ...safeUpdates } = updates;
     const { data: retryData, error: retryError } = await supabase
       .from('pools')
@@ -77,12 +77,12 @@ export async function updatePool(poolId: string, updates: {
       .single();
 
     if (retryError) {
-      debugError('[SH][LOGIC][POOL] Error updating pool:', retryError);
+      debugError('Error updating pool:', retryError);
       throw retryError;
     }
     return retryData;
   }
 
-  debugError('[SH][LOGIC][POOL] Error updating pool:', error);
+  debugError('Error updating pool:', error);
   throw error;
 }

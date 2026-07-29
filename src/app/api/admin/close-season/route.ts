@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       totalProcessed: pools.length,
     });
   } catch (error) {
-    debugError('[SH][STATE][SEASON] close-season error:', error);
+    debugError('close-season error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
