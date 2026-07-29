@@ -16,7 +16,7 @@ import { isPricingVisible } from '@/lib/billing';
 import { getStandardPricing, getAddonPricing } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
 
-type Plan = 'free' | 'standard' | 'pro';
+type Plan = 'free' | 'standard';
 
 interface PlanStatus {
   plan: Plan;
@@ -45,7 +45,7 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  'Create your Huddle and one pool for the regular season',
+  'Create your Huddle with up to 2 pools for the regular season',
   'Invite up to 15 participants',
   'Weekly picks with confidence points',
   'Live leaderboard, updated as scores post',
@@ -53,7 +53,7 @@ const FREE_FEATURES = [
 ];
 
 const STANDARD_FEATURES = [
-  'Run your Huddle\'s pool for up to 30 participants',
+  'Run up to 2 pools in your Huddle, each with up to 30 participants',
   'Weekly picks with confidence points',
   'Live leaderboard, updated as scores post',
   'Automatic Q1–Q4 period standings',
@@ -224,7 +224,7 @@ function UpgradeContent() {
               </p>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
                 {[
-                  `${planStatus?.poolLimit ?? 1} pool${(planStatus?.poolLimit ?? 1) === 1 ? '' : 's'}`,
+                  `${planStatus?.poolLimit ?? 2} pool${(planStatus?.poolLimit ?? 2) === 1 ? '' : 's'}`,
                   `Up to ${planStatus?.participantLimit ?? 15} participants per pool`,
                   'Up to 2 free preseason test pools (max 15 players each)',
                 ].map(f => (

@@ -24,7 +24,7 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  'Create your Huddle with one NFL Confidence Pool',
+  'Create your Huddle with up to 2 NFL Confidence Pools',
   'Invite up to 15 participants',
   'Weekly confidence picks',
   'Live leaderboard with real-time scoring',
@@ -33,7 +33,7 @@ const FREE_FEATURES = [
 ];
 
 const STANDARD_HUDDLE_FEATURES = [
-  'Run your Huddle with up to 30 participants',
+  'Run up to 2 pools in your Huddle, each with up to 30 participants',
   'Full regular season and playoffs',
   'Add multiple pools to your Huddle',
   'Live leaderboard with real-time scoring',
