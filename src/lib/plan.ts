@@ -1,11 +1,11 @@
 import { getSupabaseServiceClient } from './supabase';
+import { getOrCreateHuddleRecordForCommissioner } from './huddles';
 
-export type Plan = 'free' | 'standard' | 'pro';
+export type Plan = 'free' | 'standard';
 
-export const LIMITS: Record<Plan, { pools: number; participants: number }> = {
-  free:     { pools: 1,        participants: 15       },
-  standard: { pools: 1,        participants: 30       },
-  pro:      { pools: 3,        participants: 75      },
+export const LIMITS: Record<Plan, { pools: number; participants: number; huddles: number }> = {
+  free:     { pools: 2,        participants: 15,       huddles: 1 },
+  standard: { pools: 2,        participants: 30,       huddles: 3 },
 };
 
 // Preseason-only pools (season_scope exactly [1]) are free test pools on
@@ -37,6 +37,8 @@ export interface PlanInfo {
   poolLimit: number;
   /** Participants allowed per (non-preseason) pool. */
   participantLimit: number;
+  /** Huddles (Leagues) this commissioner may create. */
+  huddleLimit: number;
   /** Comped by the site admin — keeps their plan without ever paying. */
   billingExempt: boolean;
 }
@@ -70,6 +72,7 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     addonPools,
     poolLimit: LIMITS[plan].pools + addonPools,
     participantLimit: LIMITS[plan].participants,
+    huddleLimit: LIMITS[plan].huddles,
     billingExempt: row?.billing_exempt ?? false,
   };
 }
@@ -217,21 +220,26 @@ export interface PoolCapacity {
 }
 
 /**
- * Pool-count check for creating a pool (or re-scoping one). Preseason-only
- * pools are counted and capped separately from plan pools, so free test
- * pools never eat into (or dodge) the paid limit.
+ * Pool-count check for creating a pool (or re-scoping one). Scoped to the
+ * commissioner's Huddle (spec: "1 included pool per Huddle" on Standard,
+ * "1 pool" on Free) rather than every pool the commissioner has ever
+ * created — today those are equivalent (one Huddle per commissioner), but
+ * this keeps the check correct once a commissioner can run multiple
+ * Huddles. Preseason-only pools are counted and capped separately from plan
+ * pools, so free test pools never eat into (or dodge) the paid limit.
  */
 export async function checkPoolCapacity(
   createdByEmail: string,
-  opts: { preseason: boolean; excludePoolId?: string }
+  opts: { preseason: boolean; excludePoolId?: string; huddleId?: string }
 ): Promise<PoolCapacity> {
   const supabase = getSupabaseServiceClient();
   const planInfo = await getAdminPlanByEmail(createdByEmail);
+  const huddleId = opts.huddleId ?? (await getOrCreateHuddleRecordForCommissioner(createdByEmail)).id;
 
   let query = supabase
     .from('pools')
     .select('id, season_scope')
-    .eq('created_by', createdByEmail);
+    .eq('huddle_id', huddleId);
   if (opts.excludePoolId) query = query.neq('id', opts.excludePoolId);
 
   const { data: pools } = await query;
@@ -253,5 +261,43 @@ export async function checkPoolCapacity(
       : opts.preseason
         ? `You can have up to ${PRESEASON_LIMITS.pools} preseason test pools.`
         : `Your ${planInfo.plan} plan allows ${limit} pool${limit === 1 ? '' : 's'}.`,
+  };
+}
+
+export interface HuddleCapacity {
+  allowed: boolean;
+  count: number;
+  limit: number;
+  plan: Plan;
+  message?: string;
+}
+
+/**
+ * Huddle-count check for creating an additional Huddle. Free is limited to
+ * the one Huddle every commissioner already gets via
+ * getOrCreateHuddleRecordForCommissioner; Standard allows up to
+ * LIMITS.standard.huddles.
+ */
+export async function checkHuddleCapacity(commissionerEmail: string): Promise<HuddleCapacity> {
+  const supabase = getSupabaseServiceClient();
+  const planInfo = await getAdminPlanByEmail(commissionerEmail);
+
+  const { count } = await supabase
+    .from('huddles')
+    .select('id', { count: 'exact', head: true })
+    .eq('commissioner_email', commissionerEmail);
+
+  const current = count ?? 0;
+  const limit = planInfo.huddleLimit;
+  const allowed = current < limit;
+
+  return {
+    allowed,
+    count: current,
+    limit,
+    plan: planInfo.plan,
+    message: allowed
+      ? undefined
+      : `Your ${planInfo.plan} plan allows ${limit} Huddle${limit === 1 ? '' : 's'}.`,
   };
 }

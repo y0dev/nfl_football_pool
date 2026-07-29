@@ -249,6 +249,7 @@ type Database = {
           email: string | null
           created_at: string
           is_active: boolean
+          huddle_member_id: string | null
         }
         Insert: {
           id?: string
@@ -257,6 +258,7 @@ type Database = {
           email?: string | null
           created_at?: string
           is_active?: boolean
+          huddle_member_id?: string | null
         }
         Update: {
           id?: string
@@ -265,6 +267,33 @@ type Database = {
           email?: string | null
           created_at?: string
           is_active?: boolean
+          huddle_member_id?: string | null
+        }
+      }
+      huddle_members: {
+        Row: {
+          id: string
+          huddle_id: string
+          name: string
+          email: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          huddle_id: string
+          name: string
+          email?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          huddle_id?: string
+          name?: string
+          email?: string | null
+          is_active?: boolean
+          created_at?: string
         }
       }
       games: {
@@ -810,6 +839,20 @@ CREATE TABLE IF NOT EXISTS huddle_co_commissioners (
 `;
 
 // fallow-ignore-next-line unused-export
+export const huddleMembersTable = `
+CREATE TABLE IF NOT EXISTS huddle_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  huddle_id UUID NOT NULL REFERENCES huddles(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE (huddle_id, email)
+);
+-- Also adds participants.huddle_member_id — see docs/migrations/add-huddle-members.sql
+`;
+
+// fallow-ignore-next-line unused-export
 export const adminPoolsTable = `
 CREATE TABLE IF NOT EXISTS admin_pools (
   admin_id UUID REFERENCES admins(id) ON DELETE CASCADE,
@@ -828,8 +871,10 @@ CREATE TABLE IF NOT EXISTS participants (
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  is_active BOOLEAN DEFAULT true
+  is_active BOOLEAN DEFAULT true,
+  huddle_member_id UUID REFERENCES huddle_members(id) ON DELETE SET NULL
 );
+-- Migration: see docs/migrations/add-huddle-members.sql
 `;
 
 // fallow-ignore-next-line unused-export
@@ -1098,6 +1143,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminder_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_co_commissioners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE huddle_members ENABLE ROW LEVEL SECURITY;
 
 -- Huddles table policies — commissioner/admin-only. Participants never
 -- query huddles directly, so no participant-facing SELECT policy exists.
@@ -1105,6 +1151,10 @@ CREATE POLICY "Service role can manage huddles" ON huddles
   FOR ALL USING (auth.role() = 'service_role');
 
 CREATE POLICY "Service role can manage huddle co-commissioners" ON huddle_co_commissioners
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- League roster — same commissioner/admin-only model as huddles above.
+CREATE POLICY "Service role can manage huddle members" ON huddle_members
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Admins table policies
