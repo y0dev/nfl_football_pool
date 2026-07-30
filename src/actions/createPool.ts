@@ -5,6 +5,8 @@ import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, Plan } from '@/lib/plan';
 import { getOrCreateHuddleRecordForCommissioner } from '@/lib/huddles';
 import { CompetitionType, DEFAULT_COMPETITION_TYPE, isAvailableCompetitionType } from '@/lib/poolTypes';
+import { getSeasonSettings } from '@/lib/seasonSettings';
+import { checkSeasonScopeCreatable } from '@/lib/seasonPhase';
 
 export type CreatePoolResult =
   | { success: true; data: Record<string, unknown> }
@@ -72,6 +74,16 @@ export async function createPool(poolData: {
         plan: capacity.plan,
         limit: capacity.limit,
       };
+    }
+
+    // Can't create a pool scoped to a phase whose final week has already
+    // started (or that's already fully in the past) — e.g. no new
+    // preseason-only pools once preseason week 4 has begun.
+    const targetSeason = poolData.season || DEFAULT_POOL_SEASON;
+    const seasonSettings = await getSeasonSettings(targetSeason);
+    const scopeCheck = checkSeasonScopeCreatable(poolData.season_scope ?? [2], seasonSettings);
+    if (!scopeCheck.allowed) {
+      return { success: false, error: scopeCheck.message ?? 'That season scope is no longer available.' };
     }
 
     const { data, error } = await supabase

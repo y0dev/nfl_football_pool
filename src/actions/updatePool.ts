@@ -3,6 +3,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
+import { getSeasonSettings } from '@/lib/seasonSettings';
+import { checkSeasonScopeCreatable } from '@/lib/seasonPhase';
 
 export async function updatePool(poolId: string, updates: {
   name?: string;
@@ -59,6 +61,20 @@ export async function updatePool(poolId: string, updates: {
       const planInfo = await getAdminPlanByEmail(current.created_by);
       if (planInfo.plan === 'free') {
         throw new Error(PLAYOFF_SCOPE_MESSAGE);
+      }
+    }
+
+    // Can't re-scope into a phase whose final week has already started (or
+    // that's already fully in the past) — only check phases being newly
+    // added, so removing a scope (e.g. dropping playoffs) is never blocked.
+    if (current?.season) {
+      const newlyAddedPhases = updates.season_scope.filter(p => !(current.season_scope ?? []).includes(p));
+      if (newlyAddedPhases.length > 0) {
+        const seasonSettings = await getSeasonSettings(current.season);
+        const scopeCheck = checkSeasonScopeCreatable(newlyAddedPhases, seasonSettings);
+        if (!scopeCheck.allowed) {
+          throw new Error(scopeCheck.message ?? 'That season scope is no longer available.');
+        }
       }
     }
   }
