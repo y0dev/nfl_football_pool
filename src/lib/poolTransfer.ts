@@ -90,33 +90,38 @@ export async function transferPoolToCommissioner(
       return { success: false, error: 'Failed to transfer pool.' };
     }
 
-    // Merge this pool's participants into the destination Huddle's roster,
-    // deduped by email — same approach as
-    // docs/migrations/backfill-huddle-members-from-participants.sql.
-    // Participants with no email aren't linked to a roster entry (nothing to
-    // dedupe on); they still move with the pool since it's now on the new
-    // commissioner's Huddle.
+    // Merge this pool's participants into the destination Huddle's roster.
+    // Participants with an email are deduped against an existing roster
+    // entry for that email (same approach as
+    // docs/migrations/backfill-huddle-members-from-participants.sql).
+    // Participants with NO email can't be deduped on anything, so they
+    // always get a fresh roster entry — huddle_members.email is nullable
+    // specifically to support manually-added, no-email members, and
+    // Postgres treats each NULL as distinct so multiple are allowed.
     const { data: participants } = await supabase
       .from('participants')
       .select('id, name, email, huddle_member_id')
       .eq('pool_id', poolId)
-      .eq('is_active', true)
-      .not('email', 'is', null);
+      .eq('is_active', true);
 
     let mergedMembers = 0;
     const sourceHuddleMemberIds = new Set<string>();
     for (const participant of participants ?? []) {
       if (participant.huddle_member_id) sourceHuddleMemberIds.add(participant.huddle_member_id);
 
-      const email = participant.email!.toLowerCase();
-      const { data: existingMember } = await supabase
-        .from('huddle_members')
-        .select('id')
-        .eq('huddle_id', newHuddle.id)
-        .eq('email', email)
-        .maybeSingle();
+      const email = participant.email?.trim().toLowerCase() || null;
 
-      let memberId = existingMember?.id as string | undefined;
+      let memberId: string | undefined;
+      if (email) {
+        const { data: existingMember } = await supabase
+          .from('huddle_members')
+          .select('id')
+          .eq('huddle_id', newHuddle.id)
+          .eq('email', email)
+          .maybeSingle();
+        memberId = existingMember?.id as string | undefined;
+      }
+
       if (!memberId) {
         const { data: created, error: memberError } = await supabase
           .from('huddle_members')
