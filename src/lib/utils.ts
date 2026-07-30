@@ -175,6 +175,17 @@ export const SEASON_SCOPE_OPTIONS = [
 
 export type SeasonScopeValue = typeof SEASON_SCOPE_OPTIONS[number]['value'];
 
+// Inactive ("archived") pools a commissioner may keep around instead of
+// deleting them, counted ACROSS ALL of their Huddles combined — separate
+// from the active pool limit in src/lib/plan.ts (LIMITS[plan].pools),
+// which is scoped per-Huddle. Free gets none: deactivating a pool on Free
+// only works if you're at/under this cap, so in practice Free commissioners
+// delete a pool instead of archiving it.
+export const INACTIVE_POOL_LIMITS: Record<'free' | 'standard', number> = {
+  free: 0,
+  standard: 3,
+};
+
 export function seasonTypesToScopeValue(types: number[]): SeasonScopeValue {
   const sorted = [...types].sort((a, b) => a - b);
   return SEASON_SCOPE_OPTIONS.find(

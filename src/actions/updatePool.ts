@@ -2,7 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
-import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
+import { checkPoolCapacity, checkInactivePoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
 import { getSeasonSettings } from '@/lib/seasonSettings';
 import { checkSeasonScopeCreatable } from '@/lib/seasonPhase';
 
@@ -21,7 +21,7 @@ export async function updatePool(poolId: string, updates: {
 
   const { data: current } = await supabase
     .from('pools')
-    .select('created_by, season, season_scope')
+    .select('created_by, season, season_scope, is_active')
     .eq('id', poolId)
     .single();
 
@@ -32,6 +32,19 @@ export async function updatePool(poolId: string, updates: {
   // all go through separate paths and aren't affected by this.
   if (current && current.season < getNFLSeasonYear()) {
     throw new Error('This pool is from a previous season and its settings can no longer be changed.');
+  }
+
+  // Deactivating a pool (not deleting it) counts against a separate,
+  // across-all-Huddles limit on how many inactive pools a commissioner may
+  // retain — Free allows none, so this is effectively "delete instead of
+  // archive" for Free. Only checked on the active->inactive transition, not
+  // every update, and not the close-season flow (a mandatory end-of-season
+  // action, not a discretionary archive).
+  if (updates.is_active === false && current?.is_active !== false && current?.created_by) {
+    const inactiveCapacity = await checkInactivePoolCapacity(current.created_by, { excludePoolId: poolId });
+    if (!inactiveCapacity.allowed) {
+      throw new Error(inactiveCapacity.message ?? 'Inactive pool limit reached.');
+    }
   }
 
   // Re-scoping a pool moves it between the free preseason-test bucket and the

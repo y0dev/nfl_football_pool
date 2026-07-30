@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from './supabase';
 import { getOrCreateHuddleRecordForCommissioner } from './huddles';
+import { INACTIVE_POOL_LIMITS } from './utils';
 
 export type Plan = 'free' | 'standard';
 
@@ -232,6 +233,10 @@ export interface PoolCapacity {
  * this keeps the check correct once a commissioner can run multiple
  * Huddles. Preseason-only pools are counted and capped separately from plan
  * pools, so free test pools never eat into (or dodge) the paid limit.
+ *
+ * Only counts ACTIVE pools — deactivating a pool frees up its slot.
+ * Retaining an inactive pool instead of deleting it is a separate,
+ * across-all-Huddles limit — see checkInactivePoolCapacity below.
  */
 export async function checkPoolCapacity(
   createdByEmail: string,
@@ -244,7 +249,8 @@ export async function checkPoolCapacity(
   let query = supabase
     .from('pools')
     .select('id, season_scope')
-    .eq('huddle_id', huddleId);
+    .eq('huddle_id', huddleId)
+    .eq('is_active', true);
   if (opts.excludePoolId) query = query.neq('id', opts.excludePoolId);
 
   const { data: pools } = await query;
@@ -266,6 +272,53 @@ export async function checkPoolCapacity(
       : opts.preseason
         ? `You can have up to ${PRESEASON_LIMITS.pools} preseason test pools.`
         : `Your ${planInfo.plan} plan allows ${limit} pool${limit === 1 ? '' : 's'}.`,
+  };
+}
+
+export interface InactivePoolCapacity {
+  allowed: boolean;
+  count: number;
+  limit: number;
+  plan: Plan;
+  message?: string;
+}
+
+/**
+ * Checks whether a commissioner can retain another inactive (deactivated,
+ * not deleted) pool. Counted across ALL of the commissioner's Huddles —
+ * unlike the active pool limit in checkPoolCapacity, which is per-Huddle.
+ * Free allows none (INACTIVE_POOL_LIMITS.free === 0): a Free commissioner
+ * has to delete a pool instead of archiving it.
+ */
+export async function checkInactivePoolCapacity(
+  createdByEmail: string,
+  opts: { excludePoolId?: string } = {}
+): Promise<InactivePoolCapacity> {
+  const supabase = getSupabaseServiceClient();
+  const planInfo = await getAdminPlanByEmail(createdByEmail);
+  const limit = INACTIVE_POOL_LIMITS[planInfo.plan] ?? INACTIVE_POOL_LIMITS.free;
+
+  let query = supabase
+    .from('pools')
+    .select('id', { count: 'exact', head: true })
+    .eq('created_by', createdByEmail)
+    .eq('is_active', false);
+  if (opts.excludePoolId) query = query.neq('id', opts.excludePoolId);
+
+  const { count } = await query;
+  const current = count ?? 0;
+  const allowed = current < limit;
+
+  return {
+    allowed,
+    count: current,
+    limit,
+    plan: planInfo.plan,
+    message: allowed
+      ? undefined
+      : limit === 0
+        ? `Your ${planInfo.plan} plan doesn't allow keeping inactive pools — delete it instead, or upgrade to Standard.`
+        : `Your ${planInfo.plan} plan allows up to ${limit} inactive pools across all your Huddles. Delete or reactivate one first.`,
   };
 }
 
