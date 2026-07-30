@@ -12,6 +12,7 @@ import { loadPoolsByHuddleId } from '@/actions/loadPools';
 import { getPoolParticipants, removeParticipantFromPool } from '@/actions/adminActions';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { debugError } from '@/lib/utils';
 
 // Design tokens (matches admin pages / app-wide dark theme)
@@ -86,6 +87,7 @@ export function LeagueManager({
   const [memberSearch, setMemberSearch] = useState('');
   const [deleteHuddleOpen, setDeleteHuddleOpen] = useState(false);
   const [deleteHuddleConfirmation, setDeleteHuddleConfirmation] = useState('');
+  const [deleteCascadePools, setDeleteCascadePools] = useState(false);
   const [isDeletingHuddle, setIsDeletingHuddle] = useState(false);
 
   const load = useCallback(async () => {
@@ -150,12 +152,17 @@ export function LeagueManager({
     if (!user?.email) return;
     setIsDeletingHuddle(true);
     try {
-      const result = await deleteHuddle(huddleId, user.email);
+      const result = await deleteHuddle(huddleId, user.email, deleteCascadePools);
       if (!result.success) {
         toast({ title: 'Error', description: result.error, variant: 'destructive' });
         return;
       }
-      toast({ title: 'League Deleted', description: `${leagueName} has been deleted.` });
+      toast({
+        title: 'League Deleted',
+        description: result.poolsDeleted > 0
+          ? `${leagueName} and its ${result.poolsDeleted} pool${result.poolsDeleted === 1 ? '' : 's'} have been deleted.`
+          : `${leagueName} has been deleted.`,
+      });
       onBack();
     } finally {
       setIsDeletingHuddle(false);
@@ -505,7 +512,7 @@ export function LeagueManager({
 
                 <Dialog
                   open={deleteHuddleOpen}
-                  onOpenChange={(open) => { setDeleteHuddleOpen(open); if (!open) setDeleteHuddleConfirmation(''); }}
+                  onOpenChange={(open) => { setDeleteHuddleOpen(open); if (!open) { setDeleteHuddleConfirmation(''); setDeleteCascadePools(false); } }}
                 >
                   <DialogTrigger asChild>
                     <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', background: `color-mix(in oklch, ${liveRed} 15%, ${surface})`, color: liveRed, border: `1px solid color-mix(in oklch, ${liveRed} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
@@ -519,12 +526,30 @@ export function LeagueManager({
                       <DialogDescription asChild>
                         <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
                           <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{leagueName}&quot;? This action cannot be undone.</p>
-                          <p>Its roster will be deleted too. It must have zero pools — you&apos;ll get an error here if it still has any.</p>
+                          <p>Its roster will be deleted too. By default it must have zero pools — check the box below to delete its pools too.</p>
                         </div>
                       </DialogDescription>
                     </DialogHeader>
 
                     <div style={{ padding: '0.75rem 0' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', marginBottom: '1rem' }}>
+                        <Checkbox
+                          checked={deleteCascadePools}
+                          onCheckedChange={(v) => setDeleteCascadePools(v === true)}
+                          style={{ marginTop: '0.15rem' }}
+                        />
+                        <span style={{ ...b, fontSize: '0.8rem', color: text, lineHeight: 1.5 }}>
+                          Also delete every pool in this Huddle — and everything tied to them: participants, picks, scores, standings, and winners. This cannot be undone.
+                        </span>
+                      </label>
+                      {deleteCascadePools && (
+                        <div style={{ background: 'oklch(20% 0.06 25)', border: `1px solid color-mix(in oklch, ${liveRed} 40%, transparent)`, borderRadius: 6, padding: '0.6rem 0.85rem', marginBottom: '1rem' }}>
+                          <p style={{ ...b, fontSize: '0.76rem', color: 'oklch(85% 0.09 25)' }}>
+                            This will permanently erase every pool in &quot;{leagueName}&quot; and all of their history. There is no undo.
+                          </p>
+                        </div>
+                      )}
+
                       <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
                         To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: liveRed }}>{leagueName}</span> below:
                       </p>

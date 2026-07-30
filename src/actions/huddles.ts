@@ -195,18 +195,28 @@ export async function setHuddleActive(huddleId: string, isActive: boolean, calle
 }
 
 export type DeleteHuddleResult =
-  | { success: true }
+  | { success: true; poolsDeleted: number }
   | { success: false; error: string };
 
 /**
- * Permanently deletes a Huddle — commissioner-owner only. Refuses if the
- * Huddle still has any pools: pools.huddle_id is ON DELETE SET NULL (not
- * CASCADE) specifically so deleting a Huddle never silently deletes or
- * orphans a pool's picks/scores history, so the commissioner has to
- * transfer or delete each pool first. huddle_members and
- * huddle_transfer_requests cascade-delete with the Huddle itself.
+ * Permanently deletes a Huddle — commissioner-owner only.
+ *
+ * By default refuses if the Huddle still has any pools: pools.huddle_id is
+ * ON DELETE SET NULL (not CASCADE) specifically so deleting a Huddle never
+ * silently deletes or orphans a pool's picks/scores history — the
+ * commissioner has to transfer or delete each pool first.
+ *
+ * If cascadeDeletePools is true, every pool in the Huddle is deleted first
+ * instead. Every pool-related table (participants, picks, scores,
+ * tie_breakers, weekly/season/period winners, playoff confidence points,
+ * reminder logs, transfer requests, admin_pools) is already
+ * ON DELETE CASCADE on pools.id, so deleting the pool rows is sufficient —
+ * no per-table cleanup needed here.
+ *
+ * huddle_members and huddle_transfer_requests always cascade-delete with
+ * the Huddle itself, regardless of this flag.
  */
-export async function deleteHuddle(huddleId: string, callerEmail: string): Promise<DeleteHuddleResult> {
+export async function deleteHuddle(huddleId: string, callerEmail: string, cascadeDeletePools = false): Promise<DeleteHuddleResult> {
   try {
     const supabase = getSupabaseServiceClient();
 
@@ -225,11 +235,19 @@ export async function deleteHuddle(huddleId: string, callerEmail: string): Promi
       .select('id', { count: 'exact', head: true })
       .eq('huddle_id', huddleId);
 
-    if ((poolCount ?? 0) > 0) {
+    if ((poolCount ?? 0) > 0 && !cascadeDeletePools) {
       return {
         success: false,
-        error: `"${huddle.name}" still has ${poolCount} pool${poolCount === 1 ? '' : 's'}. Transfer or delete ${poolCount === 1 ? 'it' : 'them'} first.`,
+        error: `"${huddle.name}" still has ${poolCount} pool${poolCount === 1 ? '' : 's'}. Transfer or delete ${poolCount === 1 ? 'it' : 'them'} first, or check "also delete its pools".`,
       };
+    }
+
+    if ((poolCount ?? 0) > 0 && cascadeDeletePools) {
+      const { error: poolsDeleteError } = await supabase.from('pools').delete().eq('huddle_id', huddleId);
+      if (poolsDeleteError) {
+        debugError('Failed to cascade-delete huddle pools:', poolsDeleteError);
+        return { success: false, error: 'Failed to delete this League\'s pools. Please try again.' };
+      }
     }
 
     const { error } = await supabase.from('huddles').delete().eq('id', huddleId);
@@ -239,7 +257,7 @@ export async function deleteHuddle(huddleId: string, callerEmail: string): Promi
       return { success: false, error: 'Failed to delete League. Please try again.' };
     }
 
-    return { success: true };
+    return { success: true, poolsDeleted: cascadeDeletePools ? (poolCount ?? 0) : 0 };
   } catch (error) {
     debugError('Unexpected error deleting huddle:', error);
     return { success: false, error: 'An unexpected error occurred. Please try again.' };
