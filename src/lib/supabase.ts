@@ -393,6 +393,44 @@ type Database = {
           created_at?: string
         }
       }
+      season_settings: {
+        Row: {
+          id: string
+          season: number
+          preseason_start_date: string | null
+          regular_season_start_date: string | null
+          postseason_start_date: string | null
+          current_week: number
+          current_season_type: number
+          season_over: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          season: number
+          preseason_start_date?: string | null
+          regular_season_start_date?: string | null
+          postseason_start_date?: string | null
+          current_week?: number
+          current_season_type?: number
+          season_over?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          season?: number
+          preseason_start_date?: string | null
+          regular_season_start_date?: string | null
+          postseason_start_date?: string | null
+          current_week?: number
+          current_season_type?: number
+          season_over?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
       games: {
         Row: {
           id: string
@@ -1024,6 +1062,27 @@ CREATE TABLE IF NOT EXISTS participants (
 `;
 
 // fallow-ignore-next-line unused-export
+export const seasonSettingsTable = `
+CREATE TABLE IF NOT EXISTS season_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  season INTEGER NOT NULL UNIQUE,
+  preseason_start_date DATE,
+  regular_season_start_date DATE,
+  postseason_start_date DATE,
+  current_week INTEGER NOT NULL DEFAULT 1,
+  -- 0=offseason, 1=preseason, 2=regular season, 3=postseason — same
+  -- convention as games.season_type. current_week is relative to this
+  -- phase (e.g. current_week=4 with current_season_type=1 means
+  -- preseason week 4, not the 4th week of the whole season).
+  current_season_type INTEGER NOT NULL DEFAULT 0,
+  season_over BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- See docs/migrations/add-season-settings.sql
+`;
+
+// fallow-ignore-next-line unused-export
 export const gamesTable = `
 CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(255) PRIMARY KEY,
@@ -1292,6 +1351,7 @@ ALTER TABLE huddle_co_commissioners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_transfer_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pool_transfer_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE season_settings ENABLE ROW LEVEL SECURITY;
 
 -- Huddles table policies — commissioner/admin-only. Participants never
 -- query huddles directly, so no participant-facing SELECT policy exists.
@@ -1312,6 +1372,11 @@ CREATE POLICY "Service role can manage huddle transfer requests" ON huddle_trans
   FOR ALL USING (auth.role() = 'service_role');
 
 CREATE POLICY "Service role can manage pool transfer requests" ON pool_transfer_requests
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- Season phase boundaries — read via server actions only, same
+-- service-role-only model as huddles above.
+CREATE POLICY "Service role can manage season settings" ON season_settings
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Admins table policies

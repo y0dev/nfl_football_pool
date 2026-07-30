@@ -772,6 +772,23 @@ function AdminDashboardContent() {
               </button>
 
               <button
+                onClick={() => router.push('/admin/season-settings')}
+                title="Set season phase start dates, current week, and season-over status"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  background: 'transparent', color: textMid,
+                  border: `1px solid ${border}`, borderRadius: 6,
+                  ...bc, fontWeight: 600, fontSize: '0.72rem',
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <Calendar style={{ width: 12, height: 12 }} />
+                <span className="pools-nav-label">Season Settings</span>
+              </button>
+
+              <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
                 title="Logout"
