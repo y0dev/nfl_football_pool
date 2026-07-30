@@ -180,18 +180,18 @@ class EmailService {
   }
 
   // Template for pool invitation
-  async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string): Promise<boolean> {
+  async sendPoolInvitation(participantEmail: string, participantName: string, poolName: string, poolLink: string, huddleName?: string): Promise<boolean> {
     const subject = `You're Invited to Join ${poolName}! 🏈`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${participantName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        You've been invited to join <strong style="color: #f1f5f9;">${poolName}</strong> in our Sunday Huddle!
+        You've been invited to join <strong style="color: #f1f5f9;">${poolName}</strong>${huddleName ? ` in <strong style="color: #f1f5f9;">${huddleName}</strong>` : ' in our Sunday Huddle'}!
       </p>
-      
+
       ${createInfoBox(`
         <strong>How it works:</strong><br>
         • Pick the winner for each NFL game<br>
@@ -221,18 +221,18 @@ class EmailService {
   }
 
   // Template for pick reminder
-  async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string): Promise<boolean> {
+  async sendPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, deadline: string, huddleName?: string): Promise<boolean> {
     const subject = `⏰ Week ${weekNumber} Picks Due - ${poolName}`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${participantName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        Don't forget to submit your picks for <strong style="color: #f1f5f9;">${poolName}</strong> - Week ${weekNumber}!
+        Don't forget to submit your picks for <strong style="color: #f1f5f9;">${poolName}</strong>${huddleName ? ` (${huddleName})` : ''} - Week ${weekNumber}!
       </p>
-      
+
       ${createInfoBox(`
         <strong>⏰ Deadline:</strong> ${deadline}<br><br>
         Make sure to submit your picks before the deadline to stay in the competition!
@@ -359,20 +359,20 @@ class EmailService {
   }
 
   // Template for pool creation notification
-  async sendPoolCreationNotification(adminEmail: string, adminName: string, poolName: string, poolId: string): Promise<boolean> {
+  async sendPoolCreationNotification(adminEmail: string, adminName: string, poolName: string, poolId: string, huddleName?: string): Promise<boolean> {
     const subject = `🎉 Your Pool "${poolName}" Has Been Created!`;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const poolUrl = `${baseUrl}/pool/${poolId}`;
-    
+
     const content = `
       <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
         Hi ${adminName},
       </p>
-      
+
       <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
-        Great news! Your pool <strong style="color: #f1f5f9;">"${poolName}"</strong> has been successfully created.
+        Great news! Your pool <strong style="color: #f1f5f9;">"${poolName}"</strong>${huddleName ? ` in <strong style="color: #f1f5f9;">${huddleName}</strong>` : ''} has been successfully created.
       </p>
-      
+
       ${createInfoBox(`
         <strong>Pool Details:</strong><br>
         Name: ${poolName}<br>
@@ -752,6 +752,205 @@ class EmailService {
     });
 
     return this.sendEmail({ to: email, subject, html });
+  }
+
+  // Sent to the commissioner who initiated a Huddle transfer, asking them
+  // to confirm their own request before it can take effect.
+  async sendHuddleTransferConfirmation(fromEmail: string, huddleName: string, toEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `Confirm: Transfer "${huddleName}" to ${toEmail}`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        You requested to transfer your Huddle <strong style="color: #f1f5f9;">${huddleName}</strong> — and every pool in it — to <strong style="color: #f1f5f9;">${toEmail}</strong>.
+      </p>
+      ${createInfoBox(`
+        <strong>Nothing happens until both of you confirm.</strong><br>
+        Click below to confirm your side. ${toEmail} will get their own confirmation email — the transfer only completes once you've both confirmed.
+      `, 'warning')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Didn't request this? Ignore this email — the transfer link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Confirm Huddle Transfer',
+      content,
+      buttonText: 'Confirm Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: fromEmail, subject, html });
+  }
+
+  // Sent to the recipient of a Huddle transfer, asking them to accept it.
+  async sendHuddleTransferApprovalRequest(toEmail: string, toName: string, huddleName: string, fromEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `${fromEmail} wants to transfer "${huddleName}" to you`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${toName},
+      </p>
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        <strong style="color: #f1f5f9;">${fromEmail}</strong> wants to transfer their Huddle <strong style="color: #f1f5f9;">${huddleName}</strong> — and every pool in it — to your account.
+      </p>
+      ${createInfoBox(`
+        <strong>Accepting this makes you the commissioner</strong> of ${huddleName}: its roster, its pools, and everything in them.
+        The transfer only completes once you've both confirmed.
+      `, 'info')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Weren't expecting this? Ignore this email — the link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Accept Huddle Transfer',
+      content,
+      buttonText: 'Accept Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: toEmail, subject, html });
+  }
+
+  // Sent to both parties once a Huddle transfer has fully completed.
+  async sendHuddleTransferCompleted(recipientEmail: string, huddleName: string, otherPartyEmail: string): Promise<boolean> {
+    const subject = `Transfer complete: "${huddleName}"`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        The transfer of <strong style="color: #f1f5f9;">${huddleName}</strong> between you and <strong style="color: #f1f5f9;">${otherPartyEmail}</strong> is complete.
+      </p>
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Sign in to your dashboard to see the current state of this Huddle.
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: 'Huddle Transfer Complete',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: recipientEmail, subject, html });
+  }
+
+  // Sent to the commissioner who initiated a single-pool transfer, asking
+  // them to confirm their own request before it can take effect.
+  async sendPoolTransferConfirmation(fromEmail: string, poolName: string, toEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `Confirm: Transfer "${poolName}" to ${toEmail}`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        You requested to transfer your pool <strong style="color: #f1f5f9;">${poolName}</strong> — and its participants — to <strong style="color: #f1f5f9;">${toEmail}</strong>'s League.
+      </p>
+      ${createInfoBox(`
+        <strong>Nothing happens until both of you confirm.</strong><br>
+        Click below to confirm your side. ${toEmail} will get their own confirmation email — the transfer only completes once you've both confirmed.
+      `, 'warning')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Didn't request this? Ignore this email — the transfer link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Confirm Pool Transfer',
+      content,
+      buttonText: 'Confirm Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: fromEmail, subject, html });
+  }
+
+  // Sent to the recipient of a single-pool transfer, asking them to accept it.
+  async sendPoolTransferApprovalRequest(toEmail: string, toName: string, poolName: string, fromEmail: string, confirmUrl: string): Promise<boolean> {
+    const subject = `${fromEmail} wants to transfer "${poolName}" to your League`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${toName},
+      </p>
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        <strong style="color: #f1f5f9;">${fromEmail}</strong> wants to transfer their pool <strong style="color: #f1f5f9;">${poolName}</strong> — and its participants — into your League.
+      </p>
+      ${createInfoBox(`
+        <strong>Accepting this adds ${poolName}</strong> to your League, with its participants merged into your roster.
+        The transfer only completes once you've both confirmed, and won't go through if it would put your account over its pool or participant limits.
+      `, 'info')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Weren't expecting this? Ignore this email — the link expires in 7 days and nothing changes unless you confirm.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Accept Pool Transfer',
+      content,
+      buttonText: 'Accept Transfer',
+      buttonUrl: confirmUrl,
+      footerText: 'This is a security-sensitive action from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: toEmail, subject, html });
+  }
+
+  // Sent to both parties once a pool transfer has fully completed.
+  async sendPoolTransferCompleted(recipientEmail: string, poolName: string, otherPartyEmail: string): Promise<boolean> {
+    const subject = `Transfer complete: "${poolName}"`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        The transfer of <strong style="color: #f1f5f9;">${poolName}</strong> between you and <strong style="color: #f1f5f9;">${otherPartyEmail}</strong> is complete.
+      </p>
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Sign in to your dashboard to see the current state of this pool.
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: 'Pool Transfer Complete',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: recipientEmail, subject, html });
+  }
+
+  // Sent to both parties when a pool transfer was confirmed by both sides
+  // but couldn't complete because it would have exceeded a limit on the
+  // destination account (checked again at confirm time, since either
+  // party's situation may have changed since the request was sent).
+  async sendPoolTransferFailed(recipientEmail: string, poolName: string, otherPartyEmail: string, reason: string): Promise<boolean> {
+    const subject = `Transfer couldn't complete: "${poolName}"`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        You and <strong style="color: #f1f5f9;">${otherPartyEmail}</strong> both confirmed the transfer of <strong style="color: #f1f5f9;">${poolName}</strong>, but it couldn't complete.
+      </p>
+      ${createInfoBox(reason, 'warning')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Once that's resolved, start a new transfer request — this one has been cancelled.
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: 'Pool Transfer Failed',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: recipientEmail, subject, html });
   }
 }
 

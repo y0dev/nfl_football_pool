@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Check if the pool exists and is active
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, is_active, join_password')
+      .select('id, name, is_active, join_password, huddles(name)')
       .eq('id', poolId)
       .single();
 
@@ -119,12 +119,14 @@ export async function POST(request: NextRequest) {
       if (newParticipant.email) {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
         const poolLink = `${baseUrl}/pool/${poolId}/picks`;
-        
+        const huddleName = (pool.huddles as unknown as { name: string } | null)?.name;
+
         await emailService.sendPoolInvitation(
           newParticipant.email,
           newParticipant.name,
           pool.name,
-          poolLink
+          poolLink,
+          huddleName
         );
       }
     } catch (emailError) {

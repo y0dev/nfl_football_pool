@@ -7,11 +7,14 @@ import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
-import { Trash2, Lock, Settings, Save } from 'lucide-react';
-import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, debugError} from '@/lib/utils';
+import { initiatePoolTransfer } from '@/actions/poolTransfers';
+import { Trash2, Lock, Settings, Save, ArrowLeftRight } from 'lucide-react';
+import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, getNFLSeasonYear, debugError} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -19,6 +22,7 @@ const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const amber   = 'oklch(72% 0.16 60)';
+const gold    = 'oklch(74% 0.16 72)';
 const red     = 'oklch(60% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -56,7 +60,20 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isClosingSeason, setIsClosingSeason] = useState(false);
   const [closeSeasonResult, setCloseSeasonResult] = useState<{ winner?: string; message?: string } | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferEmail, setTransferEmail] = useState('');
+  const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [poolSeason, setPoolSeason] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Settings for a pool from a season that's already ended are locked —
+  // they describe how that season was actually run, so changing them after
+  // the fact would corrupt historical standings. Closing the season,
+  // transferring the pool, and deleting it are separate actions and stay
+  // available.
+  const isLocked = poolSeason !== null && poolSeason < getNFLSeasonYear();
 
   const form = useForm<PoolSettingsData>({
     resolver: zodResolver(poolSettingsSchema),
@@ -77,6 +94,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         setIsLoading(true);
         const pool = await loadPool(poolId);
         if (pool) {
+          setPoolSeason(pool.season);
           form.reset({
             name: pool.name,
             season: pool.season,
@@ -113,7 +131,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
       debugError('Failed to update pool settings:', error);
-      toast({ title: 'Error', description: 'Failed to update pool settings', variant: 'destructive' });
+      const message = error instanceof Error ? error.message : 'Failed to update pool settings';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -174,6 +193,24 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     }
   };
 
+  const handleInitiateTransfer = async () => {
+    if (!user?.email) return;
+    setIsTransferring(true);
+    try {
+      const result = await initiatePoolTransfer(poolId, user.email, transferEmail, transferRemoveFromSource);
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      setTransferEmail('');
+      setTransferRemoveFromSource(false);
+      setTransferOpen(false);
+      toast({ title: 'Transfer Requested', description: `Check your email to confirm — ${transferEmail} has been asked to confirm too.` });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div style={cardStyle}>
@@ -197,12 +234,22 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
       <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
         {/* General Settings */}
-        <div style={{ ...cardStyle, borderLeft: `3px solid ${green}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            <Settings style={{ width: 16, height: 16, color: greenHi }} />
+        <div style={{ ...cardStyle, borderLeft: `3px solid ${isLocked ? textDim : green}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: isLocked ? '0.75rem' : '1.25rem' }}>
+            <Settings style={{ width: 16, height: 16, color: isLocked ? textDim : greenHi }} />
             <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>General Settings</p>
           </div>
 
+          {isLocked && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.6rem 0.85rem', marginBottom: '1.25rem' }}>
+              <Lock style={{ width: 13, height: 13, color: textDim, flexShrink: 0 }} />
+              <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                This pool is from the {poolSeason} season, which has ended. Settings can no longer be changed.
+              </p>
+            </div>
+          )}
+
+          <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, opacity: isLocked ? 0.55 : 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Pool Name */}
             <FormField
@@ -338,6 +385,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
               {isSaving ? 'Saving…' : 'Save Settings'}
             </button>
           </div>
+          </fieldset>
         </div>
 
         {/* Close Season */}
@@ -371,6 +419,67 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
             <Lock style={{ width: 13, height: 13 }} />
             {isClosingSeason ? 'Closing Season…' : 'Close & Lock Season'}
           </button>
+        </div>
+
+        {/* Transfer to Another League */}
+        <div style={{ ...cardStyle, borderLeft: `3px solid ${gold}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <ArrowLeftRight style={{ width: 16, height: 16, color: gold }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: gold, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Transfer To Another League</p>
+          </div>
+          <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '1rem' }}>
+            Hand this pool off — with its participants — to another commissioner&apos;s League. They must already have a Sunday Huddle account. Nothing changes until you both confirm by email, and it won&apos;t go through if it would put their account over its pool or participant limits.
+          </p>
+
+          {!transferOpen ? (
+            <button
+              type="button"
+              onClick={() => setTransferOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+            >
+              <ArrowLeftRight style={{ width: 13, height: 13 }} /> Transfer This Pool
+            </button>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  placeholder="commissioner@example.com"
+                  value={transferEmail}
+                  onChange={e => setTransferEmail(e.target.value)}
+                  style={{ ...inputStyle, flex: '1 1 220px' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', margin: '0.75rem 0' }}>
+                <Checkbox
+                  checked={transferRemoveFromSource}
+                  onCheckedChange={(v) => setTransferRemoveFromSource(v === true)}
+                  style={{ marginTop: '0.15rem' }}
+                />
+                <span style={{ ...b, fontSize: '0.78rem', color: textMid, lineHeight: 1.5 }}>
+                  Also remove these participants from my League roster — only removes someone if they&apos;re not still in another pool here.
+                </span>
+              </label>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleInitiateTransfer}
+                disabled={isTransferring || !transferEmail.trim()}
+                style={{ padding: '0.5rem 0.9rem', background: gold, color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (isTransferring || !transferEmail.trim()) ? 'not-allowed' : 'pointer', opacity: (isTransferring || !transferEmail.trim()) ? 0.6 : 1 }}
+              >
+                {isTransferring ? 'Sending…' : 'Send Transfer Request'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTransferOpen(false); setTransferEmail(''); setTransferRemoveFromSource(false); }}
+                style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Danger Zone */}

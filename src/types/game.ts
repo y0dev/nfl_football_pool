@@ -81,21 +81,6 @@ export interface LeaderboardEntry {
   };
 }
 
-interface Pool {
-  id: string;
-  name: string;
-  description?: string;
-  require_access_code: boolean;
-  access_code?: string;
-  created_by: string;
-  created_at: string;
-  is_active: boolean;
-  season: number;
-  tie_breaker_method?: string;
-  tie_breaker_question?: string;
-  tie_breaker_answer?: number;
-}
-
 export interface SelectedUser {
   id: string;
   name: string;

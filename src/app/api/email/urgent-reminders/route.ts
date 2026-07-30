@@ -3,7 +3,7 @@ import { checkAndSendUrgentReminders } from '@/actions/emailActions';
 import { debugError } from '@/lib/utils';
 
 /**
- * [SH][API][PICKS] Check for participants without picks when games start in
+ * Check for participants without picks when games start in
  * <5 hours and send urgent reminders to pool admins. Called periodically by
  * an external cron (hourly), authenticated with CRON_SECRET.
  *

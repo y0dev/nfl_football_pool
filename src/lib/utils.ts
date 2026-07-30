@@ -167,14 +167,24 @@ const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
 // — it's deliberately excluded from "Full Season", which covers the real
 // competition: regular season through the playoffs.
 export const SEASON_SCOPE_OPTIONS = [
-  { value: 'regular',           label: 'Regular Season Only',    desc: 'Weeks 1–18',                     types: [2] },
-  { value: 'preseason',         label: 'Preseason Only',         desc: 'Weeks 1–4 preseason (testing)',  types: [1] },
-  { value: 'playoffs',          label: 'Playoffs Only',          desc: 'Postseason bracket',             types: [3] },
-  { value: 'preseason_regular', label: 'Preseason + Regular',    desc: 'All preseason + weeks 1–18',    types: [1, 2] },
-  { value: 'full',              label: 'Full Season',            desc: 'Weeks 1–18 & postseason',        types: [2, 3] },
+  { value: 'preseason', label: 'Preseason Only',          desc: 'Weeks 1-4 preseason (testing)', types: [1] },
+  { value: 'regular',   label: 'Regular Season Only',     desc: 'Weeks 1-18',                     types: [2] },
+  { value: 'full',      label: 'Regular Season & Playoffs', desc: 'Weeks 1-18 & postseason',      types: [2, 3] },
+  { value: 'playoffs',  label: 'Postseason Only',         desc: 'Postseason bracket',             types: [3] },
 ] as const;
 
 export type SeasonScopeValue = typeof SEASON_SCOPE_OPTIONS[number]['value'];
+
+// Inactive ("archived") pools a commissioner may keep around instead of
+// deleting them, counted ACROSS ALL of their Huddles combined — separate
+// from the active pool limit in src/lib/plan.ts (LIMITS[plan].pools),
+// which is scoped per-Huddle. Free gets none: deactivating a pool on Free
+// only works if you're at/under this cap, so in practice Free commissioners
+// delete a pool instead of archiving it.
+export const INACTIVE_POOL_LIMITS: Record<'free' | 'standard', number> = {
+  free: 0,
+  standard: 3,
+};
 
 export function seasonTypesToScopeValue(types: number[]): SeasonScopeValue {
   const sorted = [...types].sort((a, b) => a - b);

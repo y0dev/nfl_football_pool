@@ -1,8 +1,10 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError, debugWarn } from '@/lib/utils';
-import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
+import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
+import { checkPoolCapacity, checkInactivePoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
+import { getSeasonSettings } from '@/lib/seasonSettings';
+import { checkSeasonScopeCreatable } from '@/lib/seasonPhase';
 
 export async function updatePool(poolId: string, updates: {
   name?: string;
@@ -17,16 +19,38 @@ export async function updatePool(poolId: string, updates: {
 }) {
   const supabase = getSupabaseServiceClient();
 
+  const { data: current } = await supabase
+    .from('pools')
+    .select('created_by, season, season_scope, is_active')
+    .eq('id', poolId)
+    .single();
+
+  // Pools from a season that has already ended are locked — their settings
+  // describe how that season was actually run, so changing them after the
+  // fact (e.g. season_scope, tie-breaker method) would corrupt historical
+  // standings. Closing the season, transferring the pool, and deleting it
+  // all go through separate paths and aren't affected by this.
+  if (current && current.season < getNFLSeasonYear()) {
+    throw new Error('This pool is from a previous season and its settings can no longer be changed.');
+  }
+
+  // Deactivating a pool (not deleting it) counts against a separate,
+  // across-all-Huddles limit on how many inactive pools a commissioner may
+  // retain — Free allows none, so this is effectively "delete instead of
+  // archive" for Free. Only checked on the active->inactive transition, not
+  // every update, and not the close-season flow (a mandatory end-of-season
+  // action, not a discretionary archive).
+  if (updates.is_active === false && current?.is_active !== false && current?.created_by) {
+    const inactiveCapacity = await checkInactivePoolCapacity(current.created_by, { excludePoolId: poolId });
+    if (!inactiveCapacity.allowed) {
+      throw new Error(inactiveCapacity.message ?? 'Inactive pool limit reached.');
+    }
+  }
+
   // Re-scoping a pool moves it between the free preseason-test bucket and the
   // plan bucket — re-check the destination bucket's limit so scope changes
   // can't be used to dodge either cap.
   if (updates.season_scope) {
-    const { data: current } = await supabase
-      .from('pools')
-      .select('created_by, season_scope')
-      .eq('id', poolId)
-      .single();
-
     const wasPreseason = isPreseasonOnlyScope(current?.season_scope);
     const willBePreseason = isPreseasonOnlyScope(updates.season_scope);
 
@@ -52,6 +76,20 @@ export async function updatePool(poolId: string, updates: {
         throw new Error(PLAYOFF_SCOPE_MESSAGE);
       }
     }
+
+    // Can't re-scope into a phase whose final week has already started (or
+    // that's already fully in the past) — only check phases being newly
+    // added, so removing a scope (e.g. dropping playoffs) is never blocked.
+    if (current?.season) {
+      const newlyAddedPhases = updates.season_scope.filter(p => !(current.season_scope ?? []).includes(p));
+      if (newlyAddedPhases.length > 0) {
+        const seasonSettings = await getSeasonSettings(current.season);
+        const scopeCheck = checkSeasonScopeCreatable(newlyAddedPhases, seasonSettings);
+        if (!scopeCheck.allowed) {
+          throw new Error(scopeCheck.message ?? 'That season scope is no longer available.');
+        }
+      }
+    }
   }
 
   const { data, error } = await supabase
@@ -67,7 +105,7 @@ export async function updatePool(poolId: string, updates: {
   // don't exist yet (join_password / is_private require a DB migration).
   const msg = (error as any)?.message ?? '';
   if (msg.includes('join_password') || msg.includes('is_private') || msg.includes('schema cache')) {
-    debugWarn('[SH][LOGIC][POOL] Retrying updatePool without schema-missing columns:', msg);
+    debugWarn('Retrying updatePool without schema-missing columns:', msg);
     const { join_password, is_private, ...safeUpdates } = updates;
     const { data: retryData, error: retryError } = await supabase
       .from('pools')
@@ -77,12 +115,12 @@ export async function updatePool(poolId: string, updates: {
       .single();
 
     if (retryError) {
-      debugError('[SH][LOGIC][POOL] Error updating pool:', retryError);
+      debugError('Error updating pool:', retryError);
       throw retryError;
     }
     return retryData;
   }
 
-  debugError('[SH][LOGIC][POOL] Error updating pool:', error);
+  debugError('Error updating pool:', error);
   throw error;
 }
