@@ -37,7 +37,7 @@ const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 function planColor(plan: string) {
   if (plan === 'pro')      return greenHi;
