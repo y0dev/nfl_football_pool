@@ -60,7 +60,12 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     : 0;
 
   // While trial is active, grant Standard-level access regardless of plan column
-  const plan: Plan = isTrialActive ? 'standard' : ((row?.plan as Plan) ?? 'free');
+  const rawPlan = isTrialActive ? 'standard' : (row?.plan ?? 'free');
+  // Defend against stale/unrecognized values in admins.plan — e.g. rows
+  // still holding the retired 'pro' tier — rather than crashing on
+  // LIMITS[plan] below. A legacy premium tier maps to today's highest
+  // (standard); anything else falls back to free.
+  const plan: Plan = rawPlan in LIMITS ? (rawPlan as Plan) : (rawPlan === 'pro' ? 'standard' : 'free');
   // Add-on pools only apply on paid plans (they're purchased on top of Standard)
   const addonPools = plan === 'free' ? 0 : Math.max(0, row?.addon_pools ?? 0);
 
