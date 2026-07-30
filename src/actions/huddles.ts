@@ -194,6 +194,58 @@ export async function setHuddleActive(huddleId: string, isActive: boolean, calle
   }
 }
 
+export type DeleteHuddleResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Permanently deletes a Huddle — commissioner-owner only. Refuses if the
+ * Huddle still has any pools: pools.huddle_id is ON DELETE SET NULL (not
+ * CASCADE) specifically so deleting a Huddle never silently deletes or
+ * orphans a pool's picks/scores history, so the commissioner has to
+ * transfer or delete each pool first. huddle_members and
+ * huddle_transfer_requests cascade-delete with the Huddle itself.
+ */
+export async function deleteHuddle(huddleId: string, callerEmail: string): Promise<DeleteHuddleResult> {
+  try {
+    const supabase = getSupabaseServiceClient();
+
+    const { data: huddle } = await supabase
+      .from('huddles')
+      .select('id, name, commissioner_email')
+      .eq('id', huddleId)
+      .maybeSingle();
+
+    if (!huddle || huddle.commissioner_email.toLowerCase() !== callerEmail.trim().toLowerCase()) {
+      return { success: false, error: 'Huddle not found for your account.' };
+    }
+
+    const { count: poolCount } = await supabase
+      .from('pools')
+      .select('id', { count: 'exact', head: true })
+      .eq('huddle_id', huddleId);
+
+    if ((poolCount ?? 0) > 0) {
+      return {
+        success: false,
+        error: `"${huddle.name}" still has ${poolCount} pool${poolCount === 1 ? '' : 's'}. Transfer or delete ${poolCount === 1 ? 'it' : 'them'} first.`,
+      };
+    }
+
+    const { error } = await supabase.from('huddles').delete().eq('id', huddleId);
+
+    if (error) {
+      debugError('Failed to delete huddle:', error);
+      return { success: false, error: 'Failed to delete League. Please try again.' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    debugError('Unexpected error deleting huddle:', error);
+    return { success: false, error: 'An unexpected error occurred. Please try again.' };
+  }
+}
+
 export async function renameHuddle(huddleId: string, name: string): Promise<RenameHuddleResult> {
   try {
     const trimmed = name.trim();

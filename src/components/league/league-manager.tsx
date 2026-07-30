@@ -2,15 +2,16 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight, Search } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { renameHuddle, setHuddleActive } from '@/actions/huddles';
+import { renameHuddle, setHuddleActive, deleteHuddle } from '@/actions/huddles';
 import { initiateHuddleTransfer } from '@/actions/huddleTransfers';
 import { loadHuddleMembers, addHuddleMember, removeHuddleMember, addHuddleMemberToPool, HuddleMember } from '@/actions/huddleMembers';
 import { loadPoolsByHuddleId } from '@/actions/loadPools';
 import { getPoolParticipants, removeParticipantFromPool } from '@/actions/adminActions';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { debugError } from '@/lib/utils';
 
 // Design tokens (matches admin pages / app-wide dark theme)
@@ -83,6 +84,9 @@ export function LeagueManager({
   const [transferEmail, setTransferEmail] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
+  const [deleteHuddleOpen, setDeleteHuddleOpen] = useState(false);
+  const [deleteHuddleConfirmation, setDeleteHuddleConfirmation] = useState('');
+  const [isDeletingHuddle, setIsDeletingHuddle] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -139,6 +143,22 @@ export function LeagueManager({
       toast({ title: 'Transfer Requested', description: `Check your email to confirm — ${transferEmail} has been asked to confirm too.` });
     } finally {
       setIsTransferring(false);
+    }
+  };
+
+  const handleDeleteHuddle = async () => {
+    if (!user?.email) return;
+    setIsDeletingHuddle(true);
+    try {
+      const result = await deleteHuddle(huddleId, user.email);
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'League Deleted', description: `${leagueName} has been deleted.` });
+      onBack();
+    } finally {
+      setIsDeletingHuddle(false);
     }
   };
 
@@ -466,6 +486,83 @@ export function LeagueManager({
           )}
         </div>
       </section>
+
+      {!isAdminView && (
+        <>
+          <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${liveRed}, transparent)` }} />
+
+          {/* ── DANGER ZONE ── */}
+          <section style={{ background: bg, padding: '2.5rem 0 3rem' }}>
+            <div className="lp-inner">
+              <div style={{ background: card, border: `1px solid color-mix(in oklch, ${liveRed} 35%, ${border})`, borderRadius: 8, padding: '1.25rem', maxWidth: 560 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <Trash2 style={{ width: 16, height: 16, color: liveRed }} />
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: liveRed, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</p>
+                </div>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>
+                  Deleting {leagueName} is permanent. It must have no pools left — transfer or delete them first.
+                </p>
+
+                <Dialog
+                  open={deleteHuddleOpen}
+                  onOpenChange={(open) => { setDeleteHuddleOpen(open); if (!open) setDeleteHuddleConfirmation(''); }}
+                >
+                  <DialogTrigger asChild>
+                    <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', background: `color-mix(in oklch, ${liveRed} 15%, ${surface})`, color: liveRed, border: `1px solid color-mix(in oklch, ${liveRed} 40%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      <Trash2 style={{ width: 12, height: 12 }} />
+                      Delete Huddle
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent style={{ maxWidth: '28rem', background: card, border: `1px solid ${border}` }}>
+                    <DialogHeader>
+                      <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: liveRed, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Delete Huddle</DialogTitle>
+                      <DialogDescription asChild>
+                        <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+                          <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{leagueName}&quot;? This action cannot be undone.</p>
+                          <p>Its roster will be deleted too. It must have zero pools — you&apos;ll get an error here if it still has any.</p>
+                        </div>
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div style={{ padding: '0.75rem 0' }}>
+                      <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
+                        To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: liveRed }}>{leagueName}</span> below:
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Enter League name to confirm"
+                        value={deleteHuddleConfirmation}
+                        onChange={(e) => setDeleteHuddleConfirmation(e.target.value)}
+                        style={{ ...inputStyle, border: `1px solid ${deleteHuddleConfirmation.length > 0 ? (deleteHuddleConfirmation === leagueName ? 'oklch(50% 0.14 155)' : liveRed) : border}` }}
+                      />
+                      {deleteHuddleConfirmation.length > 0 && (
+                        <p style={{ ...b, fontSize: '0.75rem', color: deleteHuddleConfirmation === leagueName ? 'oklch(59% 0.15 155)' : liveRed, marginTop: '0.25rem' }}>
+                          {deleteHuddleConfirmation === leagueName ? '✓ Name matches — deletion enabled' : '✗ Name does not match'}
+                        </p>
+                      )}
+                    </div>
+
+                    <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <button type="button" onClick={() => setDeleteHuddleOpen(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteHuddle}
+                        disabled={isDeletingHuddle || deleteHuddleConfirmation !== leagueName}
+                        style={{ ...bc, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: (isDeletingHuddle || deleteHuddleConfirmation !== leagueName) ? surface : `color-mix(in oklch, ${liveRed} 20%, ${surface})`, color: (isDeletingHuddle || deleteHuddleConfirmation !== leagueName) ? textDim : liveRed, border: `1px solid ${(isDeletingHuddle || deleteHuddleConfirmation !== leagueName) ? border : `color-mix(in oklch, ${liveRed} 40%, ${border})`}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (isDeletingHuddle || deleteHuddleConfirmation !== leagueName) ? 'not-allowed' : 'pointer' }}
+                      >
+                        <Trash2 style={{ width: 12, height: 12 }} />
+                        {isDeletingHuddle ? 'Deleting…' : 'Delete Huddle'}
+                      </button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {!isAdminView && (
         <CreatePoolDialog
