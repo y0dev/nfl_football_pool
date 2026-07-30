@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, isAdmin: true, isSuperAdmin: admin.is_super_admin === true });
   } catch (e) {
-    debugError('[SH][API][AUTH] Verify admin status error:', e);
+    debugError('Verify admin status error:', e);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

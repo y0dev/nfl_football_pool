@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const sent = await emailService.sendAdminCreationNotification(email, fullName);
     return NextResponse.json({ success: sent });
   } catch (error) {
-    debugError('[SH][AUTH][EMAIL] Welcome email error:', error);
+    debugError('Welcome email error:', error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

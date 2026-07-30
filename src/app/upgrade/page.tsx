@@ -16,7 +16,7 @@ import { isPricingVisible } from '@/lib/billing';
 import { getStandardPricing, getAddonPricing } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
 
-type Plan = 'free' | 'standard' | 'pro';
+type Plan = 'free' | 'standard';
 
 interface PlanStatus {
   plan: Plan;
@@ -45,27 +45,26 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  '1 pool (regular season)',
-  'Up to 15 participants',
-  'Weekly picks & confidence points',
-  'Live leaderboard',
-  'Period standings (Q1-Q4)',
+  'Create your Huddle with up to 2 pools for the regular season',
+  'Invite up to 15 participants',
+  'Weekly picks with confidence points',
+  'Live leaderboard, updated as scores post',
+  'Automatic Q1–Q4 period standings',
 ];
 
 const STANDARD_FEATURES = [
-  '1 pool',
-  'Up to 30 participants',
-  'Weekly picks & confidence points',
-  'Live leaderboard',
-  'Period standings (Q1-Q4)',
-  'Email pick reminders',
-  'Season & playoff tracking',
+  'Run up to 2 pools in your Huddle, each with up to 30 participants',
+  'Weekly picks with confidence points',
+  'Live leaderboard, updated as scores post',
+  'Automatic Q1–Q4 period standings',
+  'Automatically remind participants when picks are due',
+  'Full season & playoff tracking, start to finish',
 ];
 
 const ADDON_FEATURES = [
-  'Each additional pool',
-  'Up to 30 participants per pool',
-  'All Standard features included',
+  'Run another pool inside the same Huddle',
+  'Invite up to 30 participants for that pool',
+  'Every Standard feature included',
 ];
 
 function UpgradeContent() {
@@ -185,7 +184,7 @@ function UpgradeContent() {
             {pricingVisible ? 'Plans & Pricing' : 'Your Plan'}
           </p>
           <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(2rem, 5vw, 3rem)', color: text, textTransform: 'uppercase', letterSpacing: '-0.01em', marginBottom: '0.75rem' }}>
-            Run Your Season, <span style={{ color: gold }}>Your Way</span>
+            Everything You Need To <span style={{ color: gold }}>Run Your Huddle</span>
           </h1>
           <p style={{ ...b, fontSize: '0.95rem', color: textMid, maxWidth: '48ch', margin: '0 auto' }}>
             {pricingVisible
@@ -225,7 +224,7 @@ function UpgradeContent() {
               </p>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
                 {[
-                  `${planStatus?.poolLimit ?? 1} pool${(planStatus?.poolLimit ?? 1) === 1 ? '' : 's'}`,
+                  `${planStatus?.poolLimit ?? 2} pool${(planStatus?.poolLimit ?? 2) === 1 ? '' : 's'}`,
                   `Up to ${planStatus?.participantLimit ?? 15} participants per pool`,
                   'Up to 2 free preseason test pools (max 15 players each)',
                 ].map(f => (
@@ -261,7 +260,7 @@ function UpgradeContent() {
                   <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', color: text, lineHeight: 1 }}>$0</span>
                   <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>/season</span>
                 </div>
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Get started with a single pool for a small group.</p>
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Create your first Huddle and compete with friends and family.</p>
               </div>
               <div style={{ padding: '1.25rem' }}>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
@@ -306,64 +305,73 @@ function UpgradeContent() {
             </div>
 
             {/* Standard */}
-            <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
-                <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Standard</p>
-                <PriceTag price={standardPrice} suffix="/season" />
-                <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Everything you need to run a great pool all season.</p>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                  {STANDARD_FEATURES.map(f => (
-                    <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
-                      <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
-                      <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                {currentPlan === 'free' ? (
-                  billingExempt ? (
-                    <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      Managed by site admin
-                    </div>
-                  ) : stripeEnabled ? (
-                    <button
-                      onClick={() => handleCheckout('standard')}
-                      disabled={isCheckingOut}
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position: 'absolute', top: 0, right: '1.25rem', transform: 'translateY(-50%)', zIndex: 1,
+                background: green, color: text, ...bc, fontWeight: 800, fontSize: '0.6rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.25rem 0.6rem', borderRadius: 999,
+              }}>
+                Most Popular
+              </span>
+              <div style={{ background: card, border: `1px solid ${green}`, borderTop: `3px solid ${green}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '1.5rem', borderBottom: `1px solid ${border}` }}>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Standard</p>
+                  <PriceTag price={standardPrice} suffix="/season" />
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Built for commissioners who run recurring leagues every season.</p>
+                </div>
+                <div style={{ padding: '1.25rem' }}>
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                    {STANDARD_FEATURES.map(f => (
+                      <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                        <Check style={{ width: 14, height: 14, color: greenHi, flexShrink: 0, marginTop: 2 }} />
+                        <span style={{ ...b, fontSize: '0.83rem', color: textMid }}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {currentPlan === 'free' ? (
+                    billingExempt ? (
+                      <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        Managed by site admin
+                      </div>
+                    ) : stripeEnabled ? (
+                      <button
+                        onClick={() => handleCheckout('standard')}
+                        disabled={isCheckingOut}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '0.6rem 1rem',
+                          background: green, color: text,
+                          border: 'none', borderRadius: 6,
+                          ...bc, fontWeight: 700, fontSize: '0.78rem',
+                          letterSpacing: '0.08em', textTransform: 'uppercase',
+                          cursor: isCheckingOut ? 'not-allowed' : 'pointer',
+                          opacity: isCheckingOut ? 0.6 : 1,
+                        }}
+                      >
+                        {isCheckingOut ? 'Redirecting…' : 'Upgrade to Standard'}
+                      </button>
+                    ) : (
+                    <a
+                      href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
                       style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0.6rem 1rem',
                         background: green, color: text,
                         border: 'none', borderRadius: 6,
                         ...bc, fontWeight: 700, fontSize: '0.78rem',
                         letterSpacing: '0.08em', textTransform: 'uppercase',
-                        cursor: isCheckingOut ? 'not-allowed' : 'pointer',
-                        opacity: isCheckingOut ? 0.6 : 1,
+                        textDecoration: 'none', cursor: 'pointer',
                       }}
                     >
-                      {isCheckingOut ? 'Redirecting…' : 'Upgrade to Standard'}
-                    </button>
+                      Upgrade to Standard
+                    </a>
+                    )
                   ) : (
-                  <a
-                    href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      padding: '0.6rem 1rem',
-                      background: green, color: text,
-                      border: 'none', borderRadius: 6,
-                      ...bc, fontWeight: 700, fontSize: '0.78rem',
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
-                      textDecoration: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    Upgrade to Standard
-                  </a>
-                  )
-                ) : (
-                  <div style={{ padding: '0.55rem 1rem', background: 'oklch(46% 0.14 155 / 0.15)', border: `1px solid ${green}`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: greenHi, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    {planStatus?.isTrialActive ? 'Current Plan (Trial)' : 'Current Plan'}
-                  </div>
-                )}
+                    <div style={{ padding: '0.55rem 1rem', background: 'oklch(46% 0.14 155 / 0.15)', border: `1px solid ${green}`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: greenHi, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      {planStatus?.isTrialActive ? 'Current Plan (Trial)' : 'Current Plan'}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -379,7 +387,7 @@ function UpgradeContent() {
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.22em', color: gold, textTransform: 'uppercase', marginBottom: '0.4rem' }}>Extra Pools</p>
                 <PriceTag price={addonPrice} suffix="/pool/season" />
                 <p style={{ ...b, fontSize: '0.82rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
-                  Running more than one pool? Add extra pools on top of Standard — an add-on cost, not a separate plan.
+                  Running more than one pool in your Huddle? Add extra pools on top of Standard — an add-on cost, not a separate plan.
                 </p>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {ADDON_FEATURES.map(f => (

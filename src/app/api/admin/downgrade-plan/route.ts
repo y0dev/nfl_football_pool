@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       .eq('is_super_admin', false);
 
     if (error) {
-      debugError('[SH][API][AUTH] Downgrade plan error:', error.message);
+      debugError('Downgrade plan error:', error.message);
       return NextResponse.json({ success: false, error: 'Failed to downgrade plan' }, { status: 500 });
     }
 

@@ -40,7 +40,7 @@ export async function loginUser(email: string, password: string) {
       .maybeSingle();
 
     if (error) {
-      debugError('[SH][API][AUTH] Login query error:', error.code);
+      debugError('Login query error:', error.code);
       return { success: false, error: 'Database connection error. Please try again.' };
     }
 
@@ -74,7 +74,7 @@ export async function loginUser(email: string, password: string) {
       },
     };
   } catch (error) {
-    debugError('[SH][API][AUTH] Login error:', error instanceof Error ? error.message : 'unknown');
+    debugError('Login error:', error instanceof Error ? error.message : 'unknown');
     return { success: false, error: 'An unexpected error occurred. Please try again.' };
   }
 }

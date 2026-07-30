@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    debugError('[SH][API][DB] Games stats error:', error);
+    debugError('Games stats error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load game stats' }, { status: 500 });
   }
 }

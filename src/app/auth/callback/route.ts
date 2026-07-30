@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   console.log('[OAuth:callback] exchange result — session:', !!data.session, '| error:', exchangeError?.message ?? 'none');
 
   if (exchangeError || !data.session) {
-    debugError('[SH][AUTH][OAUTH] exchangeCodeForSession failed:', exchangeError);
+    debugError('exchangeCodeForSession failed:', exchangeError);
     return NextResponse.redirect(`${origin}/login?error=oauth-failed`);
   }
 
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
   console.log('[OAuth:callback] admin insert — success:', !!newAdmin, '| error:', createError?.message ?? 'none');
 
   if (createError || !newAdmin) {
-    debugError('[SH][AUTH][OAUTH] Admin insert failed:', createError);
+    debugError('Admin insert failed:', createError);
     const isDuplicate = createError?.code === '23505';
     return NextResponse.redirect(
       `${origin}/login?error=${isDuplicate ? 'duplicate-account' : 'create-failed'}`

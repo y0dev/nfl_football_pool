@@ -36,7 +36,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
     // Get pool information
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('name')
+      .select('name, huddles(name)')
       .eq('id', params.poolId)
       .single();
 
@@ -165,13 +165,15 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
       }
 
       try {
+        const huddleName = (pool.huddles as unknown as { name: string } | null)?.name;
         const emailSent = await emailService.sendPickReminder(
           participant.email,
           participant.name,
           pool.name,
           params.weekNumber,
           poolUrl,
-          deadline
+          deadline,
+          huddleName
         );
 
         if (emailSent) {

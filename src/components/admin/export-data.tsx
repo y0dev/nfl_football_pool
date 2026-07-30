@@ -74,7 +74,9 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
   const loadPools = async () => {
     setIsLoadingPools(true);
     try {
-      const res = await fetch('/api/admin/all-pools');
+      const res = await fetch('/api/admin/all-pools', {
+        headers: { 'x-admin-email': user?.email ?? '' },
+      });
       if (!res.ok) throw new Error('Failed to load pools');
       const data = await res.json();
       const poolsData = data.pools || [];

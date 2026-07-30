@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     if (error && 'billing_exempt' in updateData &&
         (error.message.includes('billing_exempt') || error.message.includes('schema cache'))) {
-      debugError('[SH][API][AUTH] billing_exempt column missing — retrying plan update without it (run the billing migration)');
+      debugError('billing_exempt column missing — retrying plan update without it (run the billing migration)');
       const { billing_exempt, ...withoutFlag } = updateData;
       ({ error } = await supabase
         .from('admins')
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (error) {
-      debugError('[SH][API][AUTH] Update plan error:', error.message);
+      debugError('Update plan error:', error.message);
       return NextResponse.json({ success: false, error: 'Failed to update plan' }, { status: 500 });
     }
 

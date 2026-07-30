@@ -4,10 +4,17 @@ import { isStripeConfigured } from '@/lib/billing';
 import { getStripe } from '@/lib/stripe';
 import { debugError, debugLog } from '@/lib/utils';
 
-// [SH][API][BILLING] Stripe webhook — the single place purchases take effect.
+// Stripe webhook — the single place purchases take effect.
 // Plan changes happen here (not on the success redirect) so they can't be
 // forged by hitting a URL. Configure the endpoint in the Stripe dashboard as
-// <site>/api/stripe/webhook with the checkout.session.completed event.
+// <site>/api/stripe/webhook.
+//
+// Events to subscribe to:
+//   - checkout.session.completed (required — handled below, drives plan/addon updates)
+//   - charge.refunded (optional — not yet handled; add a case here if refunds
+//     should auto-downgrade a plan)
+// Subscription/invoice events aren't relevant — purchases use one-time
+// Checkout Sessions (mode: 'payment'), not subscriptions.
 export async function POST(request: NextRequest) {
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: 'Billing is not available' }, { status: 503 });
@@ -25,7 +32,7 @@ export async function POST(request: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
-    debugError('[SH][API][BILLING] Webhook signature verification failed:', err);
+    debugError('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
       const quantity = Math.max(1, Number(session.metadata?.quantity) || 1);
 
       if (!adminId || !product) {
-        debugError('[SH][API][BILLING] checkout.session.completed missing metadata', session.id);
+        debugError('checkout.session.completed missing metadata', session.id);
         return NextResponse.json({ received: true });
       }
 
@@ -49,7 +56,7 @@ export async function POST(request: NextRequest) {
           .update({ plan: 'standard', trial_ends_at: null, updated_at: new Date().toISOString() })
           .eq('id', adminId);
         if (error) throw error;
-        debugLog(`[SH][API][BILLING] Admin ${adminId} upgraded to standard (session ${session.id})`);
+        debugLog(`Admin ${adminId} upgraded to standard (session ${session.id})`);
       } else if (product === 'addon_pool') {
         // Increment purchased add-on pools (column added by the billing migration)
         const { data: admin, error: fetchError } = await supabase
@@ -65,7 +72,7 @@ export async function POST(request: NextRequest) {
           .update({ addon_pools: current + quantity, updated_at: new Date().toISOString() })
           .eq('id', adminId);
         if (error) throw error;
-        debugLog(`[SH][API][BILLING] Admin ${adminId} added ${quantity} add-on pool(s) (session ${session.id})`);
+        debugLog(`Admin ${adminId} added ${quantity} add-on pool(s) (session ${session.id})`);
       }
 
       // Best-effort payment record — the payments table is part of the
@@ -82,13 +89,13 @@ export async function POST(request: NextRequest) {
           status: 'completed',
         });
       } catch (recordError) {
-        debugError('[SH][API][BILLING] Failed to record payment (plan update already applied):', recordError);
+        debugError('Failed to record payment (plan update already applied):', recordError);
       }
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    debugError('[SH][API][BILLING] Webhook handler error:', error);
+    debugError('Webhook handler error:', error);
     // Non-2xx makes Stripe retry the event, which is what we want on DB failure
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }

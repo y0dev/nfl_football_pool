@@ -42,13 +42,13 @@ export async function POST(request: NextRequest) {
         await emailService.sendPromotionEmail(target.email, target.full_name || 'Commissioner');
         sent++;
       } catch (e) {
-        debugError('[SH][API][ADMIN] Promo email failed for:', target.email, e);
+        debugError('Promo email failed for:', target.email, e);
       }
     }
 
     return NextResponse.json({ success: true, sent, total: targets.length });
   } catch (e) {
-    debugError('[SH][API][ADMIN] Send promotion error:', e);
+    debugError('Send promotion error:', e);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

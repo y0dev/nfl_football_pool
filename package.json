@@ -31,7 +31,10 @@
     "test:email": "node scripts/test-email.mjs",
     "close-season": "tsx scripts/close-season.ts",
     "close-season:dry": "tsx scripts/close-season.ts --dry-run",
-    "migrate-plan": "tsx scripts/add-plan-columns.ts"
+    "migrate-plan": "tsx scripts/add-plan-columns.ts",
+    "transfer-pool": "tsx scripts/transfer-pool-to-commissioner.ts",
+    "backfill-pool-roster": "tsx scripts/backfill-pool-participants-to-roster.ts",
+    "cleanup-stale-pro-plan": "tsx scripts/cleanup-stale-pro-plan.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -369,7 +369,7 @@ export async function getPoolParticipants(poolId: string) {
 }
 
 // Add participant to pool
-export async function addParticipantToPool(poolId: string, name: string, email?: string) {
+export async function addParticipantToPool(poolId: string, name: string, email?: string, huddleMemberId?: string) {
   try {
     // Get the service role client to bypass RLS policies
     const { getSupabaseServiceClient } = await import('@/lib/supabase');
@@ -410,7 +410,8 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
         pool_id: poolId,
         name: name.trim(),
         email: email?.trim() || null,
-        is_active: true
+        is_active: true,
+        huddle_member_id: huddleMemberId ?? null
       })
       .select()
       .single();
@@ -451,19 +452,21 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
         const { emailService } = await import('@/lib/email');
         const { data: poolData } = await supabase
           .from('pools')
-          .select('name')
+          .select('name, huddles(name)')
           .eq('id', poolId)
           .single();
 
         if (poolData) {
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
           const poolLink = `${baseUrl}/pool/${poolId}/picks`;
-          
+          const huddleName = (poolData.huddles as unknown as { name: string } | null)?.name;
+
           await emailService.sendPoolInvitation(
             participant.email,
             participant.name,
             poolData.name,
-            poolLink
+            poolLink,
+            huddleName
           );
         }
       } catch (emailError) {

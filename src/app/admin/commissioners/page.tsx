@@ -37,7 +37,7 @@ const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 function planColor(plan: string) {
   if (plan === 'pro')      return greenHi;
@@ -572,8 +572,8 @@ function CommissionersManagementContent() {
                 ))}
               </div>
               <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
-                {planSelected === 'free' && '1 pool · 15 participants per pool'}
-                {planSelected === 'standard' && '1 pool · 30 participants per pool'}
+                {planSelected === 'free' && '2 pools · 15 participants per pool'}
+                {planSelected === 'standard' && '2 pools · 30 participants per pool'}
                 {planSelected === 'pro' && '3 pools · 75 participants per pool'}
               </p>
             </div>

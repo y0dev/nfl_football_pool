@@ -12,6 +12,7 @@ import { addParticipantToPool } from '@/actions/adminActions';
 import { useAuth } from '@/lib/auth';
 import { isPricingVisible } from '@/lib/billing';
 import { DEFAULT_POOL_SEASON, PERIOD_WEEKS, SEASON_SCOPE_OPTIONS, debugError, debugWarn} from '@/lib/utils';
+import { POOL_TYPES, DEFAULT_COMPETITION_TYPE, CompetitionType } from '@/lib/poolTypes';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -30,6 +31,7 @@ const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color
 const poolSchema = z.object({
   name: z.string().min(3, 'Pool name must be at least 3 characters'),
   season: z.number().min(2020, 'Season must be 2020 or later'),
+  competition_type: z.custom<CompetitionType>(),
   pool_type: z.literal('normal'),
   season_scope: z.string(),
   join_password: z.string().optional(),
@@ -42,9 +44,14 @@ interface CreatePoolDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPoolCreated: () => void;
+  leagueName?: string;
+  /** Target Huddle for the new pool. Omit to fall back to the commissioner's
+   * first/primary Huddle — pass this explicitly whenever the caller has a
+   * specific Huddle in view (e.g. a commissioner with more than one). */
+  huddleId?: string;
 }
 
-export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePoolDialogProps) {
+export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName, huddleId }: CreatePoolDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [limitReached, setLimitReached] = useState(false);
@@ -53,7 +60,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
 
   const form = useForm<PoolFormData>({
     resolver: zodResolver(poolSchema),
-    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, pool_type: 'normal' as const, season_scope: 'regular', join_password: '', is_private: false },
+    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, competition_type: DEFAULT_COMPETITION_TYPE, pool_type: 'normal' as const, season_scope: 'regular', join_password: '', is_private: false },
   });
 
   async function onSubmit(data: PoolFormData) {
@@ -67,10 +74,12 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         name: data.name,
         created_by: user.email || '',
         season: data.season,
+        competition_type: data.competition_type,
         pool_type: data.pool_type,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         join_password: data.join_password || undefined,
         is_private: data.is_private,
+        huddle_id: huddleId,
       });
 
       if (!result.success) {
@@ -84,7 +93,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
         try {
           await addParticipantToPool(pool.id as string, user.full_name || user.email, user.email);
         } catch (selfError) {
-          debugWarn('[SH][UI][POOL] Could not add commissioner as participant:', selfError);
+          debugWarn('Could not add commissioner as participant:', selfError);
         }
       }
 
@@ -105,12 +114,42 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated }: CreatePo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent style={{ maxWidth: '30rem', background: card, border: `1px solid ${border}` }}>
         <DialogHeader>
-          <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Create New Confidence Pool</DialogTitle>
-          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.25rem' }}>Set up a new confidence pool for the current season.</DialogDescription>
+          <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Create New Pool</DialogTitle>
+          <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.25rem' }}>
+            {leagueName ? <>Set up a new pool inside <strong style={{ color: textMid }}>{leagueName}</strong> for the current season.</> : 'Set up a new pool inside your League for the current season.'}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <FormField
+              control={form.control}
+              name="competition_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel style={labelStyle}>Competition Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, height: '2.25rem', fontSize: '0.875rem', marginTop: '0.35rem' }}>
+                        <SelectValue placeholder="Select competition type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent style={{ background: card, border: `1px solid ${border}`, color: text, zIndex: 9999 }}>
+                      {POOL_TYPES.map(pt => (
+                        <SelectItem key={pt.id} value={pt.id} disabled={!pt.available}>
+                          {pt.label}{!pt.available ? ' (Coming Soon)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                    {POOL_TYPES.find(pt => pt.id === form.watch('competition_type'))?.description ?? 'The kind of competition this pool runs.'}
+                  </FormDescription>
+                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="name"
