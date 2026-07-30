@@ -25,6 +25,20 @@ export type ClonePoolResult =
  * scratch, gated the same way other multi-pool conveniences are.
  */
 export async function clonePool(poolId: string, callerEmail: string, newName?: string): Promise<ClonePoolResult> {
+  return performClone(poolId, callerEmail, newName, false);
+}
+
+/**
+ * Super-admin variant: clones a pool on behalf of its owning commissioner
+ * (a super admin can already see every account, same rationale as
+ * transferPoolToCommissioner). Plan and capacity are evaluated against the
+ * pool's actual owner, not the calling admin.
+ */
+export async function adminClonePool(poolId: string, callerEmail: string, newName?: string): Promise<ClonePoolResult> {
+  return performClone(poolId, callerEmail, newName, true);
+}
+
+async function performClone(poolId: string, callerEmail: string, newName: string | undefined, asSuperAdmin: boolean): Promise<ClonePoolResult> {
   try {
     const supabase = getSupabaseServiceClient();
 
@@ -34,11 +48,25 @@ export async function clonePool(poolId: string, callerEmail: string, newName?: s
       .eq('id', poolId)
       .maybeSingle();
 
-    if (!source || source.created_by !== callerEmail) {
+    if (!source) {
+      return { success: false, error: 'Pool not found.' };
+    }
+
+    if (asSuperAdmin) {
+      const { data: caller } = await supabase
+        .from('admins')
+        .select('is_super_admin, is_active')
+        .eq('email', callerEmail)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!caller?.is_super_admin) {
+        return { success: false, error: 'Insufficient permissions.' };
+      }
+    } else if (source.created_by !== callerEmail) {
       return { success: false, error: 'Pool not found for your account.' };
     }
 
-    const planInfo = await getAdminPlanByEmail(callerEmail);
+    const planInfo = await getAdminPlanByEmail(source.created_by);
     if (planInfo.plan !== 'standard') {
       return { success: false, error: 'Cloning pools requires the Standard plan.' };
     }

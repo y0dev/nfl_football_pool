@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Trophy, Users, Plus, LogOut, RefreshCw, Search,
-  ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight,
+  ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight, Copy,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -47,6 +47,8 @@ interface Pool {
   huddle_id: string | null;
   huddles: { name: string } | null;
   participants: { count: number }[];
+  cloneEligible?: boolean;
+  cloneIneligibleReason?: string;
 }
 
 function AdminPoolsContent() {
@@ -68,6 +70,7 @@ function AdminPoolsContent() {
   const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [page, setPage] = useState(0);
+  const [cloningPoolId, setCloningPoolId] = useState<string | null>(null);
 
   const loadPools = async () => {
     try {
@@ -161,6 +164,31 @@ function AdminPoolsContent() {
       toast({ title: 'Error', description: 'Failed to transfer pool', variant: 'destructive' });
     } finally {
       setIsTransferring(false);
+    }
+  };
+
+  const handleClonePool = async (pool: Pool) => {
+    setCloningPoolId(pool.id);
+    try {
+      const res = await fetch('/api/admin/clone-pool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
+        body: JSON.stringify({ poolId: pool.id }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        toast({ title: 'Clone Failed', description: data.error ?? 'Failed to clone pool', variant: 'destructive' });
+        return;
+      }
+      toast({
+        title: 'Pool Cloned',
+        description: `"${data.poolName}" created with ${data.participantsCloned} participant${data.participantsCloned === 1 ? '' : 's'}.`,
+      });
+      await loadPools();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to clone pool', variant: 'destructive' });
+    } finally {
+      setCloningPoolId(null);
     }
   };
 
@@ -418,6 +446,24 @@ function AdminPoolsContent() {
                               style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
                             >
                               <ArrowLeftRight style={{ width: 12, height: 12 }} /> Transfer
+                            </button>
+                            <button
+                              onClick={() => handleClonePool(pool)}
+                              disabled={!pool.cloneEligible || cloningPoolId === pool.id}
+                              title={pool.cloneEligible ? "Clone this pool's settings and participants into a new pool for the same owner" : (pool.cloneIneligibleReason ?? 'Not eligible to clone')}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.7rem',
+                                background: 'transparent',
+                                color: pool.cloneEligible ? textMid : textDim,
+                                border: `1px solid ${border}`, borderRadius: 6,
+                                ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase',
+                                cursor: (!pool.cloneEligible || cloningPoolId === pool.id) ? 'not-allowed' : 'pointer',
+                                opacity: (!pool.cloneEligible || cloningPoolId === pool.id) ? 0.5 : 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Copy style={{ width: 12, height: 12 }} />
+                              {cloningPoolId === pool.id ? 'Cloning…' : 'Clone'}
                             </button>
                             <button
                               onClick={() => router.push(`/admin/pool/${pool.id}`)}
