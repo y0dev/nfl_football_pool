@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { renameHuddle, setHuddleActive } from '@/actions/huddles';
@@ -82,6 +82,7 @@ export function LeagueManager({
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferEmail, setTransferEmail] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -105,6 +106,14 @@ export function LeagueManager({
   }, [huddleId, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(m =>
+      m.name.toLowerCase().includes(q) || (m.email ?? '').toLowerCase().includes(q)
+    );
+  }, [members, memberSearch]);
 
   const handleRename = async () => {
     const result = await renameHuddle(huddleId, nameDraft);
@@ -303,9 +312,22 @@ export function LeagueManager({
       {/* ── ROSTER ── */}
       <section style={{ background: bg, padding: '2.5rem 0' }}>
         <div className="lp-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
-            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>League Roster ({members.length})</h2>
+            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
+              League Roster ({memberSearch.trim() ? `${filteredMembers.length} of ${members.length}` : members.length})
+            </h2>
+            {members.length > 5 && (
+              <div style={{ position: 'relative', marginLeft: 'auto', flex: '0 1 240px', minWidth: 180 }}>
+                <Search style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: textDim }} />
+                <input
+                  placeholder="Filter roster…"
+                  value={memberSearch}
+                  onChange={e => setMemberSearch(e.target.value)}
+                  style={{ ...inputStyle, width: '100%', paddingLeft: '1.85rem' }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '0.4rem' }}>
@@ -332,9 +354,14 @@ export function LeagueManager({
               <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
               <p style={{ ...b, color: textDim, fontSize: '0.85rem' }}>No members yet. Add people to the League roster, then assign them into pools below.</p>
             </div>
+          ) : filteredMembers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
+              <Search style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.75rem' }} />
+              <p style={{ ...b, color: textDim, fontSize: '0.85rem' }}>No members match &quot;{memberSearch}&quot;.</p>
+            </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {members.map(m => (
+            <div id="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '18rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
+              {filteredMembers.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '0.75rem 1rem', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ ...b, fontSize: '0.88rem', color: text, fontWeight: 600 }}>{m.name}</span>
