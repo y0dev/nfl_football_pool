@@ -32,7 +32,8 @@
     "close-season": "tsx scripts/close-season.ts",
     "close-season:dry": "tsx scripts/close-season.ts --dry-run",
     "migrate-plan": "tsx scripts/add-plan-columns.ts",
-    "transfer-pool": "tsx scripts/transfer-pool-to-commissioner.ts"
+    "transfer-pool": "tsx scripts/transfer-pool-to-commissioner.ts",
+    "backfill-pool-roster": "tsx scripts/backfill-pool-participants-to-roster.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
