@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Trophy, Users, Plus, LogOut, RefreshCw, Search,
-  ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight,
+  ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +31,8 @@ const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+const PAGE_SIZE = 5;
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
@@ -65,6 +67,7 @@ function AdminPoolsContent() {
   const [transferEmail, setTransferEmail] = useState('');
   const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [page, setPage] = useState(0);
 
   const loadPools = async () => {
     try {
@@ -186,16 +189,21 @@ function AdminPoolsContent() {
     inactive: pools.filter(p => !p.is_active).length,
   }), [pools]);
 
+  useEffect(() => { setPage(0); }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   const groupedByLeague = useMemo(() => {
     const groups = new Map<string, { leagueName: string; huddleId: string | null; pools: Pool[] }>();
-    for (const pool of filtered) {
+    for (const pool of paginated) {
       const key = pool.huddle_id ?? 'none';
       const leagueName = pool.huddles?.name ?? 'No League';
       if (!groups.has(key)) groups.set(key, { leagueName, huddleId: pool.huddle_id, pools: [] });
       groups.get(key)!.pools.push(pool);
     }
     return [...groups.values()].sort((a, b2) => a.leagueName.localeCompare(b2.leagueName));
-  }, [filtered]);
+  }, [paginated]);
 
   if (isLoading) {
     return (
@@ -320,6 +328,12 @@ function AdminPoolsContent() {
             </div>
           </div>
 
+          {filtered.length > 0 && (
+            <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginBottom: '1rem', marginTop: '-0.75rem' }}>
+              Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </p>
+          )}
+
           {/* pool cards, grouped by League */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {filtered.length === 0 ? (
@@ -421,6 +435,35 @@ function AdminPoolsContent() {
               ))
             )}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0.6rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, color: page === 0 ? textDim : textMid, cursor: page === 0 ? 'not-allowed' : 'pointer', opacity: page === 0 ? 0.4 : 1 }}
+              >
+                <ChevronLeft style={{ width: 14, height: 14 }} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPage(i)}
+                  style={{ minWidth: '2rem', padding: '0.4rem 0.5rem', background: page === i ? green : 'transparent', border: `1px solid ${page === i ? green : border}`, borderRadius: 5, color: page === i ? text : textMid, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem' }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+                style={{ display: 'flex', alignItems: 'center', padding: '0.4rem 0.6rem', background: 'transparent', border: `1px solid ${border}`, borderRadius: 5, color: page === totalPages - 1 ? textDim : textMid, cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', opacity: page === totalPages - 1 ? 0.4 : 1 }}
+              >
+                <ChevronRight style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

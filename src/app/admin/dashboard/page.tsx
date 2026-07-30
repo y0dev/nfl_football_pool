@@ -21,8 +21,6 @@ import {
   Check,
   Zap,
   Clock,
-  ShieldCheck,
-  ShieldOff,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -37,7 +35,7 @@ import { ExportData } from '@/components/admin/export-data';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { PoolWorkspace } from '@/components/pools/pool-workspace';
-import { loadHuddleForCommissioner, loadAllHuddlesForSuperAdmin, setHuddleActive, LeagueDirectoryEntry } from '@/actions/huddles';
+import { loadHuddleForCommissioner } from '@/actions/huddles';
 import { loadPools as loadMyPools } from '@/actions/loadPools';
 
 // Design tokens — match landing page exactly
@@ -213,8 +211,6 @@ function AdminDashboardContent() {
   const [leagueName, setLeagueName] = useState<string>('');
   const [leagueId, setLeagueId] = useState<string>('');
   const [myPoolCount, setMyPoolCount] = useState(0);
-  const [allLeagues, setAllLeagues] = useState<LeagueDirectoryEntry[]>([]);
-  const [allLeaguesLoading, setAllLeaguesLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState<Array<{
     type: 'pool_created' | 'participant_joined' | 'picks_submitted';
     description: string;
@@ -310,10 +306,6 @@ function AdminDashboardContent() {
               loadMyPools(user.email)
                 .then(mine => setMyPoolCount(mine.length))
                 .catch(err => debugError('Failed to load own pool count:', err));
-              loadAllHuddlesForSuperAdmin(user.email)
-                .then(setAllLeagues)
-                .catch(err => debugError('Failed to load League directory:', err))
-                .finally(() => setAllLeaguesLoading(false));
             }
           } catch (error) {
             debugLog('Error verifying admin status:', error);
@@ -511,18 +503,6 @@ function AdminDashboardContent() {
     setNotifications(n);
   };
 
-  const handleToggleLeagueActive = async (league: LeagueDirectoryEntry) => {
-    if (!user?.email) return;
-    const next = !league.isActive;
-    const result = await setHuddleActive(league.id, next, user.email);
-    if (!result.success) {
-      toast({ title: 'Error', description: result.error, variant: 'destructive' });
-      return;
-    }
-    setAllLeagues(prev => prev.map(l => l.id === league.id ? { ...l, isActive: next } : l));
-    toast({ title: next ? 'League Activated' : 'League Deactivated', description: league.name });
-  };
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -610,7 +590,6 @@ function AdminDashboardContent() {
   const weekTitle = currentSeasonType === 0 ? 'Offseason' : `Week ${currentWeek} - ${seasonLabel}`;
 
   const statItems = [
-    { label: 'Leagues',        value: allLeagues.length,                                   sub: 'In the database' },
     { label: 'Total Pools',    value: dashboardStats.totalPools,                          sub: `${dashboardStats.activePools} active` },
     { label: 'Participants',   value: dashboardStats.totalParticipants,                    sub: 'Across all pools' },
     { label: 'Admins',         value: admins.filter(a => a.is_super_admin).length,         sub: 'System administrators' },
@@ -1157,11 +1136,10 @@ function AdminDashboardContent() {
         </div>
       </section>
 
-      {/* -- ALL LEAGUES (every League in the database — super-admin directory) -- */}
-      <section id="all-leagues-section" style={{ background: surface, padding: '2.5rem 0 0' }}>
-        <div id="all-leagues" className="lp-inner">
+      {/* -- YOUR LEAGUE -- */}
+      <section id="your-league-section" style={{ background: surface, padding: '2.5rem 0 0' }}>
+        <div id="your-league" className="lp-inner">
 
-          {/* Your League — highlighted at the top of the directory */}
           {leagueName && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
@@ -1199,68 +1177,6 @@ function AdminDashboardContent() {
                   <Users style={{ width: 12, height: 12 }} /> Manage League
                 </button>
               </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            <span style={{ display: 'block', width: 3, height: 24, background: green, borderRadius: 2, flexShrink: 0 }} />
-            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.25rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>
-              All Leagues
-            </h2>
-            <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{allLeagues.length} in the database</span>
-          </div>
-
-          {allLeaguesLoading ? (
-            <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading leagues…</p>
-          ) : allLeagues.length === 0 ? (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
-              <Users style={{ width: 24, height: 24, color: textDim, margin: '0 auto 0.75rem' }} />
-              <p style={{ ...b, fontSize: '0.85rem', color: textDim }}>No Leagues found.</p>
-            </div>
-          ) : (
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-              {allLeagues.map((league, i) => (
-                <div
-                  key={league.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
-                    padding: '0.9rem 1.25rem',
-                    borderTop: i === 0 ? 'none' : `1px solid ${border}`,
-                    opacity: league.isActive ? 1 : 0.6,
-                  }}
-                >
-                  <Trophy style={{ width: 15, height: 15, color: gold, flexShrink: 0 }} />
-                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.88rem', color: text, minWidth: 0, flex: '1 1 200px' }}>{league.name}</span>
-                  <span style={{ ...b, fontSize: '0.78rem', color: textDim, flex: '1 1 220px' }}>{league.commissionerEmail}</span>
-                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em', color: greenHi, background: 'oklch(46% 0.14 155 / 0.15)', padding: '0.2rem 0.55rem', borderRadius: 999, textTransform: 'uppercase', flexShrink: 0 }}>
-                    {league.poolCount} pool{league.poolCount === 1 ? '' : 's'}
-                  </span>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                    ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: league.isActive ? greenHi : textDim,
-                    background: league.isActive ? 'oklch(46% 0.14 155 / 0.15)' : 'oklch(26% 0.03 255 / 0.6)',
-                    padding: '0.15rem 0.4rem', borderRadius: 4, flexShrink: 0,
-                  }}>
-                    {league.isActive ? <ShieldCheck style={{ width: 9, height: 9 }} /> : <ShieldOff style={{ width: 9, height: 9 }} />}
-                    {league.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                    <button
-                      onClick={() => handleToggleLeagueActive(league)}
-                      style={{ padding: '0.35rem 0.65rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-                    >
-                      {league.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      onClick={() => router.push(`/admin/league/${league.id}`)}
-                      style={{ padding: '0.35rem 0.65rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-                    >
-                      Manage
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>
