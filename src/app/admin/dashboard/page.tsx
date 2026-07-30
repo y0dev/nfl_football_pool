@@ -232,6 +232,7 @@ function AdminDashboardContent() {
   const [gamesWeek, setGamesWeek]             = useState(1);
   const [gamesByWeek, setGamesByWeek]         = useState<{ week: number; games: WeekGame[] }[]>([]);
   const [gamesListLoading, setGamesListLoading] = useState(false);
+  const [teamRecordsByAbbr, setTeamRecordsByAbbr] = useState<Record<string, { wins: number; losses: number; ties: number }>>({});
   const gamesToggleSeeded = useRef(false);
 
   // Seed the games browser to "this week" once real season/week data loads, then
@@ -260,6 +261,28 @@ function AdminDashboardContent() {
     };
     loadGamesForSeason();
   }, [gamesSeasonYear, gamesSeasonType]);
+
+  // Season records for the teams shown in the games list below — keyed by
+  // lowercased abbreviation to match getTeamAbbreviation()'s output.
+  useEffect(() => {
+    const loadTeamRecords = async () => {
+      try {
+        const res = await fetch(`/api/team-records?season=${gamesSeasonYear}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.records)) {
+          const byAbbr: Record<string, { wins: number; losses: number; ties: number }> = {};
+          for (const r of data.records) {
+            if (!r.team_abbreviation) continue;
+            byAbbr[r.team_abbreviation] = { wins: r.wins ?? 0, losses: r.losses ?? 0, ties: r.ties ?? 0 };
+          }
+          setTeamRecordsByAbbr(byAbbr);
+        }
+      } catch (err) {
+        debugError('Error loading team records:', err);
+      }
+    };
+    loadTeamRecords();
+  }, [gamesSeasonYear]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -1057,7 +1080,7 @@ function AdminDashboardContent() {
                 <p style={{ ...b, fontSize: '0.85rem', color: textDim }}>No games scheduled for Week {gamesWeek}.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <div id="games-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '21rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
                 {gamesForSelectedWeek.map(g => {
                   const away = getTeam(getTeamAbbreviation(g.away_team));
                   const home = getTeam(getTeamAbbreviation(g.home_team));
@@ -1067,6 +1090,11 @@ function AdminDashboardContent() {
                   const winnerCity = g.winner ? getTeam(getTeamAbbreviation(g.winner)).city : null;
                   let kickoffLabel = '';
                   try { kickoffLabel = format(new Date(g.kickoff_time), 'EEE MMM d, h:mm a'); } catch { kickoffLabel = g.kickoff_time; }
+
+                  const awayRecord = teamRecordsByAbbr[getTeamAbbreviation(g.away_team).toLowerCase()];
+                  const homeRecord = teamRecordsByAbbr[getTeamAbbreviation(g.home_team).toLowerCase()];
+                  const formatRecord = (r?: { wins: number; losses: number; ties: number }) =>
+                    r ? ` (${r.wins}-${r.losses}${r.ties ? `-${r.ties}` : ''})` : '';
 
                   return (
                     <div
@@ -1085,7 +1113,7 @@ function AdminDashboardContent() {
                         {home.abbreviation}
                       </div>
                       <p style={{ ...b, fontSize: '0.85rem', color: text, flex: 1, minWidth: 0 }}>
-                        {away.city} at {home.city}
+                        {away.city}<span style={{ color: textDim, fontSize: '0.75rem' }}>{formatRecord(awayRecord)}</span> at {home.city}<span style={{ color: textDim, fontSize: '0.75rem' }}>{formatRecord(homeRecord)}</span>
                       </p>
                       <div style={{ flexShrink: 0, textAlign: 'right' }}>
                         {isFinal && winnerCity ? (
@@ -1344,7 +1372,7 @@ function AdminDashboardContent() {
 
           <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
             {filteredActivity.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '21rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
                 {filteredActivity.map((activity, index) => (
                   <div
                     key={index}

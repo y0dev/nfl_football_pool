@@ -755,7 +755,7 @@ function CommissionerDashboardContent() {
             <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '1rem' }}>
               Latest updates and notifications
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '21rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
               {recentActivity.length > 0 ? (
                 recentActivity.map((activity, index) => (
                   <div
