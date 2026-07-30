@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Plus, X, Pencil, ShieldCheck, ShieldOff, UserPlus, ArrowLeftRight, Search, Trash2, Copy } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { renameHuddle, setHuddleActive, deleteHuddle } from '@/actions/huddles';
@@ -11,6 +11,7 @@ import { loadHuddleMembers, addHuddleMember, removeHuddleMember, addHuddleMember
 import { loadPoolsByHuddleId } from '@/actions/loadPools';
 import { getPoolParticipants, removeParticipantFromPool } from '@/actions/adminActions';
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
+import { clonePool } from '@/actions/clonePool';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { debugError } from '@/lib/utils';
@@ -89,6 +90,7 @@ export function LeagueManager({
   const [deleteHuddleConfirmation, setDeleteHuddleConfirmation] = useState('');
   const [deleteCascadePools, setDeleteCascadePools] = useState(false);
   const [isDeletingHuddle, setIsDeletingHuddle] = useState(false);
+  const [cloningPoolId, setCloningPoolId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -166,6 +168,25 @@ export function LeagueManager({
       onBack();
     } finally {
       setIsDeletingHuddle(false);
+    }
+  };
+
+  const handleClonePool = async (pool: PoolRow) => {
+    if (!user?.email) return;
+    setCloningPoolId(pool.id);
+    try {
+      const result = await clonePool(pool.id, user.email);
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      toast({
+        title: 'Pool Cloned',
+        description: `"${result.poolName}" created with ${result.participantsCloned} participant${result.participantsCloned === 1 ? '' : 's'}.`,
+      });
+      await load();
+    } finally {
+      setCloningPoolId(null);
     }
   };
 
@@ -453,9 +474,20 @@ export function LeagueManager({
                       }}>
                         {pool.is_active ? 'Active' : 'Inactive'}
                       </span>
+                      {!isAdminView && (
+                        <button
+                          onClick={() => handleClonePool(pool)}
+                          disabled={cloningPoolId === pool.id}
+                          title="Clone this pool's settings and participants into a new pool (Standard plan)"
+                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: cloningPoolId === pool.id ? 'not-allowed' : 'pointer', opacity: cloningPoolId === pool.id ? 0.6 : 1 }}
+                        >
+                          <Copy style={{ width: 12, height: 12 }} />
+                          {cloningPoolId === pool.id ? 'Cloning…' : 'Clone'}
+                        </button>
+                      )}
                       <button
                         onClick={() => router.push(`/league/pool/${pool.id}`)}
-                        style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                        style={{ marginLeft: isAdminView ? 'auto' : undefined, display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
                       >
                         Manage Pool
                       </button>
