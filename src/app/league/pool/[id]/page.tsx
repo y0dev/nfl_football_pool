@@ -31,6 +31,7 @@ interface PoolRecord {
   created_by: string;
   season: number;
   season_scope?: number[];
+  huddle_id?: string | null;
 }
 
 function PoolManageContent() {
@@ -44,6 +45,7 @@ function PoolManageContent() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [pool, setPool] = useState<PoolRecord | null>(null);
   const [authorized, setAuthorized] = useState(false);
+  const [isSuperAdminViewer, setIsSuperAdminViewer] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
 
@@ -56,6 +58,8 @@ function PoolManageContent() {
           verifyAdminStatus(true),
           getUpcomingWeek(),
         ]);
+
+        setIsSuperAdminViewer(isSuperAdmin);
 
         if (!poolData) {
           setPool(null);
@@ -75,6 +79,19 @@ function PoolManageContent() {
     };
     load();
   }, [poolId, user?.email, verifyAdminStatus, toast]);
+
+  // A commissioner viewing their own pool goes back to that pool's own
+  // Huddle. A super admin browsing someone else's pool (the common case
+  // when they got here via /admin/pools) goes back to that Huddle's admin
+  // view instead — not the admin's own League, which is unrelated to
+  // whatever pool they were just looking at.
+  const isOwner = !!pool && user?.email === pool.created_by;
+  const backTarget = pool
+    ? (isOwner
+        ? (pool.huddle_id ? `/league/${pool.huddle_id}` : '/league')
+        : (pool.huddle_id ? `/admin/league/${pool.huddle_id}` : '/admin/pools'))
+    : (isSuperAdminViewer ? '/admin/pools' : '/league');
+  const backLabel = isOwner ? 'Your League' : 'All Pools';
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -99,10 +116,10 @@ function PoolManageContent() {
             {pool ? "You don't have access to this pool" : 'Pool not found'}
           </p>
           <button
-            onClick={() => router.push('/league')}
+            onClick={() => router.push(backTarget)}
             style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
-            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to Your League
+            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to {backLabel}
           </button>
         </div>
       </div>
@@ -116,8 +133,8 @@ function PoolManageContent() {
         <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button onClick={() => router.push('/league')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
-                <ArrowLeft style={{ width: 12, height: 12 }} /> Your League
+              <button onClick={() => router.push(backTarget)} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
+                <ArrowLeft style={{ width: 12, height: 12 }} /> {backLabel}
               </button>
               <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
@@ -144,7 +161,7 @@ function PoolManageContent() {
             seasonScope={pool.season_scope}
             currentWeek={currentWeek}
             currentSeasonType={currentSeasonType}
-            onPoolDeleted={() => router.push('/league')}
+            onPoolDeleted={() => router.push(backTarget)}
           />
         </div>
       </section>
