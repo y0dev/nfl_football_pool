@@ -7,9 +7,13 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard, Calendar, Save } from 'lucide-react';
 import Link from 'next/link';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { loadSeasonSettings, updateSeasonSettings } from '@/actions/seasonSettings';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -30,6 +34,13 @@ const labelSt: React.CSSProperties = { ...bc, fontSize: '0.68rem', fontWeight: 7
 const inputSt: React.CSSProperties = { ...b, background: bg, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem' };
 const cardSt: React.CSSProperties = { background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' };
 const sectionTitle: React.CSSProperties = { ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '1.25rem' };
+
+const SEASON_TYPES = [
+  { value: 0, label: 'Offseason' },
+  { value: 1, label: 'Preseason' },
+  { value: 2, label: 'Regular Season' },
+  { value: 3, label: 'Postseason' },
+];
 
 function PasswordInput({ value, onChange, placeholder, autoComplete }: { value: string; onChange: (v: string) => void; placeholder?: string; autoComplete?: string }) {
   const [show, setShow] = useState(false);
@@ -57,8 +68,66 @@ function PasswordInput({ value, onChange, placeholder, autoComplete }: { value: 
 function AccountSettingsContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [isOAuthAccount, setIsOAuthAccount] = useState<boolean | null>(null);
+
+  // Season Settings (super-admin only, system-wide — folded in here instead
+  // of its own /admin/season-settings page to keep the dashboard navbar lean)
+  const [seasonYear, setSeasonYear] = useState(getNFLSeasonYear());
+  const [seasonSettingsLoading, setSeasonSettingsLoading] = useState(true);
+  const [seasonSettingsSaving, setSeasonSettingsSaving] = useState(false);
+  const [preseasonStartDate, setPreseasonStartDate] = useState('');
+  const [regularSeasonStartDate, setRegularSeasonStartDate] = useState('');
+  const [postseasonStartDate, setPostseasonStartDate] = useState('');
+  const [currentWeek, setCurrentWeek] = useState(1);
+  const [currentSeasonType, setCurrentSeasonType] = useState(0);
+  const [seasonOver, setSeasonOver] = useState(false);
+
+  useEffect(() => {
+    if (!user?.is_super_admin) return;
+    let cancelled = false;
+    setSeasonSettingsLoading(true);
+    loadSeasonSettings(seasonYear)
+      .then(settings => {
+        if (cancelled) return;
+        setPreseasonStartDate(settings.preseasonStartDate?.slice(0, 10) ?? '');
+        setRegularSeasonStartDate(settings.regularSeasonStartDate?.slice(0, 10) ?? '');
+        setPostseasonStartDate(settings.postseasonStartDate?.slice(0, 10) ?? '');
+        setCurrentWeek(settings.currentWeek);
+        setCurrentSeasonType(settings.currentSeasonType);
+        setSeasonOver(settings.seasonOver);
+      })
+      .catch(error => {
+        debugError('Failed to load season settings:', error);
+        toast({ title: 'Error', description: 'Failed to load season settings.', variant: 'destructive' });
+      })
+      .finally(() => { if (!cancelled) setSeasonSettingsLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.is_super_admin, seasonYear, toast]);
+
+  const handleSaveSeasonSettings = async () => {
+    if (!user?.email) return;
+    setSeasonSettingsSaving(true);
+    try {
+      const result = await updateSeasonSettings(seasonYear, {
+        preseasonStartDate: preseasonStartDate || null,
+        regularSeasonStartDate: regularSeasonStartDate || null,
+        postseasonStartDate: postseasonStartDate || null,
+        currentWeek,
+        currentSeasonType,
+        seasonOver,
+      }, user.email);
+
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Saved', description: `Season ${seasonYear} settings updated.` });
+    } finally {
+      setSeasonSettingsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -206,6 +275,86 @@ function AccountSettingsContent() {
               </div>
             </div>
           </div>
+
+          {/* Season Settings (super admin only) */}
+          {user?.is_super_admin && (
+            <div style={cardSt}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <Calendar style={{ width: 15, height: 15, color: greenHi }} />
+                <p style={{ ...sectionTitle, marginBottom: 0 }}>Season Settings</p>
+              </div>
+              <p style={{ ...b, fontSize: '0.82rem', color: textDim, marginBottom: '1.25rem', lineHeight: 1.6 }}>
+                Controls when each season phase is considered active — used to block creating a pool scoped to a phase whose last week has already started (e.g. no new preseason-only pools once preseason week 4 has begun).
+              </p>
+
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={labelSt}>Season Year</label>
+                <input
+                  type="number"
+                  value={seasonYear}
+                  onChange={(e) => setSeasonYear(Number(e.target.value) || getNFLSeasonYear())}
+                  style={{ ...inputSt, maxWidth: 160 }}
+                />
+              </div>
+
+              {seasonSettingsLoading ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: textDim, ...b, fontSize: '0.85rem' }}>Loading…</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <label style={labelSt}>Preseason Start Date</label>
+                      <input type="date" value={preseasonStartDate} onChange={(e) => setPreseasonStartDate(e.target.value)} style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={labelSt}>Regular Season Start Date</label>
+                      <input type="date" value={regularSeasonStartDate} onChange={(e) => setRegularSeasonStartDate(e.target.value)} style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={labelSt}>Postseason Start Date</label>
+                      <input type="date" value={postseasonStartDate} onChange={(e) => setPostseasonStartDate(e.target.value)} style={inputSt} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <label style={labelSt}>Current Phase</label>
+                      <Select value={String(currentSeasonType)} onValueChange={(v) => setCurrentSeasonType(Number(v))}>
+                        <SelectTrigger style={{ background: bg, border: `1px solid ${border}`, color: text }}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SEASON_TYPES.map(t => (
+                            <SelectItem key={t.value} value={String(t.value)}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label style={labelSt}>Current Week <span style={{ textTransform: 'none', fontWeight: 400 }}>(within that phase)</span></label>
+                      <input type="number" min={1} value={currentWeek} onChange={(e) => setCurrentWeek(Number(e.target.value) || 1)} style={inputSt} />
+                    </div>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                    <Checkbox checked={seasonOver} onCheckedChange={(v) => setSeasonOver(v === true)} />
+                    <span style={{ ...b, fontSize: '0.85rem', color: text }}>Season is over</span>
+                  </label>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={handleSaveSeasonSettings}
+                      disabled={seasonSettingsSaving}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: seasonSettingsSaving ? surface : green, color: seasonSettingsSaving ? textDim : text, border: 'none', borderRadius: 6, cursor: seasonSettingsSaving ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                    >
+                      <Save style={{ width: 13, height: 13 }} />
+                      {seasonSettingsSaving ? 'Saving…' : 'Save Settings'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Plan & billing */}
           {!user?.is_super_admin && planStatus && (
