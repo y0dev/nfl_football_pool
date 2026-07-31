@@ -55,6 +55,10 @@ const faqs = [
     q: 'What\'s the point of the preseason weeks?',
     a: 'If a commissioner opts into preseason, it works like a normal pick\'em week — pick winners, assign points, see standings. It\'s just practice: preseason results don\'t count toward quarter prizes or the season championship.',
   },
+  {
+    q: 'Can a commissioner reuse a pool for a new season?',
+    a: 'Yes — commissioners on the Standard plan can clone a pool from their League page to get a head start on the next season. It copies the pool\'s settings and participants, but never last season\'s picks, scores, or standings, so it starts clean.',
+  },
 ];
 
 function FaqItem({ q, a }: { q: string; a: string }) {

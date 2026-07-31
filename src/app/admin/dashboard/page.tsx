@@ -1137,7 +1137,10 @@ function AdminDashboardContent() {
       </section>
 
       {/* -- YOUR LEAGUE -- */}
-      <section id="your-league-section" style={{ background: surface, padding: '2.5rem 0 0' }}>
+      {/* bg (not surface) — pairs with Week Scoreboard above it, and gives
+          Pool Workspace below its own surface-colored section boundary
+          instead of the two bleeding into one undifferentiated block. */}
+      <section id="your-league-section" style={{ background: bg, padding: '2.5rem 0' }}>
         <div id="your-league" className="lp-inner">
 
           {leagueName && (
