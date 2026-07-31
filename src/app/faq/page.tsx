@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, ChevronDown } from 'lucide-react';
+import { Shield, Plus, ChevronDown } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { isPricingVisible } from '@/lib/billing';
@@ -54,6 +54,10 @@ const faqs = [
   {
     q: 'What\'s the point of the preseason weeks?',
     a: 'If a commissioner opts into preseason, it works like a normal pick\'em week — pick winners, assign points, see standings. It\'s just practice: preseason results don\'t count toward quarter prizes or the season championship.',
+  },
+  {
+    q: 'Can a commissioner reuse a pool for a new season?',
+    a: 'Yes — commissioners on the Standard plan can clone a pool from their League page to get a head start on the next season. It copies the pool\'s settings and participants, but never last season\'s picks, scores, or standings, so it starts clean.',
   },
 ];
 
@@ -127,7 +131,7 @@ export default function FaqPage() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                 <button
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/login')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                     padding: '0.45rem 0.9rem',
@@ -138,8 +142,8 @@ export default function FaqPage() {
                     cursor: 'pointer', whiteSpace: 'nowrap',
                   }}
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span className="pools-nav-label">Home</span>
+                  <Shield className="h-3.5 w-3.5" />
+                  <span className="pools-nav-label">Sign In</span>
                 </button>
                 <button
                   onClick={() => router.push('/register')}

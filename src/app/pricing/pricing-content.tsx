@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Check } from 'lucide-react';
+import { Shield, Plus, Check } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { PriceTag } from '@/components/pricing/price-tag';
@@ -97,7 +97,7 @@ export default function PricingContent() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                 <button
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/login')}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                     padding: '0.45rem 0.9rem',
@@ -108,8 +108,8 @@ export default function PricingContent() {
                     cursor: 'pointer', whiteSpace: 'nowrap',
                   }}
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span className="pools-nav-label">Home</span>
+                  <Shield className="h-3.5 w-3.5" />
+                  <span className="pools-nav-label">Sign In</span>
                 </button>
                 <button
                   onClick={() => router.push('/register')}
