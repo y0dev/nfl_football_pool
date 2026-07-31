@@ -79,7 +79,12 @@ function LoginContent() {
       setLoginError('An account with this email already exists. Please sign in instead.');
     } else if (oauthError === 'oauth-failed') {
       setLoginError('Google sign-in failed. Please try again.');
+    } else if (oauthError === 'wrong-auth-method') {
+      const message = 'This account was created with an email and password, not Google. Please sign in below using your email and password instead.';
+      setLoginError(message);
+      toast({ title: 'Use Email & Password', description: message, variant: 'destructive' });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const verifyCalledRef = useRef(false);

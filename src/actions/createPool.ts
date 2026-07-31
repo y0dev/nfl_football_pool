@@ -24,6 +24,8 @@ export async function createPool(poolData: {
   /** Target Huddle for this pool. Omit to fall back to the commissioner's
    * first/primary Huddle (single-Huddle callers). Must belong to created_by. */
   huddle_id?: string;
+  /** Per-competition-type config (e.g. survivor's "no repeat picks" rule). Defaults to '{}'. */
+  type_settings?: Record<string, unknown>;
 }): Promise<CreatePoolResult> {
   try {
     const competitionType = poolData.competition_type ?? DEFAULT_COMPETITION_TYPE;
@@ -99,6 +101,7 @@ export async function createPool(poolData: {
         is_private: poolData.is_private ?? false,
         season_scope: poolData.season_scope ?? [2],
         ...(poolData.join_password ? { join_password: poolData.join_password } : {}),
+        ...(poolData.type_settings ? { type_settings: poolData.type_settings } : {}),
       })
       .select()
       .single();

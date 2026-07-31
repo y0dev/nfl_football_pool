@@ -91,6 +91,7 @@ export function LeagueManager({
   const [deleteCascadePools, setDeleteCascadePools] = useState(false);
   const [isDeletingHuddle, setIsDeletingHuddle] = useState(false);
   const [cloningPoolId, setCloningPoolId] = useState<string | null>(null);
+  const [isFreePlan, setIsFreePlan] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +115,26 @@ export function LeagueManager({
   }, [huddleId, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Clone is a Standard-plan feature — this only pre-emptively disables the
+  // button with an explanation; performClone() re-checks the plan
+  // server-side regardless, so a stale/failed read here is a UX nicety, not
+  // a security boundary. Not relevant in admin view (that Clone button is
+  // gated separately, per-pool, in the super-admin pools list).
+  useEffect(() => {
+    if (isAdminView || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/plan-status?adminId=${user.id}`);
+        const data = await res.json();
+        if (!cancelled) setIsFreePlan(!(data.success && data.plan !== 'free'));
+      } catch {
+        if (!cancelled) setIsFreePlan(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdminView, user?.id]);
 
   const filteredMembers = useMemo(() => {
     const q = memberSearch.trim().toLowerCase();
@@ -477,9 +498,13 @@ export function LeagueManager({
                       {!isAdminView && (
                         <button
                           onClick={() => handleClonePool(pool)}
-                          disabled={cloningPoolId === pool.id}
-                          title="Clone this pool's settings and participants into a new pool (Standard plan)"
-                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: cloningPoolId === pool.id ? 'not-allowed' : 'pointer', opacity: cloningPoolId === pool.id ? 0.6 : 1 }}
+                          disabled={cloningPoolId === pool.id || isFreePlan}
+                          title={
+                            isFreePlan
+                              ? 'Cloning a pool for next season is included with the Standard plan — upgrade to unlock it.'
+                              : "Clone this pool's settings and participants into a new pool for next season"
+                          }
+                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', background: 'transparent', color: gold, border: `1px solid color-mix(in oklch, ${gold} 40%, ${border})`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: (cloningPoolId === pool.id || isFreePlan) ? 'not-allowed' : 'pointer', opacity: (cloningPoolId === pool.id || isFreePlan) ? 0.5 : 1 }}
                         >
                           <Copy style={{ width: 12, height: 12 }} />
                           {cloningPoolId === pool.id ? 'Cloning…' : 'Clone'}

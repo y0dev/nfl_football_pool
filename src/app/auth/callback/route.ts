@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   // Check for existing admin
   const { data: existingAdmin, error: lookupError } = await serviceClient
     .from('admins')
-    .select('id, email, full_name, is_super_admin')
+    .select('id, email, full_name, is_super_admin, password_hash')
     .eq('email', email)
     .eq('is_active', true)
     .single();
@@ -57,6 +57,25 @@ export async function GET(request: NextRequest) {
   console.log('[OAuth:callback] admin lookup — found:', !!existingAdmin, '| lookupError:', lookupError?.message ?? 'none');
 
   if (existingAdmin) {
+    // This email already has an account, but it was created with an email +
+    // password (password_hash is a real bcrypt hash, not the 'google_oauth'
+    // sentinel) — don't silently sign them into it via Google. The person
+    // has already proven they own this email address (Google's own OAuth
+    // verified it), so telling them which method to use isn't an
+    // enumeration risk the way it would be on the password-login path
+    // (see loginUser.ts, which deliberately returns a generic error there).
+    if (existingAdmin.password_hash !== 'google_oauth') {
+      console.log('[OAuth:callback] existing admin uses password auth → rejecting Google sign-in');
+      // Don't leave the just-established Supabase session active for an
+      // account the person hasn't actually authenticated into at the app level.
+      await supabase.auth.signOut();
+      const response = NextResponse.redirect(`${origin}/login?error=wrong-auth-method`);
+      pendingCookies.forEach(({ name, value, options }) => {
+        response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+      });
+      return response;
+    }
+
     console.log('[OAuth:callback] existing admin → building session redirect');
     return buildSessionRedirect(origin, existingAdmin, pendingCookies, request);
   }
