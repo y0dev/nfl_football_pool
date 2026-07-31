@@ -13,7 +13,7 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
-import { getStandardPricing, getAddonPricing } from '@/lib/pricing';
+import { getStandardPrice, getAddonPoolPrice } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
 
 type Plan = 'free' | 'standard';
@@ -77,8 +77,8 @@ function UpgradeContent() {
   const [isDowngrading, setIsDowngrading] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  const standardPrice = getStandardPricing();
-  const addonPrice = getAddonPricing();
+  const standardPrice = getStandardPrice();
+  const addonPrice = getAddonPoolPrice();
   const totalAddon = extraPools * addonPrice.effective;
   const pricingVisible = isPricingVisible();
 

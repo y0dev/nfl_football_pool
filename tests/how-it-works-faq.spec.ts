@@ -55,12 +55,11 @@ test.describe('Pricing page', () => {
     await expect(page).toHaveURL(/\/register$/);
   });
 
-  test('standard plan shows sale comparison when a sale is active', async ({ page }) => {
-    // Mirrors src/lib/pricing.ts: list $50, sale from NEXT_PUBLIC_SALE_STANDARD
+  test('standard plan shows sale comparison when sale mode is active', async ({ page }) => {
+    // Mirrors src/lib/pricing.ts: list $50, sale $40, gated by NEXT_PUBLIC_SALE
     const { config } = await import('dotenv');
     config({ path: '.env.local' });
-    const saleRaw = Number(process.env.NEXT_PUBLIC_SALE_STANDARD);
-    const saleActive = Number.isFinite(saleRaw) && saleRaw > 0 && saleRaw < 50;
+    const saleActive = process.env.NEXT_PUBLIC_SALE === 'true';
 
     await page.goto('/pricing');
     await page.waitForLoadState('networkidle');
@@ -68,7 +67,7 @@ test.describe('Pricing page', () => {
     if (saleActive) {
       // Struck-through list price and the sale price shown side by side
       await expect(page.getByLabel('Regular price $50').first()).toBeVisible();
-      await expect(page.getByText(`$${saleRaw}`, { exact: true }).first()).toBeVisible();
+      await expect(page.getByText('$40', { exact: true }).first()).toBeVisible();
     } else {
       await expect(page.getByText('$50', { exact: true }).first()).toBeVisible();
     }
