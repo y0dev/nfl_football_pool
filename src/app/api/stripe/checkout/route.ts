@@ -96,6 +96,16 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
+      // Buyer pays sales tax on top of the price — Stripe Tax calculates it
+      // from the billing address Checkout collects. Requires Stripe Tax to
+      // be activated for the account (Dashboard → Settings → Tax) with at
+      // least one registration, or every jurisdiction prices at $0 tax; see
+      // the Tax section of docs/stripe-billing-setup.md.
+      // customer_update.address is required here because we're passing an
+      // existing Customer ID; without it Checkout can't collect/update the
+      // address it needs to calculate tax.
+      automatic_tax: { enabled: true },
+      customer_update: { address: 'auto', name: 'auto' },
       line_items: [{ price: priceId, quantity: qty }],
       success_url: `${baseUrl}/upgrade?checkout=success`,
       cancel_url: `${baseUrl}/upgrade?checkout=cancelled`,
