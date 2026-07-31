@@ -4,7 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getAdminPlanByEmail } from '@/lib/plan';
 import { createPool } from './createPool';
 import { updatePool } from './updatePool';
-import { debugError } from '@/lib/utils';
+import { debugError, DEFAULT_POOL_SEASON } from '@/lib/utils';
 import { CompetitionType } from '@/lib/poolTypes';
 
 export type ClonePoolResult =
@@ -14,10 +14,15 @@ export type ClonePoolResult =
 /**
  * Duplicates a pool's settings into a new pool in the same Huddle —
  * competition type, season scope, visibility, join password, tie-breaker
- * method — and copies its active participants directly (not through the
- * invite-email path in addParticipantToPool, since these people are
- * already established members, not new invitees). Does NOT copy
+ * method, type_settings — and copies its active participants directly (not
+ * through the invite-email path in addParticipantToPool, since these people
+ * are already established members, not new invitees). Does NOT copy
  * picks/scores/tie_breakers/winners; a clone starts fresh.
+ *
+ * The new pool is always tagged with the CURRENT season
+ * (DEFAULT_POOL_SEASON), not the source pool's season — this is meant for
+ * rolling a finished season's pool into next season's, not for spinning up
+ * a same-season sibling pool.
  *
  * Standard plan only (or an active trial, which already resolves to
  * 'standard' in computePlanInfo) — this is the ability that lets a
@@ -42,16 +47,11 @@ async function performClone(poolId: string, callerEmail: string, newName: string
   try {
     const supabase = getSupabaseServiceClient();
 
-    const { data: source } = await supabase
-      .from('pools')
-      .select('*')
-      .eq('id', poolId)
-      .maybeSingle();
-
-    if (!source) {
-      return { success: false, error: 'Pool not found.' };
-    }
-
+    // Permission check comes before the pool lookup (rather than after) so
+    // an unauthorized super-admin-path caller always gets the same
+    // "Insufficient permissions." regardless of whether poolId exists —
+    // otherwise a 400 "Pool not found." vs 403 response would leak
+    // pool-existence to a caller who was never allowed to ask.
     if (asSuperAdmin) {
       const { data: caller } = await supabase
         .from('admins')
@@ -62,7 +62,19 @@ async function performClone(poolId: string, callerEmail: string, newName: string
       if (!caller?.is_super_admin) {
         return { success: false, error: 'Insufficient permissions.' };
       }
-    } else if (source.created_by !== callerEmail) {
+    }
+
+    const { data: source } = await supabase
+      .from('pools')
+      .select('*')
+      .eq('id', poolId)
+      .maybeSingle();
+
+    if (!source) {
+      return { success: false, error: 'Pool not found.' };
+    }
+
+    if (!asSuperAdmin && source.created_by !== callerEmail) {
       return { success: false, error: 'Pool not found for your account.' };
     }
 
@@ -71,18 +83,19 @@ async function performClone(poolId: string, callerEmail: string, newName: string
       return { success: false, error: 'Cloning pools requires the Standard plan.' };
     }
 
-    const clonedName = (newName?.trim() || `${source.name} (Copy)`).slice(0, 255);
+    const clonedName = (newName?.trim() || `${source.name} (${DEFAULT_POOL_SEASON})`).slice(0, 255);
 
     const createResult = await createPool({
       name: clonedName,
       created_by: source.created_by,
-      season: source.season,
+      season: DEFAULT_POOL_SEASON,
       pool_type: source.pool_type === 'knockout' ? 'knockout' : 'normal',
       competition_type: source.competition_type as CompetitionType,
       season_scope: source.season_scope,
       is_private: source.is_private,
       join_password: source.join_password ?? undefined,
       huddle_id: source.huddle_id ?? undefined,
+      type_settings: source.type_settings ?? undefined,
     });
 
     if (!createResult.success) {

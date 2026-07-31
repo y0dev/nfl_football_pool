@@ -45,6 +45,7 @@ const STANDARD_COMMISSIONER_TOOLS = [
   'Commissioner dashboard',
   'View who has and hasn\'t submitted picks',
   'Full season & playoff tracking',
+  'Clone your previous season to get your Huddle ready faster',
 ];
 
 const ADDON_FEATURES = [
