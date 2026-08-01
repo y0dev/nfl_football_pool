@@ -166,7 +166,11 @@ function UpgradeContent() {
               </span>
             </div>
             <button
-              onClick={() => router.back()}
+              // Fixed destination, not router.back() — after a Stripe redirect
+              // (success_url/cancel_url both point here), browser history's
+              // previous entry is the Stripe checkout page itself, which is
+              // dead/expired by the time you'd navigate back to it.
+              onClick={() => router.push('/dashboard')}
               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: `1px solid ${border}`, color: textMid, borderRadius: 6, padding: '0.4rem 0.8rem', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
             >
               <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>

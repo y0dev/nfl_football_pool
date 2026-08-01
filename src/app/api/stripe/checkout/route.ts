@@ -91,7 +91,12 @@ export async function POST(request: NextRequest) {
         .eq('id', adminId);
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'http://localhost:3000';
+    // NEXT_PUBLIC_SITE_URL/SITE_URL should be set on every deployment (also
+    // used for OG tags, sitemap, email links), but fall back to the actual
+    // request origin rather than a hardcoded localhost — if that env var is
+    // ever missing on a real deployment, Stripe would otherwise redirect
+    // paying customers to localhost:3000 after checkout, where nothing loads.
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || request.nextUrl.origin;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
