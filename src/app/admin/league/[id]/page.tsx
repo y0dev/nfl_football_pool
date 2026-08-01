@@ -51,10 +51,10 @@ function AdminLeagueContent() {
             League not found
           </p>
           <button
-            onClick={() => router.push('/admin/dashboard')}
+            onClick={() => router.push('/admin/pools')}
             style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
-            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to Dashboard
+            <ArrowLeft style={{ width: 12, height: 12 }} /> Back to All Leagues
           </button>
         </div>
       </div>
@@ -65,7 +65,12 @@ function AdminLeagueContent() {
     <LeagueManager
       huddleId={league.id}
       initialName={league.name}
-      onBack={() => router.push('/admin/dashboard')}
+      // Goes back to /admin/pools (the only page that links here), not
+      // /admin/dashboard — this admin isn't the commissioner of this league,
+      // so "back" should return to the directory they picked it from, the
+      // same pattern already used for viewing someone else's pool
+      // (see backTarget in src/app/league/pool/[id]/page.tsx).
+      onBack={() => router.push('/admin/pools')}
       backLabel="All Leagues"
       isAdminView
       commissionerEmail={league.commissionerEmail}
