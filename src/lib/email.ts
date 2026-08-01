@@ -952,6 +952,57 @@ class EmailService {
 
     return this.sendEmail({ to: recipientEmail, subject, html });
   }
+
+  // Sent from the Stripe webhook once checkout.session.completed fires — the
+  // receipt for a Standard upgrade or add-on pool purchase.
+  async sendUpgradeConfirmation(
+    adminEmail: string,
+    adminName: string,
+    details: { product: 'standard' | 'addon_pool'; quantity: number; amountCents: number | null; currency: string }
+  ): Promise<boolean> {
+    const { product, quantity, amountCents, currency } = details;
+    const isStandard = product === 'standard';
+    const amount = amountCents != null
+      ? (amountCents / 100).toLocaleString('en-US', { style: 'currency', currency: currency.toUpperCase() })
+      : null;
+
+    const subject = isStandard
+      ? 'Payment Confirmed — You\'re on Sunday Huddle Standard'
+      : `Payment Confirmed — ${quantity} Add-on Pool${quantity !== 1 ? 's' : ''} Added`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        ${isStandard
+          ? 'Thanks for upgrading! Your account is now on the Standard plan.'
+          : `Thanks for your purchase! ${quantity} add-on pool${quantity !== 1 ? 's have' : ' has'} been added to your Huddle.`}
+      </p>
+      ${createInfoBox(`
+        <strong>Order Summary</strong><br>
+        ${isStandard ? 'Standard plan (per season)' : `Add-on pool${quantity !== 1 ? 's' : ''}: ${quantity}`}<br>
+        ${amount ? `Amount charged: ${amount}<br>` : ''}
+        Date: ${new Date().toLocaleString()}
+      `, 'success')}
+      <p style="margin: 20px 0 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        ${isStandard
+          ? 'You now have full season & playoff tracking, automatic pick reminders, and room for more pools in your Huddle.'
+          : 'Head to your dashboard to set up your new pool.'}
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: isStandard ? 'Upgrade Confirmed' : 'Add-on Pools Added',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is a payment confirmation from Sunday Huddle. Questions? Reply to this email.',
+    });
+
+    return this.sendEmail({ to: adminEmail, subject, html });
+  }
 }
 
 // Export a singleton instance

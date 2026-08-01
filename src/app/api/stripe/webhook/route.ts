@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/billing';
 import { getStripe } from '@/lib/stripe';
-import { debugError, debugLog } from '@/lib/utils';
+import { emailService } from '@/lib/email';
 
 // Stripe webhook — the single place purchases take effect.
 // Plan changes happen here (not on the success redirect) so they can't be
@@ -32,7 +32,10 @@ export async function POST(request: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
-    debugError('Webhook signature verification failed:', err);
+    // Always logged (not gated to dev) — this is the only trail a failed
+    // production webhook leaves; without it a bad signature/secret mismatch
+    // fails silently and looks like "payment went through, nothing happened."
+    console.error('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
@@ -44,11 +47,18 @@ export async function POST(request: NextRequest) {
       const quantity = Math.max(1, Number(session.metadata?.quantity) || 1);
 
       if (!adminId || !product) {
-        debugError('checkout.session.completed missing metadata', session.id);
+        console.error('checkout.session.completed missing metadata', session.id);
         return NextResponse.json({ received: true });
       }
 
       const supabase = getSupabaseServiceClient();
+
+      const { data: admin, error: fetchError } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('id', adminId)
+        .single();
+      if (fetchError) throw fetchError;
 
       if (product === 'standard') {
         const { error } = await supabase
@@ -56,23 +66,31 @@ export async function POST(request: NextRequest) {
           .update({ plan: 'standard', trial_ends_at: null, updated_at: new Date().toISOString() })
           .eq('id', adminId);
         if (error) throw error;
-        debugLog(`Admin ${adminId} upgraded to standard (session ${session.id})`);
+        console.log(`Admin ${adminId} upgraded to standard (session ${session.id})`);
       } else if (product === 'addon_pool') {
         // Increment purchased add-on pools (column added by the billing migration)
-        const { data: admin, error: fetchError } = await supabase
-          .from('admins')
-          .select('*')
-          .eq('id', adminId)
-          .single();
-        if (fetchError) throw fetchError;
-
         const current = Math.max(0, admin?.addon_pools ?? 0);
         const { error } = await supabase
           .from('admins')
           .update({ addon_pools: current + quantity, updated_at: new Date().toISOString() })
           .eq('id', adminId);
         if (error) throw error;
-        debugLog(`Admin ${adminId} added ${quantity} add-on pool(s) (session ${session.id})`);
+        console.log(`Admin ${adminId} added ${quantity} add-on pool(s) (session ${session.id})`);
+      }
+
+      // Best-effort — a failed email must not fail the webhook, since Stripe
+      // would then retry an already-applied plan change.
+      if (admin?.email) {
+        try {
+          await emailService.sendUpgradeConfirmation(admin.email, admin.full_name ?? 'there', {
+            product: product as 'standard' | 'addon_pool',
+            quantity,
+            amountCents: session.amount_total ?? null,
+            currency: session.currency ?? 'usd',
+          });
+        } catch (emailError) {
+          console.error('Failed to send upgrade confirmation email (plan update already applied):', emailError);
+        }
       }
 
       // Best-effort payment record — the payments table is part of the
@@ -89,13 +107,13 @@ export async function POST(request: NextRequest) {
           status: 'completed',
         });
       } catch (recordError) {
-        debugError('Failed to record payment (plan update already applied):', recordError);
+        console.error('Failed to record payment (plan update already applied):', recordError);
       }
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    debugError('Webhook handler error:', error);
+    console.error('Webhook handler error:', error);
     // Non-2xx makes Stripe retry the event, which is what we want on DB failure
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }

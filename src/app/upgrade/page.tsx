@@ -468,7 +468,7 @@ function UpgradeContent() {
             {billingExempt
               ? 'Your account is comped — the site admin manages your plan and no payment is ever required.'
               : stripeEnabled
-              ? 'Payments are processed securely by Stripe. Your plan updates automatically after checkout.'
+              ? 'Prices shown are before tax. Payments are processed securely by Stripe — your plan updates automatically after checkout, and any applicable sales tax is calculated based on your billing address.'
               : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
           </p>
           </>

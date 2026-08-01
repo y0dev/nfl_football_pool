@@ -293,7 +293,7 @@ export default function PricingContent() {
             <Link href="/login" style={{ color: greenHi }}>Sign in</Link> to manage your plan from account settings.
           </p>
           <p style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', marginTop: '0.5rem' }}>
-            Payments are handled manually for now. You&apos;ll receive a confirmation email once your plan is active.
+            Prices shown are before tax. Payments are processed securely by Stripe, plus any applicable sales tax calculated at checkout based on your billing address. You&apos;ll get an email receipt once your plan is active.
           </p>
         </div>
       </section>
