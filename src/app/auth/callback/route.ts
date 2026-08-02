@@ -54,14 +54,18 @@ export async function GET(request: NextRequest) {
 
   if (existingAccount) {
     const existingAdmin = existingAccount.row;
-    // This email already has an account, but it was created with an email +
-    // password (password_hash is a real bcrypt hash, not the 'google_oauth'
-    // sentinel) — don't silently sign them into it via Google. The person
-    // has already proven they own this email address (Google's own OAuth
-    // verified it), so telling them which method to use isn't an
-    // enumeration risk the way it would be on the password-login path
-    // (see loginUser.ts, which deliberately returns a generic error there).
-    if (existingAdmin.password_hash !== 'google_oauth') {
+    // Reject Google sign-in only when the account has a REAL password set
+    // (a non-empty hash that isn't the 'google_oauth' sentinel) — the
+    // person has already proven they own this email address (Google's own
+    // OAuth verified it), so telling them which method to use isn't an
+    // enumeration risk the way it would be on the password-login path (see
+    // loginUser.ts, which deliberately returns a generic error there). An
+    // empty password_hash means no password was ever set — nothing to fall
+    // back to — so treat it as unauthenticated-so-far and let Google claim
+    // it, self-healing the sentinel below rather than locking the account
+    // out of both methods.
+    const hasRealPassword = !!existingAdmin.password_hash && existingAdmin.password_hash !== 'google_oauth';
+    if (hasRealPassword) {
       console.log('[OAuth:callback] existing admin uses password auth → rejecting Google sign-in');
       // Don't leave the just-established Supabase session active for an
       // account the person hasn't actually authenticated into at the app level.
@@ -71,6 +75,12 @@ export async function GET(request: NextRequest) {
         response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
       });
       return response;
+    }
+
+    if (existingAdmin.password_hash !== 'google_oauth') {
+      // Empty hash — self-heal now that Google has verified this email.
+      const table = existingAccount.role === 'super_admin' ? 'admins' : 'commissioners';
+      void serviceClient.from(table).update({ password_hash: 'google_oauth' }).eq('id', existingAdmin.id);
     }
 
     console.log('[OAuth:callback] existing account → building session redirect');
