@@ -4,7 +4,7 @@ import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const { adminId, plan, trialDays, billingExempt } = await request.json();
+    const { adminId, plan, trialDays, billingExempt, addonPools } = await request.json();
 
     if (!adminId || !plan) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
@@ -43,6 +43,17 @@ export async function POST(request: NextRequest) {
     // DB doesn't have it yet so plan changes never fail on the flag.
     if (typeof billingExempt === 'boolean') {
       updateData.billing_exempt = billingExempt;
+    }
+
+    // Manually grant additional pools — the only path for a comped
+    // (billing_exempt) commissioner to get more than the plan's base pool
+    // limit, since /api/stripe/checkout refuses billing_exempt accounts.
+    if (addonPools !== undefined) {
+      const addonPoolsNum = Number(addonPools);
+      if (!Number.isInteger(addonPoolsNum) || addonPoolsNum < 0) {
+        return NextResponse.json({ success: false, error: 'Additional pools must be a non-negative whole number' }, { status: 400 });
+      }
+      updateData.addon_pools = addonPoolsNum;
     }
 
     let warning: string | undefined;
