@@ -116,25 +116,56 @@ function UpgradeContent() {
     toast({ title: 'Payment Received', description: 'Updating your account…' });
     let attempts = 0;
     const maxAttempts = 10; // ~20s at 2s intervals
-    const poll = setInterval(async () => {
-      attempts++;
-      if (!user?.id) return;
+
+    const checkPlan = async (): Promise<boolean> => {
+      if (!user?.id) return false;
       try {
         const data = await fetchPlanStatus(user.id);
-        if (data.success) {
-          setPlanStatus(prev => {
-            const changed = !prev || prev.plan !== data.plan || prev.addonPools !== data.addonPools;
-            if (changed) {
-              clearInterval(poll);
-              toast({ title: 'Plan Updated', description: 'Your account now reflects the purchase.' });
-            }
-            return data;
-          });
-        }
+        if (!data.success) return false;
+        let changed = false;
+        setPlanStatus(prev => {
+          changed = !prev || prev.plan !== data.plan || prev.addonPools !== data.addonPools;
+          return data;
+        });
+        return changed;
       } catch {
-        // transient — keep polling until maxAttempts
+        return false; // transient — keep polling until maxAttempts
       }
-      if (attempts >= maxAttempts) clearInterval(poll);
+    };
+
+    const poll = setInterval(async () => {
+      attempts++;
+      const changed = await checkPlan();
+      if (changed) {
+        clearInterval(poll);
+        toast({ title: 'Plan Updated', description: 'Your account now reflects the purchase.' });
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(poll);
+        if (!user?.id) return;
+        // The webhook normally applies the purchase well within this window.
+        // If it still hasn't, ask Stripe directly for this admin's recent
+        // paid sessions and apply any that were missed — covers a failed
+        // webhook delivery (e.g. a misconfigured endpoint URL) so the
+        // purchase self-heals instead of requiring a support ticket.
+        try {
+          await fetch('/api/stripe/reconcile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminId: user.id }),
+          });
+          const changedAfterReconcile = await checkPlan();
+          toast(
+            changedAfterReconcile
+              ? { title: 'Plan Updated', description: 'Your account now reflects the purchase.' }
+              : { title: 'Still Processing', description: "Your payment succeeded — if your plan doesn't update shortly, contact support.", variant: 'destructive' }
+          );
+        } catch {
+          toast({ title: 'Still Processing', description: "Your payment succeeded — if your plan doesn't update shortly, contact support.", variant: 'destructive' });
+        }
+      }
     }, 2000);
 
     return () => clearInterval(poll);

@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { 
-  adminsTable, 
-  poolsTable, 
-  adminPoolsTable, 
-  participantsTable, 
-  gamesTable, 
-  picksTable, 
-  scoresTable, 
+import {
+  adminsTable,
+  commissionersTable,
+  poolsTable,
+  adminPoolsTable,
+  participantsTable,
+  gamesTable,
+  picksTable,
+  scoresTable,
   tieBreakersTable,
   weeklyWinnersTable,
   seasonWinnersTable,
@@ -16,6 +17,7 @@ import {
   reminderLogsTable,
   teamsTable,
   updatedGamesTable,
+  paymentsTable,
   rlsPolicies,
   getSupabaseClient
 } from '../src/lib/supabase';
@@ -50,6 +52,7 @@ async function setupDatabase() {
     // Create tables in order
     const tables = [
       { name: 'admins', sql: adminsTable },
+      { name: 'commissioners', sql: commissionersTable },
       { name: 'pools', sql: poolsTable },
       { name: 'admin_pools', sql: adminPoolsTable },
       { name: 'participants', sql: participantsTable },
@@ -63,6 +66,7 @@ async function setupDatabase() {
       { name: 'period_winners', sql: periodWinnersTable },
       { name: 'audit_logs', sql: auditLogsTable },
       { name: 'reminder_logs', sql: reminderLogsTable },
+      { name: 'payments', sql: paymentsTable },
     ];
 
     for (const table of tables) {
