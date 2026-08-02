@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    if (!['free', 'standard', 'pro'].includes(plan)) {
+    if (!['free', 'standard'].includes(plan)) {
       return NextResponse.json({ success: false, error: 'Invalid plan value' }, { status: 400 });
     }
 
