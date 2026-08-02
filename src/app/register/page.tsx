@@ -84,9 +84,17 @@ function RegisterContent() {
       const supabase = getSupabaseBrowserClient();
       // Cookie survives the redirect chain on all mobile browsers (unlike sessionStorage)
       document.cookie = 'oauth_intent=register;path=/;max-age=300;samesite=lax';
+      debugLog('[Register] starting Google OAuth redirect');
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          // Force the account chooser every time — without this, Google
+          // silently reuses an existing browser session and the user never
+          // gets to pick an account. See src/app/login/page.tsx for the
+          // matching fix and the full root-cause writeup.
+          queryParams: { prompt: 'select_account' },
+        },
       });
     } catch {
       setFormError('Failed to start Google sign-in. Please try again.');

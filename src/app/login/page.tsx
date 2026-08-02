@@ -14,7 +14,7 @@ import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { AuthProvider } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { createPageUrl } from '@/lib/utils';
+import { createPageUrl, debugLog } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { requestMagicLink } from '@/actions/magicLink';
@@ -73,6 +73,10 @@ function LoginContent() {
 
   useEffect(() => {
     const oauthError = searchParams.get('error');
+    if (!oauthError) return;
+
+    debugLog('[Login] oauth error param received:', oauthError);
+
     if (oauthError === 'no-account') {
       setLoginError('No commissioner account found for this Google account. Please register first.');
     } else if (oauthError === 'duplicate-account') {
@@ -84,6 +88,12 @@ function LoginContent() {
       setLoginError(message);
       toast({ title: 'Use Email & Password', description: message, variant: 'destructive' });
     }
+
+    // Strip the error param so a refresh/back-navigation doesn't re-show a
+    // stale result from a previous OAuth attempt.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('error');
+    router.replace(`${cleanUrl.pathname}${cleanUrl.search}`, { scroll: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -135,9 +145,18 @@ function LoginContent() {
     try {
       const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
       const supabase = getSupabaseBrowserClient();
+      debugLog('[Login] starting Google OAuth redirect');
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          // Without this, Google silently reuses an existing browser session
+          // and skips the account chooser — the user never gets a chance to
+          // pick an account, they just get bounced straight into whatever
+          // account was already active. Forcing the chooser every time is
+          // what makes the "wrong account" case actually visible/avoidable.
+          queryParams: { prompt: 'select_account' },
+        },
       });
     } catch {
       toast({ title: 'Error', description: 'Failed to start Google sign-in. Please try again.', variant: 'destructive' });
