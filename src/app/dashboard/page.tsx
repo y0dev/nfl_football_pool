@@ -571,7 +571,7 @@ function CommissionerDashboardContent() {
                 </div>
               )}
               <p style={{ ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim, marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                Week {currentWeek} · Refreshed {lastRefresh.toLocaleTimeString()}
+                Week {currentWeek}
               </p>
             </div>
 
