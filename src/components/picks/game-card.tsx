@@ -1,6 +1,6 @@
 'use client';
 
-import { Game } from '@/types/game';
+import { Game, TeamRecord } from '@/types/game';
 import { getTeam, getTeamAbbreviation } from '@/lib/utils';
 import { Check, Clock, Trophy } from 'lucide-react';
 import { format } from 'date-fns';
@@ -35,9 +35,15 @@ interface GameCardProps {
   locked?: boolean;
 }
 
+function formatRecord(r?: TeamRecord): string {
+  if (!r) return '';
+  return `${r.wins}-${r.losses}${r.ties ? `-${r.ties}` : ''}`;
+}
+
 function TeamButton({
   fullName,
   score,
+  record,
   isSelected,
   isWinner,
   isFinal,
@@ -47,6 +53,7 @@ function TeamButton({
 }: {
   fullName: string;
   score?: number | null;
+  record?: TeamRecord;
   isSelected: boolean;
   isWinner: boolean;
   isFinal: boolean;
@@ -57,6 +64,7 @@ function TeamButton({
   const abbr = getTeamAbbreviation(fullName);
   const team = getTeam(abbr);
   const mascot = team.name.split(' ').at(-1) ?? team.name;
+  const recordLabel = formatRecord(record);
 
   return (
     <button
@@ -108,6 +116,9 @@ function TeamButton({
         {team.city}
       </span>
       <span style={{ ...b, fontSize: '0.72rem', color: textDim, lineHeight: 1.1 }}>{mascot}</span>
+      {recordLabel && (
+        <span style={{ ...b, fontSize: '0.66rem', color: 'oklch(42% 0.015 255)', lineHeight: 1.1 }}>{recordLabel}</span>
+      )}
       {isFinal && (
         <span style={{ ...bc, fontWeight: 900, fontSize: '1.15rem', color: isWinner ? text : textDim, marginTop: '0.15rem' }}>
           {score ?? '—'}
@@ -214,6 +225,7 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         <TeamButton
           fullName={game.away_team}
           score={game.away_score}
+          record={game.away_team_record}
           isSelected={selectedTeam === game.away_team}
           isWinner={game.winner === game.away_team}
           isFinal={isFinal}
@@ -230,6 +242,7 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         <TeamButton
           fullName={game.home_team}
           score={game.home_score}
+          record={game.home_team_record}
           isSelected={selectedTeam === game.home_team}
           isWinner={game.winner === game.home_team}
           isFinal={isFinal}
