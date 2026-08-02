@@ -736,15 +736,15 @@ export function PoolPicksContent() {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session) {
-          const { data: admin } = await supabase
-            .from('admins')
-            .select('id, is_super_admin')
-            .eq('id', session.user.id)
-            .single();
+          // Session user could be a super-admin or a commissioner — resolve
+          // via the same server-side check AdminGuard uses rather than
+          // querying either table directly from the client.
+          const res = await fetch(`/api/admin/verify-status?adminId=${session.user.id}`);
+          const data = await res.json();
 
-          if (admin) {
+          if (data.success && data.isAdmin) {
             setIsAdmin(true);
-            setIsSuperAdmin(admin.is_super_admin);
+            setIsSuperAdmin(data.isSuperAdmin);
 
             if (poolId) {
               const { data: poolData } = await supabase

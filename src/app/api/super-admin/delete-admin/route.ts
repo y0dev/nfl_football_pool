@@ -15,10 +15,11 @@ export async function DELETE(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // First, check if the admin exists and get their details
+    // This route only ever targets commissioners — super-admin accounts
+    // aren't managed through it.
     const { data: admin, error: fetchError } = await supabase
-      .from('admins')
-      .select('id, email, is_super_admin')
+      .from('commissioners')
+      .select('id, email')
       .eq('id', adminId)
       .single();
 
@@ -29,17 +30,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Prevent deletion of admins (optional safety measure)
-    if (admin.is_super_admin) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete admin accounts' },
-        { status: 403 }
-      );
-    }
-
-    // Delete the admin from the admins table
+    // Delete the commissioner
     const { error: deleteError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .delete()
       .eq('id', adminId);
 

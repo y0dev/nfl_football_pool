@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { findAccountById } from '@/lib/accounts';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 
@@ -25,19 +26,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is admin
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id, email, full_name, is_super_admin')
-      .eq('id', session.user.id)
-      .single();
+    // Check if user is admin — could be a super-admin or a commissioner
+    const account = await findAccountById(session.user.id);
 
-    if (!admin) {
+    if (!account) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized - Admin access required' },
         { status: 401 }
       );
     }
+    const admin = { ...account.row, is_super_admin: account.role === 'super_admin' };
 
     // Get pool information
     const { data: pool, error: poolError } = await supabase

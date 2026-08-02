@@ -120,7 +120,7 @@ async function createTestData() {
     
     for (const adminData of TEST_CONFIG.admins) {
       const passwordHash = await bcrypt.hash(adminData.password, 10);
-      
+
       const adminUser: AdminUser = {
         id: randomUUID(),
         email: adminData.email,
@@ -130,11 +130,15 @@ async function createTestData() {
         is_super_admin: adminData.is_super_admin,
         is_active: true
       };
-      
-      const { error } = await supabase
-        .from('admins')
-        .upsert(adminUser, { onConflict: 'email' });
-      
+
+      // Super-admins go to admins; everyone else goes to commissioners
+      // (see scripts/migrate-commissioners.ts) — that table has no
+      // is_super_admin column at all.
+      const { is_super_admin, ...commissionerUser } = adminUser;
+      const { error } = adminData.is_super_admin
+        ? await supabase.from('admins').upsert(adminUser, { onConflict: 'email' })
+        : await supabase.from('commissioners').upsert(commissionerUser, { onConflict: 'email' });
+
       if (error) {
         console.error(`❌ Error creating admin ${adminData.email}:`, error);
       } else {

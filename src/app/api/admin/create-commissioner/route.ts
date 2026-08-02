@@ -97,16 +97,15 @@ export async function POST(request: NextRequest) {
 
     const password_hash = await bcrypt.hash(password, 12);
 
-    // Create admin record in admins table using the user's ID
+    // Create commissioner record using the auth user's ID
     debugLog('Creating admin record...');
     const { data: newAdmin, error: createError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .insert({
         id: newAuthUser.user.id,
         email,
         password_hash,
         full_name: fullName,
-        is_super_admin: false, // Regular commissioner
         is_active: true,
       })
       .select()
@@ -135,7 +134,7 @@ export async function POST(request: NextRequest) {
     // Set plan fields — non-critical, silently skipped if columns don't exist yet
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-    await supabase.from('admins')
+    await supabase.from('commissioners')
       .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
       .eq('id', newAdmin.id);
 
@@ -184,7 +183,7 @@ export async function POST(request: NextRequest) {
         id: newAdmin.id,
         email: newAdmin.email,
         full_name: newAdmin.full_name,
-        is_super_admin: newAdmin.is_super_admin
+        is_super_admin: false
       }
     });
 

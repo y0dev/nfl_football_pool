@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountById, updateAccount } from '@/lib/accounts';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
 
@@ -15,18 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'New password must be at least 8 characters' }, { status: 400 });
     }
 
-    const supabase = getSupabaseServiceClient();
+    const account = await findAccountById(adminId, { activeOnly: true });
 
-    const { data: admin, error } = await supabase
-      .from('admins')
-      .select('id, password_hash, is_active')
-      .eq('id', adminId)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !admin) {
+    if (!account) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
     }
+    const { role, row: admin } = account;
 
     if (admin.password_hash === 'google_oauth') {
       return NextResponse.json({ success: false, error: 'Password changes are not available for Google sign-in accounts' }, { status: 400 });
@@ -39,10 +33,10 @@ export async function POST(request: NextRequest) {
 
     const newHash = await bcrypt.hash(newPassword, 12);
 
-    const { error: updateError } = await supabase
-      .from('admins')
-      .update({ password_hash: newHash, updated_at: new Date().toISOString() })
-      .eq('id', adminId);
+    const { error: updateError } = await updateAccount(adminId, role, {
+      password_hash: newHash,
+      updated_at: new Date().toISOString(),
+    });
 
     if (updateError) {
       debugError('Change password update error:', updateError.code);

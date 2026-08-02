@@ -1,7 +1,7 @@
 'use server';
 
 import { createHmac } from 'crypto';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountByEmail } from '@/lib/accounts';
 import { setSessionCookie } from '@/actions/sessionCookie';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { debugError } from '@/lib/utils';
@@ -73,17 +73,13 @@ export async function requestMagicLink(
     return { success: true };
   }
 
-  const supabase = getSupabaseServiceClient();
-  const { data: admin, error } = await supabase
-    .from('admins')
-    .select('id, email, full_name, is_active')
-    .eq('email', normalizedEmail)
-    .single();
+  const account = await findAccountByEmail(normalizedEmail);
 
-  if (error || !admin || !admin.is_active) {
+  if (!account || !account.row.is_active) {
     // Return success anyway to avoid email enumeration
     return { success: true };
   }
+  const admin = account.row;
 
   const token = buildToken(admin.email);
   const magicUrl = `${appBaseUrl()}/login/verify?token=${encodeURIComponent(token)}`;
@@ -110,16 +106,12 @@ export async function verifyMagicLink(token: string): Promise<{
   if (expired) return { success: false, expired: true, error: 'This magic link has expired. Please request a new one.' };
   if (!valid) return { success: false, error: 'This magic link is invalid or has already been used.' };
 
-  const supabase = getSupabaseServiceClient();
-  const { data: admin, error } = await supabase
-    .from('admins')
-    .select('id, email, full_name, is_super_admin, is_active')
-    .eq('email', email)
-    .single();
+  const account = await findAccountByEmail(email);
 
-  if (error || !admin || !admin.is_active) {
+  if (!account || !account.row.is_active) {
     return { success: false, error: 'Account not found or inactive.' };
   }
+  const { role, row: admin } = account;
 
   // Set server-side session cookie so middleware can protect routes
   await setSessionCookie(admin.id);
@@ -130,7 +122,7 @@ export async function verifyMagicLink(token: string): Promise<{
       id: admin.id,
       email: admin.email,
       full_name: admin.full_name || '',
-      is_super_admin: admin.is_super_admin || false,
+      is_super_admin: role === 'super_admin',
     },
   };
 }

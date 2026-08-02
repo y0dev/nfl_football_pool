@@ -281,64 +281,45 @@ class AdminService {
   /**
    * Get all admins (used in dashboard for admin)
    */
+  // Lists every account, super-admins and commissioners together — the only
+  // place in the app that needs both tables merged. Super-admins come from
+  // admins (is_super_admin always true there since the commissioners split,
+  // scripts/migrate-commissioners.ts); commissioners come from the
+  // commissioners table and never have that column, so it's set to false
+  // when mapping them into the same shape.
   async getAdmins(): Promise<Admin[]> {
     try {
-      debugLog('Function: getAdmins - Getting all admins');
+      debugLog('Function: getAdmins - Getting all admins + commissioners');
 
-      debugLog('AdminService: Executing query: SELECT * FROM admins ORDER BY full_name');
-      
-      // First, let's check if the table exists and has any data
-      const { count: tableCount, error: countError } = await this.supabase
-        .from('admins')
-        .select('id', { count: 'exact', head: true });
-      
-      debugLog('AdminService: Table count check:', { count: tableCount, error: countError });
-      
-      // Let's also check the table structure
-      try {
-        const { data: sampleData, error: sampleError } = await this.supabase
+      const [adminsResult, commissionersResult] = await Promise.all([
+        this.supabase
           .from('admins')
-          .select('id, email, full_name, is_super_admin, is_active, created_at')
-          .limit(1);
-        
-        debugLog('AdminService: Sample data check:', { data: sampleData, error: sampleError });
-      } catch (sampleError) {
-        debugError('AdminService: Sample data check failed:', sampleError);
+          .select('id, email, full_name, is_super_admin, is_active, created_at'),
+        this.supabase
+          .from('commissioners')
+          .select('id, email, full_name, is_active, created_at, plan, trial_ends_at'),
+      ]);
+
+      if (adminsResult.error) {
+        debugError('AdminService: admins query error:', adminsResult.error);
+        throw new Error(`Failed to load admins: ${adminsResult.error.message}`);
       }
-      
-      const { data: admins, error } = await this.supabase
-        .from('admins')
-        .select('id, email, full_name, is_super_admin, is_active, created_at, plan, trial_ends_at')
-        .order('full_name');
-
-      debugLog('AdminService: Raw query result:', { data: admins, error });
-
-      if (error) {
-        debugError('AdminService: Admins query error:', error);
-        debugError('AdminService: Error details:', { 
-          message: error.message, 
-          details: error.details, 
-          hint: error.hint,
-          code: error.code 
-        });
-        throw new Error(`Failed to load admins: ${error.message}`);
+      if (commissionersResult.error) {
+        debugError('AdminService: commissioners query error:', commissionersResult.error);
+        throw new Error(`Failed to load commissioners: ${commissionersResult.error.message}`);
       }
 
-      debugLog('AdminService: Admins result:', { count: admins?.length || 0, admins });
-      
-      // Let's also check if the data has the expected structure
-      if (admins && admins.length > 0) {
-        debugLog('AdminService: First admin data structure:', {
-          id: admins[0].id,
-          email: admins[0].email,
-          full_name: admins[0].full_name,
-          is_super_admin: admins[0].is_super_admin,
-          is_active: admins[0].is_active,
-          created_at: admins[0].created_at
-        });
-      }
+      const commissioners: Admin[] = (commissionersResult.data ?? []).map(c => ({
+        ...c,
+        is_super_admin: false,
+      }));
 
-      return admins || [];
+      const combined = [...(adminsResult.data ?? []), ...commissioners]
+        .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? ''));
+
+      debugLog('AdminService: combined result:', { count: combined.length });
+
+      return combined;
     } catch (error) {
       debugError('AdminService: Error getting admins:', error);
       if (error instanceof Error) {

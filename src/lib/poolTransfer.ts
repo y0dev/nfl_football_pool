@@ -50,18 +50,17 @@ export async function transferPoolToCommissioner(
       return { success: false, error: 'Insufficient permissions.' };
     }
 
+    // Recipient must be a commissioner — super-admin accounts aren't in this
+    // table at all now, so there's nothing further to check there.
     const { data: newCommissioner } = await supabase
-      .from('admins')
-      .select('email, is_active, is_super_admin')
+      .from('commissioners')
+      .select('email, is_active')
       .eq('email', newCommissionerEmail)
       .eq('is_active', true)
       .maybeSingle();
 
     if (!newCommissioner) {
       return { success: false, error: 'New commissioner not found or account is inactive.' };
-    }
-    if (newCommissioner.is_super_admin) {
-      return { success: false, error: 'Cannot transfer a pool to a super admin account.' };
     }
 
     const { data: pool } = await supabase

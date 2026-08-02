@@ -52,7 +52,7 @@ async function sendPickReminders(params: SendPickRemindersParams): Promise<Email
 
     // Get admin information
     const { data: admin, error: adminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('full_name')
       .eq('id', params.adminId)
       .single();
@@ -330,7 +330,7 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
       for (const pool of pools) {
         // Get pool admin
         const { data: admin, error: adminError } = await supabase
-          .from('admins')
+          .from('commissioners')
           .select('id, email, full_name')
           .eq('email', pool.created_by)
           .eq('is_active', true)
@@ -393,7 +393,7 @@ async function sendAllSubmittedNotification(params: SendPickRemindersParams): Pr
 
     // Get admin information
     const { data: admin, error: adminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('full_name, email')
       .eq('id', params.adminId)
       .single();

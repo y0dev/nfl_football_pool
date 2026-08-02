@@ -88,16 +88,15 @@ export async function POST(request: NextRequest) {
       userId = newAuthUser.user.id;
     }
 
-    // Create admin record in admins table using the user's ID
+    // Create commissioner record using the existing or newly created auth user's ID
     debugLog('Creating admin record...');
     const { data: newAdmin, error: createError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .insert({
-        id: userId, // Use the existing or newly created auth user's ID
+        id: userId,
         email,
         password_hash: '', // No need to store password hash since we use Supabase Auth
         full_name: fullName,
-        is_super_admin: false, // Regular commissioner by default
         is_active: true,
       })
       .select()
@@ -128,7 +127,7 @@ export async function POST(request: NextRequest) {
     // Set plan fields — non-critical, silently skipped if columns don't exist yet
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-    await supabase.from('admins')
+    await supabase.from('commissioners')
       .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
       .eq('id', newAdmin.id);
 
@@ -177,7 +176,7 @@ export async function POST(request: NextRequest) {
         id: newAdmin.id,
         email: newAdmin.email,
         full_name: newAdmin.full_name,
-        is_super_admin: newAdmin.is_super_admin
+        is_super_admin: false
       },
       redirect: '/admin/dashboard'
     });

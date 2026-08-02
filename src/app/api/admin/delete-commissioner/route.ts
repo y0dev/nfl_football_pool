@@ -28,19 +28,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing admin ID' }, { status: 400 });
     }
 
-    // Get the admin record to verify it exists and is not a super admin
+    // Get the commissioner record to verify it exists
     const { data: targetAdmin, error: targetAdminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('*')
       .eq('id', adminId)
       .single();
 
     if (targetAdminError || !targetAdmin) {
       return NextResponse.json({ success: false, error: 'Admin not found' }, { status: 404 });
-    }
-
-    if (targetAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Cannot delete super admins' }, { status: 403 });
     }
 
     // Check if commissioner has any pools
@@ -63,7 +59,7 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the commissioner
     const { error: deleteError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .delete()
       .eq('id', adminId);
 

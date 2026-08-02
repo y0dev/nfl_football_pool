@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
     const { data: admin, error } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('*')
       .eq('id', adminId)
       .eq('is_active', true)
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       });
       customerId = customer.id;
       await supabase
-        .from('admins')
+        .from('commissioners')
         .update({ stripe_customer_id: customerId })
         .eq('id', adminId);
     }

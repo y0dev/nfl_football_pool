@@ -152,7 +152,7 @@ export function EnhancedEmailManagement({
     try {
       const supabase = await import('@/lib/supabase').then(m => m.getSupabaseClient());
       const { data: adminData, error } = await supabase
-        .from('admins')
+        .from('commissioners')
         .select('full_name')
         .eq('id', adminId)
         .single();

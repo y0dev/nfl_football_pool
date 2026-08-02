@@ -55,14 +55,13 @@ export async function requestDeletionConfirmation(adminId: string): Promise<{ su
   const supabase = getSupabaseServiceClient();
 
   const { data: admin } = await supabase
-    .from('admins')
-    .select('id, email, full_name, is_active, is_super_admin')
+    .from('commissioners')
+    .select('id, email, full_name, is_active')
     .eq('id', adminId)
     .eq('is_active', true)
     .single();
 
   if (!admin) return { success: false, error: 'Account not found.' };
-  if (admin.is_super_admin) return { success: false, error: 'Super admin accounts cannot be self-deleted.' };
 
   const token = buildToken(admin.id);
   const confirmUrl = `${appBaseUrl()}/account/confirm-deletion?token=${encodeURIComponent(token)}`;
@@ -87,14 +86,13 @@ export async function confirmAccountDeletion(token: string): Promise<{ success: 
   const supabase = getSupabaseServiceClient();
 
   const { data: admin } = await supabase
-    .from('admins')
-    .select('id, email, full_name, is_active, is_super_admin')
+    .from('commissioners')
+    .select('id, email, full_name, is_active')
     .eq('id', adminId)
     .eq('is_active', true)
     .single();
 
   if (!admin) return { success: false, error: 'Account not found.' };
-  if (admin.is_super_admin) return { success: false, error: 'Super admin accounts cannot be self-deleted.' };
 
   // Delete pools this admin owns (created_by). Cascades to that pool's own
   // participants/picks/scores/etc. Pools owned by other commissioners that
@@ -109,7 +107,7 @@ export async function confirmAccountDeletion(token: string): Promise<{ success: 
     return { success: false, error: 'Failed to delete account. Please try again.' };
   }
 
-  const { error: deleteError } = await supabase.from('admins').delete().eq('id', adminId);
+  const { error: deleteError } = await supabase.from('commissioners').delete().eq('id', adminId);
   if (deleteError) {
     debugError('Account deletion failed:', deleteError.code);
     return { success: false, error: 'Failed to delete account. Please try again.' };
@@ -131,7 +129,7 @@ export async function getAdminByDeletionToken(token: string): Promise<{ email: s
 
   const supabase = getSupabaseServiceClient();
   const { data } = await supabase
-    .from('admins')
+    .from('commissioners')
     .select('email, full_name')
     .eq('id', adminId)
     .single();

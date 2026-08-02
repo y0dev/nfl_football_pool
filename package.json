@@ -9,6 +9,7 @@
     "lint": "next lint",
     "seed": "tsx scripts/seed.ts",
     "setup-db": "tsx scripts/setup-database.ts",
+    "migrate-commissioners": "tsx scripts/migrate-commissioners.ts",
     "fetch-games": "tsx scripts/fetch-games.ts",
     "fetch-teams": "tsx scripts/fetch-teams.ts",
     "fetch-nfl-data": "npm run fetch-teams && npm run fetch-games",

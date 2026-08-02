@@ -114,7 +114,7 @@ export async function createPool(poolData: {
     // Non-critical: send welcome email
     try {
       const { data: admin } = await supabase
-        .from('admins')
+        .from('commissioners')
         .select('full_name, email')
         .eq('email', poolData.created_by)
         .eq('is_active', true)

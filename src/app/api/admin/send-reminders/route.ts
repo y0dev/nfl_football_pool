@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 import { getAdminPlansByEmails, planAllowsReminders, REMINDERS_PLAN_MESSAGE } from '@/lib/plan';
+import { findAccountByEmail } from '@/lib/accounts';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,12 +17,7 @@ export async function POST(request: NextRequest) {
     if (!adminEmail) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    const { data: caller } = await supabase
-      .from('admins')
-      .select('id, is_active')
-      .eq('email', adminEmail)
-      .eq('is_active', true)
-      .maybeSingle();
+    const caller = await findAccountByEmail(adminEmail, { activeOnly: true });
     if (!caller) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }

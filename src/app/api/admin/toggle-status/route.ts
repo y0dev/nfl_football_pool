@@ -28,9 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Get the admin record to verify it exists and is not a super admin
+    // Target is always a commissioner — super-admin status isn't managed
+    // through this route.
     const { data: targetAdmin, error: targetAdminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('*')
       .eq('id', adminId)
       .single();
@@ -39,13 +40,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Admin not found' }, { status: 404 });
     }
 
-    if (targetAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Cannot modify super admin status' }, { status: 403 });
-    }
-
     // Update the active status
     const { error: updateError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({
         is_active: isActive,
         updated_at: new Date().toISOString()

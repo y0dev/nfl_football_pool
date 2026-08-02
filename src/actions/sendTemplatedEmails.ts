@@ -36,7 +36,7 @@ export async function sendTemplatedEmails({
     
     // Get admin's email address
     const { data: adminData, error: adminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('email, full_name')
       .eq('id', adminId)
       .single();

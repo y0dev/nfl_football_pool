@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: admin, error: fetchError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('*')
       .eq('id', adminId)
       .maybeSingle();
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     if (product === 'standard') {
       const { error } = await supabase
-        .from('admins')
+        .from('commissioners')
         .update({ plan: 'standard', trial_ends_at: null, updated_at: new Date().toISOString() })
         .eq('id', adminId);
       if (error) throw error;
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       // billing migration)
       const current = Math.max(0, admin.addon_pools ?? 0);
       const { error } = await supabase
-        .from('admins')
+        .from('commissioners')
         .update({ addon_pools: current + quantity, updated_at: new Date().toISOString() })
         .eq('id', adminId);
       if (error) throw error;

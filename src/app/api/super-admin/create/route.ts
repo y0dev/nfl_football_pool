@@ -31,9 +31,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Check if admin already exists
+    // Despite the route name/path, this always creates a commissioner
+    // (dev-only debug tooling — duplicates create-commissioner).
     const { data: existingAdmin, error: checkError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('id')
       .eq('email', email)
       .single();
@@ -48,14 +49,13 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create admin
+    // Create commissioner
     const { data: admin, error: createError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .insert({
         email,
         password_hash: hashedPassword,
         full_name: fullName,
-        is_super_admin: false,
         is_active: true
       })
       .select()
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         id: admin.id,
         email: admin.email,
         full_name: admin.full_name,
-        is_super_admin: admin.is_super_admin,
+        is_super_admin: false,
         is_active: admin.is_active
       }
     });

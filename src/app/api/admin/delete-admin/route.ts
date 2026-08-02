@@ -20,16 +20,18 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     debugLog('Supabase service client created');
 
-    // Get admin data to check if it's a super admin
-    debugLog('Getting admin data...');
+    // Despite the route name, this only ever deletes commissioners — kept
+    // for backward compatibility with existing callers; new code should
+    // prefer delete-commissioner.
+    debugLog('Getting commissioner data...');
     const { data: adminData, error: fetchError } = await supabase
-      .from('admins')
-      .select('is_super_admin, email')
+      .from('commissioners')
+      .select('email')
       .eq('id', adminId)
       .single();
 
     if (fetchError) {
-      debugLog('Error fetching admin data:', fetchError);
+      debugLog('Error fetching commissioner data:', fetchError);
       return NextResponse.json(
         { success: false, error: `Failed to fetch admin data: ${fetchError.message}` },
         { status: 500 }
@@ -44,21 +46,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Prevent deleting super admins
-    if (adminData.is_super_admin) {
-      debugLog('Cannot delete super admin');
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete super admin accounts' },
-        { status: 400 }
-      );
-    }
-
     debugLog('Deleting admin:', adminData.email);
 
-    // Delete admin record from admins table
+    // Delete commissioner record
     debugLog('Deleting admin record...');
     const { error: deleteError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .delete()
       .eq('id', adminId);
 

@@ -95,14 +95,17 @@ function PoolHistoryContent() {
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
 
-        // Check admin status
+        // Check admin status — session user could be a super-admin or a
+        // commissioner, so resolve via the same server-side check
+        // AdminGuard uses rather than querying either table directly.
         try {
           const { getSupabaseClient } = await import('@/lib/supabase');
           const supabase = getSupabaseClient();
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
-            const { data: admin } = await supabase.from('admins').select('id').eq('id', session.user.id).single();
-            if (admin) setIsAdmin(true);
+            const res = await fetch(`/api/admin/verify-status?adminId=${session.user.id}`);
+            const data = await res.json();
+            if (data.success && data.isAdmin) setIsAdmin(true);
           }
         } catch {}
 

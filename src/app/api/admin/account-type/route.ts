@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountById } from '@/lib/accounts';
 
 export async function GET(request: NextRequest) {
   const adminId = request.nextUrl.searchParams.get('adminId');
@@ -9,20 +9,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = getSupabaseServiceClient();
+    const account = await findAccountById(adminId, { activeOnly: true });
 
-    const { data: admin, error } = await supabase
-      .from('admins')
-      .select('password_hash')
-      .eq('id', adminId)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !admin) {
+    if (!account) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, isOAuth: admin.password_hash === 'google_oauth' });
+    return NextResponse.json({ success: true, isOAuth: account.row.password_hash === 'google_oauth' });
   } catch {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }

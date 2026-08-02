@@ -16,10 +16,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Check if admin exists
+    // This route only ever targets commissioners.
     const { data: admin, error: checkError } = await supabase
-      .from('admins')
-      .select('id, email, full_name, is_super_admin')
+      .from('commissioners')
+      .select('id, email, full_name')
       .eq('id', adminId)
       .single();
 
@@ -30,17 +30,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prevent deactivating admins (optional security measure)
-    if (admin.is_super_admin && !isActive) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot deactivate admin accounts' },
-        { status: 400 }
-      );
-    }
-
-    // Update admin status
+    // Update commissioner status
     const { error: updateError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({ is_active: isActive })
       .eq('id', adminId);
 
