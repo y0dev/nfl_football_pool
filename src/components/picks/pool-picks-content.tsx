@@ -41,6 +41,11 @@ const liveRed = 'oklch(62% 0.22 25)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_RE.test(value);
+}
+
 function getPeriodName(seasonType: number, week: number): string {
   if (seasonType === 2 && week <= 4) return 'Period 1';
   if (seasonType === 2 && week <= 9) return 'Period 2';
@@ -525,8 +530,7 @@ export function PoolPicksContent() {
         return;
       }
 
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(poolId)) {
+      if (!isValidUuid(poolId)) {
         notFound();
         return;
       }
@@ -860,9 +864,16 @@ export function PoolPicksContent() {
           const allSessions = userSessionManager.getAllSessions();
           const poolSession = allSessions.find(session => session.poolId === poolId);
 
-          if (poolSession && poolSession.userId) {
+          if (poolSession && isValidUuid(poolSession.userId)) {
             debugLog('Restoring user session:', poolSession);
             setSelectedUser({ id: poolSession.userId, name: poolSession.userName });
+          } else if (poolSession) {
+            // Stale session from dummy-data testing (participant ids like
+            // "1" instead of a real UUID) or otherwise corrupted — every
+            // downstream query keys off a real participants.id, so drop it
+            // rather than let it resurface this same crash on every load.
+            debugLog('Discarding session with non-UUID userId:', poolSession);
+            userSessionManager.removeSession(poolSession.userId, poolId);
           }
         } catch {
           debugLog('No saved user session found for pool:', poolId);
@@ -1001,8 +1012,7 @@ export function PoolPicksContent() {
 
   const checkUserSubmissionStatus = async () => {
     if (!poolId || !selectedUser) return;
-    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRe.test(poolId)) return;
+    if (!isValidUuid(poolId) || !isValidUuid(selectedUser.id)) return;
 
     try {
       debugLog('Checking submission status for:', { participantId: selectedUser.id, poolId, currentWeek, currentSeasonType });
