@@ -31,6 +31,16 @@ export function isSaleEnabled(): boolean {
   return process.env.NEXT_PUBLIC_SALE === 'true';
 }
 
+// Self-serve 7-day Standard trial on signup, offered from the Pricing page.
+// On by default — set NEXT_PUBLIC_TRIAL_ENABLED=false to fall back to a
+// plain "Upgrade to Standard" CTA (e.g. once trials are no longer offered)
+// without a code change.
+export const TRIAL_DAYS = 7;
+
+export function isTrialEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_TRIAL_ENABLED !== 'false';
+}
+
 function priceInfo(list: number, sale: number): PriceInfo {
   const onSale = isSaleEnabled();
   return { list, sale: onSale ? sale : null, effective: onSale ? sale : list, onSale };

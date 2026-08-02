@@ -4,6 +4,8 @@ import { getSupabaseRouteClient } from '@/lib/supabase-ssr';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { findAccountByEmail } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
+import { trialEndDate } from '@/lib/plan';
+import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -89,7 +91,12 @@ export async function GET(request: NextRequest) {
 
   // New account — check intent cookie
   const intent = request.cookies.get('oauth_intent')?.value;
-  console.log('[OAuth:callback] no existing admin — oauth_intent cookie:', intent ?? 'NOT SET');
+  // Set alongside oauth_intent by the register page when a plan was chosen
+  // on /pricing — see src/app/register/page.tsx. Same rule as the
+  // email/password path in create-commissioner/route.ts: only 'standard' is
+  // an explicit trial opt-in, anything else is a plain Free account.
+  const planIntent = request.cookies.get('oauth_plan')?.value;
+  console.log('[OAuth:callback] no existing admin — oauth_intent cookie:', intent ?? 'NOT SET', '| oauth_plan cookie:', planIntent ?? 'NOT SET');
 
   if (intent !== 'register') {
     console.log('[OAuth:callback] intent !== register → redirecting to /login?error=no-account');
@@ -121,11 +128,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Non-critical: set plan fields
-  const trialEndsAt = new Date();
-  trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+  // Non-critical: set plan fields. plan stays 'free' either way — an active
+  // trial is derived from trial_ends_at at read time, never stored as
+  // separate state (see computePlanInfo in src/lib/plan.ts).
+  const wantsTrial = planIntent === 'standard' && isTrialEnabled();
   void serviceClient.from('commissioners')
-    .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
+    .update({ plan: 'free', trial_ends_at: wantsTrial ? trialEndDate(TRIAL_DAYS) : null })
     .eq('id', newCommissioner.id);
 
   // Non-critical: send welcome email
@@ -135,8 +143,18 @@ export async function GET(request: NextRequest) {
     body: JSON.stringify({ email: newCommissioner.email, fullName: newCommissioner.full_name ?? newCommissioner.email }),
   }).catch(() => {});
 
+  // Chose Standard with no trial running — there was nothing to grant at
+  // account-creation time (plan stayed Free), so the only way "Standard"
+  // means anything here is to continue straight into Stripe checkout
+  // instead of landing on the dashboard. Mirrors the email/password path in
+  // src/app/register/page.tsx.
+  const wantsCheckoutAfterSignup = planIntent === 'standard' && !wantsTrial;
+
   console.log('[OAuth:callback] new commissioner created → building session redirect');
-  return buildSessionRedirect(origin, { ...newCommissioner, is_super_admin: false }, pendingCookies, request, true);
+  return buildSessionRedirect(origin, { ...newCommissioner, is_super_admin: false }, pendingCookies, request, {
+    clearIntent: true,
+    destinationPath: wantsCheckoutAfterSignup ? '/upgrade' : undefined,
+  });
 }
 
 function buildSessionRedirect(
@@ -144,11 +162,12 @@ function buildSessionRedirect(
   admin: { id: string; email: string; full_name: string | null; is_super_admin: boolean },
   pendingCookies: { name: string; value: string; options: Record<string, unknown> }[],
   request: NextRequest,
-  clearIntent = false
+  opts: { clearIntent?: boolean; destinationPath?: string } = {}
 ) {
+  const { clearIntent = false, destinationPath } = opts;
   const destination = admin.is_super_admin
     ? `${origin}/admin/dashboard`
-    : `${origin}/dashboard`;
+    : `${origin}${destinationPath ?? '/dashboard'}`;
 
   console.log('[OAuth:buildSessionRedirect] admin:', admin.email, '| is_super_admin:', admin.is_super_admin, '| destination:', destination, '| pendingCookies:', pendingCookies.length);
 
@@ -189,6 +208,7 @@ function buildSessionRedirect(
 
   if (clearIntent) {
     response.cookies.delete('oauth_intent');
+    response.cookies.delete('oauth_plan');
   }
 
   return response;

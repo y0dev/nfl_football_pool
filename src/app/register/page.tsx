@@ -1,19 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Trophy, BarChart3, Calendar, Bell, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loginUser } from '@/actions/loginUser';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createPageUrl, debugLog } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
+
+type SelectedPlan = 'free' | 'standard';
 
 // Design tokens — match landing page
 const bg      = 'oklch(13% 0.025 255)';
@@ -59,6 +62,20 @@ function RegisterContent() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { user, signIn, verifyAdminStatus } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const trialEnabled = isTrialEnabled();
+
+  // Carried from /pricing via ?plan=free|standard — see pricing-content.tsx.
+  // Defaults to 'free' for anyone who lands here directly (e.g. the nav
+  // "Create Pool" button) rather than silently granting a trial nobody asked
+  // for. Still changeable below before the account is actually created.
+  const initialPlan: SelectedPlan = searchParams.get('plan') === 'standard' ? 'standard' : 'free';
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>(initialPlan);
+  // Standard without a trial running has no account-creation-time effect
+  // (create-commissioner just makes a plain Free account) — the only way
+  // "Standard" means anything in that case is to continue straight into
+  // Stripe checkout right after sign-up.
+  const wantsCheckoutAfterSignup = selectedPlan === 'standard' && !trialEnabled;
 
   useEffect(() => {
     const check = async () => {
@@ -82,9 +99,10 @@ function RegisterContent() {
     try {
       const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
       const supabase = getSupabaseBrowserClient();
-      // Cookie survives the redirect chain on all mobile browsers (unlike sessionStorage)
+      // Cookies survive the redirect chain on all mobile browsers (unlike sessionStorage)
       document.cookie = 'oauth_intent=register;path=/;max-age=300;samesite=lax';
-      debugLog('[Register] starting Google OAuth redirect');
+      document.cookie = `oauth_plan=${selectedPlan};path=/;max-age=300;samesite=lax`;
+      debugLog('[Register] starting Google OAuth redirect, plan:', selectedPlan);
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -109,7 +127,7 @@ function RegisterContent() {
       const response = await fetch('/api/admin/create-commissioner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: data.email, password: data.password, fullName: data.fullName }),
+        body: JSON.stringify({ email: data.email, password: data.password, fullName: data.fullName, plan: selectedPlan }),
       });
 
       const result = await response.json();
@@ -119,8 +137,15 @@ function RegisterContent() {
         const loginResult = await loginUser(data.email, data.password);
         if (loginResult.success && loginResult.user) {
           await signIn(loginResult.user);
+          // Chose Standard with no trial running (create-commissioner made a
+          // plain Free account in that case, since there's no trial to
+          // grant) — send them straight into checkout instead of the
+          // dashboard, so picking Standard still leads somewhere instead of
+          // silently doing nothing.
           window.location.href = loginResult.user.is_super_admin
             ? createPageUrl('admindashboard')
+            : wantsCheckoutAfterSignup
+            ? createPageUrl('upgrade')
             : createPageUrl('dashboard');
         } else {
           window.location.href = createPageUrl('login');
@@ -255,6 +280,44 @@ function RegisterContent() {
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.5rem' }}>
               Join Sunday Huddle as a commissioner
             </p>
+          </div>
+
+          {/* Selected Plan summary — carried from /pricing, changeable here */}
+          <div style={{
+            background: card, border: `1px solid ${selectedPlan === 'standard' ? green : border}`,
+            borderRadius: 10, padding: '1.1rem 1.25rem', marginBottom: '1.5rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
+          }}>
+            <div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: textDim, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                Selected Plan
+              </p>
+              {selectedPlan === 'standard' ? (
+                <>
+                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
+                    Standard <Sparkles style={{ width: 14, height: 14, color: gold }} />
+                  </p>
+                  <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>
+                    {trialEnabled ? `${TRIAL_DAYS}-Day Free Trial — no charge today` : "You'll continue to checkout after signing up"}
+                  </p>
+                </>
+              ) : (
+                <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>
+                  Free
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedPlan(p => (p === 'standard' ? 'free' : 'standard'))}
+              style={{
+                background: 'transparent', border: `1px solid ${border}`, borderRadius: 6,
+                padding: '0.4rem 0.75rem', ...bc, fontWeight: 700, fontSize: '0.7rem',
+                letterSpacing: '0.06em', textTransform: 'uppercase', color: textMid, cursor: 'pointer',
+              }}
+            >
+              {selectedPlan === 'standard' ? 'Switch to Free' : trialEnabled ? `Add ${TRIAL_DAYS}-Day Trial` : 'Switch to Standard'}
+            </button>
           </div>
 
           {/* Register Card */}
@@ -488,7 +551,9 @@ function RegisterContent() {
 export default function RegisterPage() {
   return (
     <AuthProvider>
-      <RegisterContent />
+      <Suspense fallback={null}>
+        <RegisterContent />
+      </Suspense>
     </AuthProvider>
   );
 }
