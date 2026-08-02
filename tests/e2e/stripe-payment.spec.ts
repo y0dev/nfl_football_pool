@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
 loadEnv({ path: '.env.local' });
@@ -62,9 +62,77 @@ async function isStripeSandboxConfigured(request: APIRequestContext) {
   return body?.billing?.stripeEnabled === true;
 }
 
+// Shared by every purchase flow below — fills Stripe's hosted Checkout page
+// with a test card and submits. Assumes the page has already redirected to
+// checkout.stripe.com.
+async function completeStripeTestCheckout(page: Page) {
+  // Checkout shows a payment-method picker; "Card" must be selected before
+  // the card number/expiry/cvc fields render. A hover-only "Pay with card"
+  // button overlays the radio and intercepts normal clicks, so force past it.
+  await page.getByRole('radio', { name: 'Card' }).click({ force: true, timeout: 10000 });
+
+  // Stripe surfaces this for agent-driven checkouts — this literally is
+  // one, so the honest answer is to check it. It sits off-screen near the
+  // footer, so drive it via a native DOM click rather than Playwright's
+  // viewport-bound check().
+  const aiAgentCheckbox = page.getByRole('checkbox', { name: /AI agent acting on behalf/i });
+  if (await aiAgentCheckbox.count().then(c => c > 0).catch(() => false)) {
+    await aiAgentCheckbox.evaluate((el: HTMLInputElement) => el.click());
+  }
+
+  // Skip Link's "save info" — it pulls in a phone-number requirement
+  // that's irrelevant to verifying the purchase flow.
+  const saveInfoCheckbox = page.getByRole('checkbox', { name: /save my information/i });
+  if (await saveInfoCheckbox.isChecked({ timeout: 3000 }).catch(() => false)) {
+    await saveInfoCheckbox.evaluate((el: HTMLInputElement) => el.click());
+  }
+
+  await page.getByRole('textbox', { name: 'Card number' }).fill('4242424242424242', { timeout: 8000 });
+  await page.getByRole('textbox', { name: 'Expiration' }).fill('12/34', { timeout: 8000 });
+  await page.getByRole('textbox', { name: 'CVC' }).fill('123', { timeout: 8000 });
+
+  const nameInput = page.getByRole('textbox', { name: 'Cardholder name' });
+  if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await nameInput.fill('E2E Billing Test', { timeout: 5000 });
+  }
+
+  // automatic_tax (see src/app/api/stripe/checkout/route.ts) requires a
+  // billing address to calculate tax, so Checkout now always shows a full
+  // "Billing address" section. Its default field is a Google-Places-style
+  // autocomplete, which is unreliable to drive from automation —
+  // "Enter address manually" swaps it for plain fields instead.
+  const manualAddressLink = page.getByText('Enter address manually');
+  if (await manualAddressLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await manualAddressLink.click();
+    await page.getByRole('textbox', { name: /address line 1/i }).fill('123 Test St', { timeout: 5000 });
+    await page.getByRole('textbox', { name: /^city$/i }).fill('New York', { timeout: 5000 });
+    const stateField = page.getByLabel(/^state$/i);
+    if (await stateField.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await stateField.selectOption({ label: 'New York' }).catch(() => stateField.fill('New York').catch(() => {}));
+    }
+    await page.getByRole('textbox', { name: /zip/i }).fill('10001', { timeout: 5000 });
+  } else {
+    // Fallback path for accounts without automatic_tax enabled — the
+    // compact inline ZIP field under the card fields.
+    const zipInput = page.getByRole('textbox', { name: 'ZIP' });
+    if (await zipInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await zipInput.fill('10001', { timeout: 5000 });
+    }
+  }
+
+  // Second agentic-checkout acknowledgment, separate from the first — only
+  // appears once the payment form is otherwise complete/valid.
+  const followedInstructionsCheckbox = page.getByRole('checkbox', { name: /followed the instructions above/i });
+  if (await followedInstructionsCheckbox.count().then(c => c > 0).catch(() => false)) {
+    await followedInstructionsCheckbox.evaluate((el: HTMLInputElement) => el.click());
+  }
+
+  await page.getByTestId('hosted-payment-submit-button').click({ timeout: 10000 });
+}
+
 test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
   test('purchasing Standard flips the plan via the real webhook', async ({ page, request }) => {
-    test.setTimeout(90000);
+    test.setTimeout(150000);
     test.skip(!(await isStripeSandboxConfigured(request)), 'Stripe not configured — skipping payment E2E');
 
     const admin = await createTestCommissioner(request);
@@ -87,49 +155,15 @@ test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
 
       // Real redirect to Stripe's hosted Checkout page (sandbox/test mode)
       await page.waitForURL(/checkout\.stripe\.com/, { timeout: 15000 });
-
-      // Checkout shows a payment-method picker; "Card" must be selected
-      // before the card number/expiry/cvc fields render. A hover-only
-      // "Pay with card" button overlays the radio and intercepts normal
-      // clicks, so force past it.
-      await page.getByRole('radio', { name: 'Card' }).click({ force: true, timeout: 10000 });
-
-      // Stripe surfaces this for agent-driven checkouts — this literally is
-      // one, so the honest answer is to check it. It sits off-screen near
-      // the footer, so drive it via a native DOM click rather than
-      // Playwright's viewport-bound check().
-      const aiAgentCheckbox = page.getByRole('checkbox', { name: /AI agent acting on behalf/i });
-      if (await aiAgentCheckbox.count().then(c => c > 0).catch(() => false)) {
-        await aiAgentCheckbox.evaluate((el: HTMLInputElement) => el.click());
-      }
-
-      // Skip Link's "save info" — it pulls in a phone-number requirement
-      // that's irrelevant to verifying the purchase flow.
-      const saveInfoCheckbox = page.getByRole('checkbox', { name: /save my information/i });
-      if (await saveInfoCheckbox.isChecked({ timeout: 3000 }).catch(() => false)) {
-        await saveInfoCheckbox.evaluate((el: HTMLInputElement) => el.click());
-      }
-
-      await page.getByRole('textbox', { name: 'Card number' }).fill('4242424242424242', { timeout: 8000 });
-      await page.getByRole('textbox', { name: 'Expiration' }).fill('12/34', { timeout: 8000 });
-      await page.getByRole('textbox', { name: 'CVC' }).fill('123', { timeout: 8000 });
-
-      const nameInput = page.getByRole('textbox', { name: 'Cardholder name' });
-      if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await nameInput.fill('E2E Billing Test', { timeout: 5000 });
-      }
-      const zipInput = page.getByRole('textbox', { name: 'ZIP' });
-      if (await zipInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await zipInput.fill('10001', { timeout: 5000 });
-      }
-
-      await page.getByTestId('hosted-payment-submit-button').click({ timeout: 10000 });
+      await completeStripeTestCheckout(page);
 
       // Back on our success page — the webhook is the source of truth for the
       // plan change, the redirect only shows a toast. The toast auto-dismisses
       // quickly and its exact timing isn't the point, so this check is
       // best-effort; the plan-status poll below is the real assertion.
-      await page.waitForURL(/\/upgrade\?checkout=success/, { timeout: 30000 });
+      // 60s not 30s — automatic_tax adds a calculation round-trip that
+      // pushes the "Pay" button's Processing state noticeably longer.
+      await page.waitForURL(/\/upgrade\?checkout=success/, { timeout: 60000 });
       await page.locator('text=Payment Received').isVisible({ timeout: 5000 }).catch(() => false);
 
       // Poll plan-status until the webhook (delivered via `stripe listen`)
@@ -138,6 +172,52 @@ test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
         const res = await request.get(`/api/admin/plan-status?adminId=${admin.id}`);
         const body = await res.json();
         expect(body.plan).toBe('standard');
+      }).toPass({ timeout: 20000, intervals: [1000, 2000, 3000] });
+    } finally {
+      await deleteTestCommissioner(request, admin.id);
+    }
+  });
+
+  test('purchasing an Add-on Pool raises the pool limit via the real webhook', async ({ page, request }) => {
+    test.setTimeout(150000);
+    test.skip(!(await isStripeSandboxConfigured(request)), 'Stripe not configured — skipping payment E2E');
+
+    const admin = await createTestCommissioner(request);
+
+    // Add-on pools require Standard first (enforced at checkout) — the
+    // Standard purchase test above proves that flow separately, so seed
+    // Standard directly here rather than paying for it twice.
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
+    );
+    await supabase.from('admins').update({ plan: 'standard', addon_pools: 0 }).eq('id', admin.id);
+
+    try {
+      await page.goto('/login');
+      await page.evaluate((a) => {
+        localStorage.setItem('nfl-pool-user', JSON.stringify({
+          id: a.id,
+          email: a.email,
+          full_name: 'E2E Billing Test',
+          is_super_admin: false,
+        }));
+      }, admin);
+
+      await page.goto('/upgrade');
+      await page.getByRole('button', { name: /buy 1 extra pool/i }).click();
+
+      await page.waitForURL(/checkout\.stripe\.com/, { timeout: 15000 });
+      await completeStripeTestCheckout(page);
+
+      // 60s not 30s — automatic_tax adds a calculation round-trip that
+      // pushes the "Pay" button's Processing state noticeably longer.
+      await page.waitForURL(/\/upgrade\?checkout=success/, { timeout: 60000 });
+
+      await expect(async () => {
+        const res = await request.get(`/api/admin/plan-status?adminId=${admin.id}`);
+        const body = await res.json();
+        expect(body.addonPools).toBe(1);
       }).toPass({ timeout: 20000, intervals: [1000, 2000, 3000] });
     } finally {
       await deleteTestCommissioner(request, admin.id);

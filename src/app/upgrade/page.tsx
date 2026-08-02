@@ -82,24 +82,62 @@ function UpgradeContent() {
   const totalAddon = extraPools * addonPrice.effective;
   const pricingVisible = isPricingVisible();
 
+  const fetchPlanStatus = async (id: string) => {
+    const res = await fetch(`/api/admin/plan-status?adminId=${id}`);
+    return res.json();
+  };
+
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`/api/admin/plan-status?adminId=${user.id}`)
-      .then(res => res.json())
+    fetchPlanStatus(user.id)
       .then(data => {
         if (data.success) setPlanStatus(data);
       })
       .finally(() => setIsLoadingPlan(false));
   }, [user?.id]);
 
-  // Surface the result of a Stripe Checkout redirect
+  // Surface the result of a Stripe Checkout redirect. The webhook that
+  // actually applies the plan/add-on change runs asynchronously relative to
+  // this redirect, so the plan-status fetched on mount above can easily be
+  // stale by the time this page renders — poll briefly instead of leaving
+  // the user staring at their pre-purchase plan until they refresh by hand.
   useEffect(() => {
     const checkout = new URLSearchParams(window.location.search).get('checkout');
-    if (checkout === 'success') {
-      toast({ title: 'Payment Received', description: 'Your plan will update within a minute. Thanks!' });
-    } else if (checkout === 'cancelled') {
+    if (checkout !== 'success' && checkout !== 'cancelled') return;
+
+    // Drop the query param so a manual refresh doesn't re-trigger this.
+    router.replace('/upgrade', { scroll: false });
+
+    if (checkout === 'cancelled') {
       toast({ title: 'Checkout Cancelled', description: 'No charge was made.' });
+      return;
     }
+
+    toast({ title: 'Payment Received', description: 'Updating your account…' });
+    let attempts = 0;
+    const maxAttempts = 10; // ~20s at 2s intervals
+    const poll = setInterval(async () => {
+      attempts++;
+      if (!user?.id) return;
+      try {
+        const data = await fetchPlanStatus(user.id);
+        if (data.success) {
+          setPlanStatus(prev => {
+            const changed = !prev || prev.plan !== data.plan || prev.addonPools !== data.addonPools;
+            if (changed) {
+              clearInterval(poll);
+              toast({ title: 'Plan Updated', description: 'Your account now reflects the purchase.' });
+            }
+            return data;
+          });
+        }
+      } catch {
+        // transient — keep polling until maxAttempts
+      }
+      if (attempts >= maxAttempts) clearInterval(poll);
+    }, 2000);
+
+    return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
