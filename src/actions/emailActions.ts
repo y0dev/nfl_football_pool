@@ -331,12 +331,19 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
         // Get pool admin
         const { data: admin, error: adminError } = await supabase
           .from('commissioners')
-          .select('id, email, full_name')
+          .select('id, email, full_name, notification_preferences')
           .eq('email', pool.created_by)
           .eq('is_active', true)
           .maybeSingle();
 
         if (adminError || !admin || !admin.email) {
+          continue;
+        }
+
+        // Respect the commissioner's notification preferences (Account
+        // Settings → Notifications). Defaults to sending when the column is
+        // missing/null so existing accounts aren't silently opted out.
+        if (admin.notification_preferences?.pick_reminders === false) {
           continue;
         }
 

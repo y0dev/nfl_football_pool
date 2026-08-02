@@ -1037,7 +1037,14 @@ CREATE TABLE IF NOT EXISTS commissioners (
   trial_ends_at TIMESTAMP WITH TIME ZONE,
   billing_exempt BOOLEAN NOT NULL DEFAULT false,
   addon_pools INTEGER NOT NULL DEFAULT 0,
-  stripe_customer_id VARCHAR(255)
+  stripe_customer_id VARCHAR(255),
+  -- Decoupled from password_hash's 'google_oauth' sentinel on purpose: an
+  -- account can have BOTH a real password AND Google linked (see
+  -- src/app/account/settings connect/disconnect flows), which a single
+  -- column can't represent. google_linked is the one source of truth the
+  -- OAuth callback checks before allowing a Google sign-in.
+  google_linked BOOLEAN NOT NULL DEFAULT false,
+  notification_preferences JSONB NOT NULL DEFAULT '{"pick_reminders":true,"weekly_summaries":true,"season_announcements":true,"product_updates":true}'::jsonb
 );
 `;
 

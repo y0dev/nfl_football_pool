@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth';
-import { parseDeleteToken, confirmAccountDeletion, getAdminByDeletionToken } from '@/actions/accountDeletion';
+import { getEmailChangeDetails, confirmEmailChange } from '@/actions/emailChange';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
-import { AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Mail } from 'lucide-react';
 import Link from 'next/link';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -22,43 +22,36 @@ const errRed  = 'oklch(62% 0.22 25)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
-type PageState = 'loading' | 'confirm' | 'deleting' | 'success' | 'expired' | 'invalid';
+type PageState = 'loading' | 'confirm' | 'confirming' | 'success' | 'expired' | 'invalid';
 
-function ConfirmDeletionContent() {
+function ConfirmEmailChangeContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get('token') || '';
 
   const [pageState, setPageState] = useState<PageState>('loading');
-  const [accountEmail, setAccountEmail] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!token) { setPageState('invalid'); return; }
-
-    Promise.all([
-      parseDeleteToken(token),
-      getAdminByDeletionToken(token),
-    ]).then(([parsed, admin]) => {
-      if (parsed.expired) { setPageState('expired'); return; }
-      if (!parsed.valid || !admin) { setPageState('invalid'); return; }
-      setAccountEmail(admin.email);
+    getEmailChangeDetails(token).then(details => {
+      if (!details) { setPageState('invalid'); return; }
+      setNewEmail(details.newEmail);
       setPageState('confirm');
     });
   }, [token]);
 
   const handleConfirm = async () => {
-    setPageState('deleting');
+    setPageState('confirming');
     setError('');
     try {
-      const result = await confirmAccountDeletion(token);
+      const result = await confirmEmailChange(token);
       if (result.success) {
         setPageState('success');
-        setTimeout(() => router.push('/'), 4000);
       } else if (result.expired) {
         setPageState('expired');
       } else {
-        setError(result.error || 'Failed to delete account. Please try again.');
+        setError(result.error || 'Failed to confirm email change. Please try again.');
         setPageState('confirm');
       }
     } catch {
@@ -67,10 +60,7 @@ function ConfirmDeletionContent() {
     }
   };
 
-  const borderTopColor =
-    pageState === 'success' ? green :
-    pageState === 'confirm' || pageState === 'deleting' || pageState === 'loading' ? errRed :
-    errRed;
+  const borderTopColor = pageState === 'success' ? green : pageState === 'confirm' || pageState === 'confirming' || pageState === 'loading' ? green : errRed;
 
   return (
     <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
@@ -83,36 +73,30 @@ function ConfirmDeletionContent() {
 
         {pageState === 'loading' && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 0' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: errRed, animation: 'spin 0.8s linear infinite' }} />
+            <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: green, animation: 'spin 0.8s linear infinite' }} />
           </div>
         )}
 
         {pageState === 'confirm' && (
           <>
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <div style={{ width: 52, height: 52, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'oklch(62% 0.22 25 / 0.12)', border: `1px solid oklch(62% 0.22 25 / 0.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Trash2 style={{ width: 22, height: 22, color: errRed }} />
+              <div style={{ width: 52, height: 52, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'oklch(46% 0.14 155 / 0.12)', border: `1px solid oklch(46% 0.14 155 / 0.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mail style={{ width: 22, height: 22, color: greenHi }} />
               </div>
-              <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.26em', color: errRed, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                Permanent Action
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                Confirm Change
               </p>
               <h1 style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: text, textTransform: 'uppercase', lineHeight: 1, marginBottom: '0.75rem' }}>
-                Delete Account
+                Update Email
               </h1>
               <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>
-                You are about to permanently delete the commissioner account for:
+                Confirm your Sunday Huddle account email should change to:
               </p>
-              {accountEmail && (
+              {newEmail && (
                 <p style={{ ...b, fontSize: '0.9rem', color: text, fontWeight: 700, marginTop: '0.35rem' }}>
-                  {accountEmail}
+                  {newEmail}
                 </p>
               )}
-            </div>
-
-            <div style={{ background: 'oklch(62% 0.22 25 / 0.08)', border: `1px solid oklch(62% 0.22 25 / 0.3)`, borderRadius: 8, padding: '1rem 1.15rem', marginBottom: '1.5rem' }}>
-              <p style={{ ...b, fontSize: '0.82rem', color: 'oklch(75% 0.12 25)', margin: 0, lineHeight: 1.6 }}>
-                <strong style={{ color: text }}>This cannot be undone.</strong> Your profile, sign-in access, and account settings will be permanently removed. Pools you created will be archived (not deleted) — historical picks, scores, and standings your participants earned are preserved, just no longer active or visible from your account.
-              </p>
             </div>
 
             {error && (
@@ -125,25 +109,24 @@ function ConfirmDeletionContent() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
               <button
                 onClick={handleConfirm}
-                style={{ width: '100%', padding: '0.8rem 1rem', background: errRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ width: '100%', padding: '0.8rem 1rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
-                <Trash2 style={{ width: 14, height: 14 }} />
-                Yes, Delete My Account
+                Confirm New Email
               </button>
               <Link
-                href="/admin/dashboard"
+                href="/admin/account"
                 style={{ display: 'block', width: '100%', padding: '0.7rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.08em', textTransform: 'uppercase', textDecoration: 'none', textAlign: 'center', boxSizing: 'border-box' }}
               >
-                Cancel — Keep My Account
+                Cancel
               </Link>
             </div>
           </>
         )}
 
-        {pageState === 'deleting' && (
+        {pageState === 'confirming' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 0', gap: '1rem' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: errRed, animation: 'spin 0.8s linear infinite' }} />
-            <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>Deleting account…</p>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: green, animation: 'spin 0.8s linear infinite' }} />
+            <p style={{ ...b, fontSize: '0.875rem', color: textMid }}>Updating email…</p>
           </div>
         )}
 
@@ -153,17 +136,20 @@ function ConfirmDeletionContent() {
               <CheckCircle2 style={{ width: 22, height: 22, color: greenHi }} />
             </div>
             <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-              Account Deleted
+              Email Updated
             </p>
             <h1 style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color: text, textTransform: 'uppercase', lineHeight: 1, marginBottom: '0.85rem' }}>
-              So Long, Commissioner
+              All Set
             </h1>
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.5rem' }}>
-              Your account has been deleted. Pools you created are archived, not erased. We&apos;re sorry to see you go. You&apos;ll receive a confirmation email shortly.
+              Your account email is now <strong style={{ color: text }}>{newEmail}</strong>. Sign in with your new email from now on.
             </p>
-            <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
-              Redirecting you home…
-            </p>
+            <Link
+              href="/login"
+              style={{ display: 'inline-block', padding: '0.7rem 1.5rem', background: green, color: text, textDecoration: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}
+            >
+              Sign In
+            </Link>
           </div>
         )}
 
@@ -179,7 +165,7 @@ function ConfirmDeletionContent() {
               Link Expired
             </h1>
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.75rem' }}>
-              This confirmation link has expired. Links are valid for 24 hours. Please submit a new deletion request from your account settings.
+              This confirmation link has expired. Links are valid for 24 hours. Please request the email change again from your account settings.
             </p>
             <Link
               href="/admin/account"
@@ -199,7 +185,7 @@ function ConfirmDeletionContent() {
               Invalid Link
             </h1>
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.75rem' }}>
-              This deletion link is invalid or has already been used.
+              This confirmation link is invalid or has already been used.
             </p>
             <Link
               href="/"
@@ -221,16 +207,16 @@ function ConfirmDeletionContent() {
   );
 }
 
-export default function ConfirmDeletionPage() {
+export default function ConfirmEmailChangePage() {
   return (
     <AuthProvider>
       <Suspense fallback={
         <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: errRed, animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid oklch(26% 0.03 255)`, borderTopColor: green, animation: 'spin 0.8s linear infinite' }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       }>
-        <ConfirmDeletionContent />
+        <ConfirmEmailChangeContent />
       </Suspense>
     </AuthProvider>
   );

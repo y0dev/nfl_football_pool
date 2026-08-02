@@ -497,7 +497,7 @@ class EmailService {
         </div>
         <div style="height:1px;background:#1e2a3a;margin:0 0 28px;"></div>
         <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 20px;">
-          Hey ${displayName}, your Sunday Huddle commissioner account has been successfully deleted. All your account data has been removed from our system.
+          Hey ${displayName}, your Sunday Huddle commissioner account has been deleted. Your profile, sign-in access, and account settings have been permanently removed.
         </p>
         <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 28px;">
           We're sorry to see you go. If you ever decide to come back, you're always welcome — just create a new account and you'll be up and running in minutes.
@@ -506,7 +506,7 @@ class EmailService {
           <tr>
             <td style="background:#091a0f;border-left:3px solid #1e6e43;padding:14px 18px;border-radius:0 6px 6px 0;">
               <p style="margin:0;color:#4ade80;font-size:14px;line-height:1.65;">
-                Any pools you created have been deleted along with their picks, scores, and participants. Pools created by other commissioners that you participated in are not affected.
+                Pools you created have been archived rather than deleted, so the historical picks, scores, and standings your participants earned are preserved. They're no longer active or visible from your account.
               </p>
             </td>
           </tr>
@@ -518,6 +518,69 @@ class EmailService {
       </div>
     `;
     return this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendEmailChangeConfirmation(newEmail: string, displayName: string, confirmUrl: string): Promise<boolean> {
+    const subject = 'Confirm Your New Sunday Huddle Email';
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Confirm Your Email</h1>
+        </div>
+        <div style="height:1px;background:#1e2a3a;margin:0 0 28px;"></div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 20px;">
+          Hi ${displayName}, we received a request to change your Sunday Huddle account email to this address. Confirm below to complete the change.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;">
+          <tr>
+            <td style="background:#1c1608;border-left:3px solid #d4a520;padding:14px 18px;border-radius:0 6px 6px 0;">
+              <p style="margin:0;color:#fcd34d;font-size:14px;line-height:1.65;">
+                This link expires in 24 hours. If you did not request this, you can safely ignore this email — your account email will not change.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${confirmUrl}" style="display:inline-block;background-color:#1e6e43;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+            Confirm New Email
+          </a>
+        </div>
+        <p style="color:#64748b;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+          © ${new Date().getFullYear()} Sunday Huddle. All rights reserved.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: newEmail, subject, html });
+  }
+
+  async sendEmailChangedNotification(oldEmail: string, displayName: string, newEmail: string): Promise<boolean> {
+    const subject = 'Your Sunday Huddle Email Has Changed';
+    const html = `
+      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #d4a520;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
+          <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Email Changed</h1>
+        </div>
+        <div style="height:1px;background:#1e2a3a;margin:0 0 28px;"></div>
+        <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 20px;">
+          Hi ${displayName}, your Sunday Huddle account email was just changed to <strong style="color:#f1f5f9;">${newEmail}</strong>. You'll sign in with that address from now on.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;">
+          <tr>
+            <td style="background:#1a0a0a;border-left:3px solid #dc2626;padding:14px 18px;border-radius:0 6px 6px 0;">
+              <p style="margin:0;color:#fca5a5;font-size:14px;line-height:1.65;">
+                If you did not make this change, contact support immediately — someone else may have access to your account.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="color:#64748b;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+          © ${new Date().getFullYear()} Sunday Huddle. All rights reserved.
+        </p>
+      </div>
+    `;
+    return this.sendEmail({ to: oldEmail, subject, html });
   }
 
   async sendPasswordResetLink(
