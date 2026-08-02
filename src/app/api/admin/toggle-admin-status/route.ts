@@ -20,11 +20,12 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     debugLog('Supabase service client created');
 
-    // Get current admin status
-    debugLog('Getting current admin status...');
+    // Commissioner-only — super-admin status is managed via
+    // /api/super-admin/toggle-status instead.
+    debugLog('Getting current commissioner status...');
     const { data: adminData, error: fetchError } = await supabase
-      .from('admins')
-      .select('is_active, is_super_admin')
+      .from('commissioners')
+      .select('is_active')
       .eq('id', adminId)
       .single();
 
@@ -44,22 +45,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prevent deactivating super admins
-    if (adminData.is_super_admin) {
-      debugLog('Cannot toggle status for super admin');
-      return NextResponse.json(
-        { success: false, error: 'Cannot deactivate super admin accounts' },
-        { status: 400 }
-      );
-    }
-
     const newStatus = !adminData.is_active;
     debugLog('Toggling status from', adminData.is_active, 'to', newStatus);
 
-    // Update admin status
+    // Update commissioner status
     debugLog('Updating admin status...');
     const { error: updateError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({ is_active: newStatus })
       .eq('id', adminId);
 

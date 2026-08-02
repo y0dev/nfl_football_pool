@@ -48,17 +48,15 @@ export async function initiateHuddleTransfer(
       return { success: false, error: 'Huddle not found for your account.' };
     }
 
+    // Recipient must be a commissioner — nothing else lives in this table.
     const { data: recipient } = await supabase
-      .from('admins')
-      .select('email, full_name, is_active, is_super_admin')
+      .from('commissioners')
+      .select('email, full_name, is_active')
       .eq('email', normalizedTo)
       .maybeSingle();
 
     if (!recipient || !recipient.is_active) {
       return { success: false, error: 'No active commissioner account found for that email.' };
-    }
-    if (recipient.is_super_admin) {
-      return { success: false, error: 'Cannot transfer a Huddle to a super admin account.' };
     }
 
     // Only one pending request per Huddle at a time — supersede any other.

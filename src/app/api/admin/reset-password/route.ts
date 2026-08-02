@@ -18,9 +18,11 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
+    // This route only ever resets commissioner passwords (super-admin
+    // password resets go through /api/super-admin/reset-password).
     const { data: targetAdmin, error: targetAdminError } = await supabase
-      .from('admins')
-      .select('id, email, full_name, is_super_admin')
+      .from('commissioners')
+      .select('id, email, full_name')
       .eq('id', adminId)
       .single();
 
@@ -28,14 +30,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Admin not found' }, { status: 404 });
     }
 
-    if (targetAdmin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Cannot reset super admin passwords' }, { status: 403 });
-    }
-
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
     const { error: updateError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
       .eq('id', adminId);
 

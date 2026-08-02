@@ -13,19 +13,18 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
+    // Self-delete is commissioner-only (super-admins are managed separately,
+    // never through this self-service route) — commissioners is the only
+    // table that could ever contain adminId now.
     const { data: admin, error } = await supabase
-      .from('admins')
-      .select('id, email, full_name, password_hash, is_active, is_super_admin')
+      .from('commissioners')
+      .select('id, email, full_name, password_hash, is_active')
       .eq('id', adminId)
       .eq('is_active', true)
       .single();
 
     if (error || !admin) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
-    }
-
-    if (admin.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Super admin accounts cannot be self-deleted' }, { status: 403 });
     }
 
     // Re-verify credentials before destructive action
@@ -60,9 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 
-    // Delete admin record (FK constraints may exist)
+    // Delete commissioner record (FK constraints may exist)
     const { error: deleteAdminError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .delete()
       .eq('id', adminId);
 

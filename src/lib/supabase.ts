@@ -109,6 +109,100 @@ type Database = {
           stripe_customer_id?: string | null
         }
       }
+      // Commissioners (regular users who run Huddles/pools and pay via
+      // Stripe) — split out from admins, which is now super-admins only.
+      // Same id-space convention as admins: id mirrors the Supabase Auth
+      // user id where applicable, so RLS's `id = auth.uid()` self-row
+      // policy works identically. See scripts/migrate-commissioners.ts.
+      commissioners: {
+        Row: {
+          id: string
+          email: string
+          password_hash: string
+          full_name: string | null
+          avatar_url: string | null
+          created_at: string
+          updated_at: string | null
+          is_active: boolean
+          plan: string | null
+          trial_ends_at: string | null
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          password_hash: string
+          full_name?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string | null
+          is_active?: boolean
+          plan?: string | null
+          trial_ends_at?: string | null
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          password_hash?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string | null
+          is_active?: boolean
+          plan?: string | null
+          trial_ends_at?: string | null
+          billing_exempt?: boolean | null
+          addon_pools?: number | null
+          stripe_customer_id?: string | null
+        }
+      }
+      // Payment audit trail — one row per completed Stripe checkout.
+      // admin_id keeps its name (matches every existing call site) but
+      // references commissioners(id) now, not admins(id) — billing is
+      // commissioner-only.
+      payments: {
+        Row: {
+          id: string
+          admin_id: string | null
+          stripe_session_id: string
+          stripe_payment_intent: string | null
+          product: string
+          quantity: number
+          amount_cents: number | null
+          currency: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          admin_id?: string | null
+          stripe_session_id: string
+          stripe_payment_intent?: string | null
+          product: string
+          quantity?: number
+          amount_cents?: number | null
+          currency?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          admin_id?: string | null
+          stripe_session_id?: string
+          stripe_payment_intent?: string | null
+          product?: string
+          quantity?: number
+          amount_cents?: number | null
+          currency?: string | null
+          status?: string
+          created_at?: string
+        }
+      }
       pools: {
         Row: {
           id: string
@@ -917,6 +1011,55 @@ CREATE TABLE IF NOT EXISTS admins (
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS billing_exempt BOOLEAN NOT NULL DEFAULT false;
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS addon_pools INTEGER NOT NULL DEFAULT 0;
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
+--
+-- plan/trial_ends_at/billing_exempt/addon_pools/stripe_customer_id are
+-- vestigial here since the commissioners split (scripts/migrate-commissioners.ts)
+-- — admins is super-admins only now, and none of those concepts apply to
+-- them. Left in place rather than dropped; see that script's summary output
+-- for the planned follow-up column cleanup.
+`;
+
+// Commissioners — split out of admins so regular users (who run
+// Huddles/pools and pay via Stripe) have their own table/id-space, separate
+// from super-admins. Same shape as admins minus is_super_admin. See
+// scripts/migrate-commissioners.ts for the one-time cutover from admins.
+export const commissionersTable = `
+CREATE TABLE IF NOT EXISTS commissioners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255),
+  avatar_url VARCHAR(500),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE,
+  is_active BOOLEAN DEFAULT true,
+  plan VARCHAR(20) DEFAULT 'free',
+  trial_ends_at TIMESTAMP WITH TIME ZONE,
+  billing_exempt BOOLEAN NOT NULL DEFAULT false,
+  addon_pools INTEGER NOT NULL DEFAULT 0,
+  stripe_customer_id VARCHAR(255)
+);
+`;
+
+// Payment audit trail — one row per completed Stripe checkout. admin_id
+// keeps its name (matches every call site written against it) but
+// references commissioners(id), not admins(id) — billing is
+// commissioner-only. Previously only documented in
+// docs/stripe-billing-setup.md; created for real by the commissioners
+// migration since nothing had run that doc's SQL yet.
+export const paymentsTable = `
+CREATE TABLE IF NOT EXISTS payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID REFERENCES commissioners(id) ON DELETE SET NULL,
+  stripe_session_id VARCHAR(255) UNIQUE NOT NULL,
+  stripe_payment_intent VARCHAR(255),
+  product VARCHAR(30) NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  amount_cents INTEGER,
+  currency VARCHAR(10) DEFAULT 'usd',
+  status VARCHAR(20) NOT NULL DEFAULT 'completed',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 `;
 
 // fallow-ignore-next-line unused-export
@@ -1352,6 +1495,8 @@ ALTER TABLE huddle_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE huddle_transfer_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pool_transfer_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE season_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commissioners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
 -- Huddles table policies — commissioner/admin-only. Participants never
 -- query huddles directly, so no participant-facing SELECT policy exists.
@@ -1387,6 +1532,21 @@ CREATE POLICY "Admins can view their own profile" ON admins
   );
 
 CREATE POLICY "Service role can manage admins" ON admins
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- Commissioners table policies — same self-row shape as admins above, since
+-- id mirrors the Supabase Auth user id the same way.
+CREATE POLICY "Commissioners can view their own profile" ON commissioners
+  FOR SELECT USING (
+    id = auth.uid()
+    OR auth.role() = 'service_role'
+  );
+
+CREATE POLICY "Service role can manage commissioners" ON commissioners
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- Payments table — service-role only, no client access needed.
+CREATE POLICY "Service role can manage payments" ON payments
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Participants table policies

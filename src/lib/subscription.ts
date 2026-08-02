@@ -27,7 +27,7 @@ export async function getSubscriptionSummary(adminId: string): Promise<Subscript
   const planInfo = await getAdminPlan(adminId);
 
   const { data: admin } = await supabase
-    .from('admins')
+    .from('commissioners')
     .select('email, stripe_customer_id')
     .eq('id', adminId)
     .maybeSingle();

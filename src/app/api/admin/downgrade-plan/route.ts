@@ -15,10 +15,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
 
     const { data: admin, error: fetchError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('email, full_name, plan')
       .eq('id', adminId)
-      .eq('is_super_admin', false)
       .single();
 
     if (fetchError || !admin) {
@@ -30,10 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { error } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({ plan: 'free', trial_ends_at: null, updated_at: new Date().toISOString() })
-      .eq('id', adminId)
-      .eq('is_super_admin', false);
+      .eq('id', adminId);
 
     if (error) {
       debugError('Downgrade plan error:', error.message);

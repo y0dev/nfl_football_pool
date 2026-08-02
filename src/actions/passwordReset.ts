@@ -2,6 +2,7 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountByEmail, findAccountById, updateAccount } from '@/lib/accounts';
 import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
@@ -70,15 +71,11 @@ export async function requestPasswordReset(
     return { success: true };
   }
 
-  const supabase = getSupabaseServiceClient();
-  const { data: admin } = await supabase
-    .from('admins')
-    .select('id, email, full_name, is_active')
-    .eq('email', normalizedEmail)
-    .single();
+  const account = await findAccountByEmail(normalizedEmail);
 
   // Always return success to avoid email enumeration
-  if (!admin || !admin.is_active) return { success: true };
+  if (!account || !account.row.is_active) return { success: true };
+  const admin = account.row;
 
   const token = buildToken(admin.email);
   const resetUrl = `${appBaseUrl()}/login/reset-password?token=${encodeURIComponent(token)}`;
@@ -107,23 +104,19 @@ export async function resetPasswordWithToken(
   if (expired) return { success: false, expired: true, error: 'This reset link has expired. Please request a new one.' };
   if (!valid) return { success: false, error: 'This reset link is invalid.' };
 
-  const supabase = getSupabaseServiceClient();
-  const { data: admin } = await supabase
-    .from('admins')
-    .select('id, is_active')
-    .eq('email', email)
-    .single();
+  const account = await findAccountByEmail(email);
 
-  if (!admin || !admin.is_active) {
+  if (!account || !account.row.is_active) {
     return { success: false, error: 'Account not found.' };
   }
+  const { role, row: admin } = account;
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
-  const { error: updateError } = await supabase
-    .from('admins')
-    .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
-    .eq('id', admin.id);
+  const { error: updateError } = await updateAccount(admin.id, role, {
+    password_hash: passwordHash,
+    updated_at: new Date().toISOString(),
+  });
 
   if (updateError) {
     debugError('Password reset update failed:', updateError.code);
@@ -132,6 +125,7 @@ export async function resetPasswordWithToken(
 
   // Also update Supabase Auth password for accounts that use it
   try {
+    const supabase = getSupabaseServiceClient();
     await supabase.auth.admin.updateUserById(admin.id, { password: newPassword });
   } catch {
     // Non-fatal — older accounts may not have a Supabase Auth entry
@@ -139,14 +133,10 @@ export async function resetPasswordWithToken(
 
   // Send confirmation email (best-effort)
   try {
-    const { data: adminRecord } = await supabase
-      .from('admins')
-      .select('email, full_name')
-      .eq('id', admin.id)
-      .single();
-    if (adminRecord) {
+    const refreshed = await findAccountById(admin.id);
+    if (refreshed) {
       const { emailService } = await import('@/lib/email');
-      await emailService.sendPasswordResetConfirmation(adminRecord.email, adminRecord.full_name || 'Commissioner');
+      await emailService.sendPasswordResetConfirmation(refreshed.row.email, refreshed.row.full_name || 'Commissioner');
     }
   } catch { /* non-fatal */ }
 

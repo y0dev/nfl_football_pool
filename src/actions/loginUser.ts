@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountByEmail } from '@/lib/accounts';
 import { setSessionCookie } from '@/actions/sessionCookie';
 import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
@@ -13,15 +13,6 @@ const TOO_MANY_ATTEMPTS = 'Too many login attempts. Please wait 15 minutes and t
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
-interface AdminData {
-  id: string;
-  email: string;
-  password_hash: string;
-  full_name: string;
-  is_super_admin: boolean;
-  is_active: boolean;
-}
-
 export async function loginUser(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -30,47 +21,37 @@ export async function loginUser(email: string, password: string) {
   }
 
   try {
-    const supabase = getSupabaseServiceClient();
+    // Email could belong to a super-admin (admins) or a commissioner
+    // (commissioners) — findAccountByEmail checks both.
+    const account = await findAccountByEmail(normalizedEmail, { activeOnly: true });
 
-    const { data, error } = await supabase
-      .from('admins')
-      .select('*')
-      .eq('email', normalizedEmail)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) {
-      debugError('Login query error:', error.code);
-      return { success: false, error: 'Database connection error. Please try again.' };
-    }
-
-    if (!data) {
+    if (!account) {
       return { success: false, error: INVALID_CREDENTIALS };
     }
 
-    const adminData = data as AdminData;
+    const { role, row } = account;
 
     // Empty hash or OAuth-only accounts cannot use password login
-    if (!adminData.password_hash || adminData.password_hash === 'google_oauth') {
+    if (!row.password_hash || row.password_hash === 'google_oauth') {
       return { success: false, error: INVALID_CREDENTIALS };
     }
 
-    const isValidPassword = await bcrypt.compare(password, adminData.password_hash);
+    const isValidPassword = await bcrypt.compare(password, row.password_hash);
 
     if (!isValidPassword) {
       return { success: false, error: INVALID_CREDENTIALS };
     }
 
     // Set server-side session cookie so middleware can protect routes
-    await setSessionCookie(adminData.id);
+    await setSessionCookie(row.id);
 
     return {
       success: true,
       user: {
-        id: adminData.id,
-        email: adminData.email,
-        full_name: adminData.full_name,
-        is_super_admin: adminData.is_super_admin,
+        id: row.id,
+        email: row.email,
+        full_name: row.full_name || '',
+        is_super_admin: role === 'super_admin',
       },
     };
   } catch (error) {

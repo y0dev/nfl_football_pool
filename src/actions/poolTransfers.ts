@@ -55,17 +55,15 @@ export async function initiatePoolTransfer(
       return { success: false, error: 'Pool not found for your account.' };
     }
 
+    // Recipient must be a commissioner — nothing else lives in this table.
     const { data: recipient } = await supabase
-      .from('admins')
-      .select('email, full_name, is_active, is_super_admin')
+      .from('commissioners')
+      .select('email, full_name, is_active')
       .eq('email', normalizedTo)
       .maybeSingle();
 
     if (!recipient || !recipient.is_active) {
       return { success: false, error: 'No active commissioner account found for that email.' };
-    }
-    if (recipient.is_super_admin) {
-      return { success: false, error: 'Cannot transfer a pool to a super admin account.' };
     }
 
     const destinationHuddle = await getOrCreateHuddleRecordForCommissioner(recipient.email);

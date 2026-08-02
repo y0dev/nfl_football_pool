@@ -88,7 +88,7 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
 export async function getAdminPlan(adminId: string): Promise<PlanInfo> {
   const supabase = getSupabaseServiceClient();
   const { data } = await supabase
-    .from('admins')
+    .from('commissioners')
     .select('*')
     .eq('id', adminId)
     .single();
@@ -99,7 +99,7 @@ export async function getAdminPlan(adminId: string): Promise<PlanInfo> {
 export async function getAdminPlanByEmail(email: string): Promise<PlanInfo> {
   const supabase = getSupabaseServiceClient();
   const { data } = await supabase
-    .from('admins')
+    .from('commissioners')
     .select('*')
     .eq('email', email)
     .single();
@@ -119,7 +119,7 @@ export async function getAdminPlansByEmails(emails: string[]): Promise<Map<strin
 
   const supabase = getSupabaseServiceClient();
   const { data } = await supabase
-    .from('admins')
+    .from('commissioners')
     .select('*')
     .in('email', unique);
 

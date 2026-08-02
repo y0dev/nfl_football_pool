@@ -345,3 +345,61 @@ Known **still not** touched, and why (unchanged from the previous section):
 no Huddle switcher/management UI, no co-commissioner wiring, `admin_pools`
 still dead code. Multi-Huddle-per-commissioner remains a future product
 decision, not something this pass changes.
+
+## Split `admins` into `admins` (super-admins) + `commissioners`
+
+`admins` held two unrelated kinds of accounts: super-admins (platform
+owners) and commissioners (regular users who run Huddles/pools and pay via
+Stripe). Split into two tables, own id-space each, so plan/billing columns
+and commissioner-only writes stop living on a table that also holds
+platform-owner accounts.
+
+1. `scripts/migrate-commissioners.sql` — run manually via the Supabase SQL
+   editor (this environment has no working mechanism to execute DDL
+   programmatically — no `sql` RPC function, no linked Supabase CLI, no
+   direct Postgres connection string). Creates `commissioners` (same shape
+   as `admins` minus `is_super_admin`) and `payments` (documented before in
+   this repo but never actually created in the sandbox — the Stripe
+   idempotency work earlier this week found it missing), and drops the FK
+   constraint on `audit_logs.admin_id` / `reminder_logs.sent_by` (column
+   stays, plain UUID — a single column can't reference two disjoint tables,
+   and these are best-effort log columns already).
+2. `scripts/migrate-commissioners.ts` (`npm run migrate-commissioners`) —
+   the data half, run via the app's normal Supabase client (the JS client
+   can do INSERT/DELETE without the RPC function DDL needs). Copies every
+   `admins` row with `is_super_admin=false` into `commissioners`
+   **preserving `id`** (so nothing already logged in gets invalidated —
+   `commissioners.id` still mirrors the original Supabase Auth uid the same
+   way `admins.id` always has), verifies every row landed before deleting
+   anything from `admins`, and is safe to re-run.
+3. `src/lib/accounts.ts` — new shared resolver (`findAccountByEmail`,
+   `findAccountById`, `updateAccount`) for the handful of places that
+   generically need to find "whoever this id/email belongs to" without
+   knowing the role up front (login, magic link, password reset, session
+   verification). Tries `admins` first (small table, cheap even on a miss),
+   then `commissioners` — both are indexed lookups, so this doesn't need a
+   role tag threaded through the session cookie to stay fast.
+4. Every other file that queried `admins` for commissioner data (~30 files
+   — `plan.ts`, `subscription.ts`, pool/Huddle transfer checks, the Stripe
+   checkout/webhook routes, self-service account routes, etc.) now queries
+   `commissioners` directly — most of these already had an
+   `is_super_admin` guard baked in (block self-delete/reset/toggle for
+   super-admins), which just confirmed they were commissioner-only in
+   practice and made the swap mechanical. Files with a genuine two-table
+   shape (a super-admin-only auth gate plus a commissioner-only
+   target/data lookup — pool/Huddle transfers, `clonePool.ts`'s
+   `adminClonePool`, `all-pools`, `send-promotion`) query `admins` for the
+   gate and `commissioners` for the target, in the same function.
+5. `src/lib/admin-service.ts`'s `getAdmins()` and
+   `src/app/api/super-admin/admins/route.ts` (the only two places that ever
+   listed every account together) now union both tables, tagging
+   commissioner rows `is_super_admin: false` since that column doesn't
+   exist on their side.
+
+Known **not** touched, and why: the vestigial billing columns left on
+`admins` (`plan`, `trial_ends_at`, `billing_exempt`, `addon_pools`,
+`stripe_customer_id` — nothing on a super-admin account ever reads them
+now) are left in place rather than dropped, since dropping columns is
+harder to reverse than leaving unused nullable ones — a follow-up cleanup
+once the split is verified working, not bundled into the live cutover.
+`admin_pools` remains untouched dead code, same as every prior section.

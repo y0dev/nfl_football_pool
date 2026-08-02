@@ -17,10 +17,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
 
     const { data: targetAdmin, error: fetchError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('email, full_name')
       .eq('id', adminId)
-      .eq('is_super_admin', false)
       .single();
 
     if (fetchError || !targetAdmin) {
@@ -48,20 +47,18 @@ export async function POST(request: NextRequest) {
 
     let warning: string | undefined;
     let { error } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update(updateData)
-      .eq('id', adminId)
-      .eq('is_super_admin', false);
+      .eq('id', adminId);
 
     if (error && 'billing_exempt' in updateData &&
         (error.message.includes('billing_exempt') || error.message.includes('schema cache'))) {
       debugError('billing_exempt column missing — retrying plan update without it (run the billing migration)');
       const { billing_exempt, ...withoutFlag } = updateData;
       ({ error } = await supabase
-        .from('admins')
+        .from('commissioners')
         .update(withoutFlag)
-        .eq('id', adminId)
-        .eq('is_super_admin', false));
+        .eq('id', adminId));
       if (!error) {
         warning = 'Plan saved, but the billing (Pays/Comped) setting was not — the billing_exempt column is missing. Run the billing DB migration first.';
       }

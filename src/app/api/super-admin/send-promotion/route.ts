@@ -25,9 +25,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: targets } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('email, full_name, plan, trial_ends_at')
-      .eq('is_super_admin', false)
       .eq('is_active', true)
       .eq('plan', group);
 

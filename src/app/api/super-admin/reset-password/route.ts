@@ -24,9 +24,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Check if admin exists
+    // This route only ever targets commissioners.
     const { data: admin, error: checkError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .select('id, email, full_name')
       .eq('id', adminId)
       .single();
@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
     // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    // Update admin password
+    // Update commissioner password
     const { error: updateError } = await supabase
-      .from('admins')
+      .from('commissioners')
       .update({ password_hash: passwordHash })
       .eq('id', adminId);
 

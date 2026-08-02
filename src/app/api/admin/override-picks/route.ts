@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { findAccountById } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
@@ -73,12 +74,8 @@ export async function POST(request: NextRequest) {
         .eq('id', poolId)
         .single();
 
-      // Get admin info to determine admin type
-      const admin = await supabase
-        .from('admins')
-        .select('is_super_admin')
-        .eq('id', adminId)
-        .single();
+      // Caller could be either a super-admin or a commissioner (pool owner)
+      const callerAccount = await findAccountById(adminId);
 
       const auditDetails = {
         pool_name: pool?.data?.name || 'Unknown Pool',
@@ -88,7 +85,7 @@ export async function POST(request: NextRequest) {
         season_type: seasonType,
         override_reason: overrideReason,
         override_type: 'specific_picks',
-        overridden_by: admin?.data?.is_super_admin ? 'super_admin' : 'pool_admin',
+        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
         overridden_at: new Date().toISOString(),
         updated_picks: updates.map(update => ({
           pick_id: update.id,
@@ -158,12 +155,8 @@ export async function POST(request: NextRequest) {
         .eq('id', poolId)
         .single();
 
-      // Get admin info to determine admin type
-      const admin = await supabase
-        .from('admins')
-        .select('is_super_admin')
-        .eq('id', adminId)
-        .single();
+      // Caller could be either a super-admin or a commissioner (pool owner)
+      const callerAccount = await findAccountById(adminId);
 
       const auditDetails = {
         pool_name: pool?.data?.name || 'Unknown Pool',
@@ -173,7 +166,7 @@ export async function POST(request: NextRequest) {
         season_type: seasonType,
         override_reason: overrideReason,
         override_type: 'erase_all_picks',
-        overridden_by: admin?.data?.is_super_admin ? 'super_admin' : 'pool_admin',
+        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
         overridden_at: new Date().toISOString(),
         erased_picks_count: picksToDelete?.length || 0
       };
