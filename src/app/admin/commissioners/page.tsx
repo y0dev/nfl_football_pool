@@ -71,7 +71,7 @@ function CommissionersManagementContent() {
   const [planOpen, setPlanOpen]         = useState(false);
   const [planTarget, setPlanTarget]     = useState<AdminUser | null>(null);
   const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; billingExempt: boolean } | null>(null);
-  const [planSelected, setPlanSelected] = useState<'free' | 'standard' | 'pro'>('free');
+  const [planSelected, setPlanSelected] = useState<'free' | 'standard'>('free');
   const [planExempt, setPlanExempt]     = useState(false);
   const [planTrialDays, setPlanTrialDays] = useState(0);
   const [planFetching, setPlanFetching] = useState(false);
@@ -161,7 +161,7 @@ function CommissionersManagementContent() {
       const data = await res.json();
       if (data.success) {
         setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft, billingExempt: data.billingExempt ?? false });
-        setPlanSelected(data.plan as 'free' | 'standard' | 'pro');
+        setPlanSelected(data.plan as 'free' | 'standard');
         setPlanExempt(data.billingExempt ?? false);
       }
     } catch { /* ignore */ } finally {
@@ -546,7 +546,7 @@ function CommissionersManagementContent() {
             <div>
               <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Set Plan</p>
               <div style={{ display: 'flex', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem' }}>
-                {(['free', 'standard', 'pro'] as const).map((p) => (
+                {(['free', 'standard'] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -554,13 +554,13 @@ function CommissionersManagementContent() {
                     style={{
                       flex: 1, padding: '0.4rem 0.5rem',
                       background: planSelected === p
-                        ? p === 'pro' ? green : p === 'standard' ? 'oklch(74% 0.16 72 / 0.2)' : 'oklch(30% 0.03 255)'
+                        ? p === 'standard' ? 'oklch(74% 0.16 72 / 0.2)' : 'oklch(30% 0.03 255)'
                         : 'transparent',
                       color: planSelected === p
-                        ? p === 'pro' ? text : p === 'standard' ? gold : textMid
+                        ? p === 'standard' ? gold : textMid
                         : textDim,
                       border: `1px solid ${planSelected === p
-                        ? p === 'pro' ? green : p === 'standard' ? 'oklch(74% 0.16 72 / 0.5)' : border
+                        ? p === 'standard' ? 'oklch(74% 0.16 72 / 0.5)' : border
                         : 'transparent'}`,
                       borderRadius: 4,
                       ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.07em', textTransform: 'uppercase',
@@ -574,7 +574,6 @@ function CommissionersManagementContent() {
               <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
                 {planSelected === 'free' && '2 pools · 15 participants per pool'}
                 {planSelected === 'standard' && '2 pools · 30 participants per pool'}
-                {planSelected === 'pro' && '3 pools · 75 participants per pool'}
               </p>
             </div>
 
