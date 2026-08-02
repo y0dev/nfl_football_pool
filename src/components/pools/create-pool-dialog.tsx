@@ -307,12 +307,25 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
                   <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: 'oklch(74% 0.16 72)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Plan Limit Reached</p>
                   {/* Preseason test pools have a flat cap — upgrading doesn't raise it */}
                   {isPricingVisible() && !errorMsg.toLowerCase().includes('preseason') ? (
-                    <>
-                      <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade to Standard to unlock it.</p>
-                      <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                        View upgrade options →
-                      </a>
-                    </>
+                    // checkPoolCapacity's message names the plan ("Your standard
+                    // plan allows..."), so a commissioner already on Standard
+                    // gets pointed at buying an add-on instead of "upgrade to
+                    // Standard" — which they already are.
+                    errorMsg.toLowerCase().includes('standard plan') ? (
+                      <>
+                        <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Need another pool? Purchase an Additional Pool.</p>
+                        <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                          Buy an additional pool →
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.6rem' }}>{errorMsg} Upgrade to Standard to unlock it.</p>
+                        <a href="/upgrade" style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', textDecoration: 'underline', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                          View upgrade options →
+                        </a>
+                      </>
+                    )
                   ) : (
                     <p style={{ ...b, fontSize: '0.82rem', color: textMid, margin: 0 }}>{errorMsg}</p>
                   )}

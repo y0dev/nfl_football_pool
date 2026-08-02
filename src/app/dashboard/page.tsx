@@ -29,6 +29,10 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
+import { PlanBadge } from '@/components/billing/plan-badge';
+import { SubscriptionSummaryCard } from '@/components/billing/subscription-summary-card';
+import type { SubscriptionSummary } from '@/lib/subscription';
+import { getNFLSeasonYear } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -88,6 +92,7 @@ function CommissionerDashboardContent() {
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
   const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
   const [leagueId, setLeagueId] = useState<string>('');
 
@@ -121,6 +126,11 @@ function CommissionerDashboardContent() {
           fetch(`/api/admin/plan-status?adminId=${user.id}`)
             .then(r => r.json())
             .then(d => { if (d.success) setPlanInfo({ plan: d.plan, isTrialActive: d.isTrialActive, daysLeft: d.daysLeft }); })
+            .catch(() => {});
+
+          fetch(`/api/admin/subscription-summary?adminId=${user.id}`)
+            .then(r => r.json())
+            .then(d => { if (d.success) setSubscriptionSummary(d); })
             .catch(() => {});
         }
       } catch (error) {
@@ -554,6 +564,12 @@ function CommissionerDashboardContent() {
               <p style={{ ...b, fontSize: '0.95rem', lineHeight: 1.72, color: textMid, maxWidth: '36ch' }}>
                 Manage your Sunday Huddles and participants.
               </p>
+              {user?.full_name && planInfo && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: text }}>{user.full_name}</span>
+                  <PlanBadge plan={planInfo.plan === 'standard' ? 'standard' : 'free'} isTrialActive={planInfo.isTrialActive} daysLeft={planInfo.daysLeft} />
+                </div>
+              )}
               <p style={{ ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim, marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Week {currentWeek} · Refreshed {lastRefresh.toLocaleTimeString()}
               </p>
@@ -597,6 +613,13 @@ function CommissionerDashboardContent() {
 
       <section style={{ background: bg, padding: '2.5rem 0' }}>
         <div className="lp-inner">
+
+          {/* Subscription Summary */}
+          {subscriptionSummary && (
+            <div style={{ marginBottom: '2rem' }}>
+              <SubscriptionSummaryCard summary={subscriptionSummary} currentSeason={getNFLSeasonYear()} />
+            </div>
+          )}
 
           {/* Offseason Banner */}
           {currentSeasonType === 0 && (

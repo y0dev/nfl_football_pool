@@ -7,13 +7,15 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard, Calendar, Save } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { loadSeasonSettings, updateSeasonSettings } from '@/actions/seasonSettings';
+import { PlanBadge } from '@/components/billing/plan-badge';
+import type { SubscriptionSummary } from '@/lib/subscription';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -137,13 +139,13 @@ function AccountSettingsContent() {
       .catch(() => setIsOAuthAccount(false));
   }, [user?.id]);
 
-  const [planStatus, setPlanStatus] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
 
   useEffect(() => {
     if (!user?.id || user.is_super_admin) return;
-    fetch(`/api/admin/plan-status?adminId=${user.id}`)
+    fetch(`/api/admin/subscription-summary?adminId=${user.id}`)
       .then(r => r.json())
-      .then(d => { if (d.success) setPlanStatus(d); })
+      .then(d => { if (d.success) setSubscriptionSummary(d); })
       .catch(() => {});
   }, [user?.id, user?.is_super_admin]);
 
@@ -356,34 +358,74 @@ function AccountSettingsContent() {
             </div>
           )}
 
-          {/* Plan & billing */}
-          {!user?.is_super_admin && planStatus && (
+          {/* Subscription */}
+          {!user?.is_super_admin && subscriptionSummary && (
             <div style={cardSt}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                 <CreditCard style={{ width: 15, height: 15, color: greenHi }} />
-                <p style={sectionTitle}>Plan &amp; Billing</p>
+                <p style={sectionTitle}>Subscription</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {planStatus.plan.charAt(0).toUpperCase() + planStatus.plan.slice(1)}
-                    {planStatus.isTrialActive && <span style={{ color: textDim, fontWeight: 700, fontSize: '0.7rem', marginLeft: '0.5rem' }}>TRIAL · {planStatus.daysLeft}d left</span>}
-                  </p>
-                  <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginTop: '0.2rem' }}>
-                    {planStatus.plan === 'free' ? 'One pool, up to 15 participants.' : 'Manage your plan, or switch back to Free.'}
-                  </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                <PlanBadge plan={subscriptionSummary.plan} isTrialActive={subscriptionSummary.isTrialActive} daysLeft={subscriptionSummary.daysLeft} />
+                {subscriptionSummary.plan === 'free' && !subscriptionSummary.billingExempt && (
+                  <Link href="/upgrade" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: green, color: text, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', textDecoration: 'none' }}>
+                    Upgrade Plan
+                  </Link>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Current Season</span>
+                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>{getNFLSeasonYear()}</span>
                 </div>
-                <Link
-                  href="/upgrade"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.5rem 1rem', background: green, color: text,
-                    borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem',
-                    letterSpacing: '0.07em', textTransform: 'uppercase', textDecoration: 'none',
-                  }}
-                >
-                  Manage Plan
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>
+                    {subscriptionSummary.plan === 'standard' ? 'Purchased' : 'Status'}
+                  </span>
+                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>
+                    {subscriptionSummary.billingExempt
+                      ? 'Comped by site admin'
+                      : subscriptionSummary.standardPurchasedAt
+                      ? new Date(subscriptionSummary.standardPurchasedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                      : subscriptionSummary.isTrialActive
+                      ? `Trial — ${subscriptionSummary.daysLeft}d left`
+                      : 'Free — no purchase yet'}
+                  </span>
+                </div>
+                {subscriptionSummary.plan === 'standard' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                    <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Renewal</span>
+                    <span style={{ ...b, fontSize: '0.82rem', color: text }}>No auto-renewal (per-season purchase)</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Additional Pools Purchased</span>
+                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>{subscriptionSummary.addonPools}</span>
+                </div>
+                {subscriptionSummary.stripeCustomerId && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                    <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Stripe Customer ID</span>
+                    <span style={{ ...b, fontSize: '0.76rem', color: textDim, fontFamily: 'monospace' }}>{subscriptionSummary.stripeCustomerId}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <Link href="/admin/account/purchases" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
+                  <Receipt style={{ width: 12, height: 12 }} /> Purchases
                 </Link>
+                {subscriptionSummary.plan === 'standard' && !subscriptionSummary.billingExempt && (
+                  <Link href="/upgrade" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'oklch(74% 0.16 72 / 0.12)', color: 'oklch(74% 0.16 72)', border: `1px solid oklch(74% 0.16 72 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
+                    <Plus style={{ width: 12, height: 12 }} /> Buy Additional Pool
+                  </Link>
+                )}
+                {!subscriptionSummary.billingExempt && (
+                  <Link href="/upgrade" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
+                    Manage Subscription
+                  </Link>
+                )}
               </div>
             </div>
           )}
