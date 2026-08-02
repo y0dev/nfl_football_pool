@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
 import { getStripe, getPriceId, BillingProduct } from '@/lib/stripe';
-import { debugError } from '@/lib/utils';
 
 // Create a Stripe Checkout session for a plan purchase.
 // Returns 503 until Stripe is configured and pricing is unhidden, so the
@@ -119,7 +118,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, url: session.url });
   } catch (error) {
-    debugError('Checkout session error:', error);
+    // Always logged (not gated to dev) — e.g. a live secret key paired with
+    // a test-mode price id fails here with a Stripe "resource_missing"
+    // error, which would otherwise vanish silently in production.
+    console.error('Checkout session error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to start checkout' },
       { status: 500 }
