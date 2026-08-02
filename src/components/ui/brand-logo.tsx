@@ -34,6 +34,7 @@ export function BrandLogo({ variant = 'icon', size = 40, className }: BrandLogoP
           src="/brand/sh-logo.png"
           alt="Sunday Huddle"
           fill
+          sizes={`${w}px`}
           style={{ objectFit: 'cover' }}
           priority
         />
@@ -59,6 +60,7 @@ export function BrandLogo({ variant = 'icon', size = 40, className }: BrandLogoP
         src="/favicon/android-chrome-512x512.png"
         alt="Sunday Huddle"
         fill
+        sizes={`${size}px`}
         style={{ objectFit: 'cover' }}
         priority
       />
