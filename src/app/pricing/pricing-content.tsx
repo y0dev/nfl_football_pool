@@ -6,7 +6,7 @@ import { Shield, Plus, Check } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { PriceTag } from '@/components/pricing/price-tag';
-import { getStandardPrice, getAddonPoolPrice } from '@/lib/pricing';
+import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const bg      = 'oklch(13% 0.025 255)';
@@ -58,6 +58,7 @@ export default function PricingContent() {
   const router = useRouter();
   const standardPrice = getStandardPrice();
   const addonPrice = getAddonPoolPrice();
+  const trialEnabled = isTrialEnabled();
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
@@ -191,7 +192,7 @@ export default function PricingContent() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => router.push('/register')}
+                  onClick={() => router.push('/register?plan=free')}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                     padding: '0.6rem 1rem', background: 'transparent', color: textMid,
@@ -241,7 +242,7 @@ export default function PricingContent() {
                     ))}
                   </ul>
                   <button
-                    onClick={() => router.push('/register')}
+                    onClick={() => router.push('/register?plan=standard')}
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                       padding: '0.6rem 1rem', background: green, color: text,
@@ -250,8 +251,13 @@ export default function PricingContent() {
                       letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
                     }}
                   >
-                    Start Your Huddle
+                    {trialEnabled ? `Start ${TRIAL_DAYS}-Day Free Trial` : 'Upgrade to Standard'}
                   </button>
+                  {trialEnabled && (
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, textAlign: 'center', marginTop: '0.6rem' }}>
+                      No charge today — cancel anytime during your trial.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

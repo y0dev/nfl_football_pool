@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -91,7 +92,7 @@ function CommissionerDashboardContent() {
   }>>([]);
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
-  const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number } | null>(null);
+  const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; trialEndsAt: string | null } | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
   const [leagueId, setLeagueId] = useState<string>('');
@@ -125,7 +126,7 @@ function CommissionerDashboardContent() {
 
           fetch(`/api/admin/plan-status?adminId=${user.id}`)
             .then(r => r.json())
-            .then(d => { if (d.success) setPlanInfo({ plan: d.plan, isTrialActive: d.isTrialActive, daysLeft: d.daysLeft }); })
+            .then(d => { if (d.success) setPlanInfo({ plan: d.plan, isTrialActive: d.isTrialActive, daysLeft: d.daysLeft, trialEndsAt: d.trialEndsAt ?? null }); })
             .catch(() => {});
 
           fetch(`/api/admin/subscription-summary?adminId=${user.id}`)
@@ -526,19 +527,43 @@ function CommissionerDashboardContent() {
       {/* Plan banner */}
       {planInfo?.isTrialActive && (
         <div style={{ background: 'oklch(28% 0.08 60)', borderBottom: `1px solid oklch(40% 0.12 60)` }}>
-          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
+          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
             <p style={{ ...b, fontSize: '0.8rem', color: 'oklch(85% 0.09 60)', margin: 0 }}>
               <strong style={{ color: amber }}>Standard trial</strong> — {planInfo.daysLeft} day{planInfo.daysLeft !== 1 ? 's' : ''} remaining. After it ends your account reverts to the free tier (2 pools, 15 participants).
             </p>
+            <Link
+              href="/upgrade"
+              style={{
+                flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.75rem', background: amber, color: 'oklch(15% 0.02 60)',
+                borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem',
+                letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none',
+              }}
+            >
+              Subscribe Now
+            </Link>
           </div>
         </div>
       )}
       {planInfo && !planInfo.isTrialActive && planInfo.plan === 'free' && (
         <div style={{ background: 'oklch(20% 0.03 255)', borderBottom: `1px solid ${border}` }}>
-          <div className="lp-inner" style={{ paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
+          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
             <p style={{ ...b, fontSize: '0.8rem', color: textMid, margin: 0 }}>
-              Free plan — limited to 2 pools and 15 participants per pool.
+              {planInfo.trialEndsAt
+                ? 'Your Standard trial has ended — you’re back on the Free plan (2 pools, 15 participants).'
+                : 'Free plan — limited to 2 pools and 15 participants per pool.'}
             </p>
+            <Link
+              href="/upgrade"
+              style={{
+                flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.35rem 0.75rem', background: 'transparent', color: greenHi,
+                border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem',
+                letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none',
+              }}
+            >
+              Upgrade to Standard
+            </Link>
           </div>
         </div>
       )}

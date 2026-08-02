@@ -32,7 +32,11 @@
 !LICENSE
 
 !supabase
+!supabase/**
 !docs
+!docs/**
+!scripts
+!scripts/**
 !tests
 !samples
 !samples/**

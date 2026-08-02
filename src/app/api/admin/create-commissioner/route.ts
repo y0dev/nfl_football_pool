@@ -5,12 +5,21 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
 import { validateEmail } from '@/lib/email-validation';
+import { trialEndDate } from '@/lib/plan';
+import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
 
 export async function POST(request: NextRequest) {
     try {
     debugLog('Create commissioner started');
-    const { email, password, fullName } = await request.json();
-    debugLog('Commissioner data received:', { email, fullName });
+    const { email, password, fullName, plan } = await request.json();
+    debugLog('Commissioner data received:', { email, fullName, plan });
+    // Only 'standard' (the trial) is an explicit opt-in — anything else
+    // (missing, 'free', or an unrecognized value) creates a plain Free
+    // account with no trial. Selection comes from the Pricing page via
+    // /register?plan=..., not from anything the client can silently force
+    // past this point (see the OAuth callback for the same rule applied to
+    // Google sign-ups).
+    const wantsTrial = plan === 'standard' && isTrialEnabled();
 
     // Validate input
     if (!email || !password || !fullName) {
@@ -131,11 +140,13 @@ export async function POST(request: NextRequest) {
 
     debugLog('Admin record created successfully');
 
-    // Set plan fields — non-critical, silently skipped if columns don't exist yet
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+    // Set plan fields — non-critical, silently skipped if columns don't exist yet.
+    // plan stays 'free' either way: an active trial is derived from
+    // trial_ends_at at read time (see computePlanInfo in src/lib/plan.ts),
+    // never stored as a separate state, so there's nothing else to revert
+    // when it expires.
     await supabase.from('commissioners')
-      .update({ plan: 'free', trial_ends_at: trialEndsAt.toISOString() })
+      .update({ plan: 'free', trial_ends_at: wantsTrial ? trialEndDate(TRIAL_DAYS) : null })
       .eq('id', newAdmin.id);
 
     // Log the commissioner creation

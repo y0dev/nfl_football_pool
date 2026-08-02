@@ -13,7 +13,7 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
-import { getStandardPrice, getAddonPoolPrice } from '@/lib/pricing';
+import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
 
 type Plan = 'free' | 'standard';
@@ -76,6 +76,8 @@ function UpgradeContent() {
   const [isLoadingPlan, setIsLoadingPlan] = useState(true);
   const [isDowngrading, setIsDowngrading] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
+  const trialEnabled = isTrialEnabled();
 
   const standardPrice = getStandardPrice();
   const addonPrice = getAddonPoolPrice();
@@ -116,25 +118,56 @@ function UpgradeContent() {
     toast({ title: 'Payment Received', description: 'Updating your account…' });
     let attempts = 0;
     const maxAttempts = 10; // ~20s at 2s intervals
-    const poll = setInterval(async () => {
-      attempts++;
-      if (!user?.id) return;
+
+    const checkPlan = async (): Promise<boolean> => {
+      if (!user?.id) return false;
       try {
         const data = await fetchPlanStatus(user.id);
-        if (data.success) {
-          setPlanStatus(prev => {
-            const changed = !prev || prev.plan !== data.plan || prev.addonPools !== data.addonPools;
-            if (changed) {
-              clearInterval(poll);
-              toast({ title: 'Plan Updated', description: 'Your account now reflects the purchase.' });
-            }
-            return data;
-          });
-        }
+        if (!data.success) return false;
+        let changed = false;
+        setPlanStatus(prev => {
+          changed = !prev || prev.plan !== data.plan || prev.addonPools !== data.addonPools;
+          return data;
+        });
+        return changed;
       } catch {
-        // transient — keep polling until maxAttempts
+        return false; // transient — keep polling until maxAttempts
       }
-      if (attempts >= maxAttempts) clearInterval(poll);
+    };
+
+    const poll = setInterval(async () => {
+      attempts++;
+      const changed = await checkPlan();
+      if (changed) {
+        clearInterval(poll);
+        toast({ title: 'Plan Updated', description: 'Your account now reflects the purchase.' });
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(poll);
+        if (!user?.id) return;
+        // The webhook normally applies the purchase well within this window.
+        // If it still hasn't, ask Stripe directly for this admin's recent
+        // paid sessions and apply any that were missed — covers a failed
+        // webhook delivery (e.g. a misconfigured endpoint URL) so the
+        // purchase self-heals instead of requiring a support ticket.
+        try {
+          await fetch('/api/stripe/reconcile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminId: user.id }),
+          });
+          const changedAfterReconcile = await checkPlan();
+          toast(
+            changedAfterReconcile
+              ? { title: 'Plan Updated', description: 'Your account now reflects the purchase.' }
+              : { title: 'Still Processing', description: "Your payment succeeded — if your plan doesn't update shortly, contact support.", variant: 'destructive' }
+          );
+        } catch {
+          toast({ title: 'Still Processing', description: "Your payment succeeded — if your plan doesn't update shortly, contact support.", variant: 'destructive' });
+        }
+      }
     }, 2000);
 
     return () => clearInterval(poll);
@@ -145,6 +178,12 @@ function UpgradeContent() {
   const billingExempt = planStatus?.billingExempt ?? false;
   // Comped accounts never see pay CTAs — their plan is managed by the site admin
   const stripeEnabled = (planStatus?.billing?.stripeEnabled ?? false) && !billingExempt;
+  // Only meaningful while currentPlan === 'free': an active trial already
+  // resolves currentPlan to 'standard' (see computePlanInfo in
+  // src/lib/plan.ts), so trialEndsAt being set here always means a past,
+  // already-used trial — one per account, ever.
+  const hasUsedTrial = !!planStatus?.trialEndsAt;
+  const trialOffered = trialEnabled && !hasUsedTrial;
 
   const handleCheckout = async (product: 'standard' | 'addon_pool', quantity = 1) => {
     if (!user?.id) return;
@@ -161,6 +200,31 @@ function UpgradeContent() {
     } catch (e) {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to start checkout', variant: 'destructive' });
       setIsCheckingOut(false);
+    }
+  };
+
+  const handleStartTrial = async () => {
+    if (!user?.id) return;
+    setIsStartingTrial(true);
+    try {
+      const res = await fetch('/api/admin/start-trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: user.id }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to start trial');
+
+      // No webhook/redirect involved — the DB write already happened, so
+      // just re-fetch instead of the poll used after a Stripe checkout.
+      const refreshed = await fetchPlanStatus(user.id);
+      if (refreshed.success) setPlanStatus(refreshed);
+
+      toast({ title: 'Trial Started', description: `You have full Standard access for the next ${TRIAL_DAYS} days.` });
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to start trial', variant: 'destructive' });
+    } finally {
+      setIsStartingTrial(false);
     }
   };
 
@@ -375,6 +439,36 @@ function UpgradeContent() {
                       <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                         Managed by site admin
                       </div>
+                    ) : stripeEnabled && trialOffered ? (
+                      <>
+                        <button
+                          onClick={handleStartTrial}
+                          disabled={isStartingTrial}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0.6rem 1rem',
+                            background: green, color: text,
+                            border: 'none', borderRadius: 6,
+                            ...bc, fontWeight: 700, fontSize: '0.78rem',
+                            letterSpacing: '0.08em', textTransform: 'uppercase',
+                            cursor: isStartingTrial ? 'not-allowed' : 'pointer',
+                            opacity: isStartingTrial ? 0.6 : 1,
+                          }}
+                        >
+                          {isStartingTrial ? 'Starting Trial…' : `Start ${TRIAL_DAYS}-Day Free Trial`}
+                        </button>
+                        <button
+                          onClick={() => handleCheckout('standard')}
+                          disabled={isCheckingOut || isStartingTrial}
+                          style={{
+                            width: '100%', background: 'transparent', border: 'none',
+                            marginTop: '0.55rem', ...b, fontSize: '0.75rem', color: textDim,
+                            textAlign: 'center', cursor: isCheckingOut ? 'not-allowed' : 'pointer', textDecoration: 'underline',
+                          }}
+                        >
+                          {isCheckingOut ? 'Redirecting…' : 'Prefer to pay now? Upgrade directly'}
+                        </button>
+                      </>
                     ) : stripeEnabled ? (
                       <button
                         onClick={() => handleCheckout('standard')}

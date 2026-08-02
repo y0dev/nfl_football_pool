@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getAdminPlan } from '@/lib/plan';
 import { debugError } from '@/lib/utils';
 
 // Self-service downgrade to Free. Only ever sets 'free' — upgrading to a paid
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const { data: admin, error: fetchError } = await supabase
       .from('commissioners')
-      .select('email, full_name, plan')
+      .select('email, full_name')
       .eq('id', adminId)
       .single();
 
@@ -24,7 +25,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
     }
 
-    if ((admin.plan ?? 'free') === 'free') {
+    // Checks the EFFECTIVE plan (getAdminPlan resolves an active trial to
+    // 'standard'), not the raw plan column — that column stays 'free' for
+    // the whole duration of a trial (see computePlanInfo in src/lib/plan.ts),
+    // so a raw-column check here would wrongly tell a trial user they're
+    // "already on Free" and block them from ending their trial early.
+    const planInfo = await getAdminPlan(adminId);
+    if (planInfo.plan === 'free' && !planInfo.isTrialActive) {
       return NextResponse.json({ success: false, error: 'Already on the Free plan' }, { status: 400 });
     }
 

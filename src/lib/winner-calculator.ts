@@ -122,7 +122,7 @@ export async function getOrCalculateWeeklyWinners(
 
     // Check if all games are finished
     const allGamesFinished = games.every(game =>
-      game.status === 'final' || game.status === 'post' || game.status === 'cancelled'
+      game.status === 'finished' || game.status === 'cancelled'
     );
 
     if (!allGamesFinished) {
@@ -184,7 +184,7 @@ export async function getOrCalculateSeasonWinners(
     }
 
     const allRegularSeasonFinished = regularSeasonGames.every(g =>
-      g.status === 'final' || g.status === 'post' || g.status === 'cancelled'
+      g.status === 'finished' || g.status === 'cancelled'
     );
 
     if (!allRegularSeasonFinished) {
@@ -253,7 +253,7 @@ export async function getOrCalculatePeriodWinners(
     }
 
     const allPeriodGamesFinished = periodGames.every(g =>
-      g.status === 'final' || g.status === 'post' || g.status === 'cancelled'
+      g.status === 'finished' || g.status === 'cancelled'
     );
 
     if (!allPeriodGamesFinished) {
@@ -979,7 +979,7 @@ async function calculateCurrentQuarterStandings(
       
       const allGamesFinished = weekGames.every(game => {
         const status = game.status?.toLowerCase() || '';
-        return status === 'final' || status === 'post';
+        return status === 'finished' || status === 'cancelled';
       });
       
       return allGamesFinished;
@@ -1031,7 +1031,7 @@ async function calculateCurrentQuarterStandings(
         participantPicks.forEach(pick => {
           const game = Array.isArray(pick.games) ? pick.games[0] : pick.games;
           // Only count points for games that have finished
-          if (game?.winner && (game.status?.toLowerCase() === 'final' || game.status?.toLowerCase() === 'post')) {
+          if (game?.winner && (game.status?.toLowerCase() === 'finished' || game.status?.toLowerCase() === 'cancelled')) {
             if (pick.predicted_winner === game.winner) {
               weekPoints += pick.confidence_points;
               weekCorrect++;
@@ -1187,7 +1187,7 @@ async function calculateQuarterWinners(
       
       const allGamesFinished = weekGames.every(game => {
         const status = game.status?.toLowerCase() || '';
-        return status === 'final' || status === 'post';
+        return status === 'finished' || status === 'cancelled';
       });
       
       return allGamesFinished;

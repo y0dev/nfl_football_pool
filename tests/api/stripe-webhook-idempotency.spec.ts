@@ -35,7 +35,7 @@ async function createTestCommissioner(request: APIRequestContext) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
   );
-  await supabase.from('admins').update({ trial_ends_at: null, plan: 'standard', addon_pools: 0 }).eq('id', body.admin.id);
+  await supabase.from('commissioners').update({ trial_ends_at: null, plan: 'standard', addon_pools: 0 }).eq('id', body.admin.id);
 
   return { id: body.admin.id as string, email, supabase };
 }
@@ -96,7 +96,7 @@ test.describe('Stripe webhook — idempotency', () => {
       const first = await post();
       expect(first.ok()).toBeTruthy();
 
-      const afterFirst = await admin.supabase.from('admins').select('addon_pools').eq('id', admin.id).single();
+      const afterFirst = await admin.supabase.from('commissioners').select('addon_pools').eq('id', admin.id).single();
       expect(afterFirst.data?.addon_pools).toBe(1);
       expect(await paymentRowCount(admin.supabase, sessionId)).toBe(1);
 
@@ -104,7 +104,7 @@ test.describe('Stripe webhook — idempotency', () => {
       const second = await post();
       expect(second.ok()).toBeTruthy();
 
-      const afterSecond = await admin.supabase.from('admins').select('addon_pools').eq('id', admin.id).single();
+      const afterSecond = await admin.supabase.from('commissioners').select('addon_pools').eq('id', admin.id).single();
       expect(afterSecond.data?.addon_pools).toBe(1); // not 2 — the redelivery must be a no-op
       expect(await paymentRowCount(admin.supabase, sessionId)).toBe(1); // still exactly one payment row
     } finally {
