@@ -70,10 +70,11 @@ function CommissionersManagementContent() {
   // Plan upgrade
   const [planOpen, setPlanOpen]         = useState(false);
   const [planTarget, setPlanTarget]     = useState<AdminUser | null>(null);
-  const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; billingExempt: boolean } | null>(null);
+  const [planCurrent, setPlanCurrent]   = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; billingExempt: boolean; addonPools: number } | null>(null);
   const [planSelected, setPlanSelected] = useState<'free' | 'standard'>('free');
   const [planExempt, setPlanExempt]     = useState(false);
   const [planTrialDays, setPlanTrialDays] = useState(0);
+  const [planAddonPools, setPlanAddonPools] = useState(0);
   const [planFetching, setPlanFetching] = useState(false);
   const [planSaving, setPlanSaving]     = useState(false);
   const [planError, setPlanError]       = useState('');
@@ -153,6 +154,7 @@ function CommissionersManagementContent() {
     setPlanSelected('free');
     setPlanExempt(c.billingExempt);
     setPlanTrialDays(0);
+    setPlanAddonPools(0);
     setPlanError('');
     setPlanOpen(true);
     setPlanFetching(true);
@@ -160,9 +162,10 @@ function CommissionersManagementContent() {
       const res = await fetch(`/api/admin/plan-status?adminId=${c.id}`);
       const data = await res.json();
       if (data.success) {
-        setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft, billingExempt: data.billingExempt ?? false });
+        setPlanCurrent({ plan: data.plan, isTrialActive: data.isTrialActive, daysLeft: data.daysLeft, billingExempt: data.billingExempt ?? false, addonPools: data.addonPools ?? 0 });
         setPlanSelected(data.plan as 'free' | 'standard');
         setPlanExempt(data.billingExempt ?? false);
+        setPlanAddonPools(data.addonPools ?? 0);
       }
     } catch { /* ignore */ } finally {
       setPlanFetching(false);
@@ -177,7 +180,7 @@ function CommissionersManagementContent() {
       const res = await fetch('/api/super-admin/update-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminId: planTarget.id, plan: planSelected, trialDays: planTrialDays, billingExempt: planExempt }),
+        body: JSON.stringify({ adminId: planTarget.id, plan: planSelected, trialDays: planTrialDays, billingExempt: planExempt, addonPools: planAddonPools }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to update plan');
@@ -538,6 +541,11 @@ function CommissionersManagementContent() {
                       Comped
                     </span>
                   )}
+                  {planCurrent.addonPools > 0 && (
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, color: gold, background: 'oklch(74% 0.16 72 / 0.12)', border: `1px solid oklch(74% 0.16 72 / 0.35)`, padding: '0.1rem 0.4rem', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      +{planCurrent.addonPools} pool{planCurrent.addonPools === 1 ? '' : 's'}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -611,7 +619,7 @@ function CommissionersManagementContent() {
               </div>
               <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
                 {planExempt
-                  ? 'Comped: keeps this plan without paying — checkout is disabled and no payment is ever requested.'
+                  ? 'Comped: keeps this plan without paying — checkout is disabled and no payment is ever requested. Use Additional Pools below to grant more than the plan\'s base limit, since they have no way to buy them.'
                   : 'Pays: this commissioner is expected to pay for paid plans once billing is live.'}
               </p>
             </div>
@@ -637,6 +645,43 @@ function CommissionersManagementContent() {
                   ? `Trial grants Standard access for ${planTrialDays} days, regardless of plan setting above.`
                   : 'Leave at 0 to keep existing trial date unchanged.'}
               </p>
+            </div>
+
+            {/* Additional pools — the only way to grant a comped commissioner
+                more pools, since Comped accounts never see the Buy Additional
+                Pool button on /upgrade (checkout refuses billing_exempt accounts). */}
+            <div>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                Additional Pools
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setPlanAddonPools(p => Math.max(0, p - 1))}
+                  style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${border}`, background: 'oklch(13% 0.025 255)', color: text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 700, fontSize: '1rem' }}
+                >−</button>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={planAddonPools}
+                  onChange={e => setPlanAddonPools(Math.max(0, parseInt(e.target.value) || 0))}
+                  style={{ ...b, background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, color: text, padding: '0.45rem 0.65rem', borderRadius: 6, fontSize: '0.875rem', width: '4rem', textAlign: 'center' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPlanAddonPools(p => p + 1)}
+                  style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${border}`, background: 'oklch(13% 0.025 255)', color: text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 700, fontSize: '1rem' }}
+                >+</button>
+                <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+                  pool{planAddonPools === 1 ? '' : 's'} on top of the plan's included limit
+                </span>
+              </div>
+              {planSelected === 'free' && planAddonPools > 0 && (
+                <p style={{ ...b, fontSize: '0.72rem', color: gold, marginTop: '0.35rem' }}>
+                  Add-on pools normally apply on top of Standard — this commissioner is set to Free above.
+                </p>
+              )}
             </div>
 
             {planError && (
