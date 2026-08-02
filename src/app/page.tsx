@@ -104,7 +104,7 @@ function LandingPage() {
   };
 
   const getGameStatus = (game: Game) => {
-    if (game.status === 'final') return 'Final';
+    if (game.status === 'finished') return 'Final';
     if (game.status === 'live') return 'Live';
     const kickoff = new Date(game.kickoff_time);
     const now = new Date();
@@ -511,7 +511,7 @@ function LandingPage() {
                           }} />
                           Live
                         </span>
-                      ) : game.status === 'final' ? (
+                      ) : game.status === 'finished' ? (
                         <span style={{
                           ...bc, fontWeight: 700, fontSize: '0.68rem',
                           letterSpacing: '0.13em', color: greenHi, textTransform: 'uppercase',

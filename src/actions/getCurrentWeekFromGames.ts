@@ -62,7 +62,7 @@ export async function getCurrentWeekFromGames() {
       const allGamesFinished = weekGames.every(game => {
         const status = game.status?.toLowerCase();
         const hasWinner = game.winner && game.winner.trim() !== '';
-        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        const isFinished = status === 'finished' || status === 'cancelled';
         return isFinished && hasWinner;
       });
       
@@ -70,7 +70,7 @@ export async function getCurrentWeekFromGames() {
       const hasUpcomingGames = weekGames.some(game => {
         const kickoffTime = new Date(game.kickoff_time);
         const status = game.status?.toLowerCase();
-        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        const isFinished = status === 'finished' || status === 'cancelled';
         return kickoffTime > now && !isFinished;
       });
 
@@ -239,7 +239,7 @@ export async function getWeekForPicks() {
       const allGamesFinished = weekGames.every(game => {
         const status = game.status?.toLowerCase();
         const hasWinner = game.winner && game.winner.trim() !== '';
-        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        const isFinished = status === 'finished' || status === 'cancelled';
         return isFinished && hasWinner;
       });
       
@@ -247,7 +247,7 @@ export async function getWeekForPicks() {
       const hasUpcomingGames = weekGames.some(game => {
         const kickoffTime = new Date(game.kickoff_time);
         const status = game.status?.toLowerCase();
-        const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+        const isFinished = status === 'finished' || status === 'cancelled';
         return kickoffTime > now && !isFinished;
       });
 

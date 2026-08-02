@@ -135,7 +135,7 @@ function TeamButton({
 }
 
 export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked }: GameCardProps) {
-  const isFinal = game.status === 'final' || game.status === 'post';
+  const isFinal = game.status === 'finished' || game.status === 'cancelled';
   const isLive = game.status === 'in_progress' || game.status === 'live';
   const isSelectable = !locked && !isFinal && !isLive;
   const selectedTeam = pick?.predicted_winner;

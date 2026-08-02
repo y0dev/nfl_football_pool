@@ -141,7 +141,7 @@ async function loadLeaderboardWithPicks(poolId: string, weekNumber: number, seas
         let points = 0;
 
         // Use the game data that was fetched with the picks
-        if ((pick.game_status === 'final' || pick.game_status === 'post') && pick.game_winner) {
+        if ((pick.game_status === 'finished' || pick.game_status === 'cancelled') && pick.game_winner) {
           if (pick.predicted_winner === pick.game_winner) {
             points = pick.confidence_points;
             correctPicks++;
