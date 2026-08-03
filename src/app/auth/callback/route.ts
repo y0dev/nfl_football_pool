@@ -97,12 +97,18 @@ export async function GET(request: NextRequest) {
     // Self-heal: backfill google_linked for rows that predate the column
     // (sentinel-fallback case), and complete a first-ever Google sign-in on
     // an account that was created with no password at all (empty hash).
+    // Must be awaited — on serverless this function can be frozen the
+    // instant the redirect response is sent, silently dropping a
+    // fire-and-forget write and leaving google_linked stuck at false forever
+    // (Settings then perpetually shows "Connect Google" for an account
+    // that's actively signed in via Google).
     const updates: Record<string, unknown> = {};
     if (!rawGoogleLinked) updates.google_linked = true;
     if (!sentinelMatch && !hasRealPassword) updates.password_hash = 'google_oauth';
     if (Object.keys(updates).length > 0) {
       const table = existingAccount.role === 'super_admin' ? 'admins' : 'commissioners';
-      void serviceClient.from(table).update(updates).eq('id', existingAdmin.id);
+      const { error: selfHealError } = await serviceClient.from(table).update(updates).eq('id', existingAdmin.id);
+      if (selfHealError) debugError('[OAuth:callback] google_linked self-heal failed:', selfHealError);
     }
 
     console.log('[OAuth:callback] existing account → building session redirect');

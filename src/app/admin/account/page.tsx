@@ -8,7 +8,7 @@ import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { requestEmailChange } from '@/actions/emailChange';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus, ShieldCheck, Link2, Unlink, Bell, Hash } from 'lucide-react';
+import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus, ShieldCheck, Link2, Unlink, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -443,12 +443,6 @@ function AccountSettingsContent() {
                   </p>
                 </div>
               )}
-              <div>
-                <label style={{ ...labelSt, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <Hash style={{ width: 10, height: 10 }} /> Account ID
-                </label>
-                <p style={{ ...b, fontSize: '0.76rem', color: textDim, fontFamily: 'monospace' }}>{user?.id}</p>
-              </div>
             </div>
 
             {!user?.is_super_admin && (

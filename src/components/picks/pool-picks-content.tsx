@@ -1448,7 +1448,6 @@ export function PoolPicksContent() {
               { label: 'Share', icon: Share2, onClick: handleShare },
               { label: showGameDetails ? 'Unlock Week' : 'Game Details', icon: showGameDetails ? Unlock : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
-              { label: 'Leaderboard', icon: BarChart3, onClick: () => router.push(`/pool/${poolId}/leaderboard`) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
             ].map(({ label, icon: Icon, onClick }) => (

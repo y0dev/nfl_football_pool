@@ -95,6 +95,8 @@ function CommissionerDashboardContent() {
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
   const [leagueId, setLeagueId] = useState<string>('');
+  const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
+  
 
   useEffect(() => {
     const loadData = async () => {
@@ -460,7 +462,6 @@ function CommissionerDashboardContent() {
           label: 'Huddles & Pools',
           links: [
             { label: 'My Huddles', href: '/league' },
-            { label: 'Browse Pools', href: '/pools' },
           ],
         }]}
       />
@@ -537,7 +538,7 @@ function CommissionerDashboardContent() {
                 </div>
               )}
               <p style={{ ...bc, fontSize: '0.75rem', fontWeight: 600, color: textDim, marginTop: '1rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                Week {currentWeek}
+                Week {currentWeek} · {seasonLabel}
               </p>
             </div>
 

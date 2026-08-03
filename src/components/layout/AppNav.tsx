@@ -82,21 +82,20 @@ export function AppNav({ isAuthenticated, isSuperAdmin, onSignOut, poolId, extra
   const menuRef = useDismissable(() => setOpen(false));
 
   const dashboardHref = isSuperAdmin ? '/admin/dashboard' : '/dashboard';
-  const picksHref = poolId ? `/pool/${poolId}/picks` : dashboardHref;
   const leaderboardHref = isAuthenticated
     ? (poolId ? `/pool/${poolId}/leaderboard` : '/leaderboard')
-    : (poolId ? `/pool/${poolId}/leaderboard` : '/pools');
+    : `/pool/${poolId}/leaderboard`; // only meaningful for a guest viewing a specific pool
 
   const navigationLinks: AppNavLink[] = isAuthenticated
     ? [
         { label: 'Home', href: '/' },
         { label: 'Dashboard', href: dashboardHref },
-        { label: 'Picks', href: picksHref, forceInactive: !poolId },
         { label: 'Leaderboard', href: leaderboardHref },
       ]
     : [
         { label: 'Home', href: '/' },
-        { label: 'Leaderboard', href: leaderboardHref },
+        ...(poolId ? [{ label: 'Leaderboard', href: leaderboardHref }] : []),
+        { label: 'Browse Pools', href: '/pools' },
       ];
 
   // Every super-admin tool page links back to these same destinations —
