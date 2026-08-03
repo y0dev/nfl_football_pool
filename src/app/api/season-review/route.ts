@@ -1,46 +1,100 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError } from '@/lib/utils';
+import { debugError, getRegularSeasonPeriods } from '@/lib/utils';
 
-interface SeasonReviewData {
-  seasonWinner: any;
-  quarterlyWinners: any[];
-  weeklyWinners: any[];
-  participantStats: {
-    participant_id: string;
-    name: string;
-    total_points: number;
-    total_correct_picks: number;
-    total_picks: number;
-    weeks_won: number;
-    best_week: {
-      week: number;
-      points: number;
-      correct_picks: number;
-    };
-    worst_week: {
-      week: number;
-      points: number;
-      correct_picks: number;
-    };
-    average_points_per_week: number;
-    consistency_score: number; // Lower standard deviation = more consistent
-  }[];
-  seasonStats: {
-    total_weeks: number;
-    total_participants: number;
-    total_games: number;
-    average_points_per_week: number;
-    highest_weekly_score: number;
-    lowest_weekly_score: number;
-    tie_breakers_used: number;
-    most_wins_by_participant: string;
-    most_wins_count: number;
-    closest_weekly_margin: number;
-    biggest_weekly_blowout: number;
+interface WeekEntry {
+  points: number;
+  correct: number;
+  total: number;
+}
+
+interface ParticipantStat {
+  participant_id: string;
+  name: string;
+  total_points: number;
+  total_correct_picks: number;
+  total_incorrect_picks: number;
+  total_picks: number;
+  weeks_won: number;
+  period_wins: number;
+  winning_percentage: number;
+  longest_streak: number;
+  average_weekly_finish: number;
+  best_week: { week: number; points: number; correct_picks: number };
+  worst_week: { week: number; points: number; correct_picks: number };
+  average_points_per_week: number;
+  consistency_score: number; // lower standard deviation = more consistent
+}
+
+interface QuarterlyWinner {
+  period_name: string;
+  winner_participant_id: string;
+  winner_name: string;
+  period_points: number;
+  period_correct_picks: number;
+}
+
+interface WeeklyWinnerEntry {
+  week: number;
+  winner_participant_id: string;
+  winner_name: string;
+  winner_points: number;
+  winner_correct_picks: number;
+  total_participants: number;
+}
+
+interface SeasonChampion {
+  pool_id: string;
+  season: number;
+  winner_participant_id: string;
+  winner_name: string;
+  total_points: number;
+  total_correct_picks: number;
+  weeks_won: number;
+  periods_won: number;
+  tie_breaker_used: boolean;
+}
+
+function emptyPayload(poolName: string | undefined) {
+  return {
+    poolName: poolName ?? null,
+    seasonWinner: null as SeasonChampion | null,
+    runnerUp: null as ParticipantStat | null,
+    quarterlyWinners: [] as QuarterlyWinner[],
+    weeklyWinners: [] as WeeklyWinnerEntry[],
+    participantStats: [] as ParticipantStat[],
+    seasonStats: {
+      total_weeks: 0,
+      total_participants: 0,
+      total_games: 0,
+      average_points_per_week: 0,
+      highest_weekly_score: 0,
+      lowest_weekly_score: 0,
+      most_wins_by_participant: '',
+      most_wins_count: 0,
+      closest_weekly_margin: 0,
+      biggest_weekly_blowout: 0,
+    },
   };
 }
 
+/**
+ * Season Review — computed live from picks + games (the same reliable
+ * source the public leaderboard uses), not from season_winners/
+ * period_winners/weekly_winners/scores. Those derived tables are only ever
+ * populated by an on-demand self-heal triggered elsewhere in the app and
+ * can't be assumed populated here; reading them directly returned an
+ * essentially-empty report even with real season data in the DB. Also
+ * drops the old `games.eq('pool_id', poolId)` filter — games has no
+ * pool_id column (games are shared across pools by season/week), so that
+ * filter silently zeroed out the game count regardless of the table issue.
+ *
+ * Season Champion algorithm (commissioner-defined rule): the participant
+ * who won the most Q1-Q4 periods. Ties broken by total regular-season
+ * points among the tied participants. This intentionally differs from
+ * weekly_winners-table-based season_winners, which was points-primary,
+ * weeks-won-tiebreak — periods won is the rule this report uses.
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -48,228 +102,267 @@ export async function GET(request: NextRequest) {
     const season = searchParams.get('season');
 
     if (!poolId || !season) {
-      return NextResponse.json(
-        { error: 'Pool ID and season are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Pool ID and season are required' }, { status: 400 });
     }
 
     const supabase = getSupabaseServiceClient();
     const seasonNum = parseInt(season);
 
-    // Get season winner
-    const { data: seasonWinner } = await supabase
-      .from('season_winners')
-      .select(`
-        *,
-        pools!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .eq('season', seasonNum)
-      .single();
+    const [{ data: pool }, { data: participants }] = await Promise.all([
+      supabase.from('pools').select('name').eq('id', poolId).maybeSingle(),
+      supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
+    ]);
 
-    // Get quarterly winners
-    const { data: quarterlyWinners } = await supabase
-      .from('period_winners')
-      .select(`
-        *,
-        pools!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .eq('season', seasonNum)
-      .in('period_name', ['Q1', 'Q2', 'Q3', 'Q4'])
-      .order('period_name');
+    if (!participants || participants.length === 0) {
+      return NextResponse.json({ success: true, data: emptyPayload(pool?.name) });
+    }
 
-    // Get all weekly winners — season review is a regular-season concept
-    const { data: weeklyWinners } = await supabase
-      .from('weekly_winners')
-      .select(`
-        *,
-        pools!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .eq('season', seasonNum)
-      .eq('season_type', 2)
-      .order('week');
-
-    // Get all participant scores for the season
-    const { data: scores } = await supabase
-      .from('scores')
-      .select(`
-        participant_id,
-        week,
-        points,
-        correct_picks,
-        total_picks,
-        participants!inner(name)
-      `)
-      .eq('pool_id', poolId)
-      .eq('season', seasonNum)
-      .eq('season_type', 2)
-      .order('participant_id, week');
-
-    // Get total games for the season
+    // Season review is a regular-season concept — season_type 2 only.
+    // games has no pool_id column (shared across pools by season/week).
     const { data: games } = await supabase
       .from('games')
-      .select('id')
-      .eq('pool_id', poolId)
+      .select('id, week, winner')
       .eq('season', seasonNum)
-      .eq('season_type', 2); // Regular season
+      .eq('season_type', 2);
 
-    // Calculate participant statistics
-    const participantMap = new Map<string, any>();
-    
-    if (scores) {
-      scores.forEach(score => {
-        const participantId = score.participant_id;
-        const participantName = (score.participants as any)?.name || 'Unknown';
-        
-        if (!participantMap.has(participantId)) {
-          participantMap.set(participantId, {
-            participant_id: participantId,
-            name: participantName,
-            weekly_scores: [],
-            total_points: 0,
-            total_correct_picks: 0,
-            total_picks: 0,
-            weeks_won: 0
-          });
-        }
-        
-        const participant = participantMap.get(participantId);
-        participant.weekly_scores.push({
-          week: score.week,
-          points: score.points,
-          correct_picks: score.correct_picks,
-          total_picks: score.total_picks
-        });
-        participant.total_points += score.points;
-        participant.total_correct_picks += score.correct_picks;
-        participant.total_picks += score.total_picks;
-      });
+    if (!games || games.length === 0) {
+      return NextResponse.json({ success: true, data: emptyPayload(pool?.name) });
     }
 
-    // Count weeks won for each participant
-    if (weeklyWinners) {
-      weeklyWinners.forEach(winner => {
-        if (winner.winner_participant_id) {
-          const participant = participantMap.get(winner.winner_participant_id);
-          if (participant) {
-            participant.weeks_won++;
-          }
-        }
-      });
-    }
-
-    // Calculate additional stats for each participant
-    const participantStats = Array.from(participantMap.values()).map(participant => {
-      const weeklyPoints = participant.weekly_scores.map((s: any) => s.points);
-      const bestWeek = participant.weekly_scores.reduce((best: any, current: any) => 
-        current.points > best.points ? current : best, participant.weekly_scores[0] || {});
-      const worstWeek = participant.weekly_scores.reduce((worst: any, current: any) => 
-        current.points < worst.points ? current : worst, participant.weekly_scores[0] || {});
-      
-      const averagePoints = participant.weekly_scores.length > 0 
-        ? participant.total_points / participant.weekly_scores.length 
-        : 0;
-      
-      // Calculate consistency score (lower standard deviation = more consistent)
-      const variance = weeklyPoints.length > 0 
-        ? weeklyPoints.reduce((sum: number, points: number) => sum + Math.pow(points - averagePoints, 2), 0) / weeklyPoints.length
-        : 0;
-      const consistencyScore = Math.sqrt(variance);
-
-      return {
-        participant_id: participant.participant_id,
-        name: participant.name,
-        total_points: participant.total_points,
-        total_correct_picks: participant.total_correct_picks,
-        total_picks: participant.total_picks,
-        weeks_won: participant.weeks_won,
-        best_week: bestWeek,
-        worst_week: worstWeek,
-        average_points_per_week: Math.round(averagePoints * 100) / 100,
-        consistency_score: Math.round(consistencyScore * 100) / 100
-      };
+    const weeks = [...new Set(games.map(g => g.week))].sort((a, b) => a - b);
+    const gamesByWeek = new Map<number, { id: string; winner: string | null }[]>();
+    games.forEach(g => {
+      if (!gamesByWeek.has(g.week)) gamesByWeek.set(g.week, []);
+      gamesByWeek.get(g.week)!.push({ id: g.id, winner: g.winner });
     });
 
-    // Calculate season statistics
-    const allWeeklyPoints = participantStats.flatMap(p => 
-      participantMap.get(p.participant_id)?.weekly_scores.map((s: any) => s.points) || []
-    );
-    
-    // Calculate weekly margins and blowouts
-    let closestWeeklyMargin = 0;
-    let biggestWeeklyBlowout = 0;
-    
-    if (weeklyWinners && weeklyWinners.length > 0) {
-      // Get all scores for each week to calculate margins
-      const weeklyScores = new Map<number, number[]>();
-      
-      if (scores) {
-        scores.forEach(score => {
-          if (!weeklyScores.has(score.week)) {
-            weeklyScores.set(score.week, []);
-          }
-          weeklyScores.get(score.week)!.push(score.points);
-        });
-      }
-      
-      // Calculate margins for each week
-      weeklyScores.forEach((weekScores, week) => {
-        if (weekScores.length > 1) {
-          const sortedScores = weekScores.sort((a, b) => b - a);
-          const margin = sortedScores[0] - sortedScores[1];
-          
-          if (closestWeeklyMargin === 0 || margin < closestWeeklyMargin) {
-            closestWeeklyMargin = margin;
-          }
-          
-          if (margin > biggestWeeklyBlowout) {
-            biggestWeeklyBlowout = margin;
-          }
+    // participantId -> week -> { points, correct, total }
+    const weeklyBreakdown = new Map<string, Map<number, WeekEntry>>();
+    participants.forEach(p => weeklyBreakdown.set(p.id, new Map()));
+
+    for (const week of weeks) {
+      const weekGames = gamesByWeek.get(week) ?? [];
+      const gameIds = weekGames.map(g => g.id);
+      if (gameIds.length === 0) continue;
+      const winnerByGame = new Map(weekGames.map(g => [g.id, g.winner]));
+
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('participant_id, game_id, predicted_winner, confidence_points')
+        .eq('pool_id', poolId)
+        .in('game_id', gameIds);
+
+      const perParticipant = new Map<string, WeekEntry>();
+      (picks ?? []).forEach(pick => {
+        if (!perParticipant.has(pick.participant_id)) perParticipant.set(pick.participant_id, { points: 0, correct: 0, total: 0 });
+        const entry = perParticipant.get(pick.participant_id)!;
+        entry.total++;
+        const winner = winnerByGame.get(pick.game_id);
+        if (winner && pick.predicted_winner === winner) {
+          entry.correct++;
+          entry.points += pick.confidence_points || 0;
         }
       });
+
+      perParticipant.forEach((entry, participantId) => {
+        weeklyBreakdown.get(participantId)?.set(week, entry);
+      });
     }
-    
+
+    // Weekly winners + per-week rank (for average_weekly_finish) + streaks.
+    const weeklyWinners: WeeklyWinnerEntry[] = [];
+    const weeksWonCount = new Map<string, number>();
+    const periodWinsCount = new Map<string, number>();
+    const finishRanks = new Map<string, number[]>();
+    const currentStreak = new Map<string, number>();
+    const longestStreak = new Map<string, number>();
+    participants.forEach(p => {
+      weeksWonCount.set(p.id, 0);
+      periodWinsCount.set(p.id, 0);
+      finishRanks.set(p.id, []);
+      currentStreak.set(p.id, 0);
+      longestStreak.set(p.id, 0);
+    });
+
+    for (const week of weeks) {
+      const standings = participants
+        .map(p => ({ id: p.id, entry: weeklyBreakdown.get(p.id)?.get(week) }))
+        .filter((x): x is { id: string; entry: WeekEntry } => !!x.entry && x.entry.total > 0)
+        .sort((a, b) => b.entry.points - a.entry.points);
+
+      standings.forEach((s, idx) => finishRanks.get(s.id)?.push(idx + 1));
+
+      const winner = standings[0];
+      const winnerWon = winner && winner.entry.points > 0;
+      participants.forEach(p => {
+        const wonThisWeek = winnerWon && p.id === winner.id;
+        if (wonThisWeek) {
+          currentStreak.set(p.id, (currentStreak.get(p.id) ?? 0) + 1);
+          longestStreak.set(p.id, Math.max(longestStreak.get(p.id) ?? 0, currentStreak.get(p.id) ?? 0));
+        } else if (standings.some(s => s.id === p.id)) {
+          // Only resets the streak if they actually played and didn't win —
+          // a bye/no-picks week doesn't count against a streak.
+          currentStreak.set(p.id, 0);
+        }
+      });
+
+      if (winnerWon) {
+        weeksWonCount.set(winner.id, (weeksWonCount.get(winner.id) ?? 0) + 1);
+        weeklyWinners.push({
+          week,
+          winner_participant_id: winner.id,
+          winner_name: participants.find(p => p.id === winner.id)?.name ?? 'Unknown',
+          winner_points: winner.entry.points,
+          winner_correct_picks: winner.entry.correct,
+          total_participants: standings.length,
+        });
+      }
+    }
+
+    // Q1-Q4 period winners.
+    const quarterlyWinners: QuarterlyWinner[] = [];
+    for (const period of getRegularSeasonPeriods()) {
+      let best: { id: string; points: number; correct: number } | null = null;
+      participants.forEach(p => {
+        const pw = weeklyBreakdown.get(p.id);
+        let periodPoints = 0;
+        let periodCorrect = 0;
+        period.weeks.forEach(week => {
+          const entry = pw?.get(week);
+          if (entry) { periodPoints += entry.points; periodCorrect += entry.correct; }
+        });
+        if (periodPoints > 0 && (!best || periodPoints > best.points)) {
+          best = { id: p.id, points: periodPoints, correct: periodCorrect };
+        }
+      });
+      if (best) {
+        const b = best as { id: string; points: number; correct: number };
+        periodWinsCount.set(b.id, (periodWinsCount.get(b.id) ?? 0) + 1);
+        quarterlyWinners.push({
+          period_name: period.name,
+          winner_participant_id: b.id,
+          winner_name: participants.find(p => p.id === b.id)?.name ?? 'Unknown',
+          period_points: b.points,
+          period_correct_picks: b.correct,
+        });
+      }
+    }
+
+    // Per-participant season stats.
+    const participantStats: ParticipantStat[] = participants.map(p => {
+      const pw = weeklyBreakdown.get(p.id) ?? new Map<number, WeekEntry>();
+      const played = [...pw.entries()].filter(([, e]) => e.total > 0);
+      const totalPoints = played.reduce((sum, [, e]) => sum + e.points, 0);
+      const totalCorrect = played.reduce((sum, [, e]) => sum + e.correct, 0);
+      const totalPicksCount = played.reduce((sum, [, e]) => sum + e.total, 0);
+
+      let bestWeek = { week: 0, points: 0, correct_picks: 0 };
+      let worstWeek = { week: 0, points: 0, correct_picks: 0 };
+      played.forEach(([week, e], idx) => {
+        if (idx === 0 || e.points > bestWeek.points) bestWeek = { week, points: e.points, correct_picks: e.correct };
+        if (idx === 0 || e.points < worstWeek.points) worstWeek = { week, points: e.points, correct_picks: e.correct };
+      });
+
+      const avgPoints = played.length > 0 ? totalPoints / played.length : 0;
+      const variance = played.length > 0
+        ? played.reduce((sum, [, e]) => sum + Math.pow(e.points - avgPoints, 2), 0) / played.length
+        : 0;
+
+      const ranks = finishRanks.get(p.id) ?? [];
+      const avgFinish = ranks.length > 0 ? ranks.reduce((s, r) => s + r, 0) / ranks.length : 0;
+      const weeksWon = weeksWonCount.get(p.id) ?? 0;
+
+      return {
+        participant_id: p.id,
+        name: p.name,
+        total_points: totalPoints,
+        total_correct_picks: totalCorrect,
+        total_incorrect_picks: Math.max(0, totalPicksCount - totalCorrect),
+        total_picks: totalPicksCount,
+        weeks_won: weeksWon,
+        period_wins: periodWinsCount.get(p.id) ?? 0,
+        winning_percentage: played.length > 0 ? Math.round((weeksWon / played.length) * 10000) / 100 : 0,
+        longest_streak: longestStreak.get(p.id) ?? 0,
+        average_weekly_finish: Math.round(avgFinish * 100) / 100,
+        best_week: bestWeek,
+        worst_week: worstWeek,
+        average_points_per_week: Math.round(avgPoints * 100) / 100,
+        consistency_score: Math.round(Math.sqrt(variance) * 100) / 100,
+      };
+    }).sort((a, b) => b.total_points - a.total_points);
+
+    // Season Champion — most periods won, tie-broken by total points.
+    const maxPeriodWins = Math.max(0, ...[...periodWinsCount.values()]);
+    let seasonWinner: SeasonChampion | null = null;
+    let runnerUp: ParticipantStat | null = null;
+    if (maxPeriodWins > 0) {
+      const contenders = participantStats.filter(ps => (periodWinsCount.get(ps.participant_id) ?? 0) === maxPeriodWins);
+      const champion = contenders[0]; // participantStats is already points-sorted descending
+      seasonWinner = {
+        pool_id: poolId,
+        season: seasonNum,
+        winner_participant_id: champion.participant_id,
+        winner_name: champion.name,
+        total_points: champion.total_points,
+        total_correct_picks: champion.total_correct_picks,
+        weeks_won: champion.weeks_won,
+        periods_won: maxPeriodWins,
+        tie_breaker_used: contenders.length > 1,
+      };
+      runnerUp = participantStats.find(ps => ps.participant_id !== champion.participant_id) ?? null;
+    } else {
+      runnerUp = participantStats[1] ?? null;
+    }
+
+    const allWeeklyPoints = [...weeklyBreakdown.values()]
+      .flatMap(pw => [...pw.values()].filter(e => e.total > 0).map(e => e.points));
+
+    let closestWeeklyMargin = 0;
+    let biggestWeeklyBlowout = 0;
+    for (const week of weeks) {
+      const weekPoints = participants
+        .map(p => weeklyBreakdown.get(p.id)?.get(week))
+        .filter((e): e is WeekEntry => !!e && e.total > 0)
+        .map(e => e.points)
+        .sort((a, b) => b - a);
+      if (weekPoints.length > 1) {
+        const margin = weekPoints[0] - weekPoints[1];
+        if (closestWeeklyMargin === 0 || margin < closestWeeklyMargin) closestWeeklyMargin = margin;
+        if (margin > biggestWeeklyBlowout) biggestWeeklyBlowout = margin;
+      }
+    }
+
     const seasonStats = {
-      total_weeks: weeklyWinners?.length || 0,
+      total_weeks: weeklyWinners.length,
       total_participants: participantStats.length,
-      total_games: games?.length || 0,
-      average_points_per_week: allWeeklyPoints.length > 0 
-        ? Math.round((allWeeklyPoints.reduce((sum, points) => sum + points, 0) / allWeeklyPoints.length) * 100) / 100
+      total_games: games.length,
+      average_points_per_week: allWeeklyPoints.length > 0
+        ? Math.round((allWeeklyPoints.reduce((s, pts) => s + pts, 0) / allWeeklyPoints.length) * 100) / 100
         : 0,
       highest_weekly_score: allWeeklyPoints.length > 0 ? Math.max(...allWeeklyPoints) : 0,
       lowest_weekly_score: allWeeklyPoints.length > 0 ? Math.min(...allWeeklyPoints) : 0,
-      tie_breakers_used: weeklyWinners?.filter(w => w.tie_breaker_used).length || 0,
-      most_wins_by_participant: participantStats.length > 0 
-        ? participantStats.reduce((most, current) => current.weeks_won > most.weeks_won ? current : most).name
+      most_wins_by_participant: participantStats.length > 0
+        ? participantStats.reduce((most, cur) => (cur.weeks_won > most.weeks_won ? cur : most)).name
         : '',
-      most_wins_count: participantStats.length > 0 
-        ? Math.max(...participantStats.map(p => p.weeks_won))
-        : 0,
+      most_wins_count: participantStats.length > 0 ? Math.max(...participantStats.map(p => p.weeks_won)) : 0,
       closest_weekly_margin: closestWeeklyMargin,
-      biggest_weekly_blowout: biggestWeeklyBlowout
-    };
-
-    const seasonReviewData: SeasonReviewData = {
-      seasonWinner,
-      quarterlyWinners: quarterlyWinners || [],
-      weeklyWinners: weeklyWinners || [],
-      participantStats: participantStats.sort((a, b) => b.total_points - a.total_points),
-      seasonStats
+      biggest_weekly_blowout: biggestWeeklyBlowout,
     };
 
     return NextResponse.json({
       success: true,
-      data: seasonReviewData
+      data: {
+        poolName: pool?.name ?? null,
+        seasonWinner,
+        runnerUp,
+        quarterlyWinners,
+        weeklyWinners,
+        participantStats,
+        seasonStats,
+      },
     });
-
   } catch (error) {
     debugError('Error in season review API:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

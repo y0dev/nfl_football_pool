@@ -55,7 +55,6 @@ interface SeasonReviewData {
     average_points_per_week: number;
     highest_weekly_score: number;
     lowest_weekly_score: number;
-    tie_breakers_used: number;
     most_wins_by_participant: string;
     most_wins_count: number;
     closest_weekly_margin: number;
@@ -257,7 +256,7 @@ export default function SeasonReviewPage() {
                     <div>
                       <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, lineHeight: 1.1 }}>{seasonWinner.winner_name}</p>
                       <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginTop: '0.3rem' }}>
-                        {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
+                        {seasonWinner.periods_won} of 4 periods won &bull; {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
                       </p>
                       {seasonWinner.tie_breaker_used && (
                         <span style={{
@@ -266,13 +265,13 @@ export default function SeasonReviewPage() {
                           padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
                           background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
                           border: `1px solid oklch(65% 0.12 290 / 0.35)`,
-                        }}>Won via tie-breaker</span>
+                        }}>Tied on periods won — total points broke the tie</span>
                       )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>Correct Picks</p>
                       <p style={{ ...bc, fontWeight: 900, fontSize: '1.3rem', color: greenHi }}>
-                        {seasonWinner.total_correct_picks}/{seasonWinner.total_participants * seasonStats.total_weeks}
+                        {seasonWinner.total_correct_picks}
                       </p>
                     </div>
                   </div>
@@ -332,7 +331,6 @@ export default function SeasonReviewPage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                     {[
-                      { label: 'Tie-breakers Used', value: `${seasonStats.tie_breakers_used} weeks` },
                       { label: 'Lowest Weekly Score', value: `${seasonStats.lowest_weekly_score} points` },
                       { label: 'Biggest Weekly Blowout', value: `${seasonStats.biggest_weekly_blowout} points` },
                     ].map(({ label, value }) => (

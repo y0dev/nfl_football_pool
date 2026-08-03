@@ -90,39 +90,29 @@ export function PoolWorkspace({
 
       setMissingParticipants((allParticipants ?? []).filter(p => !submittedIds.has(p.id)));
 
-      const { data: seasonScores } = await supabase
-        .from('scores')
-        .select('participant_id, points, correct_picks')
-        .eq('pool_id', poolId)
-        .eq('season', season)
-        .eq('season_type', currentSeasonType);
+      // Season standings compute live from picks+games (the same source the
+      // public leaderboard uses) rather than reading `scores` directly —
+      // that table is only ever populated by an on-demand self-heal
+      // triggered elsewhere and can't be assumed populated here. Pinned to
+      // the pool's own latest regular-season week/season_type (not the
+      // currentWeek/currentSeasonType props, which track Overview's
+      // pick-tracking week and may be a different season_type once a pool
+      // has moved into playoffs).
+      const { getLatestWeekForSeason } = await import('@/actions/loadCurrentWeek');
+      const latestRegular = await getLatestWeekForSeason(season, poolId, 2);
+      const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`);
+      const seasonData = await seasonRes.json();
 
-      if (seasonScores && seasonScores.length > 0) {
-        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
-        seasonScores.forEach(s => {
-          const e = totalsMap.get(s.participant_id);
-          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
-          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
-        });
-        let leaderId = '';
-        let leaderPts = 0;
-        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
-        if (leaderId) {
-          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
-          const ld = totalsMap.get(leaderId)!;
-          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
-        } else {
-          setPoolLeader(null);
-        }
-        const ranked = [...totalsMap.entries()]
-          .map(([id, { points, correctPicks }]) => ({
-            participantId: id,
-            name: (allParticipants ?? []).find(p => p.id === id)?.name ?? 'Unknown',
-            points,
-            correctPicks,
-          }))
-          .sort((a, b2) => b2.points - a.points);
+      if (seasonData.success && seasonData.leaderboard?.length > 0) {
+        const ranked = seasonData.leaderboard.map((entry: { participant_id: string; participant_name: string; total_points: number; total_correct_picks: number }) => ({
+          participantId: entry.participant_id,
+          name: entry.participant_name,
+          points: entry.total_points,
+          correctPicks: entry.total_correct_picks,
+        }));
         setLeaderboardEntries(ranked);
+        const leader = ranked[0];
+        setPoolLeader(leader ? { name: leader.name, points: leader.points, correctPicks: leader.correctPicks } : null);
       } else {
         setPoolLeader(null);
         setLeaderboardEntries([]);

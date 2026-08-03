@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
     const seasonLeaderboard = await Promise.all(
       participants.map(async (participant) => {
         let totalPoints = 0;
+        let totalCorrectPicks = 0;
         let weeksPlayed = 0;
         let bestWeek = 0;
         let bestWeekScore = 0;
@@ -150,15 +151,18 @@ export async function GET(request: NextRequest) {
                 }
               });
 
-              if (weekScore > 0) {
-                totalPoints += weekScore;
-                weeksPlayed++;
+              // "Played" means they submitted picks this week, not that they
+              // scored > 0 — a week where every pick happened to be wrong
+              // (or hasn't been decided yet) still counts, otherwise weeks
+              // played gets understated and averages skew high.
+              totalPoints += weekScore;
+              totalCorrectPicks += correctPicks;
+              weeksPlayed++;
 
-                // Track best week performance
-                if (weekScore > bestWeekScore) {
-                  bestWeekScore = weekScore;
-                  bestWeek = week;
-                }
+              // Track best week performance
+              if (weekScore > bestWeekScore) {
+                bestWeekScore = weekScore;
+                bestWeek = week;
               }
             }
           } catch (error) {
@@ -170,8 +174,10 @@ export async function GET(request: NextRequest) {
         const averagePoints = weeksPlayed > 0 ? totalPoints / weeksPlayed : 0;
 
         return {
+          participant_id: participant.id,
           participant_name: participant.name,
           total_points: totalPoints,
+          total_correct_picks: totalCorrectPicks,
           weeks_played: weeksPlayed,
           average_points: averagePoints,
           best_week: bestWeek,
