@@ -69,12 +69,12 @@ const TEST_CONFIG = {
     {
       name: 'Test Pool 2025',
       season: 2025,
-      created_by: 'admin@test.com'
+      created_by: 'superadmin@test.com'
     },
     {
-      name: 'Family Pool',
+      name: 'Test Family Pool',
       season: 2025,
-      created_by: 'admin@test.com'
+      created_by: 'superadmin@test.com'
     },
     {
       name: 'Work Pool',
@@ -90,14 +90,16 @@ const TEST_CONFIG = {
     { name: 'Mike Johnson', email: 'mike.johnson@test.com', pool_name: 'Test Pool 2025' },
     { name: 'Sarah Wilson', email: 'sarah.wilson@test.com', pool_name: 'Test Pool 2025' },
     { name: 'David Brown', email: 'david.brown@test.com', pool_name: 'Test Pool 2025' },
-    
-    // Family Pool participants (including admin)
-    { name: 'Test Admin', email: 'admin@test.com', pool_name: 'Family Pool' },
-    { name: 'Dad', email: 'dad@family.com', pool_name: 'Family Pool' },
-    { name: 'Mom', email: 'mom@family.com', pool_name: 'Family Pool' },
-    { name: 'Son', email: 'son@family.com', pool_name: 'Family Pool' },
-    { name: 'Daughter', email: 'daughter@family.com', pool_name: 'Family Pool' },
-    { name: 'Uncle Bob', email: 'uncle.bob@family.com', pool_name: 'Family Pool' },
+
+    // Test Family Pool participants (including admin) — named distinctly
+    // from any real "Family Pool" a commissioner might create, so this
+    // seed data never gets mistaken for production data.
+    { name: 'Test Admin', email: 'admin@test.com', pool_name: 'Test Family Pool' },
+    { name: 'Dad', email: 'dad@family.com', pool_name: 'Test Family Pool' },
+    { name: 'Mom', email: 'mom@family.com', pool_name: 'Test Family Pool' },
+    { name: 'Son', email: 'son@family.com', pool_name: 'Test Family Pool' },
+    { name: 'Daughter', email: 'daughter@family.com', pool_name: 'Test Family Pool' },
+    { name: 'Uncle Bob', email: 'uncle.bob@family.com', pool_name: 'Test Family Pool' },
     
     // Work Pool participants (including pool admin)
     { name: 'Pool Admin', email: 'pooladmin@test.com', pool_name: 'Work Pool' },
@@ -281,13 +283,13 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log('Usage: npm run create-test-data');
   console.log('');
   console.log('This script creates:');
-  console.log('  • 3 admin users (2 super admins, 1 regular admin) with passwords');
-  console.log('  • 3 pools (Test Pool, Family Pool, Work Pool)');
-  console.log('  • 18 participants across the pools (including admins as participants)');
+  console.log('  • 2 admin users (1 super admin, 1 commissioner) with passwords');
+  console.log('  • 3 pools (Test Pool 2025, Test Family Pool, Work Pool)');
+  console.log('  • 18 participants across the pools (admin@test.com/dad@family.com/etc. are');
+  console.log('    participant labels only, not accounts — nobody can log in as them)');
   console.log('  • Admin-pool relationships');
   console.log('');
   console.log('Admin Passwords:');
-  console.log('  • admin@test.com: admin123');
   console.log('  • superadmin@test.com: super123');
   console.log('  • pooladmin@test.com: pool123');
   console.log('');
