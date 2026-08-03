@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -73,41 +74,19 @@ function getPeriodWeeks(seasonType: number, week: number): number[] {
   return [];
 }
 
-function PicksNav({ isAdmin, onLogout, router }: { isAdmin: boolean; onLogout: () => void; router: ReturnType<typeof useRouter> }) {
-  return (
-    <nav style={{
-      position: 'sticky', top: 0, zIndex: 50,
-      background: 'oklch(13% 0.025 255 / 0.95)',
-      backdropFilter: 'blur(14px)',
-      borderBottom: `1px solid ${border}`,
-    }}>
-      <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-            {isAdmin && (
-              <Link href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none', flexShrink: 0 }}>
-                <ArrowLeft style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">Dashboard</span>
-              </Link>
-            )}
-            {isAdmin && <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />}
-            <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              Sunday Huddle
-            </span>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={onLogout}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              <LogOut style={{ width: 11, height: 11 }} />
-              <span className="pools-nav-label">Log Out</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </nav>
-  );
+function PicksNav({
+  isAdmin, isSuperAdmin, poolId, onLogout,
+}: {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  poolId: string;
+  onLogout: () => void;
+}) {
+  // isAdmin here means "this browser session also happens to be logged in
+  // as a commissioner/admin" — a pool's Picks page never requires that (see
+  // isValidUuid checks elsewhere in this file); a plain participant sees
+  // Sign In/Create Account instead, same as everywhere else in the app.
+  return <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={onLogout} poolId={poolId} />;
 }
 
 function WeekNav({
@@ -735,15 +714,20 @@ export function PoolPicksContent() {
       }
 
       try {
-        const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
+        // supabase.auth.getSession() only ever resolves for Google-OAuth
+        // sign-ins — password-based commissioner logins (loginUser.ts) never
+        // touch Supabase Auth at all, so that check silently never detects
+        // the majority of commissioners as signed in. localStorage's
+        // nfl-pool-user is the actual stable session record both paths
+        // write (see checkSession in src/lib/auth.tsx).
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { id?: string; email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
 
-        if (session) {
+        if (localUser?.id) {
           // Session user could be a super-admin or a commissioner — resolve
           // via the same server-side check AdminGuard uses rather than
           // querying either table directly from the client.
-          const res = await fetch(`/api/admin/verify-status?adminId=${session.user.id}`);
+          const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
           const data = await res.json();
 
           if (data.success && data.isAdmin) {
@@ -751,13 +735,15 @@ export function PoolPicksContent() {
             setIsSuperAdmin(data.isSuperAdmin);
 
             if (poolId) {
+              const { getSupabaseClient } = await import('@/lib/supabase');
+              const supabase = getSupabaseClient();
               const { data: poolData } = await supabase
                 .from('pools')
                 .select('created_by')
                 .eq('id', poolId)
                 .single();
 
-              if (poolData && poolData.created_by === session.user.email) {
+              if (poolData && poolData.created_by === localUser.email) {
                 setIsPoolAdmin(true);
               }
             }
@@ -1180,7 +1166,7 @@ export function PoolPicksContent() {
   if (isOffseasonState) {
     return (
       <div id='offseason-banner' style={{ minHeight: '100vh', background: bg }}>
-        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+        <PicksNav isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} poolId={poolId} onLogout={handleLogout} />
         <section
           id="offseason-banner"
           style={{ background: bg, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>
@@ -1238,7 +1224,7 @@ export function PoolPicksContent() {
   if (weekEnded && !weekHasPicks) {
     return (
       <div style={{ minHeight: '100vh', background: bg }}>
-        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+        <PicksNav isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} poolId={poolId} onLogout={handleLogout} />
 
         <section id='hero' style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
           <div className="lp-inner">
@@ -1305,7 +1291,7 @@ export function PoolPicksContent() {
   if (weekEnded && weekHasPicks && weekWinner) {
     return (
       <div style={{ minHeight: '100vh', background: bg }}>
-        <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+        <PicksNav isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} poolId={poolId} onLogout={handleLogout} />
 
         <section
           id="final-results-banner"
@@ -1427,7 +1413,7 @@ export function PoolPicksContent() {
   // ── MAIN PICKS PAGE ───────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: bg }}>
-      <PicksNav isAdmin={isAdmin} onLogout={handleLogout} router={router} />
+      <PicksNav isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} poolId={poolId} onLogout={handleLogout} />
 
       <section
         id="hero"

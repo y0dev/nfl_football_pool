@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Users, Trophy, Calendar, Shield, Plus } from 'lucide-react';
+import { Search, Users, Trophy, Calendar, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
@@ -12,6 +12,7 @@ import { isPricingVisible } from '@/lib/billing';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { AppNav } from '@/components/layout/AppNav';
 
 interface Game {
   id: string;
@@ -44,7 +45,7 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 function LandingPage() {
-  const { user, verifyAdminStatus } = useAuth();
+  const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(false);
@@ -53,6 +54,11 @@ function LandingPage() {
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(true);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -166,102 +172,16 @@ function LandingPage() {
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
 
-      {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
-              <BrandLogo variant="icon" size={32} />
-              <span style={{
-                ...bc, fontWeight: 800, fontSize: '0.95rem',
-                letterSpacing: '0.07em', color: text, textTransform: 'uppercase',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                Sunday Huddle
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-              <div className="lp-nav-links">
-                <Link href="/how-it-works" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                  How It Works
-                </Link>
-                <Link href="/faq" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                  FAQ
-                </Link>
-                {isPricingVisible() && (
-                  <Link href="/pricing" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                    Pricing
-                  </Link>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-              {user ? (
-                <button
-                  onClick={() => {
-                    if (isSuperAdmin === true) router.push('/admin/dashboard');
-                    else if (isSuperAdmin === false) router.push('/dashboard');
-                  }}
-                  disabled={isCheckingAdmin}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.45rem 0.9rem',
-                    background: green, color: text, border: 'none', borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.78rem',
-                    letterSpacing: '0.08em', textTransform: 'uppercase',
-                    cursor: isCheckingAdmin ? 'not-allowed' : 'pointer',
-                    opacity: isCheckingAdmin ? 0.55 : 1,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  {isCheckingAdmin ? 'Loading…' : isSuperAdmin ? 'Admin Dashboard' : 'Commissioner Dashboard'}
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => router.push('/login')}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.4rem',
-                      padding: '0.45rem 0.9rem',
-                      background: 'transparent', color: textMid,
-                      border: `1px solid ${border}`, borderRadius: 6,
-                      ...bc, fontWeight: 700, fontSize: '0.78rem',
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
-                      cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <Shield className="h-3.5 w-3.5" />
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => router.push('/register')}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.4rem',
-                      padding: '0.45rem 0.9rem',
-                      background: green, color: text, border: 'none', borderRadius: 6,
-                      ...bc, fontWeight: 700, fontSize: '0.78rem',
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
-                      cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Pool
-                  </button>
-                </>
-              )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated={!!user}
+        isSuperAdmin={isSuperAdmin === true}
+        onSignOut={handleSignOut}
+        extraLinks={[
+          { label: 'How It Works', href: '/how-it-works' },
+          { label: 'FAQ', href: '/faq' },
+          ...(isPricingVisible() ? [{ label: 'Pricing', href: '/pricing' }] : []),
+        ]}
+      />
 
       {/* ── HERO ── */}
       <section style={{

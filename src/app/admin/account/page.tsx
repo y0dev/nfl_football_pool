@@ -7,8 +7,8 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { requestEmailChange } from '@/actions/emailChange';
 import { Footer } from '@/components/layout/Footer';
-import { BrandLogo } from '@/components/ui/brand-logo';
-import { Eye, EyeOff, LogOut, Trash2, KeyRound, User, ArrowLeft, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus, ShieldCheck, Link2, Unlink, Bell, Hash } from 'lucide-react';
+import { AppNav } from '@/components/layout/AppNav';
+import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus, ShieldCheck, Link2, Unlink, Bell, Hash } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -399,27 +399,7 @@ function AccountSettingsContent() {
   return (
     <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Nav */}
-      <nav style={{ borderBottom: `1px solid ${border}`, background: surface }}>
-        <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '3.25rem', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <Link href={createPageUrl('admindashboard')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: textMid }}>
-              <ArrowLeft style={{ width: 14, height: 14 }} />
-              <BrandLogo variant="icon" size={24} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                Sunday Huddle
-              </span>
-            </Link>
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.65rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-          >
-            <LogOut style={{ width: 12, height: 12 }} />
-            Logout
-          </button>
-        </div>
-      </nav>
+      <AppNav isAuthenticated isSuperAdmin={user?.is_super_admin === true} onSignOut={handleLogout} />
 
       {/* Body */}
       <div className="lp-inner" style={{ flex: 1, paddingTop: '2.5rem', paddingBottom: '3rem', maxWidth: 640 }}>
