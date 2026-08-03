@@ -58,6 +58,10 @@ export function PoolWorkspace({
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   const [linkCopied, setLinkCopied] = useState(false);
+  // Distinct from "no games this week" — this tracks whether the pick
+  // window has opened yet at all, so Missing Picks doesn't get shown (and
+  // participants flagged as delinquent) for a week that's simply too early.
+  const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -72,6 +76,9 @@ export function PoolWorkspace({
       const total = allParticipants?.length ?? 0;
       const gameIds = weekGames?.map(g => g.id) ?? [];
       setWeekGamesCount(gameIds.length);
+
+      const { hasWeekPickWindowOpened } = await import('@/actions/loadCurrentWeek');
+      setPickWindowOpened(await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season));
 
       let submittedIds = new Set<string>();
       if (gameIds.length > 0) {
@@ -260,7 +267,20 @@ export function PoolWorkspace({
               </div>
             </div>
           )}
-          {currentSeasonType !== 0 && missingParticipants.length > 0 && (
+          {currentSeasonType !== 0 && weekGamesCount > 0 && pickWindowOpened === false && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Calendar style={{ width: 16, height: 16, color: textDim, flexShrink: 0 }} />
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Week {currentWeek} has not been unlocked yet
+                </p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.2rem' }}>
+                  Picks are not yet available for this week — check back closer to kickoff.
+                </p>
+              </div>
+            </div>
+          )}
+          {currentSeasonType !== 0 && pickWindowOpened === true && missingParticipants.length > 0 && (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
                 <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
@@ -281,7 +301,7 @@ export function PoolWorkspace({
               </div>
             </div>
           )}
-          {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
+          {currentSeasonType !== 0 && pickWindowOpened === true && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
             <div style={{ background: 'oklch(18% 0.04 155)', border: `1px solid oklch(32% 0.1 155)`, borderRadius: 10, padding: '0.875rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
               <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>

@@ -82,6 +82,52 @@ export async function getLatestWeekForSeason(
   }
 }
 
+/**
+ * Whether a week's pick-tracking is meaningful to show yet — distinct from
+ * isWeekUnlockedForPicks, which conflates two different "false" reasons
+ * (too early to pick vs. already locked because games started). A
+ * commissioner's Missing Picks panel should stay hidden only for the
+ * "too early" case; once any game in the week has started, tracking who
+ * didn't submit is exactly when it matters most; hiding it there would
+ * defeat the point.
+ *
+ * Takes `season` explicitly (unlike isWeekUnlockedForPicks, which doesn't)
+ * — week numbers restart every year, so without it this would blend an old
+ * season's already-started games with a future season's not-yet-started
+ * ones at the same week/season_type and report the wrong thing for either.
+ */
+export async function hasWeekPickWindowOpened(weekNumber: number, seasonType: number = 2, season?: number): Promise<boolean> {
+  try {
+    const supabase = getSupabaseServiceClient();
+    const now = new Date();
+
+    let gamesQuery = supabase
+      .from('games')
+      .select('kickoff_time, status')
+      .eq('week', weekNumber)
+      .eq('season_type', seasonType);
+    if (season !== undefined) gamesQuery = gamesQuery.eq('season', season);
+    const { data: games, error } = await gamesQuery.order('kickoff_time');
+
+    if (error || !games || games.length === 0) return false;
+
+    const hasStartedGames = games.some(game => {
+      const kickoffTime = new Date(game.kickoff_time);
+      return kickoffTime <= now || game.status !== 'scheduled';
+    });
+    if (hasStartedGames) return true;
+
+    const firstGameTime = new Date(games[0].kickoff_time);
+    const timeUntilFirstGame = firstGameTime.getTime() - now.getTime();
+    const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000;
+
+    return timeUntilFirstGame <= daysToKickoffInMs;
+  } catch (error) {
+    debugError('Error checking if week pick window has opened:', error);
+    return true; // permissive fallback — matches isWeekUnlockedForPicks's own fallback
+  }
+}
+
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
   try {
@@ -142,10 +188,15 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
 }
 
 // Function to get the upcoming week (the week that should be unlocked for picks)
-export async function getUpcomingWeek(): Promise<{ week: number; seasonType: number }> {
+export async function getUpcomingWeek(
+  /** Scope to one season year — see getWeekForPicks' matching param. Leave
+   * undefined for the original global "what's upcoming in the NFL right
+   * now" behavior every existing caller relies on. */
+  season?: number
+): Promise<{ week: number; seasonType: number }> {
   const now = new Date();
 
-  if (isOffseason(now)) {
+  if (isOffseason(now) && season === undefined) {
     const supabase = getSupabaseClient();
     const { data: futureGames } = await supabase
       .from('games')
@@ -157,10 +208,10 @@ export async function getUpcomingWeek(): Promise<{ week: number; seasonType: num
     }
     // Games pre-loaded for upcoming season — fall through to normal detection
   }
-      
+
   try {
     const { getWeekForPicks } = await import('./getCurrentWeekFromGames');
-    return await getWeekForPicks();
+    return await getWeekForPicks(season);
   } catch (error) {
     debugError('Error getting upcoming week:', error);
     // Fallback to current week

@@ -70,9 +70,15 @@ function nameOf(row: any): string {
 // Deliberately NOT a status-string match — games.status has been written
 // with inconsistent casing across historical sync runs ('final', 'Final',
 // 'finished' have all been observed for the same terminal state). `winner`
-// being set is the reliable signal regardless of status casing.
+// being set is normally the reliable signal regardless of status casing —
+// but a small number of real games end in a tie (no winner) with a terminal
+// status, so status is also checked as a fallback to avoid permanently
+// blocking scoring for weeks containing a tie game.
+const TERMINAL_GAME_STATUSES = new Set(['final', 'finished', 'cancelled'])
 function isGameFinished(game: { status?: string | null; winner?: string | null }): boolean {
-  return game.winner != null || game.status?.toLowerCase() === 'cancelled'
+  if (game.winner != null) return true
+  const status = game.status?.toLowerCase()
+  return status != null && TERMINAL_GAME_STATUSES.has(status)
 }
 
 async function processPool(supabase: any, pool: any) {

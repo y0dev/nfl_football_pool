@@ -1,20 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugLog, debugError } from './utils';
-
-/**
- * Whether a game has reached a terminal state (decided or cancelled).
- * Deliberately NOT a status-string match — games.status has been written
- * with inconsistent casing across historical sync runs ('final', 'Final',
- * 'finished' have all been observed for the same terminal state, and code
- * that checked for the single literal 'finished' silently never matched the
- * far more common 'final'/'Final' rows, leaving scores/weekly_winners/
- * season_winners/period_winners permanently unpopulated). `winner` being
- * set is the reliable signal: nfl-sync only ever populates it once a game
- * is actually decided, regardless of what casing `status` ended up with.
- */
-function isGameDecided(game: { status?: string | null; winner?: string | null }): boolean {
-  return game.winner != null || game.status?.toLowerCase() === 'cancelled';
-}
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, isGameDecided, debugLog, debugError } from './utils';
 
 /**
  * Supabase's JS client returns a to-one foreign-key join (participants!inner)

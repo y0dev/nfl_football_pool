@@ -54,6 +54,30 @@ export const PERIOD_WEEKS = [4, 9, 14, 18] as const;
 // Super Bowl is in season_type 3 (playoffs)
 export const SUPER_BOWL_SEASON_TYPE = 3;
 
+const TERMINAL_GAME_STATUSES = new Set(['final', 'finished', 'cancelled']);
+
+/**
+ * Whether a game has reached a terminal state (decided or cancelled).
+ * Checks BOTH signals rather than either alone:
+ * - `winner` set is normally the reliable signal (games.status has been
+ *   written with inconsistent casing across historical sync runs — 'final',
+ *   'Final', 'finished' have all been observed for the same terminal state,
+ *   and code that checked for the literal 'finished' silently never matched
+ *   the far more common 'final'/'Final' rows).
+ * - but `winner` alone misses ties: a small number of real games have a
+ *   terminal status with no winner recorded, because the game legitimately
+ *   ended in a tie (not missing data). Checking status (case-insensitively)
+ *   as a fallback catches those too. Without this, weeks containing a tie
+ *   game were permanently stuck looking "not yet decided" — blocking score
+ *   calculation for that week indefinitely and confusing current-week
+ *   detection into thinking a long-finished week was still in progress.
+ */
+export function isGameDecided(game: { status?: string | null; winner?: string | null }): boolean {
+  if (game.winner != null) return true;
+  const status = game.status?.toLowerCase();
+  return status != null && TERMINAL_GAME_STATUSES.has(status);
+}
+
 export interface PeriodDefinition {
   name: string;
   startWeek: number;
