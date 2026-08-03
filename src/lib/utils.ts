@@ -54,6 +54,75 @@ export const PERIOD_WEEKS = [4, 9, 14, 18] as const;
 // Super Bowl is in season_type 3 (playoffs)
 export const SUPER_BOWL_SEASON_TYPE = 3;
 
+const TERMINAL_GAME_STATUSES = new Set(['final', 'finished', 'cancelled']);
+
+/**
+ * Whether a game has reached a terminal state (decided or cancelled).
+ * Checks BOTH signals rather than either alone:
+ * - `winner` set is normally the reliable signal (games.status has been
+ *   written with inconsistent casing across historical sync runs — 'final',
+ *   'Final', 'finished' have all been observed for the same terminal state,
+ *   and code that checked for the literal 'finished' silently never matched
+ *   the far more common 'final'/'Final' rows).
+ * - but `winner` alone misses ties: a small number of real games have a
+ *   terminal status with no winner recorded, because the game legitimately
+ *   ended in a tie (not missing data). Checking status (case-insensitively)
+ *   as a fallback catches those too. Without this, weeks containing a tie
+ *   game were permanently stuck looking "not yet decided" — blocking score
+ *   calculation for that week indefinitely and confusing current-week
+ *   detection into thinking a long-finished week was still in progress.
+ */
+export function isGameDecided(game: { status?: string | null; winner?: string | null }): boolean {
+  if (game.winner != null) return true;
+  const status = game.status?.toLowerCase();
+  return status != null && TERMINAL_GAME_STATUSES.has(status);
+}
+
+export interface PeriodDefinition {
+  name: string;
+  startWeek: number;
+  endWeek: number;
+  weeks: number[];
+}
+
+/**
+ * The single source of truth for Q1-Q4 regular-season period boundaries —
+ * derived from PERIOD_WEEKS so the period selector, leaderboard, season
+ * review, and admin winner-generation routes can never define different
+ * quarter boundaries again (they previously did: three separate hardcoded
+ * week-range sets existed across the codebase before this was extracted,
+ * with a fourth "Period 1"-"Period 4" naming scheme layered on top that
+ * didn't match the "Q1"-"Q4" names actually stored in period_winners).
+ */
+export function getRegularSeasonPeriods(): PeriodDefinition[] {
+  const names = ['Q1', 'Q2', 'Q3', 'Q4'];
+  let start = 1;
+  return PERIOD_WEEKS.map((end, i) => {
+    const weeks = Array.from({ length: end - start + 1 }, (_, idx) => start + idx);
+    const def: PeriodDefinition = { name: names[i], startWeek: start, endWeek: end, weeks };
+    start = end + 1;
+    return def;
+  });
+}
+
+/**
+ * Week list for a named period. Playoffs number their own weeks
+ * independently of the regular season (season_type 3, weeks 1-4 = the four
+ * playoff rounds), so they're handled as a distinct case rather than a
+ * regular-season period.
+ */
+export function getPeriodWeeks(periodName: string, seasonType: number = 2): number[] {
+  if (seasonType === SUPER_BOWL_SEASON_TYPE || periodName === 'Playoffs') return [1, 2, 3, 4];
+  return getRegularSeasonPeriods().find(p => p.name === periodName)?.weeks ?? [];
+}
+
+/** Which named period a given week falls into. */
+export function getPeriodNameForWeek(week: number, seasonType: number = 2): string {
+  if (seasonType === SUPER_BOWL_SEASON_TYPE) return 'Playoffs';
+  const period = getRegularSeasonPeriods().find(p => week >= p.startWeek && week <= p.endWeek);
+  return period?.name ?? 'Q4';
+}
+
 export function createPageUrl(page: string): string {
   debugLog('Creating page URL for:', page);
   // Normalize page names to lowercase and remove spaces

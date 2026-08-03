@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, debugError} from '@/lib/utils';
+import { debugLog, debugError, getPeriodWeeks } from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 interface ParticipantData {
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     
     // Get tie-breaker weeks using the same logic as export
-    const periodWeeks = getPeriodWeeks(periodName);
+    const periodWeeks = getPeriodWeeks(periodName, seasonType);
     if (periodWeeks.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Invalid period name' },
@@ -622,24 +622,6 @@ export async function GET(request: NextRequest) {
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
-  }
-}
-
-function getPeriodWeeks(periodName: string): number[] {
-  switch (periodName) {
-    case 'Period 1':
-      return [1, 2, 3, 4];
-    case 'Period 2':
-      return [5, 6, 7, 8, 9];
-    case 'Period 3':
-      return [10, 11, 12, 13, 14];
-    case 'Period 4':
-      return [15, 16, 17, 18];
-    case 'Playoffs':
-      // Playoffs include all 4 rounds (weeks 1-4 in postseason)
-      return [1, 2, 3, 4];
-    default:
-      return [];
   }
 }
 

@@ -54,10 +54,9 @@ function PoolManageContent() {
     const load = async () => {
       if (!user?.email || !poolId) return;
       try {
-        const [poolData, isSuperAdmin, week] = await Promise.all([
+        const [poolData, isSuperAdmin] = await Promise.all([
           loadPool(poolId),
           verifyAdminStatus(true),
-          getUpcomingWeek(),
         ]);
 
         setIsSuperAdminViewer(isSuperAdmin);
@@ -69,6 +68,12 @@ function PoolManageContent() {
 
         setPool(poolData as PoolRecord);
         setAuthorized(isSuperAdmin || poolData.created_by === user.email);
+
+        // Scoped to this pool's own season — without it, a past/completed
+        // season's pool would pick up whatever's upcoming in the NFL right
+        // now globally (e.g. next season's preseason), breaking Overview's
+        // Missing Picks tracking and stats for any closed or prior-season pool.
+        const week = await getUpcomingWeek(poolData.season);
         setCurrentWeek(week.week);
         setCurrentSeasonType(week.seasonType);
       } catch (error) {

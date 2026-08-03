@@ -55,7 +55,7 @@ export function SubscriptionSummaryCard({ summary, currentSeason }: { summary: S
     : summary.billingExempt ? 'Comped' : summary.isTrialActive ? 'Trial' : '—';
 
   return (
-    <div style={{ background: cardBg, border: `1px solid ${border}`, borderTop: `3px solid ${isStandard ? gold : border}`, borderRadius: 10, padding: '1.5rem' }}>
+    <div id="subscription-summary" style={{ background: cardBg, border: `1px solid ${border}`, borderTop: `3px solid ${isStandard ? gold : border}`, borderRadius: 10, padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
         <div>
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>

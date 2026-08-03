@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError } from '@/lib/utils';
+import { debugError, getRegularSeasonPeriods } from '@/lib/utils';
 
+// Backs the period selector on the public leaderboard's Period tab. A period
+// is "available" once it has started (not only once it's fully complete) —
+// the period-leaderboard endpoint already computes live partial standings
+// for an in-progress period, same as the Weekly tab does for the current week.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
+    const currentWeekParam = searchParams.get('currentWeek');
+    const currentSeasonTypeParam = searchParams.get('currentSeasonType');
 
     if (!poolId || !season) {
       return NextResponse.json(
@@ -17,44 +23,41 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Get current week from games
-    const { data: currentGame, error: gameError } = await supabase
-      .from('games')
-      .select('week, season_type')
-      .eq('season', parseInt(season))
-      .order('week', { ascending: false })
-      .limit(1)
-      .single();
+    let currentWeek = currentWeekParam ? parseInt(currentWeekParam) : null;
+    let currentSeasonType = currentSeasonTypeParam ? parseInt(currentSeasonTypeParam) : null;
 
-    if (gameError) {
-      return NextResponse.json(
-        { success: false, error: 'Failed to get current week' },
-        { status: 500 }
-      );
+    // Caller (the leaderboard page) already knows the pool's current
+    // week/season type via loadCurrentWeek() — only fall back to inferring
+    // it from the latest game row if that wasn't passed.
+    if (currentWeek === null || currentSeasonType === null) {
+      const { data: currentGame, error: gameError } = await supabase
+        .from('games')
+        .select('week, season_type')
+        .eq('season', parseInt(season))
+        .order('week', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (gameError) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to get current week' },
+          { status: 500 }
+        );
+      }
+
+      currentWeek = currentGame?.week ?? 1;
+      currentSeasonType = currentGame?.season_type ?? 2;
     }
 
-    const currentWeek = currentGame?.week || 1;
-    const currentSeasonType = currentGame?.season_type || 2;
+    // Q1-Q4 are a regular-season construct — playoffs get no period selector.
+    const periods = getRegularSeasonPeriods();
 
-    // Define periods
-    const periods = [
-      { name: 'Period 1', weeks: [1, 2, 3, 4], endWeek: 4 },
-      { name: 'Period 2', weeks: [5, 6, 7, 8, 9], endWeek: 9 },
-      { name: 'Period 3', weeks: [10, 11, 12, 13, 14], endWeek: 14 },
-      { name: 'Period 4', weeks: [15, 16, 17, 18], endWeek: 18 }
-    ];
+    const availablePeriods = currentSeasonType === 2
+      ? periods.filter(period => currentWeek! >= period.startWeek)
+      : periods; // once in playoffs, the full regular season has passed
 
-    // Filter periods that have passed
-    const availablePeriods = periods.filter(period => {
-      // For regular season, check if the period has ended
-      if (currentSeasonType === 2) {
-        return currentWeek >= period.endWeek;
-      }
-      // For playoffs, all regular season periods are available
-      return true;
-    });
-
-    // Check which periods have winners calculated
+    // Check which periods have official winners recorded (informational only
+    // — a period without one yet still shows live/partial standings).
     const { data: periodWinners, error: winnersError } = await supabase
       .from('period_winners')
       .select('period_name')
@@ -70,11 +73,11 @@ export async function GET(request: NextRequest) {
 
     const calculatedPeriods = new Set(periodWinners?.map(p => p.period_name) || []);
 
-    // Add status to each period
     const periodsWithStatus = availablePeriods.map(period => ({
       ...period,
       isCalculated: calculatedPeriods.has(period.name),
-      isCurrent: currentWeek >= period.weeks[0] && currentWeek <= period.endWeek && currentSeasonType === 2
+      isComplete: currentSeasonType !== 2 || currentWeek! > period.endWeek,
+      isCurrent: currentSeasonType === 2 && currentWeek! >= period.startWeek && currentWeek! <= period.endWeek,
     }));
 
     return NextResponse.json({

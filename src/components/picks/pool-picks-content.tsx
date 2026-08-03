@@ -21,7 +21,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -48,12 +48,8 @@ function isValidUuid(value: string | undefined | null): value is string {
 }
 
 function getPeriodName(seasonType: number, week: number): string {
-  if (seasonType === 2 && week <= 4) return 'Period 1';
-  if (seasonType === 2 && week <= 9) return 'Period 2';
-  if (seasonType === 2 && week <= 14) return 'Period 3';
-  if (seasonType === 2 && week <= 18) return 'Period 4';
-  if (seasonType === 3 && week <= 4) return 'Playoffs';
-  return 'Unknown Period';
+  if (seasonType === 3) return week <= 4 ? 'Playoffs' : 'Unknown Period';
+  return getPeriodNameForWeek(week, seasonType);
 }
 
 function getPeriodNumber(seasonType: number, week: number): number {

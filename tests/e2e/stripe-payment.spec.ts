@@ -41,19 +41,28 @@ async function createTestCommissioner(request: APIRequestContext) {
   // trial_ends_at set), which hides the upgrade button since they already
   // have Standard access. /api/admin/downgrade-plan won't clear it — it
   // exits early because plan is already 'free' — so clear it directly.
+  // commissioners, not admins — create-commissioner only ever writes
+  // there (see src/app/api/admin/create-commissioner/route.ts).
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
   );
-  await supabase.from('admins').update({ trial_ends_at: null }).eq('id', body.admin.id);
+  await supabase.from('commissioners').update({ trial_ends_at: null }).eq('id', body.admin.id);
 
   return { id: body.admin.id as string, email };
 }
 
-async function deleteTestCommissioner(request: APIRequestContext, adminId: string) {
-  await request.post('/api/admin/delete-account', {
-    data: { adminId, password: TEST_PASSWORD },
-  });
+async function deleteTestCommissioner(adminId: string) {
+  // /api/admin/delete-account is a soft archive (is_active: false) by
+  // design — real users' pool history must survive them deleting their
+  // account. That's the wrong cleanup for a disposable test fixture: it
+  // leaves a permanently-deactivated row behind on every single test run
+  // instead of actually removing it. Hard-delete directly instead.
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
+  );
+  await supabase.from('commissioners').delete().eq('id', adminId);
 }
 
 async function isStripeSandboxConfigured(request: APIRequestContext) {
@@ -174,7 +183,7 @@ test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
         expect(body.plan).toBe('standard');
       }).toPass({ timeout: 20000, intervals: [1000, 2000, 3000] });
     } finally {
-      await deleteTestCommissioner(request, admin.id);
+      await deleteTestCommissioner(admin.id);
     }
   });
 
@@ -191,7 +200,7 @@ test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
     );
-    await supabase.from('admins').update({ plan: 'standard', addon_pools: 0 }).eq('id', admin.id);
+    await supabase.from('commissioners').update({ plan: 'standard', addon_pools: 0 }).eq('id', admin.id);
 
     try {
       await page.goto('/login');
@@ -220,7 +229,7 @@ test.describe('Stripe Checkout — full purchase flow (sandbox)', () => {
         expect(body.addonPools).toBe(1);
       }).toPass({ timeout: 20000, intervals: [1000, 2000, 3000] });
     } finally {
-      await deleteTestCommissioner(request, admin.id);
+      await deleteTestCommissioner(admin.id);
     }
   });
 });

@@ -18,22 +18,30 @@ const purple  = 'oklch(65% 0.12 290)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
+interface ParticipantStat {
+  participant_id: string;
+  name: string;
+  total_points: number;
+  total_correct_picks: number;
+  total_incorrect_picks: number;
+  total_picks: number;
+  weeks_won: number;
+  period_wins: number;
+  winning_percentage: number;
+  longest_streak: number;
+  average_weekly_finish: number;
+  best_week: { week: number; points: number; correct_picks: number };
+  worst_week: { week: number; points: number; correct_picks: number };
+  average_points_per_week: number;
+  consistency_score: number;
+}
+
 interface SeasonReviewData {
   seasonWinner: any;
+  runnerUp: ParticipantStat | null;
   quarterlyWinners: any[];
   weeklyWinners: any[];
-  participantStats: {
-    participant_id: string;
-    name: string;
-    total_points: number;
-    total_correct_picks: number;
-    total_picks: number;
-    weeks_won: number;
-    best_week: { week: number; points: number; correct_picks: number };
-    worst_week: { week: number; points: number; correct_picks: number };
-    average_points_per_week: number;
-    consistency_score: number;
-  }[];
+  participantStats: ParticipantStat[];
   seasonStats: {
     total_weeks: number;
     total_participants: number;
@@ -41,7 +49,6 @@ interface SeasonReviewData {
     average_points_per_week: number;
     highest_weekly_score: number;
     lowest_weekly_score: number;
-    tie_breakers_used: number;
     most_wins_by_participant: string;
     most_wins_count: number;
     closest_weekly_margin: number;
@@ -99,7 +106,7 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
     );
   }
 
-  const { seasonWinner, quarterlyWinners, weeklyWinners, participantStats, seasonStats } = data;
+  const { seasonWinner, runnerUp, quarterlyWinners, weeklyWinners, participantStats, seasonStats } = data;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -156,23 +163,40 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
                 <div>
                   <p style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color: text, lineHeight: 1.1 }}>{seasonWinner.winner_name}</p>
                   <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginTop: '0.3rem' }}>
-                    {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
+                    {seasonWinner.periods_won} of 4 periods won &bull; {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
                   </p>
                   {seasonWinner.tie_breaker_used && (
-                    <span style={{ display: 'inline-block', marginTop: '0.5rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(65% 0.12 290 / 0.15)', color: purple, border: `1px solid oklch(65% 0.12 290 / 0.35)` }}>Won via tie-breaker</span>
+                    <span style={{ display: 'inline-block', marginTop: '0.5rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em', padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(65% 0.12 290 / 0.15)', color: purple, border: `1px solid oklch(65% 0.12 290 / 0.35)` }}>Tied on periods won — total points broke the tie</span>
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <p style={{ ...b, fontSize: '0.75rem', color: textDim }}>Correct Picks</p>
                   <p style={{ ...bc, fontWeight: 900, fontSize: '1.3rem', color: greenHi }}>
-                    {seasonWinner.total_correct_picks}/{seasonWinner.total_participants * seasonStats.total_weeks}
+                    {seasonWinner.total_correct_picks}
                   </p>
                 </div>
               </div>
+              {runnerUp && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Medal style={{ width: 14, height: 14, color: textDim }} />
+                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase' }}>Runner-up</span>
+                  </div>
+                  <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                    {runnerUp.name} &bull; {runnerUp.period_wins} periods won &bull; {runnerUp.total_points} points
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {!seasonWinner && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+              <Trophy style={{ width: 20, height: 20, color: textDim, margin: '0 auto 0.5rem' }} />
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Season Champion not yet determined — awarded once a period has been won.</p>
             </div>
           )}
 
-          {quarterlyWinners.length > 0 && (
+          {quarterlyWinners.length > 0 ? (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
                 <Medal style={{ width: 16, height: 16, color: amber }} />
@@ -187,6 +211,11 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
                   </div>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+              <Medal style={{ width: 20, height: 20, color: textDim, margin: '0 auto 0.5rem' }} />
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>No quarter has finished yet — quarterly champions appear here once one completes.</p>
             </div>
           )}
 
@@ -210,7 +239,6 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {[
-                  { label: 'Tie-breakers Used', value: `${seasonStats.tie_breakers_used} weeks` },
                   { label: 'Lowest Weekly Score', value: `${seasonStats.lowest_weekly_score} points` },
                   { label: 'Biggest Weekly Blowout', value: `${seasonStats.biggest_weekly_blowout} points` },
                 ].map(({ label, value }) => (
@@ -259,6 +287,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Winners</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>All weekly champions for the {season} season</p>
+          {weeklyWinners.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No weeks have finished yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {weeklyWinners.map((winner) => (
               <div key={winner.week} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
@@ -283,6 +314,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Participant Statistics</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Detailed stats for all participants</p>
+          {participantStats.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No participant has completed a week yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {participantStats.map((participant, index) => (
               <div key={participant.participant_id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
@@ -293,7 +327,7 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <p style={{ ...bc, fontWeight: 900, fontSize: '1.25rem', color: greenHi, lineHeight: 1 }}>{participant.total_points} pts</p>
-                    <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>{participant.weeks_won} weeks won</p>
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>{participant.weeks_won} weeks won &bull; {participant.period_wins} periods won</p>
                   </div>
                 </div>
                 <div className="admin-stats-grid">
@@ -301,6 +335,10 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
                     { label: 'Best Week', value: `Wk ${participant.best_week.week}: ${participant.best_week.points} pts` },
                     { label: 'Worst Week', value: `Wk ${participant.worst_week.week}: ${participant.worst_week.points} pts` },
                     { label: 'Avg Pts/Week', value: String(participant.average_points_per_week) },
+                    { label: 'Avg Finish', value: participant.average_weekly_finish > 0 ? `#${participant.average_weekly_finish}` : '—' },
+                    { label: 'Correct / Incorrect', value: `${participant.total_correct_picks} / ${participant.total_incorrect_picks}` },
+                    { label: 'Win %', value: `${participant.winning_percentage}%` },
+                    { label: 'Longest Streak', value: participant.longest_streak > 0 ? `${participant.longest_streak} wks` : '—' },
                     { label: 'Consistency', value: String(participant.consistency_score) },
                   ].map(({ label, value }) => (
                     <div key={label}>
@@ -320,6 +358,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Breakdown</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Week-by-week performance</p>
+          {weeklyWinners.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No weeks have finished yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {weeklyWinners.map((winner) => (
               <div key={winner.week} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>

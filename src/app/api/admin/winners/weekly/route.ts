@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { getOrCalculateWeeklyWinners } from '@/lib/winner-calculator';
+import { computeSeasonReview } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -9,8 +9,6 @@ export async function GET(request: NextRequest) {
     const poolId = searchParams.get('poolId');
     const season = searchParams.get('season');
     const week = searchParams.get('week'); // Optional: specific week
-    const seasonTypeParam = searchParams.get('seasonType');
-    const seasonType = seasonTypeParam ? parseInt(seasonTypeParam) : 2;
 
     if (!poolId || !season) {
       return NextResponse.json(
@@ -20,20 +18,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (week) {
-      // Get or calculate winner for specific week
-      const weeklyWinner = await getOrCalculateWeeklyWinners(poolId, parseInt(week), parseInt(season), seasonType);
-      
-      if (weeklyWinner) {
-        return NextResponse.json({
-          success: true,
-          weeklyWinners: [weeklyWinner]
-        });
-      } else {
-        return NextResponse.json({
-          success: true,
-          weeklyWinners: []
-        });
-      }
+      // Delegates to the same centralized computation the Season Review tab
+      // uses, rather than the old winner-calculator.ts implementation (which
+      // cached results that never invalidated). Note: unlike the old
+      // calculator, this doesn't resolve ties via the pool's tie-breaker
+      // question/answer — a tied week's "winner" here is picked by points
+      // alone. That gap pre-dates this change and is a known follow-up.
+      const review = await computeSeasonReview(poolId, parseInt(season));
+      const weeklyWinner = review.weeklyWinners.find(w => w.week === parseInt(week));
+
+      return NextResponse.json({
+        success: true,
+        weeklyWinners: weeklyWinner ? [weeklyWinner] : []
+      });
     } else {
       // Get all weekly winners for the season
       const supabase = getSupabaseServiceClient();

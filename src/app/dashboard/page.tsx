@@ -29,9 +29,6 @@ import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
 import { PlanBadge } from '@/components/billing/plan-badge';
-import { SubscriptionSummaryCard } from '@/components/billing/subscription-summary-card';
-import type { SubscriptionSummary } from '@/lib/subscription';
-import { getNFLSeasonYear } from '@/lib/utils';
 import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
@@ -92,7 +89,6 @@ function CommissionerDashboardContent() {
   const [countdown, setCountdown] = useState<string>('');
   const [games, setGames] = useState<Game[]>([]);
   const [planInfo, setPlanInfo] = useState<{ plan: string; isTrialActive: boolean; daysLeft: number; trialEndsAt: string | null } | null>(null);
-  const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
   const [leagueId, setLeagueId] = useState<string>('');
   const seasonLabel = currentSeasonType === 0 ? '' : currentSeasonType === 1 ? 'Preseason' : currentSeasonType === 2 ? 'Regular Season' : 'Postseason';
@@ -128,11 +124,6 @@ function CommissionerDashboardContent() {
           fetch(`/api/admin/plan-status?adminId=${user.id}`)
             .then(r => r.json())
             .then(d => { if (d.success) setPlanInfo({ plan: d.plan, isTrialActive: d.isTrialActive, daysLeft: d.daysLeft, trialEndsAt: d.trialEndsAt ?? null }); })
-            .catch(() => {});
-
-          fetch(`/api/admin/subscription-summary?adminId=${user.id}`)
-            .then(r => r.json())
-            .then(d => { if (d.success) setSubscriptionSummary(d); })
             .catch(() => {});
         }
       } catch (error) {
@@ -580,13 +571,6 @@ function CommissionerDashboardContent() {
 
       <section style={{ background: bg, padding: '2.5rem 0' }}>
         <div className="lp-inner">
-
-          {/* Subscription Summary */}
-          {subscriptionSummary && (
-            <div style={{ marginBottom: '2rem' }}>
-              <SubscriptionSummaryCard summary={subscriptionSummary} currentSeason={getNFLSeasonYear()} />
-            </div>
-          )}
 
           {/* Offseason Banner */}
           {currentSeasonType === 0 && (

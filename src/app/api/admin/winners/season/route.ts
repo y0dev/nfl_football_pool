@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
-import { getOrCalculateSeasonWinners } from '@/lib/winner-calculator';
+import { computeSeasonReview } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -16,20 +15,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get or calculate season winner
-    const seasonWinner = await getOrCalculateSeasonWinners(poolId, parseInt(season));
-    
-    if (seasonWinner) {
-      return NextResponse.json({
-        success: true,
-        seasonWinner
-      });
-    } else {
-      return NextResponse.json({
-        success: true,
-        seasonWinner: null
-      });
-    }
+    // Delegates to the same centralized computation the Season Review tab
+    // uses, rather than the old winner-calculator.ts implementation (which
+    // used a different, superseded points-primary algorithm and cached
+    // results that never invalidated).
+    const review = await computeSeasonReview(poolId, parseInt(season));
+
+    return NextResponse.json({
+      success: true,
+      seasonWinner: review.seasonWinner,
+      runnerUp: review.runnerUp,
+    });
 
   } catch (error) {
     debugError('Error in season winners API:', error);

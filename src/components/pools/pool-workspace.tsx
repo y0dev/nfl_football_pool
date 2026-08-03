@@ -57,7 +57,16 @@ export function PoolWorkspace({
   const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
+  // Separate from leaderboardEntries.length === 0 — that's ambiguous between
+  // "genuinely nobody has scored yet" and "the fetch failed/threw," which
+  // previously rendered the identical "No scores recorded yet" message
+  // either way and hid real failures as if they were normal empty state.
+  const [leaderboardStatus, setLeaderboardStatus] = useState<'loading' | 'error' | 'ready'>('loading');
   const [linkCopied, setLinkCopied] = useState(false);
+  // Distinct from "no games this week" — this tracks whether the pick
+  // window has opened yet at all, so Missing Picks doesn't get shown (and
+  // participants flagged as delinquent) for a week that's simply too early.
+  const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -72,6 +81,9 @@ export function PoolWorkspace({
       const total = allParticipants?.length ?? 0;
       const gameIds = weekGames?.map(g => g.id) ?? [];
       setWeekGamesCount(gameIds.length);
+
+      const { hasWeekPickWindowOpened } = await import('@/actions/loadCurrentWeek');
+      setPickWindowOpened(await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season));
 
       let submittedIds = new Set<string>();
       if (gameIds.length > 0) {
@@ -90,45 +102,41 @@ export function PoolWorkspace({
 
       setMissingParticipants((allParticipants ?? []).filter(p => !submittedIds.has(p.id)));
 
-      const { data: seasonScores } = await supabase
-        .from('scores')
-        .select('participant_id, points, correct_picks')
-        .eq('pool_id', poolId)
-        .eq('season', season)
-        .eq('season_type', currentSeasonType);
+      // Season standings compute live from picks+games (the same source the
+      // public leaderboard uses) rather than reading `scores` directly —
+      // that table is only ever populated by an on-demand self-heal
+      // triggered elsewhere and can't be assumed populated here. Pinned to
+      // the pool's own latest regular-season week/season_type (not the
+      // currentWeek/currentSeasonType props, which track Overview's
+      // pick-tracking week and may be a different season_type once a pool
+      // has moved into playoffs).
+      const { getLatestWeekForSeason } = await import('@/actions/loadCurrentWeek');
+      const latestRegular = await getLatestWeekForSeason(season, poolId, 2);
+      const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`);
+      const seasonData = await seasonRes.json();
 
-      if (seasonScores && seasonScores.length > 0) {
-        const totalsMap = new Map<string, { points: number; correctPicks: number }>();
-        seasonScores.forEach(s => {
-          const e = totalsMap.get(s.participant_id);
-          if (e) { e.points += s.points; e.correctPicks += s.correct_picks; }
-          else { totalsMap.set(s.participant_id, { points: s.points, correctPicks: s.correct_picks }); }
-        });
-        let leaderId = '';
-        let leaderPts = 0;
-        totalsMap.forEach((v, id) => { if (v.points > leaderPts) { leaderPts = v.points; leaderId = id; } });
-        if (leaderId) {
-          const leaderName = (allParticipants ?? []).find(p => p.id === leaderId)?.name ?? 'Unknown';
-          const ld = totalsMap.get(leaderId)!;
-          setPoolLeader({ name: leaderName, points: ld.points, correctPicks: ld.correctPicks });
-        } else {
-          setPoolLeader(null);
-        }
-        const ranked = [...totalsMap.entries()]
-          .map(([id, { points, correctPicks }]) => ({
-            participantId: id,
-            name: (allParticipants ?? []).find(p => p.id === id)?.name ?? 'Unknown',
-            points,
-            correctPicks,
-          }))
-          .sort((a, b2) => b2.points - a.points);
-        setLeaderboardEntries(ranked);
-      } else {
+      if (!seasonRes.ok || !seasonData.success) {
+        debugError('Season leaderboard fetch failed:', seasonData.error || seasonRes.statusText);
+        setLeaderboardStatus('error');
         setPoolLeader(null);
         setLeaderboardEntries([]);
+      } else {
+        const ranked = (seasonData.leaderboard ?? []).map((entry: { participant_id: string; participant_name: string; total_points: number; total_correct_picks: number }) => ({
+          participantId: entry.participant_id,
+          name: entry.participant_name,
+          points: entry.total_points,
+          correctPicks: entry.total_correct_picks,
+        }));
+        setLeaderboardEntries(ranked);
+        const leader = ranked[0];
+        setPoolLeader(leader ? { name: leader.name, points: leader.points, correctPicks: leader.correctPicks } : null);
+        setLeaderboardStatus('ready');
       }
     } catch (error) {
       debugError('Error loading pool workspace stats:', error);
+      setLeaderboardStatus('error');
+      setPoolLeader(null);
+      setLeaderboardEntries([]);
     }
   }, [poolId, season, currentWeek, currentSeasonType]);
 
@@ -270,7 +278,20 @@ export function PoolWorkspace({
               </div>
             </div>
           )}
-          {currentSeasonType !== 0 && missingParticipants.length > 0 && (
+          {currentSeasonType !== 0 && weekGamesCount > 0 && pickWindowOpened === false && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Calendar style={{ width: 16, height: 16, color: textDim, flexShrink: 0 }} />
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Week {currentWeek} has not been unlocked yet
+                </p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.2rem' }}>
+                  Picks are not yet available for this week — check back closer to kickoff.
+                </p>
+              </div>
+            </div>
+          )}
+          {currentSeasonType !== 0 && pickWindowOpened === true && missingParticipants.length > 0 && (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
                 <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
@@ -291,7 +312,7 @@ export function PoolWorkspace({
               </div>
             </div>
           )}
-          {currentSeasonType !== 0 && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
+          {currentSeasonType !== 0 && pickWindowOpened === true && missingParticipants.length === 0 && weekGamesCount > 0 && selectedPoolStats.participants > 0 && (
             <div style={{ background: 'oklch(18% 0.04 155)', border: `1px solid oklch(32% 0.1 155)`, borderRadius: 10, padding: '0.875rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: greenHi, flexShrink: 0 }} />
               <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: greenHi, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
@@ -314,7 +335,11 @@ export function PoolWorkspace({
             <Trophy style={{ width: 16, height: 16, color: gold }} />
             <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Season Standings</p>
           </div>
-          {leaderboardEntries.length === 0 ? (
+          {leaderboardStatus === 'loading' ? (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Loading standings…</p>
+          ) : leaderboardStatus === 'error' ? (
+            <p style={{ ...b, fontSize: '0.82rem', color: 'oklch(62% 0.22 25)' }}>Couldn&apos;t load standings — try refreshing the page.</p>
+          ) : leaderboardEntries.length === 0 ? (
             <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

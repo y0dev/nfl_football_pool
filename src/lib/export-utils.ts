@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import { debugLog, PERIOD_WEEKS, debugError, debugWarn } from './utils';
+import { debugLog, PERIOD_WEEKS, getPeriodWeeks as getSharedPeriodWeeks, debugError, debugWarn } from './utils';
 interface WeeklyExportData {
   participant_id: string;
   participant_name: string;
@@ -563,20 +563,10 @@ function createPeriodDataCSV(periodData: PeriodExportData[], periodWeeks: number
 }
 
 /**
- * Get tie-breaker weeks based on period name
+ * Get weeks for a named period — delegates to the shared definition in
+ * utils.ts (single source of truth for Q1-Q4 boundaries).
  */
 function getPeriodWeeks(periodName: string): number[] {
-  switch (periodName.toLowerCase()) {
-    case 'period 1':
-      return [1, 2, 3, 4];
-    case 'period 2':
-      return [5, 6, 7, 8, 9];
-    case 'period 3':
-      return [10, 11, 12, 13, 14];
-    case 'period 4':
-      return [15, 16, 17, 18];
-    default:
-      return [];
-  }
+  return getSharedPeriodWeeks(periodName);
 }
 

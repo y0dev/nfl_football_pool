@@ -67,8 +67,18 @@ function nameOf(row: any): string {
   return p?.name || 'Unknown'
 }
 
-function isGameFinished(status: string | null | undefined): boolean {
-  return status === 'finished' || status === 'cancelled'
+// Deliberately NOT a status-string match — games.status has been written
+// with inconsistent casing across historical sync runs ('final', 'Final',
+// 'finished' have all been observed for the same terminal state). `winner`
+// being set is normally the reliable signal regardless of status casing —
+// but a small number of real games end in a tie (no winner) with a terminal
+// status, so status is also checked as a fallback to avoid permanently
+// blocking scoring for weeks containing a tie game.
+const TERMINAL_GAME_STATUSES = new Set(['final', 'finished', 'cancelled'])
+function isGameFinished(game: { status?: string | null; winner?: string | null }): boolean {
+  if (game.winner != null) return true
+  const status = game.status?.toLowerCase()
+  return status != null && TERMINAL_GAME_STATUSES.has(status)
 }
 
 async function processPool(supabase: any, pool: any) {
@@ -120,10 +130,10 @@ async function ensureWeekWinner(supabase: any, pool: any, week: number, seasonTy
 
   const { data: games } = await supabase
     .from('games')
-    .select('status')
+    .select('status, winner')
     .eq('week', week).eq('season', pool.season).eq('season_type', seasonType)
   if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g.status))) return null
+  if (!games.every((g: any) => isGameFinished(g))) return null
 
   await computeAndSaveScores(supabase, pool.id, week, pool.season, seasonType)
 
@@ -261,11 +271,11 @@ async function ensurePeriodWinner(supabase: any, pool: any, quarterWeek: number)
 
   const { data: games } = await supabase
     .from('games')
-    .select('status')
+    .select('status, winner')
     .eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
     .gte('week', quarter.startWeek).lte('week', quarter.endWeek)
   if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g.status))) return null
+  if (!games.every((g: any) => isGameFinished(g))) return null
 
   const winner = await calculatePeriodWinner(supabase, pool, quarter)
   if (!winner) return null
@@ -410,10 +420,10 @@ async function ensureSeasonWinner(supabase: any, pool: any) {
 
   const { data: games } = await supabase
     .from('games')
-    .select('status')
+    .select('status, winner')
     .eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
   if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g.status))) return null
+  if (!games.every((g: any) => isGameFinished(g))) return null
 
   const winner = await calculateSeasonWinner(supabase, pool)
   if (!winner) return null

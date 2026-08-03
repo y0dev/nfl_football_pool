@@ -13,7 +13,7 @@ import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { getLatestWeekForSeason } from '@/actions/loadCurrentWeek';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 
 // Design tokens (matches landing page / app-wide dark theme)
@@ -50,6 +50,10 @@ function PoolLeaderboardContent() {
   const [poolSeason, setPoolSeason] = useState(DEFAULT_POOL_SEASON);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
+  // Season standings mean the regular season specifically, even once the
+  // pool has moved into playoffs and currentWeek/currentSeasonType above
+  // (shared by the Weekly/Period tabs) have followed it there.
+  const [regularSeasonWeek, setRegularSeasonWeek] = useState(1);
   const [activeTab, setActiveTab] = useState<TabId>('weekly');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -112,13 +116,26 @@ function PoolLeaderboardContent() {
 
         const pool = data.pool;
         setPoolName(pool.name);
-        setPoolSeason(pool.season || DEFAULT_POOL_SEASON);
+        const season = pool.season || DEFAULT_POOL_SEASON;
+        setPoolSeason(season);
 
-        if (pool.is_active) {
-          const week = await loadCurrentWeek();
-          setCurrentWeek(week?.week_number || 1);
-          setCurrentSeasonType(week?.season_type || 2);
-        } else {
+        // Scoped to this pool's own season rather than "today's real-world
+        // NFL week" — that global detection finds whatever's chronologically
+        // closest to right now regardless of season, so a past/completed
+        // season's pool would land on next season's preseason week 1 instead
+        // of this pool's own latest week. Needed for active pools too (not
+        // just closed ones): defaulting every tab's week/season_type to the
+        // pool's own data keeps Weekly/Season/Period consistent regardless
+        // of whether the pool is still open.
+        const [latest, latestRegular] = await Promise.all([
+          getLatestWeekForSeason(season, poolId),
+          getLatestWeekForSeason(season, poolId, 2),
+        ]);
+        setCurrentWeek(latest.week);
+        setCurrentSeasonType(latest.seasonType);
+        setRegularSeasonWeek(latestRegular.week);
+
+        if (!pool.is_active) {
           // Closed pool — land on the season tab for final standings
           setActiveTab('season');
         }
@@ -277,10 +294,10 @@ function PoolLeaderboardContent() {
                 <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
               )}
               {activeTab === 'season' && (
-                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={regularSeasonWeek} currentSeasonType={2} />
               )}
               {activeTab === 'periods' && (
-                <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+                <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={regularSeasonWeek} seasonType={2} />
               )}
             </div>
           </div>
