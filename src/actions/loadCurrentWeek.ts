@@ -1,5 +1,86 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { DAYS_BEFORE_GAME, getNFLSeasonYear, isOffseason,debugError } from '@/lib/utils';
+
+/**
+ * The latest week/season_type this pool actually has data for — scoped to
+ * the pool's own picks rather than "today's real-world NFL week" the way
+ * getCurrentWeekFromGames() is, and rather than the shared `games` table's
+ * mere existence of rows for a season_type. Both matter: for a PAST season's
+ * pool, getCurrentWeekFromGames() finds whatever's closest to right now
+ * globally (e.g. next season's preseason). And `games` is shared across
+ * every pool — a pool that never played playoffs would still see playoff
+ * games in that global table for its season, so picking "the furthest-along
+ * season_type with any games" (rather than the one this pool's participants
+ * actually submitted picks for) would land it on an empty season_type.
+ */
+export async function getLatestWeekForSeason(
+  season: number,
+  poolId?: string,
+  /** Restrict the search to one season_type — e.g. the Season standings
+   * tab means the regular season specifically (season_winners is likewise
+   * always regular-season-only), even if the pool has since moved into
+   * playoffs and the Weekly/Period tabs should follow it there. */
+  onlySeasonType?: number
+): Promise<{ week: number; seasonType: number }> {
+  try {
+    const supabase = getSupabaseServiceClient();
+
+    if (poolId) {
+      // A pool can have thousands of picks (17 participants x ~15 games x 18
+      // weeks) — well past Supabase's default 1000-row query cap, and
+      // ordering by a joined table's column through an !inner filter proved
+      // unreliable. Instead: fetch the season's (much smaller, ~600-row)
+      // games list, group into week/season_type buckets highest-first, and
+      // do a cheap existence check against picks for each bucket until one
+      // actually has this pool's data.
+      let gamesQuery = supabase.from('games').select('id, week, season_type').eq('season', season);
+      if (onlySeasonType !== undefined) gamesQuery = gamesQuery.eq('season_type', onlySeasonType);
+      const { data: seasonGames } = await gamesQuery;
+
+      if (seasonGames && seasonGames.length > 0) {
+        const buckets = new Map<string, { week: number; seasonType: number; gameIds: string[] }>();
+        for (const g of seasonGames) {
+          const key = `${g.season_type}-${g.week}`;
+          if (!buckets.has(key)) buckets.set(key, { week: g.week, seasonType: g.season_type, gameIds: [] });
+          buckets.get(key)!.gameIds.push(g.id);
+        }
+        const sortedBuckets = [...buckets.values()].sort((a, b) =>
+          b.seasonType !== a.seasonType ? b.seasonType - a.seasonType : b.week - a.week
+        );
+
+        for (const bucket of sortedBuckets) {
+          const { data: existingPick } = await supabase
+            .from('picks')
+            .select('id')
+            .eq('pool_id', poolId)
+            .in('game_id', bucket.gameIds)
+            .limit(1)
+            .maybeSingle();
+          if (existingPick) return { week: bucket.week, seasonType: bucket.seasonType };
+        }
+      }
+    }
+
+    // No pool-scoped picks found (or no poolId given) — fall back to
+    // whatever games exist for the season generally.
+    let latestGameQuery = supabase.from('games').select('week, season_type').eq('season', season);
+    if (onlySeasonType !== undefined) latestGameQuery = latestGameQuery.eq('season_type', onlySeasonType);
+    const { data: latestGame, error } = await latestGameQuery
+      .order('season_type', { ascending: false })
+      .order('week', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !latestGame) {
+      return { week: 1, seasonType: onlySeasonType ?? 2 };
+    }
+
+    return { week: latestGame.week, seasonType: latestGame.season_type };
+  } catch (error) {
+    debugError('Error getting latest week for season:', error);
+    return { week: 1, seasonType: 2 };
+  }
+}
 
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
