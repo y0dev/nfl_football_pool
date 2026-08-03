@@ -33,6 +33,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { ExportData } from '@/components/admin/export-data';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { PoolWorkspace } from '@/components/pools/pool-workspace';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
@@ -620,159 +621,63 @@ function AdminDashboardContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* -- NAV -- */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin
+        onSignOut={handleLogout}
+        rightSlot={
+          <>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              title="Refresh"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                padding: '0.4rem 0.65rem',
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                ...bc, fontWeight: 600, fontSize: '0.72rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                opacity: isRefreshing ? 0.6 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <RefreshCw style={{ width: 12, height: 12 }} className={isRefreshing ? 'animate-spin' : ''} />
+              <span className="pools-nav-label">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+            </button>
 
-            {/* Left: branding */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <div style={{
-                width: 34, height: 34, borderRadius: '50%',
-                background: green, flexShrink: 0,
+            <button
+              onClick={() => {
+                const next = !showNotifications;
+                setShowNotifications(next);
+                if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              style={{
+                position: 'relative',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Shield style={{ width: 16, height: 16, color: text }} />
-              </div>
-              <div className="pools-nav-label" style={{ minWidth: 0 }}>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', display: 'block', whiteSpace: 'nowrap' }}>
-                  Commissioner HQ
-                </span>
-                <span style={{ ...bc, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '0.18em', color: greenHi, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                  System Administration
-                </span>
-              </div>
-              <Badge variant="outline" className="pools-nav-label" style={{ fontSize: '0.6rem', flexShrink: 0, borderColor: border, color: textMid }}>
-                Admin
-              </Badge>
-            </div>
-
-            {/* Right: utility buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                title="Refresh"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.65rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 6,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                  opacity: isRefreshing ? 0.6 : 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <RefreshCw style={{ width: 12, height: 12 }} className={isRefreshing ? 'animate-spin' : ''} />
-                <span className="pools-nav-label">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const next = !showNotifications;
-                  setShowNotifications(next);
-                  if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                style={{
-                  position: 'relative',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 34, height: 34,
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                <Bell style={{ width: 15, height: 15 }} />
-                {notifications.length > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -5, right: -5,
-                    width: 16, height: 16, borderRadius: '50%',
-                    background: liveRed, color: text,
-                    ...bc, fontWeight: 700, fontSize: '0.6rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {notifications.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => router.push(createPageUrl('adminsettings'))}
-                title="Account Settings"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 34, height: 34,
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                <Settings style={{ width: 15, height: 15 }} />
-              </button>
-
-              <button
-                onClick={() => router.push('/league')}
-                title="View and manage your Huddles"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 6,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >
-                <Users style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">My Huddles</span>
-              </button>
-
-              <button
-                onClick={() => router.push('/admin/pools')}
-                title="Browse every pool in the database, transfer ownership, share links"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 6,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >
-                <Trophy style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">All Pools</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                title="Logout"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.4rem 0.65rem',
+                width: 34, height: 34,
+                background: 'transparent', color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              <Bell style={{ width: 15, height: 15 }} />
+              {notifications.length > 0 && (
+                <span style={{
+                  position: 'absolute', top: -5, right: -5,
+                  width: 16, height: 16, borderRadius: '50%',
                   background: liveRed, color: text,
-                  border: 'none', borderRadius: 6,
-                  ...bc, fontWeight: 700, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: isLoggingOut ? 'not-allowed' : 'pointer',
-                  opacity: isLoggingOut ? 0.6 : 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <LogOut style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+                  ...bc, fontWeight: 700, fontSize: '0.6rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+          </>
+        }
+      />
 
       {/* -- Notifications Banner -- */}
       {showNotifications && (

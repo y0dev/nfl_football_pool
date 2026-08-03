@@ -176,11 +176,14 @@ function LandingPage() {
         isAuthenticated={!!user}
         isSuperAdmin={isSuperAdmin === true}
         onSignOut={handleSignOut}
-        extraLinks={[
-          { label: 'How It Works', href: '/how-it-works' },
-          { label: 'FAQ', href: '/faq' },
-          ...(isPricingVisible() ? [{ label: 'Pricing', href: '/pricing' }] : []),
-        ]}
+        extraSections={[{
+          label: 'Learn More',
+          links: [
+            { label: 'How It Works', href: '/how-it-works' },
+            { label: 'FAQ', href: '/faq' },
+            ...(isPricingVisible() ? [{ label: 'Pricing', href: '/pricing' }] : []),
+          ],
+        }]}
       />
 
       {/* ── HERO ── */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { debugError } from '@/lib/utils';
 
 // Design tokens
@@ -72,6 +73,37 @@ export default function SeasonReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'winners' | 'participants' | 'weekly'>('overview');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Reads localStorage's nfl-pool-user (not supabase.auth.getSession(),
+  // which only ever resolves for Google-OAuth sign-ins — password-based
+  // commissioner logins never touch Supabase Auth at all, see loginUser.ts).
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (!localUser?.id) return;
+        const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
+        const data = await res.json();
+        if (data.success && data.isAdmin) {
+          setIsAdmin(true);
+          setIsSuperAdmin(!!data.isSuperAdmin);
+        }
+      } catch {}
+    };
+    checkAdmin();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch {}
+  };
 
   useEffect(() => {
     loadSeasonData();
@@ -138,36 +170,7 @@ export default function SeasonReviewPage() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button
-                onClick={() => router.back()}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.6rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', flexShrink: 0,
-                }}
-              >
-                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
-              </button>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleSignOut} poolId={poolId} />
 
       {/* ── HERO ── */}
       <section style={{

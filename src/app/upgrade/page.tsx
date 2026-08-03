@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
 import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
@@ -69,7 +70,7 @@ const ADDON_FEATURES = [
 
 function UpgradeContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [extraPools, setExtraPools] = useState(1);
   const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
@@ -253,33 +254,7 @@ function UpgradeContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* Nav */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
-              <BrandLogo variant="icon" size={28} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-            <button
-              // Fixed destination, not router.back() — after a Stripe redirect
-              // (success_url/cancel_url both point here), browser history's
-              // previous entry is the Stripe checkout page itself, which is
-              // dead/expired by the time you'd navigate back to it.
-              onClick={() => router.push('/dashboard')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: `1px solid ${border}`, color: textMid, borderRadius: 6, padding: '0.4rem 0.8rem', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-            >
-              <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AppNav isAuthenticated isSuperAdmin={user?.is_super_admin === true} onSignOut={signOut} />
 
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 

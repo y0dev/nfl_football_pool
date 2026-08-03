@@ -24,8 +24,9 @@ import {
   AlertTriangle,
   Shield
 } from 'lucide-react';
-import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear, debugError} from '@/lib/utils';
+import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear, debugError, createPageUrl} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -83,7 +84,7 @@ const ROUND_GAME_COUNTS: Record<number, number> = {
 function PlayoffManagementContent() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, verifyAdminStatus } = useAuth();
+  const { user, signOut, verifyAdminStatus } = useAuth();
 
   const [season, setSeason] = useState<number>(getNFLSeasonYear());
   const [loading, setLoading] = useState(true);
@@ -596,6 +597,15 @@ function PlayoffManagementContent() {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push(createPageUrl('adminlogin'));
+    } catch (error) {
+      debugError('Error signing out:', error);
+    }
+  };
+
   const availableTeams = getAvailableTeams();
 
   const navBtnStyle = {
@@ -638,43 +648,25 @@ function PlayoffManagementContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button onClick={() => router.push('/admin/dashboard')} style={{ ...navBtnStyle, flexShrink: 0 }}>
-                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Dashboard</span>
-              </button>
-              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Trophy style={{ width: 14, height: 14, color: text }} />
-                </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                  Playoff Management
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase' }}>Season:</span>
-              <Input
-                type="number"
-                value={season}
-                onChange={(e) => setSeason(parseInt(e.target.value) || getNFLSeasonYear())}
-                style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.85rem', width: 90 }}
-              />
-              <button onClick={() => { loadTeams(); loadGames(); }} style={navBtnStyle}>
-                <RefreshCw style={{ width: 11, height: 11 }} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin
+        onSignOut={handleLogout}
+        rightSlot={
+          <>
+            <span style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', color: textDim, textTransform: 'uppercase' }}>Season:</span>
+            <Input
+              type="number"
+              value={season}
+              onChange={(e) => setSeason(parseInt(e.target.value) || getNFLSeasonYear())}
+              style={{ background: card, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.85rem', width: 90 }}
+            />
+            <button onClick={() => { loadTeams(); loadGames(); }} style={navBtnStyle}>
+              <RefreshCw style={{ width: 11, height: 11 }} />
+            </button>
+          </>
+        }
+      />
 
       {/* ── HERO ── */}
       <section style={{

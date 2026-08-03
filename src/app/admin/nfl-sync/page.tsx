@@ -17,6 +17,7 @@ import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { debugLog, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 
 interface SyncResult {
   success: boolean;
@@ -196,33 +197,17 @@ function NFLSyncContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button onClick={() => router.push('/admin/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
-                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
-              </button>
-              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Globe style={{ width: 14, height: 14, color: text }} />
-                </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>NFL Data Sync</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button onClick={handleSync} disabled={isSyncing} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.875rem', background: isSyncing ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isSyncing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-                <RefreshCw style={{ width: 13, height: 13 }} className={isSyncing ? 'animate-spin' : ''} />
-                <span className="pools-nav-label">{isSyncing ? 'Syncing…' : 'Sync Now'}</span>
-              </button>
-              <button onClick={handleLogout} disabled={isLoggingOut} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.6 : 1 }}>
-                <LogOut style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin
+        onSignOut={handleLogout}
+        rightSlot={
+          <button onClick={handleSync} disabled={isSyncing} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.875rem', background: isSyncing ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isSyncing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+            <RefreshCw style={{ width: 13, height: 13 }} className={isSyncing ? 'animate-spin' : ''} />
+            <span className="pools-nav-label">{isSyncing ? 'Syncing…' : 'Sync Now'}</span>
+          </button>
+        }
+      />
 
       {/* ── HERO ── */}
       <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2.5rem, 5vw, 4rem) 0' }}>

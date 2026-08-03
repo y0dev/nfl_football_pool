@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { Game } from '@/types/game';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -44,6 +45,7 @@ function PoolHistoryContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const router = useRouter();
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
@@ -95,17 +97,20 @@ function PoolHistoryContent() {
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
 
-        // Check admin status — session user could be a super-admin or a
-        // commissioner, so resolve via the same server-side check
-        // AdminGuard uses rather than querying either table directly.
+        // Check admin status via localStorage's nfl-pool-user (not
+        // supabase.auth.getSession(), which only ever resolves for
+        // Google-OAuth sign-ins — password-based commissioner logins never
+        // touch Supabase Auth at all, see loginUser.ts).
         try {
-          const { getSupabaseClient } = await import('@/lib/supabase');
-          const supabase = getSupabaseClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            const res = await fetch(`/api/admin/verify-status?adminId=${session.user.id}`);
+          const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+          const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+          if (localUser?.id) {
+            const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
             const data = await res.json();
-            if (data.success && data.isAdmin) setIsAdmin(true);
+            if (data.success && data.isAdmin) {
+              setIsAdmin(true);
+              setIsSuperAdmin(!!data.isSuperAdmin);
+            }
           }
         } catch {}
 
@@ -199,30 +204,7 @@ function PoolHistoryContent() {
     <div style={{ minHeight: '100vh', background: bg }}>
 
       {/* Nav */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              {isAdmin && (
-                <>
-                  <Link href="/admin/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none', flexShrink: 0 }}>
-                    <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Dashboard</span>
-                  </Link>
-                  <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-                </>
-              )}
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-            {isAdmin && (
-              <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                <LogOut style={{ width: 11, height: 11 }} /> <span className="pools-nav-label">Log Out</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
+      <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
 
       {/* Closed season banner */}
       <div style={{ background: `oklch(72% 0.16 60 / 0.12)`, borderBottom: `1px solid oklch(72% 0.16 60 / 0.35)`, padding: '0.65rem 0' }}>

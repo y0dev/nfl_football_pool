@@ -204,7 +204,7 @@ function PoolLeaderboardContent() {
         isSuperAdmin={isSuperAdmin}
         onSignOut={handleLogout}
         poolId={poolId}
-        extraLinks={[{ label: 'Back to Picks', href: `/pool/${poolId}/picks` }]}
+        extraSections={[{ label: 'This Pool', links: [{ label: 'Back to Picks', href: `/pool/${poolId}/picks` }] }]}
       />
 
       {/* Hero */}

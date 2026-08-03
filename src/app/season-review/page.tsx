@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { getWeekPeriod, getWeekPeriodColor, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -160,50 +161,7 @@ function SeasonReviewContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button
-                onClick={() => router.push('/pools')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.6rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', flexShrink: 0,
-                }}
-              >
-                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
-              </button>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-            <button
-              onClick={() => signOut()}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.35rem 0.7rem',
-                background: 'transparent', color: textMid,
-                border: `1px solid ${border}`, borderRadius: 5,
-                ...bc, fontWeight: 600, fontSize: '0.72rem',
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >
-              <LogOut style={{ width: 11, height: 11 }} /> <span className="pools-nav-label">Sign Out</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AppNav isAuthenticated isSuperAdmin={user?.is_super_admin === true} onSignOut={signOut} />
 
       {/* ── HERO ── */}
       <section style={{

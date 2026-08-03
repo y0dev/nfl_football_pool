@@ -14,6 +14,7 @@ import { CreatePoolDialog } from '@/components/pools/create-pool-dialog';
 import { clonePool } from '@/actions/clonePool';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { AppNav } from '@/components/layout/AppNav';
 import { debugError } from '@/lib/utils';
 
 // Design tokens (matches admin pages / app-wide dark theme)
@@ -65,7 +66,7 @@ export function LeagueManager({
   huddleId, initialName, onBack, backLabel = 'Back',
   isAdminView = false, commissionerEmail, initialIsActive = true,
 }: LeagueManagerProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -281,24 +282,16 @@ export function LeagueManager({
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-            <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
-              <ArrowLeft style={{ width: 12, height: 12 }} /> {backLabel}
-            </button>
-            <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Trophy style={{ width: 14, height: 14, color: bg }} />
-              </div>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                {isAdminView ? 'Manage League' : 'Manage Your League'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin={isAdminView}
+        onSignOut={signOut}
+        rightSlot={
+          <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
+            <ArrowLeft style={{ width: 12, height: 12 }} /> {backLabel}
+          </button>
+        }
+      />
 
       {/* ── LEAGUE NAME ── */}
       <section style={{ background: surface, padding: '2rem 0' }}>

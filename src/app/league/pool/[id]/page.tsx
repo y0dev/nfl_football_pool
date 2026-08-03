@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadPool } from '@/actions/loadPools';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { PoolWorkspace } from '@/components/pools/pool-workspace';
+import { AppNav } from '@/components/layout/AppNav';
 import { debugError } from '@/lib/utils';
 
 // Design tokens (matches app-wide dark theme)
@@ -129,27 +130,13 @@ function PoolManageContent() {
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button onClick={() => router.push(backTarget)} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
-                <ArrowLeft style={{ width: 12, height: 12 }} /> {backLabel}
-              </button>
-              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Trophy style={{ width: 14, height: 14, color: bg }} />
-                </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pool.name}</span>
-              </div>
-            </div>
-            <button onClick={handleLogout} disabled={isLoggingOut} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.65rem', background: liveRed, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.6 : 1 }}>
-              <LogOut style={{ width: 12, height: 12 }} /> Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin={isSuperAdminViewer}
+        onSignOut={handleLogout}
+        poolId={poolId}
+        extraSections={[{ label: pool.name, links: [{ label: backLabel, href: backTarget }] }]}
+      />
 
       {/* ── POOL WORKSPACE ── */}
       <section style={{ background: bg, padding: '2.5rem 0 3rem' }}>

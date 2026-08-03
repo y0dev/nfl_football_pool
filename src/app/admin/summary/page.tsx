@@ -14,7 +14,10 @@ import {
   Printer
 } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
-import { debugError } from '@/lib/utils';
+import { AppNav } from '@/components/layout/AppNav';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { AdminGuard } from '@/components/auth/admin-guard';
+import { debugError, createPageUrl } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -63,9 +66,19 @@ interface SummaryData {
 function AdminSummaryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { signOut } = useAuth();
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push(createPageUrl('adminlogin'));
+    } catch (err) {
+      debugError('Error signing out:', err);
+    }
+  };
 
   useEffect(() => {
     const loadSummaryData = async () => {
@@ -134,25 +147,28 @@ function AdminSummaryContent() {
 
   if (error || !summaryData) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
-        <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${liveRed}`, borderRadius: 10, padding: '2rem', maxWidth: 400, width: '100%', textAlign: 'center' }}>
-          <XCircle style={{ width: 40, height: 40, color: liveRed, margin: '0 auto 0.75rem' }} />
-          <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Error</h2>
-          <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>{error || 'No summary data available'}</p>
-          <button
-            onClick={() => router.back()}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-              width: '100%', padding: '0.6rem 1rem',
-              background: surface, color: textMid,
-              border: `1px solid ${border}`, borderRadius: 6,
-              ...bc, fontWeight: 700, fontSize: '0.8rem',
-              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
-            }}
-          >
-            <ArrowLeft style={{ width: 13, height: 13 }} />
-            Go Back
-          </button>
+      <div style={{ background: bg, minHeight: '100vh' }}>
+        <AppNav isAuthenticated isSuperAdmin onSignOut={handleLogout} />
+        <div style={{ minHeight: 'calc(100vh - 60px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${liveRed}`, borderRadius: 10, padding: '2rem', maxWidth: 400, width: '100%', textAlign: 'center' }}>
+            <XCircle style={{ width: 40, height: 40, color: liveRed, margin: '0 auto 0.75rem' }} />
+            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Error</h2>
+            <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '1.25rem' }}>{error || 'No summary data available'}</p>
+            <button
+              onClick={() => router.push('/admin/dashboard')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                width: '100%', padding: '0.6rem 1rem',
+                background: surface, color: textMid,
+                border: `1px solid ${border}`, borderRadius: 6,
+                ...bc, fontWeight: 700, fontSize: '0.8rem',
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              <ArrowLeft style={{ width: 13, height: 13 }} />
+              Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -164,58 +180,28 @@ function AdminSummaryContent() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button
-                onClick={() => router.back()}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.6rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', flexShrink: 0,
-                }}
-              >
-                <ArrowLeft style={{ width: 12, height: 12 }} />
-                <span className="pools-nav-label">Back</span>
-              </button>
-              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <BarChart3 style={{ width: 14, height: 14, color: text }} />
-                </div>
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                  Operation Summary
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => window.print()}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.35rem 0.7rem',
-                background: 'transparent', color: textMid,
-                border: `1px solid ${border}`, borderRadius: 5,
-                ...bc, fontWeight: 600, fontSize: '0.72rem',
-                letterSpacing: '0.07em', textTransform: 'uppercase',
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              <Printer style={{ width: 11, height: 11 }} />
-              <span className="pools-nav-label">Print</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin
+        onSignOut={handleLogout}
+        rightSlot={
+          <button
+            onClick={() => window.print()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.35rem',
+              padding: '0.35rem 0.7rem',
+              background: 'transparent', color: textMid,
+              border: `1px solid ${border}`, borderRadius: 5,
+              ...bc, fontWeight: 600, fontSize: '0.72rem',
+              letterSpacing: '0.07em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <Printer style={{ width: 11, height: 11 }} />
+            <span className="pools-nav-label">Print</span>
+          </button>
+        }
+      />
 
       {/* ── HERO ── */}
       <section style={{
@@ -385,7 +371,7 @@ function AdminSummaryContent() {
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '2rem', flexWrap: 'wrap' }}>
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push('/admin/dashboard')}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.4rem',
                 padding: '0.55rem 1.1rem',
@@ -424,15 +410,19 @@ function AdminSummaryContent() {
 
 export default function AdminSummaryPage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'oklch(13% 0.025 255)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <RefreshCw style={{ width: 32, height: 32, color: 'oklch(50% 0.018 255)', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>Loading summary…</p>
-        </div>
-      </div>
-    }>
-      <AdminSummaryContent />
-    </Suspense>
+    <AuthProvider>
+      <AdminGuard requireSuperAdmin>
+        <Suspense fallback={
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'oklch(13% 0.025 255)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <RefreshCw style={{ width: 32, height: 32, color: 'oklch(50% 0.018 255)', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+              <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>Loading summary…</p>
+            </div>
+          </div>
+        }>
+          <AdminSummaryContent />
+        </Suspense>
+      </AdminGuard>
+    </AuthProvider>
   );
 }

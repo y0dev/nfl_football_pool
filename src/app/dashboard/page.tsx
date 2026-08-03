@@ -456,7 +456,13 @@ function CommissionerDashboardContent() {
         isAuthenticated
         isSuperAdmin={isSuperAdmin}
         onSignOut={handleLogout}
-        extraLinks={[{ label: 'Huddles', href: '/league' }]}
+        extraSections={[{
+          label: 'Huddles & Pools',
+          links: [
+            { label: 'My Huddles', href: '/league' },
+            { label: 'Browse Pools', href: '/pools' },
+          ],
+        }]}
       />
 
       {/* Plan banner */}
