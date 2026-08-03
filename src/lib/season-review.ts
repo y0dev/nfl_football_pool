@@ -1,6 +1,41 @@
 import { getSupabaseServiceClient } from './supabase';
 import { getRegularSeasonPeriods } from './utils';
 
+const PICKS_PAGE_SIZE = 1000;
+
+/**
+ * Supabase/PostgREST caps an unbounded select at 1000 rows by default — a
+ * full season's picks can exceed that (17 participants x ~16 games x 18
+ * weeks is close to 5000 rows), so a single `.in('game_id', gameIds)`
+ * fetch would silently truncate and understate every total for the tail
+ * end of the season. Pages through with .range() instead. Exported so
+ * other picks-heavy season aggregations (e.g. /api/leaderboard/season)
+ * can reuse it instead of re-deriving the same pagination logic.
+ */
+export async function fetchAllPicksForGames(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  poolId: string,
+  gameIds: string[]
+): Promise<Array<{ participant_id: string; game_id: string; predicted_winner: string; confidence_points: number }>> {
+  if (gameIds.length === 0) return [];
+  const all: Array<{ participant_id: string; game_id: string; predicted_winner: string; confidence_points: number }> = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('picks')
+      .select('participant_id, game_id, predicted_winner, confidence_points')
+      .eq('pool_id', poolId)
+      .in('game_id', gameIds)
+      .range(from, from + PICKS_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PICKS_PAGE_SIZE) break;
+    from += PICKS_PAGE_SIZE;
+  }
+  return all;
+}
+
 interface WeekEntry {
   points: number;
   correct: number;
@@ -140,44 +175,30 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
   }
 
   const weeks = [...new Set(games.map(g => g.week))].sort((a, b) => a - b);
-  const gamesByWeek = new Map<number, { id: string; winner: string | null }[]>();
-  games.forEach(g => {
-    if (!gamesByWeek.has(g.week)) gamesByWeek.set(g.week, []);
-    gamesByWeek.get(g.week)!.push({ id: g.id, winner: g.winner });
-  });
+  const weekByGameId = new Map(games.map(g => [g.id, g.week]));
+  const winnerByGameId = new Map(games.map(g => [g.id, g.winner]));
 
   // participantId -> week -> { points, correct, total }
   const weeklyBreakdown = new Map<string, Map<number, WeekEntry>>();
   participants.forEach(p => weeklyBreakdown.set(p.id, new Map()));
 
-  for (const week of weeks) {
-    const weekGames = gamesByWeek.get(week) ?? [];
-    const gameIds = weekGames.map(g => g.id);
-    if (gameIds.length === 0) continue;
-    const winnerByGame = new Map(weekGames.map(g => [g.id, g.winner]));
-
-    const { data: picks } = await supabase
-      .from('picks')
-      .select('participant_id, game_id, predicted_winner, confidence_points')
-      .eq('pool_id', poolId)
-      .in('game_id', gameIds);
-
-    const perParticipant = new Map<string, WeekEntry>();
-    (picks ?? []).forEach(pick => {
-      if (!perParticipant.has(pick.participant_id)) perParticipant.set(pick.participant_id, { points: 0, correct: 0, total: 0 });
-      const entry = perParticipant.get(pick.participant_id)!;
-      entry.total++;
-      const winner = winnerByGame.get(pick.game_id);
-      if (winner && pick.predicted_winner === winner) {
-        entry.correct++;
-        entry.points += pick.confidence_points || 0;
-      }
-    });
-
-    perParticipant.forEach((entry, participantId) => {
-      weeklyBreakdown.get(participantId)?.set(week, entry);
-    });
-  }
+  // Single paginated bulk fetch across every week instead of one query per
+  // week (was up to ~18 sequential queries for a full season).
+  const allPicks = await fetchAllPicksForGames(supabase, poolId, games.map(g => g.id));
+  allPicks.forEach(pick => {
+    const week = weekByGameId.get(pick.game_id);
+    if (week === undefined) return;
+    const weekMap = weeklyBreakdown.get(pick.participant_id);
+    if (!weekMap) return; // pick from an inactive/removed participant
+    if (!weekMap.has(week)) weekMap.set(week, { points: 0, correct: 0, total: 0 });
+    const entry = weekMap.get(week)!;
+    entry.total++;
+    const winner = winnerByGameId.get(pick.game_id);
+    if (winner && pick.predicted_winner === winner) {
+      entry.correct++;
+      entry.points += pick.confidence_points || 0;
+    }
+  });
 
   // Weekly winners + per-week rank (for average_weekly_finish) + streaks.
   const weeklyWinners: WeeklyWinnerEntry[] = [];

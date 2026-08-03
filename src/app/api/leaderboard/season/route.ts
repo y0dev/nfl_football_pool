@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError, debugWarn } from '@/lib/utils';
+import { fetchAllPicksForGames } from '@/lib/season-review';
+import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,8 +26,6 @@ export async function GET(request: NextRequest) {
       .select('id, name')
       .eq('pool_id', poolId);
 
-
-
     if (participantsError) {
       debugError('Error fetching participants:', participantsError);
       return NextResponse.json(
@@ -49,7 +48,7 @@ export async function GET(request: NextRequest) {
     // Get games for the season up to the current week and season type
     let gamesQuery = supabase
       .from('games')
-      .select('week, season_type')
+      .select('id, week, winner')
       .eq('season', parseInt(season))
       .order('week', { ascending: true });
 
@@ -71,120 +70,113 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get unique weeks from games, grouped by season type
+    // week -> game ids, and game id -> {week, winner} for O(1) lookups below
+    const weekByGameId = new Map<string, number>();
+    const winnerByGameId = new Map<string, string | null>();
+    games.forEach(g => {
+      weekByGameId.set(g.id, g.week);
+      winnerByGameId.set(g.id, g.winner);
+    });
     const availableWeeks = [...new Set(games.map(g => g.week))];
-    
+    const gameIds = games.map(g => g.id);
+
     // For playoff games, get playoff confidence points for all participants
+    // in one query instead of one query per participant.
     const isPlayoffSeasonType = currentSeasonTypeNum === 3;
     const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
-    
+
     if (isPlayoffSeasonType) {
-      for (const participant of participants) {
-        const { data: playoffPoints, error: playoffError } = await supabase
-          .from('playoff_confidence_points')
-          .select('team_name, confidence_points')
-          .eq('pool_id', poolId)
-          .eq('season', parseInt(season))
-          .eq('participant_id', participant.id);
-        
-        if (!playoffError && playoffPoints && playoffPoints.length > 0) {
-          const pointsMap: Record<string, number> = {};
-          playoffPoints.forEach(item => {
-            pointsMap[item.team_name] = item.confidence_points;
-          });
-          playoffConfidencePointsMap.set(participant.id, pointsMap);
+      const { data: playoffPoints } = await supabase
+        .from('playoff_confidence_points')
+        .select('participant_id, team_name, confidence_points')
+        .eq('pool_id', poolId)
+        .eq('season', parseInt(season))
+        .in('participant_id', participants.map(p => p.id));
+
+      (playoffPoints ?? []).forEach(item => {
+        if (!playoffConfidencePointsMap.has(item.participant_id)) {
+          playoffConfidencePointsMap.set(item.participant_id, {});
         }
-      }
+        playoffConfidencePointsMap.get(item.participant_id)![item.team_name] = item.confidence_points;
+      });
     }
 
-    // Build season leaderboard by calculating scores from picks for each week
-    const seasonLeaderboard = await Promise.all(
-      participants.map(async (participant) => {
-        let totalPoints = 0;
-        let totalCorrectPicks = 0;
-        let weeksPlayed = 0;
-        let bestWeek = 0;
-        let bestWeekScore = 0;
+    // Single bulk (paginated) fetch for every pick across every relevant
+    // week, instead of one query per participant per week (was up to
+    // participants x weeks sequential queries — e.g. 17 x 18 = 306 for a
+    // full season).
+    const picksByParticipantWeek = new Map<string, Map<number, { points: number; correct: number }>>();
+    if (gameIds.length > 0) {
+      const allPicks = await fetchAllPicksForGames(supabase, poolId, gameIds);
 
-        // Calculate scores for each available week
-        for (const week of availableWeeks) {
-          try {
-            // Get picks for this participant for this week, filtered by season_type
-            let picksQuery = supabase
-              .from('picks')
-              .select(`
-                predicted_winner,
-                confidence_points,
-                games!inner(winner, home_team, away_team, season_type)
-              `)
-              .eq('pool_id', poolId)
-              .eq('participant_id', participant.id)
-              .eq('games.week', week);
-            
-            // Only filter by season_type if it's provided
-            if (currentSeasonTypeNum !== null) {
-              picksQuery = picksQuery.eq('games.season_type', currentSeasonTypeNum);
-            }
-            
-            const { data: picks, error: picksError } = await picksQuery;
+      allPicks.forEach(pick => {
+        const week = weekByGameId.get(pick.game_id);
+        if (week === undefined) return;
+        const winner = winnerByGameId.get(pick.game_id);
 
-            if (!picksError && picks && picks.length > 0) {
-              // Calculate week score
-              let weekScore = 0;
-              let correctPicks = 0;
-
-              picks.forEach((pick: any) => {
-                const game = pick.games;
-                // Only count games that have finished (have winners)
-                if (game.winner && pick.predicted_winner === game.winner) {
-                  // For playoff games, use playoff confidence points
-                  if (isPlayoffSeasonType) {
-                    const participantPlayoffPoints = playoffConfidencePointsMap.get(participant.id);
-                    if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
-                      weekScore += participantPlayoffPoints[pick.predicted_winner];
-                    }
-                  } else {
-                    // For regular season, use confidence points from picks table
-                    weekScore += pick.confidence_points || 0;
-                  }
-                  correctPicks++;
-                }
-              });
-
-              // "Played" means they submitted picks this week, not that they
-              // scored > 0 — a week where every pick happened to be wrong
-              // (or hasn't been decided yet) still counts, otherwise weeks
-              // played gets understated and averages skew high.
-              totalPoints += weekScore;
-              totalCorrectPicks += correctPicks;
-              weeksPlayed++;
-
-              // Track best week performance
-              if (weekScore > bestWeekScore) {
-                bestWeekScore = weekScore;
-                bestWeek = week;
-              }
-            }
-          } catch (error) {
-            // Skip weeks where participant didn't play or there was an error
-            debugWarn(`Error processing week ${week} for participant ${participant.id}:`, error);
-          }
+        if (!picksByParticipantWeek.has(pick.participant_id)) {
+          picksByParticipantWeek.set(pick.participant_id, new Map());
         }
+        const weekMap = picksByParticipantWeek.get(pick.participant_id)!;
+        if (!weekMap.has(week)) weekMap.set(week, { points: 0, correct: 0 });
+        const entry = weekMap.get(week)!;
 
-        const averagePoints = weeksPlayed > 0 ? totalPoints / weeksPlayed : 0;
+        // Only count games that have finished (have winners)
+        if (winner && pick.predicted_winner === winner) {
+          if (isPlayoffSeasonType) {
+            const participantPlayoffPoints = playoffConfidencePointsMap.get(pick.participant_id);
+            if (participantPlayoffPoints && participantPlayoffPoints[pick.predicted_winner]) {
+              entry.points += participantPlayoffPoints[pick.predicted_winner];
+            }
+          } else {
+            entry.points += pick.confidence_points || 0;
+          }
+          entry.correct++;
+        }
+      });
+    }
 
-        return {
-          participant_id: participant.id,
-          participant_name: participant.name,
-          total_points: totalPoints,
-          total_correct_picks: totalCorrectPicks,
-          weeks_played: weeksPlayed,
-          average_points: averagePoints,
-          best_week: bestWeek,
-          best_week_score: bestWeekScore,
-        };
-      })
-    );
+    // Build season leaderboard from the pre-grouped picks above.
+    const seasonLeaderboard = participants.map(participant => {
+      let totalPoints = 0;
+      let totalCorrectPicks = 0;
+      let weeksPlayed = 0;
+      let bestWeek = 0;
+      let bestWeekScore = 0;
+
+      const weekMap = picksByParticipantWeek.get(participant.id);
+
+      for (const week of availableWeeks) {
+        const entry = weekMap?.get(week);
+        if (!entry) continue;
+
+        // "Played" means they submitted picks this week, not that they
+        // scored > 0 — a week where every pick happened to be wrong
+        // (or hasn't been decided yet) still counts, otherwise weeks
+        // played gets understated and averages skew high.
+        totalPoints += entry.points;
+        totalCorrectPicks += entry.correct;
+        weeksPlayed++;
+
+        if (entry.points > bestWeekScore) {
+          bestWeekScore = entry.points;
+          bestWeek = week;
+        }
+      }
+
+      const averagePoints = weeksPlayed > 0 ? totalPoints / weeksPlayed : 0;
+
+      return {
+        participant_id: participant.id,
+        participant_name: participant.name,
+        total_points: totalPoints,
+        total_correct_picks: totalCorrectPicks,
+        weeks_played: weeksPlayed,
+        average_points: averagePoints,
+        best_week: bestWeek,
+        best_week_score: bestWeekScore,
+      };
+    });
 
     // Sort by total points (descending), then by average points (descending)
     const sortedLeaderboard = seasonLeaderboard
