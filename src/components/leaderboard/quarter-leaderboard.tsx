@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Target, TrendingUp, Users, RefreshCw, ChevronDown } from 'lucide-react';
-import { getPeriodNameForWeek } from '@/lib/utils';
+import { getPeriodNameForWeek, debugError } from '@/lib/utils';
 
 // Design tokens
 const surface = 'oklch(17% 0.028 255)';
@@ -68,11 +68,18 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
     const loadPeriods = async () => {
       try {
         const res = await fetch(`/api/periods/available?poolId=${poolId}&season=${season}&currentWeek=${currentWeek}&currentSeasonType=${seasonType}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          debugError('Failed to load available periods:', res.status, res.statusText);
+          return;
+        }
         const data = await res.json();
         setAvailablePeriods(data?.data?.periods || []);
-      } catch {
-        // Selector just won't populate — the leaderboard itself still works.
+      } catch (err) {
+        // Non-fatal — the leaderboard itself still works with just the
+        // default period, but log it so a genuine fetch failure (as
+        // opposed to a pool that legitimately only has one period so far)
+        // isn't invisible.
+        debugError('Error loading available periods:', err);
       }
     };
     loadPeriods();

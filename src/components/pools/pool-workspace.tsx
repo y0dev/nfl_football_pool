@@ -57,6 +57,11 @@ export function PoolWorkspace({
   const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
   const [weekGamesCount, setWeekGamesCount] = useState(0);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
+  // Separate from leaderboardEntries.length === 0 — that's ambiguous between
+  // "genuinely nobody has scored yet" and "the fetch failed/threw," which
+  // previously rendered the identical "No scores recorded yet" message
+  // either way and hid real failures as if they were normal empty state.
+  const [leaderboardStatus, setLeaderboardStatus] = useState<'loading' | 'error' | 'ready'>('loading');
   const [linkCopied, setLinkCopied] = useState(false);
   // Distinct from "no games this week" — this tracks whether the pick
   // window has opened yet at all, so Missing Picks doesn't get shown (and
@@ -110,8 +115,13 @@ export function PoolWorkspace({
       const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`);
       const seasonData = await seasonRes.json();
 
-      if (seasonData.success && seasonData.leaderboard?.length > 0) {
-        const ranked = seasonData.leaderboard.map((entry: { participant_id: string; participant_name: string; total_points: number; total_correct_picks: number }) => ({
+      if (!seasonRes.ok || !seasonData.success) {
+        debugError('Season leaderboard fetch failed:', seasonData.error || seasonRes.statusText);
+        setLeaderboardStatus('error');
+        setPoolLeader(null);
+        setLeaderboardEntries([]);
+      } else {
+        const ranked = (seasonData.leaderboard ?? []).map((entry: { participant_id: string; participant_name: string; total_points: number; total_correct_picks: number }) => ({
           participantId: entry.participant_id,
           name: entry.participant_name,
           points: entry.total_points,
@@ -120,12 +130,13 @@ export function PoolWorkspace({
         setLeaderboardEntries(ranked);
         const leader = ranked[0];
         setPoolLeader(leader ? { name: leader.name, points: leader.points, correctPicks: leader.correctPicks } : null);
-      } else {
-        setPoolLeader(null);
-        setLeaderboardEntries([]);
+        setLeaderboardStatus('ready');
       }
     } catch (error) {
       debugError('Error loading pool workspace stats:', error);
+      setLeaderboardStatus('error');
+      setPoolLeader(null);
+      setLeaderboardEntries([]);
     }
   }, [poolId, season, currentWeek, currentSeasonType]);
 
@@ -324,7 +335,11 @@ export function PoolWorkspace({
             <Trophy style={{ width: 16, height: 16, color: gold }} />
             <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Season Standings</p>
           </div>
-          {leaderboardEntries.length === 0 ? (
+          {leaderboardStatus === 'loading' ? (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Loading standings…</p>
+          ) : leaderboardStatus === 'error' ? (
+            <p style={{ ...b, fontSize: '0.82rem', color: 'oklch(62% 0.22 25)' }}>Couldn&apos;t load standings — try refreshing the page.</p>
+          ) : leaderboardEntries.length === 0 ? (
             <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded yet for this season.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

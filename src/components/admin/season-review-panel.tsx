@@ -189,8 +189,14 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
               )}
             </div>
           )}
+          {!seasonWinner && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+              <Trophy style={{ width: 20, height: 20, color: textDim, margin: '0 auto 0.5rem' }} />
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>Season Champion not yet determined — awarded once a period has been won.</p>
+            </div>
+          )}
 
-          {quarterlyWinners.length > 0 && (
+          {quarterlyWinners.length > 0 ? (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
                 <Medal style={{ width: 16, height: 16, color: amber }} />
@@ -205,6 +211,11 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
                   </div>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+              <Medal style={{ width: 20, height: 20, color: textDim, margin: '0 auto 0.5rem' }} />
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>No quarter has finished yet — quarterly champions appear here once one completes.</p>
             </div>
           )}
 
@@ -276,6 +287,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Winners</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>All weekly champions for the {season} season</p>
+          {weeklyWinners.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No weeks have finished yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {weeklyWinners.map((winner) => (
               <div key={winner.week} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', padding: '0.85rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8 }}>
@@ -300,6 +314,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Participant Statistics</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Detailed stats for all participants</p>
+          {participantStats.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No participant has completed a week yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {participantStats.map((participant, index) => (
               <div key={participant.participant_id} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
@@ -341,6 +358,9 @@ export function SeasonReviewPanel({ poolId, season }: SeasonReviewPanelProps) {
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.08em', color: text, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Weekly Breakdown</p>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1rem' }}>Week-by-week performance</p>
+          {weeklyWinners.length === 0 && (
+            <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No weeks have finished yet.</p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {weeklyWinners.map((winner) => (
               <div key={winner.week} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
