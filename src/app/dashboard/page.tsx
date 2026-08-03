@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import {
   Trophy,
-  LogOut,
   Plus,
   Bell,
   TrendingUp,
@@ -14,7 +13,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Users,
-  BarChart3,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +32,7 @@ import { PlanBadge } from '@/components/billing/plan-badge';
 import { SubscriptionSummaryCard } from '@/components/billing/subscription-summary-card';
 import type { SubscriptionSummary } from '@/lib/subscription';
 import { getNFLSeasonYear } from '@/lib/utils';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -453,76 +452,18 @@ function CommissionerDashboardContent() {
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
 
-      {/* NAV */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Trophy style={{ width: 14, height: 14, color: text }} />
-              </div>
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => router.push('/league')}
-                title="View and manage your Huddles"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.3rem',
-                  padding: '0.35rem 0.7rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >
-                <Users style={{ width: 11, height: 11 }} />
-                <span className="pools-nav-label">My Huddles</span>
-              </button>
-              <button
-                onClick={() => router.push('/leaderboard')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.7rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >
-                <BarChart3 style={{ width: 11, height: 11 }} />
-                <span className="pools-nav-label">Leaderboard</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.35rem 0.7rem',
-                  background: 'transparent', color: textMid,
-                  border: `1px solid ${border}`, borderRadius: 5,
-                  ...bc, fontWeight: 600, fontSize: '0.72rem',
-                  letterSpacing: '0.07em', textTransform: 'uppercase',
-                  cursor: isLoggingOut ? 'not-allowed' : 'pointer',
-                  opacity: isLoggingOut ? 0.5 : 1, whiteSpace: 'nowrap',
-                }}
-              >
-                <LogOut style={{ width: 11, height: 11 }} />
-                <span className="pools-nav-label">{isLoggingOut ? 'Logging out…' : 'Logout'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated
+        isSuperAdmin={isSuperAdmin}
+        onSignOut={handleLogout}
+        extraSections={[{
+          label: 'Huddles & Pools',
+          links: [
+            { label: 'My Huddles', href: '/league' },
+            { label: 'Browse Pools', href: '/pools' },
+          ],
+        }]}
+      />
 
       {/* Plan banner */}
       {planInfo?.isTrialActive && (

@@ -35,6 +35,8 @@ export interface AccountRow {
   billing_exempt?: boolean | null;
   addon_pools?: number | null;
   stripe_customer_id?: string | null;
+  google_linked?: boolean | null;
+  notification_preferences?: Record<string, boolean> | null;
 }
 
 export type ResolvedAccount =

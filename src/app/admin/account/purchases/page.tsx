@@ -7,8 +7,8 @@ import { ArrowLeft, Receipt, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { Footer } from '@/components/layout/Footer';
-import { BrandLogo } from '@/components/ui/brand-logo';
-import { createPageUrl } from '@/lib/utils';
+import { AppNav } from '@/components/layout/AppNav';
+import { createPageUrl, debugError } from '@/lib/utils';
 import type { PurchaseRecord } from '@/lib/subscription';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -45,7 +45,7 @@ function formatAmount(cents: number | null, currency: string): string {
 }
 
 function PurchasesContent() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const [purchases, setPurchases] = useState<PurchaseRecord[] | null>(null);
 
@@ -57,20 +57,19 @@ function PurchasesContent() {
       .catch(() => setPurchases([]));
   }, [user?.id]);
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push(createPageUrl(user?.is_super_admin ? 'adminlogin' : 'login'));
+    } catch (err) {
+      debugError('Error signing out:', err);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column' }}>
       {/* Nav */}
-      <nav style={{ borderBottom: `1px solid ${border}`, background: surface }}>
-        <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '3.25rem', gap: '0.75rem' }}>
-          <Link href={createPageUrl('accountsettings')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: textMid }}>
-            <ArrowLeft style={{ width: 14, height: 14 }} />
-            <BrandLogo variant="icon" size={24} />
-            <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Sunday Huddle
-            </span>
-          </Link>
-        </div>
-      </nav>
+      <AppNav isAuthenticated isSuperAdmin={user?.is_super_admin === true} onSignOut={handleLogout} />
 
       {/* Body */}
       <div className="lp-inner" style={{ flex: 1, paddingTop: '2.5rem', paddingBottom: '3rem', maxWidth: 640 }}>

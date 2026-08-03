@@ -6,6 +6,7 @@ import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3, AlertTrian
 import { useToast } from '@/hooks/use-toast';
 import { debugLog, getRankColor, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -80,6 +81,38 @@ export default function PeriodLeaderboardPage() {
   const season = params.season as string;
   const periodNumber = parseInt(params.periodName as string);
   const seasonType = parseInt(searchParams.get('seasonType') ?? '2', 10);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Reads localStorage's nfl-pool-user (not supabase.auth.getSession(),
+  // which only ever resolves for Google-OAuth sign-ins — password-based
+  // commissioner logins never touch Supabase Auth at all, see loginUser.ts).
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (!localUser?.id) return;
+        const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
+        const data = await res.json();
+        if (data.success && data.isAdmin) {
+          setIsAdmin(true);
+          setIsSuperAdmin(!!data.isSuperAdmin);
+        }
+      } catch {}
+    };
+    checkAdmin();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch {}
+  };
 
   // Convert period number to period name
   const getPeriodNameFromNumber = (num: number): string => {
@@ -550,31 +583,23 @@ export default function PeriodLeaderboardPage() {
     <div style={{ background: bg, minHeight: '100vh' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <button
-                onClick={() => router.back()}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.6rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-              >
-                <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back</span>
-              </button>
-              <div style={{ width: 1, height: 20, background: border, flexShrink: 0 }} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.92rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sunday Huddle</span>
-            </div>
-            {tieBreakerInfo && tieBreakerInfo.wasUsed && (
-              <button
-                onClick={() => setShowTieBreakerInfo(!showTieBreakerInfo)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: showTieBreakerInfo ? green : 'transparent', color: showTieBreakerInfo ? text : textMid, border: `1px solid ${showTieBreakerInfo ? green : border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
-              >
-                <Trophy style={{ width: 11, height: 11 }} />
-                {showTieBreakerInfo ? 'Hide' : 'Show'} Tie-Breaker
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated={isAdmin}
+        isSuperAdmin={isSuperAdmin}
+        onSignOut={handleSignOut}
+        poolId={poolId}
+        rightSlot={
+          tieBreakerInfo && tieBreakerInfo.wasUsed ? (
+            <button
+              onClick={() => setShowTieBreakerInfo(!showTieBreakerInfo)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: showTieBreakerInfo ? green : 'transparent', color: showTieBreakerInfo ? text : textMid, border: `1px solid ${showTieBreakerInfo ? green : border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <Trophy style={{ width: 11, height: 11 }} />
+              {showTieBreakerInfo ? 'Hide' : 'Show'} Tie-Breaker
+            </button>
+          ) : undefined
+        }
+      />
 
       {/* ── HERO ── */}
       <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(2rem, 4vw, 3rem) 0' }}>

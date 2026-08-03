@@ -46,27 +46,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Password is incorrect' }, { status: 401 });
     }
 
-    // Delete pools this admin owns (created_by). Cascades to that pool's own
-    // participants/picks/scores/etc. Pools owned by other commissioners that
-    // this admin merely participates in elsewhere are left untouched.
-    const { error: deletePoolsError } = await supabase
+    // Archive, don't hard-delete — same reasoning and pattern as
+    // src/actions/accountDeletion.ts's email-confirmation flow (the one
+    // actually wired to the Danger Zone UI): a pool this admin owns has
+    // other participants' picks/scores/standings in it too, which shouldn't
+    // vanish because the owner deleted their own account.
+    const { error: archivePoolsError } = await supabase
       .from('pools')
-      .delete()
+      .update({ is_active: false })
       .eq('created_by', admin.email);
 
-    if (deletePoolsError) {
-      debugError('Delete owned pools error:', deletePoolsError.code);
+    if (archivePoolsError) {
+      debugError('Archive owned pools error:', archivePoolsError.code);
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 
-    // Delete commissioner record (FK constraints may exist)
-    const { error: deleteAdminError } = await supabase
+    const { error: archiveHuddlesError } = await supabase
+      .from('huddles')
+      .update({ is_active: false })
+      .eq('commissioner_email', admin.email);
+
+    if (archiveHuddlesError) {
+      debugError('Archive owned huddles error:', archiveHuddlesError.code);
+      return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
+    }
+
+    // Deactivate rather than delete the commissioner row — is_active is
+    // already the gate every login/lookup path checks, so this alone fully
+    // removes sign-in and dashboard access while preserving referential data.
+    const { error: deactivateError } = await supabase
       .from('commissioners')
-      .delete()
+      .update({
+        is_active: false,
+        google_linked: false,
+        password_hash: `deleted:${adminId}`,
+      })
       .eq('id', adminId);
 
-    if (deleteAdminError) {
-      debugError('Delete admin record error:', deleteAdminError.code);
+    if (deactivateError) {
+      debugError('Deactivate admin record error:', deactivateError.code);
       return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
     }
 

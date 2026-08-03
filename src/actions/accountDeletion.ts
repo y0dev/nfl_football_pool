@@ -94,25 +94,58 @@ export async function confirmAccountDeletion(token: string): Promise<{ success: 
 
   if (!admin) return { success: false, error: 'Account not found.' };
 
-  // Delete pools this admin owns (created_by). Cascades to that pool's own
-  // participants/picks/scores/etc. Pools owned by other commissioners that
-  // this admin merely participates in elsewhere are left untouched.
-  const { error: poolsDeleteError } = await supabase
+  // Archive, don't hard-delete: a pool this commissioner owns has OTHER
+  // people's data in it too — picks, scores, standings that belong to
+  // participants who aren't the one deleting their account. Deactivating
+  // (is_active: false) is the same soft-delete convention pools already use
+  // elsewhere (see src/lib/plan.ts) — it frees the slot and drops the pool
+  // from active listings without erasing anyone's history.
+  const { error: poolsArchiveError } = await supabase
     .from('pools')
-    .delete()
+    .update({ is_active: false })
     .eq('created_by', admin.email);
 
-  if (poolsDeleteError) {
-    debugError('Deleting owned pools failed:', poolsDeleteError.code);
+  if (poolsArchiveError) {
+    debugError('Archiving owned pools failed:', poolsArchiveError.code);
     return { success: false, error: 'Failed to delete account. Please try again.' };
   }
 
-  const { error: deleteError } = await supabase.from('commissioners').delete().eq('id', adminId);
-  if (deleteError) {
-    debugError('Account deletion failed:', deleteError.code);
+  const { error: huddlesArchiveError } = await supabase
+    .from('huddles')
+    .update({ is_active: false })
+    .eq('commissioner_email', admin.email);
+
+  if (huddlesArchiveError) {
+    debugError('Archiving owned huddles failed:', huddlesArchiveError.code);
     return { success: false, error: 'Failed to delete account. Please try again.' };
   }
 
+  // Deactivate rather than delete the commissioner row too — pools/picks/
+  // scores/payments still reference this id (or created_by=email), and
+  // is_active is already the gate every login/lookup path checks (see
+  // findAccountByEmail/findAccountById in src/lib/accounts.ts), so this
+  // alone is sufficient to fully remove sign-in and dashboard access.
+  // password_hash is overwritten with an unusable value as defense in depth
+  // even though the Auth user (deleted below) can no longer authenticate
+  // either way.
+  const { error: deactivateError } = await supabase
+    .from('commissioners')
+    .update({
+      is_active: false,
+      google_linked: false,
+      password_hash: `deleted:${adminId}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', adminId);
+
+  if (deactivateError) {
+    debugError('Account deactivation failed:', deactivateError.code);
+    return { success: false, error: 'Failed to delete account. Please try again.' };
+  }
+
+  // Removes their ability to authenticate via Supabase (Google or any
+  // future provider) — the app-level password above already blocks the
+  // custom credential path, this closes the other one.
   try { await supabase.auth.admin.deleteUser(adminId); } catch { /* non-fatal */ }
 
   try {

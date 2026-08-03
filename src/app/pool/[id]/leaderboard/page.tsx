@@ -11,8 +11,8 @@ import {
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
-import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 
@@ -53,8 +53,49 @@ function PoolLeaderboardContent() {
   const [activeTab, setActiveTab] = useState<TabId>('weekly');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+
+  // This page has no auth requirement at all — a participant views it with
+  // no session. Same "is this browser also a commissioner" check as
+  // src/components/picks/pool-picks-content.tsx, so the nav can offer
+  // Dashboard/Settings/Sign Out instead of Sign In/Create Account when it is.
+  // Reads localStorage's nfl-pool-user (not supabase.auth.getSession(),
+  // which only ever resolves for Google-OAuth sign-ins — password-based
+  // commissioner logins never touch Supabase Auth at all, see loginUser.ts)
+  // — nfl-pool-user is the stable session record both paths write (see
+  // checkSession in src/lib/auth.tsx).
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (!localUser?.id) return;
+        const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
+        const data = await res.json();
+        if (data.success && data.isAdmin) {
+          setIsAdmin(true);
+          setIsSuperAdmin(!!data.isSuperAdmin);
+        }
+      } catch {
+        // Not logged in as a commissioner — leave isAdmin false
+      }
+    };
+    checkAdmin();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch {
+      // Non-fatal — worst case the session cookie outlives this redirect
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -158,25 +199,13 @@ function PoolLeaderboardContent() {
   return (
     <div style={{ minHeight: '100vh', background: bg }}>
 
-      {/* Nav */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
-              <BrandLogo variant="icon" size={28} />
-              <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                Sunday Huddle
-              </span>
-            </div>
-            <button
-              onClick={() => router.push(`/pool/${poolId}/picks`)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: `1px solid ${border}`, color: textMid, borderRadius: 6, padding: '0.4rem 0.8rem', ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
-            >
-              <ArrowLeft style={{ width: 12, height: 12 }} /> <span className="pools-nav-label">Back to Picks</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AppNav
+        isAuthenticated={isAdmin}
+        isSuperAdmin={isSuperAdmin}
+        onSignOut={handleLogout}
+        poolId={poolId}
+        extraSections={[{ label: 'This Pool', links: [{ label: 'Back to Picks', href: `/pool/${poolId}/picks` }] }]}
+      />
 
       {/* Hero */}
       <section style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>

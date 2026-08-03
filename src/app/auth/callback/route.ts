@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteClient } from '@/lib/supabase-ssr';
 
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { findAccountByEmail } from '@/lib/accounts';
+import { findAccountByEmail, findAccountById } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 import { trialEndDate } from '@/lib/plan';
 import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -49,6 +50,16 @@ export async function GET(request: NextRequest) {
 
   const serviceClient = getSupabaseServiceClient();
 
+  // "Connect Google" from Account Settings — set alongside oauth_intent=link
+  // by the settings page before the redirect (src/app/admin/account/page.tsx).
+  // A completely separate path from normal sign-in/register below: it never
+  // touches the app-level session (the user is already logged in as
+  // whoever's sh-session cookie is present), it just verifies the Google
+  // account's email matches that existing session and flips google_linked.
+  if (request.cookies.get('oauth_intent')?.value === 'link') {
+    return handleLinkIntent(email, origin, request, supabase, pendingCookies);
+  }
+
   // Existing account could be a super-admin or a commissioner
   const existingAccount = await findAccountByEmail(email, { activeOnly: true });
 
@@ -56,19 +67,23 @@ export async function GET(request: NextRequest) {
 
   if (existingAccount) {
     const existingAdmin = existingAccount.row;
-    // Reject Google sign-in only when the account has a REAL password set
-    // (a non-empty hash that isn't the 'google_oauth' sentinel) — the
-    // person has already proven they own this email address (Google's own
-    // OAuth verified it), so telling them which method to use isn't an
-    // enumeration risk the way it would be on the password-login path (see
-    // loginUser.ts, which deliberately returns a generic error there). An
-    // empty password_hash means no password was ever set — nothing to fall
-    // back to — so treat it as unauthenticated-so-far and let Google claim
-    // it, self-healing the sentinel below rather than locking the account
-    // out of both methods.
+    // google_linked is the source of truth (set at signup, or via the
+    // Connect Google flow above) — decoupled from password_hash so an
+    // account can have both a real password AND Google linked at once.
+    // password_hash's 'google_oauth' sentinel is kept only as a fallback
+    // for rows that predate the google_linked column (self-healed below).
+    const rawGoogleLinked = existingAdmin.google_linked === true;
+    const sentinelMatch = existingAdmin.password_hash === 'google_oauth';
+    const isGoogleLinked = rawGoogleLinked || sentinelMatch;
     const hasRealPassword = !!existingAdmin.password_hash && existingAdmin.password_hash !== 'google_oauth';
-    if (hasRealPassword) {
-      console.log('[OAuth:callback] existing admin uses password auth → rejecting Google sign-in');
+
+    // Reject only when Google was never linked AND a real password exists —
+    // telling them which method to use isn't an enumeration risk here the
+    // way it would be on the password-login path (see loginUser.ts, which
+    // deliberately returns a generic error there), since Google's own OAuth
+    // already proved they own this email address.
+    if (!isGoogleLinked && hasRealPassword) {
+      console.log('[OAuth:callback] existing admin uses password auth, Google not linked → rejecting Google sign-in');
       // Don't leave the just-established Supabase session active for an
       // account the person hasn't actually authenticated into at the app level.
       await supabase.auth.signOut();
@@ -79,10 +94,15 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    if (existingAdmin.password_hash !== 'google_oauth') {
-      // Empty hash — self-heal now that Google has verified this email.
+    // Self-heal: backfill google_linked for rows that predate the column
+    // (sentinel-fallback case), and complete a first-ever Google sign-in on
+    // an account that was created with no password at all (empty hash).
+    const updates: Record<string, unknown> = {};
+    if (!rawGoogleLinked) updates.google_linked = true;
+    if (!sentinelMatch && !hasRealPassword) updates.password_hash = 'google_oauth';
+    if (Object.keys(updates).length > 0) {
       const table = existingAccount.role === 'super_admin' ? 'admins' : 'commissioners';
-      void serviceClient.from(table).update({ password_hash: 'google_oauth' }).eq('id', existingAdmin.id);
+      void serviceClient.from(table).update(updates).eq('id', existingAdmin.id);
     }
 
     console.log('[OAuth:callback] existing account → building session redirect');
@@ -112,6 +132,7 @@ export async function GET(request: NextRequest) {
       id: data.session.user.id,
       email,
       password_hash: 'google_oauth',
+      google_linked: true,
       full_name: fullName,
       is_active: true,
     })
@@ -212,4 +233,63 @@ function buildSessionRedirect(
   }
 
   return response;
+}
+
+// Handles "Connect Google" initiated from an already-authenticated session
+// (Account Settings → Authentication). Deliberately never touches
+// nfl-pool-session/sh-session — those keep authorizing whoever was already
+// logged in; this only ever flips google_linked on that same row after
+// verifying Google's own OAuth confirmed the SAME email.
+async function handleLinkIntent(
+  googleEmail: string,
+  origin: string,
+  request: NextRequest,
+  supabase: SupabaseClient,
+  pendingCookies: { name: string; value: string; options: Record<string, unknown> }[]
+) {
+  // The transient Supabase Auth session this OAuth round-trip just created
+  // is never the app's real session — always drop it, whatever happens below.
+  await supabase.auth.signOut();
+
+  const respond = (path: string) => {
+    const response = NextResponse.redirect(`${origin}${path}`);
+    pendingCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+    });
+    response.cookies.delete('oauth_intent');
+    return response;
+  };
+
+  const sessionAdminId = request.cookies.get('sh-session')?.value;
+  if (!sessionAdminId) {
+    console.log('[OAuth:link] no sh-session cookie → not logged in, redirecting to login');
+    return respond('/login?error=no-account');
+  }
+
+  const account = await findAccountById(sessionAdminId, { activeOnly: true });
+  if (!account) {
+    console.log('[OAuth:link] sh-session id does not resolve to an active account');
+    return respond('/login?error=no-account');
+  }
+
+  // Require the Google account to match the currently logged-in account's
+  // own email — the only unambiguous, no-account-enumeration way to prove
+  // "this Google identity belongs to me" rather than letting a session
+  // silently claim an unrelated email.
+  if (account.row.email.toLowerCase() !== googleEmail.toLowerCase()) {
+    console.log('[OAuth:link] Google email does not match session account email → rejecting');
+    return respond('/admin/account?error=google-email-mismatch');
+  }
+
+  const serviceClient = getSupabaseServiceClient();
+  const table = account.role === 'super_admin' ? 'admins' : 'commissioners';
+  const { error } = await serviceClient.from(table).update({ google_linked: true }).eq('id', sessionAdminId);
+
+  if (error) {
+    debugError('[OAuth:link] failed to set google_linked:', error);
+    return respond('/admin/account?error=google-link-failed');
+  }
+
+  console.log('[OAuth:link] Google linked for', account.row.email);
+  return respond('/admin/account?linked=google');
 }
