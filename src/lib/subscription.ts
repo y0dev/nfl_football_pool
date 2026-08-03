@@ -79,8 +79,7 @@ export async function getSubscriptionSummary(adminId: string): Promise<Subscript
   // Best-effort — the payments table is optional until the billing migration
   // runs (see docs/stripe-billing-setup.md); missing/erroring must not break
   // the rest of the summary.
-  let standardPurchasedAt: string | null = null;
-  try {
+  const fetchStandardPurchase = async (): Promise<string | null> => {
     const { data: purchase } = await supabase
       .from('payments')
       .select('created_at')
@@ -90,7 +89,25 @@ export async function getSubscriptionSummary(adminId: string): Promise<Subscript
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    standardPurchasedAt = purchase?.created_at ?? null;
+    return purchase?.created_at ?? null;
+  };
+
+  let standardPurchasedAt: string | null = null;
+  try {
+    standardPurchasedAt = await fetchStandardPurchase();
+
+    // Self-heal: a real Stripe customer with no recorded purchase means the
+    // checkout webhook never landed (delivery failure, endpoint misconfig,
+    // etc.) — reconcilePurchasesForAdmin asks Stripe directly and backfills
+    // `payments`. Previously this only ran right after a fresh checkout
+    // (see /upgrade's post-checkout poll), so an account that's been sitting
+    // on 'standard' for a while with a missed webhook never got repaired —
+    // this makes every dashboard/settings load self-heal it instead.
+    if (!standardPurchasedAt && planInfo.plan === 'standard' && !planInfo.billingExempt && admin?.stripe_customer_id) {
+      const { reconcilePurchasesForAdmin } = await import('./purchases');
+      await reconcilePurchasesForAdmin(adminId);
+      standardPurchasedAt = await fetchStandardPurchase();
+    }
   } catch {
     standardPurchasedAt = null;
   }
