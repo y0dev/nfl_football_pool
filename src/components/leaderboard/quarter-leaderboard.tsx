@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Target, TrendingUp, Users, RefreshCw } from 'lucide-react';
+import { Target, TrendingUp, Users, RefreshCw, ChevronDown } from 'lucide-react';
+import { getPeriodNameForWeek } from '@/lib/utils';
 
 // Design tokens
 const surface = 'oklch(17% 0.028 255)';
@@ -26,6 +27,15 @@ interface QuarterEntry {
   weeks_won: number;
 }
 
+interface AvailablePeriod {
+  name: string;
+  startWeek: number;
+  endWeek: number;
+  weeks: number[];
+  isCurrent: boolean;
+  isComplete: boolean;
+}
+
 interface QuarterLeaderboardProps {
   poolId: string;
   season: number;
@@ -38,14 +48,35 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
   const [periodLabel, setPeriodLabel] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [availablePeriods, setAvailablePeriods] = useState<AvailablePeriod[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
 
-  const periodName = useMemo(() => {
-    if (seasonType === 3) return 'Playoffs';
-    if (currentWeek <= 4) return 'Period 1';
-    if (currentWeek <= 9) return 'Period 2';
-    if (currentWeek <= 14) return 'Period 3';
-    return 'Period 4';
-  }, [currentWeek, seasonType]);
+  const defaultPeriodName = useMemo(
+    () => getPeriodNameForWeek(currentWeek, seasonType),
+    [currentWeek, seasonType]
+  );
+
+  // Playoffs number their own weeks and have no Q1-Q4 selector — the period
+  // is always just "Playoffs" there.
+  const periodName = seasonType === 3 ? 'Playoffs' : (selectedPeriod ?? defaultPeriodName);
+
+  // Load which periods are selectable (started, per the pool's current week)
+  // — this is what makes every quarter reachable instead of only whichever
+  // one the shared page-level currentWeek happens to fall in.
+  useEffect(() => {
+    if (seasonType === 3) return;
+    const loadPeriods = async () => {
+      try {
+        const res = await fetch(`/api/periods/available?poolId=${poolId}&season=${season}&currentWeek=${currentWeek}&currentSeasonType=${seasonType}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setAvailablePeriods(data?.data?.periods || []);
+      } catch {
+        // Selector just won't populate — the leaderboard itself still works.
+      }
+    };
+    loadPeriods();
+  }, [poolId, season, currentWeek, seasonType]);
 
   useEffect(() => {
     const load = async () => {
@@ -64,7 +95,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
           weeks_won: e.weeks_won,
         })));
         const weeks = data?.data?.periodInfo?.weeks || [];
-        const label = seasonType === 3 ? 'Playoffs' : periodName.replace('Period', 'Quarter');
+        const label = seasonType === 3 ? 'Playoffs' : `Quarter ${periodName.replace('Q', '')}`;
         if (seasonType === 3) {
           const roundNames: Record<number, string> = {
             1: 'Wild Card Round',
@@ -90,31 +121,64 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
     if (poolId && season) load();
   }, [poolId, season, periodName, seasonType]);
 
+  const selector = seasonType !== 3 && availablePeriods.length > 1 && (
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <select
+        value={periodName}
+        onChange={(e) => setSelectedPeriod(e.target.value)}
+        aria-label="Select quarter"
+        style={{
+          appearance: 'none', WebkitAppearance: 'none',
+          background: card, border: `1px solid ${border}`, borderRadius: 6,
+          padding: '0.4rem 1.8rem 0.4rem 0.75rem',
+          color: text, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.04em',
+          cursor: 'pointer',
+        }}
+      >
+        {availablePeriods.map(p => (
+          <option key={p.name} value={p.name}>
+            Quarter {p.name.replace('Q', '')}{p.isCurrent ? ' (current)' : ''}
+          </option>
+        ))}
+      </select>
+      <ChevronDown style={{ width: 14, height: 14, color: textDim, position: 'absolute', right: '0.6rem', pointerEvents: 'none' }} />
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1rem', gap: '0.75rem' }}>
-        <RefreshCw style={{ width: 22, height: 22, color: textDim, animation: 'spin 1s linear infinite' }} />
-        <span style={{ ...b, fontSize: '0.875rem', color: textMid }}>Loading quarter standings…</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {selector && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{selector}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1rem', gap: '0.75rem' }}>
+          <RefreshCw style={{ width: 22, height: 22, color: textDim, animation: 'spin 1s linear infinite' }} />
+          <span style={{ ...b, fontSize: '0.875rem', color: textMid }}>Loading quarter standings…</span>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-        <TrendingUp style={{ width: 32, height: 32, color: liveRed, margin: '0 auto 0.5rem' }} />
-        <p style={{ ...b, fontSize: '0.875rem', color: liveRed, marginBottom: '0.25rem' }}>Unable to load quarter leaderboard</p>
-        <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{error}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {selector && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{selector}</div>}
+        <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+          <TrendingUp style={{ width: 32, height: 32, color: liveRed, margin: '0 auto 0.5rem' }} />
+          <p style={{ ...b, fontSize: '0.875rem', color: liveRed, marginBottom: '0.25rem' }}>Unable to load quarter leaderboard</p>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{error}</p>
+        </div>
       </div>
     );
   }
 
   if (entries.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-        <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.5rem' }} />
-        <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.2rem' }}>No quarter data available yet</p>
-        <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>Complete weeks will appear here</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {selector && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{selector}</div>}
+        <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+          <Users style={{ width: 32, height: 32, color: textDim, margin: '0 auto 0.5rem' }} />
+          <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginBottom: '0.2rem' }}>No quarter data available yet</p>
+          <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>Complete weeks will appear here</p>
+        </div>
       </div>
     );
   }
@@ -124,6 +188,8 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+      {selector && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{selector}</div>}
 
       {/* Period header */}
       <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>

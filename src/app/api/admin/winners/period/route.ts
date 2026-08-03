@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { getOrCalculatePeriodWinners } from '@/lib/winner-calculator';
-import { debugLog, debugError } from '@/lib/utils';
+import { debugLog, debugError, getRegularSeasonPeriods } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,14 +29,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, periodWinners: [] });
     }
 
-    // Define the periods for the season
-    const periods = [
-      { name: 'Q1', startWeek: 1, endWeek: 4 },
-      { name: 'Q2', startWeek: 5, endWeek: 8 },
-      { name: 'Q3', startWeek: 9, endWeek: 12 },
-      { name: 'Q4', startWeek: 13, endWeek: 16 },
-      { name: 'Playoffs', startWeek: 17, endWeek: 20 }
-    ];
+    // Q1-Q4 regular-season periods — getOrCalculatePeriodWinners is
+    // hardcoded to season_type 2, so playoffs (a separately-numbered
+    // season_type 3) aren't a period this function can compute.
+    const periods = getRegularSeasonPeriods();
 
     const periodWinners = [];
 
@@ -114,14 +110,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Define the periods for the season
-    const allPeriods = [
-      { name: 'Q1', startWeek: 1, endWeek: 4 },
-      { name: 'Q2', startWeek: 5, endWeek: 8 },
-      { name: 'Q3', startWeek: 9, endWeek: 12 },
-      { name: 'Q4', startWeek: 13, endWeek: 16 },
-      { name: 'Playoffs', startWeek: 17, endWeek: 20 }
-    ];
+    // Q1-Q4 regular-season periods — see the matching comment in GET above.
+    const allPeriods = getRegularSeasonPeriods();
 
     // Filter periods based on quarter selection
     const periods = quarter && quarter !== 'all' 

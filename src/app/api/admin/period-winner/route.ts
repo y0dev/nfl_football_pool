@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugError } from '@/lib/utils';
+import { debugError, getRegularSeasonPeriods } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,16 +25,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Determine start and end week by periodName
-    const periods: Record<string, { start: number; end: number }> = {
-      Q1: { start: 1, end: 4 },
-      Q2: { start: 5, end: 8 },
-      Q3: { start: 9, end: 12 },
-      Q4: { start: 13, end: 16 },
-      Playoffs: { start: 17, end: 20 }
-    };
-
-    const period = periods[periodName];
+    // Determine start and end week by periodName — regular-season Q1-Q4 only
+    // (playoffs are a separately-numbered season_type, not extra weeks here).
+    const period = getRegularSeasonPeriods().find(p => p.name === periodName);
     if (!period) {
       return NextResponse.json(
         { error: 'Invalid period name' },
@@ -49,8 +42,8 @@ export async function POST(request: NextRequest) {
         pool_id: poolId,
         season: parseInt(String(season)),
         period_name: periodName,
-        start_week: period.start,
-        end_week: period.end,
+        start_week: period.startWeek,
+        end_week: period.endWeek,
         winner_participant_id: winnerParticipantId || null,
         winner_name: winnerName,
         period_points: parseInt(String(periodPoints)),

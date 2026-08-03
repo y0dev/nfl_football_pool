@@ -117,10 +117,10 @@ export default function PeriodLeaderboardPage() {
   // Convert period number to period name
   const getPeriodNameFromNumber = (num: number): string => {
     switch (num) {
-      case 1: return 'Period 1';
-      case 2: return 'Period 2';
-      case 3: return 'Period 3';
-      case 4: return 'Period 4';
+      case 1: return 'Q1';
+      case 2: return 'Q2';
+      case 3: return 'Q3';
+      case 4: return 'Q4';
       case 5: return 'Playoffs';
       default: return 'Unknown Period';
     }
