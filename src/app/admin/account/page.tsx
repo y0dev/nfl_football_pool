@@ -8,14 +8,14 @@ import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { requestEmailChange } from '@/actions/emailChange';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, Plus, ShieldCheck, Link2, Unlink, Bell } from 'lucide-react';
+import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, ShieldCheck, Link2, Unlink, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { loadSeasonSettings, updateSeasonSettings } from '@/actions/seasonSettings';
-import { PlanBadge } from '@/components/billing/plan-badge';
+import { SubscriptionSummaryCard } from '@/components/billing/subscription-summary-card';
 import type { SubscriptionSummary } from '@/lib/subscription';
 
 type NotificationPreferences = {
@@ -402,7 +402,7 @@ function AccountSettingsContent() {
       <AppNav isAuthenticated isSuperAdmin={user?.is_super_admin === true} onSignOut={handleLogout} />
 
       {/* Body */}
-      <div className="lp-inner" style={{ flex: 1, paddingTop: '2.5rem', paddingBottom: '3rem', maxWidth: 640 }}>
+      <div className="lp-inner" style={{ flex: 1, paddingTop: '2.5rem', paddingBottom: '3rem' }}>
 
         {/* Page title */}
         <div style={{ marginBottom: '2rem' }}>
@@ -564,7 +564,11 @@ function AccountSettingsContent() {
             </div>
           )}
 
-          {/* Subscription */}
+          {/* Subscription — shared SubscriptionSummaryCard, same component
+              the Dashboard used to render, so plan/usage numbers can never
+              disagree between screens. Account-specific actions (Purchase
+              History, Manage Subscription) live alongside it since those
+              don't belong on the Dashboard's more general-purpose card. */}
           {!user?.is_super_admin && subscriptionSummary && (
             <div style={cardSt}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
@@ -572,65 +576,21 @@ function AccountSettingsContent() {
                 <p style={sectionTitle}>Subscription</p>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-                <PlanBadge plan={subscriptionSummary.plan} isTrialActive={subscriptionSummary.isTrialActive} daysLeft={subscriptionSummary.daysLeft} />
-                {subscriptionSummary.plan === 'free' && !subscriptionSummary.billingExempt && (
-                  <Link href="/upgrade" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: green, color: text, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', textDecoration: 'none' }}>
-                    Upgrade Plan
-                  </Link>
-                )}
-              </div>
+              <SubscriptionSummaryCard summary={subscriptionSummary} currentSeason={getNFLSeasonYear()} />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Current Season</span>
-                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>{getNFLSeasonYear()}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>
-                    {subscriptionSummary.plan === 'standard' ? 'Purchased' : 'Status'}
-                  </span>
-                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>
-                    {subscriptionSummary.billingExempt
-                      ? 'Comped by site admin'
-                      : subscriptionSummary.standardPurchasedAt
-                      ? new Date(subscriptionSummary.standardPurchasedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                      : subscriptionSummary.isTrialActive
-                      ? `Trial — ${subscriptionSummary.daysLeft}d left`
-                      : 'Free — no purchase yet'}
-                  </span>
-                </div>
-                {subscriptionSummary.plan === 'standard' && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                    <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Renewal</span>
-                    <span style={{ ...b, fontSize: '0.82rem', color: text }}>No auto-renewal (per-season purchase)</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                  <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Additional Pools Purchased</span>
-                  <span style={{ ...b, fontSize: '0.82rem', color: text }}>{subscriptionSummary.addonPools}</span>
-                </div>
-                {subscriptionSummary.stripeCustomerId && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                    <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Stripe Customer ID</span>
-                    <span style={{ ...b, fontSize: '0.76rem', color: textDim, fontFamily: 'monospace' }}>{subscriptionSummary.stripeCustomerId}</span>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '1rem' }}>
                 <Link href="/admin/account/purchases" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
-                  <Receipt style={{ width: 12, height: 12 }} /> Purchases
+                  <Receipt style={{ width: 12, height: 12 }} /> Purchase History
                 </Link>
-                {subscriptionSummary.plan === 'standard' && !subscriptionSummary.billingExempt && (
-                  <Link href="/upgrade" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'oklch(74% 0.16 72 / 0.12)', color: 'oklch(74% 0.16 72)', border: `1px solid oklch(74% 0.16 72 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
-                    <Plus style={{ width: 12, height: 12 }} /> Buy Additional Pool
-                  </Link>
-                )}
                 {!subscriptionSummary.billingExempt && (
                   <Link href="/upgrade" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none' }}>
                     Manage Subscription
                   </Link>
+                )}
+                {subscriptionSummary.stripeCustomerId && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', ...b, fontSize: '0.76rem', color: textDim, fontFamily: 'monospace' }}>
+                    Stripe: {subscriptionSummary.stripeCustomerId}
+                  </span>
                 )}
               </div>
             </div>
