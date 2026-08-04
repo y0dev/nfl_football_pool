@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getOverrideEligibility } from '@/lib/season-status';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Monday night score must be a positive integer' },
         { status: 400 }
+      );
+    }
+
+    const eligibility = await getOverrideEligibility(poolId, week, seasonType);
+    if (!eligibility.allowed) {
+      return NextResponse.json(
+        { success: false, error: eligibility.reason },
+        { status: 403 }
       );
     }
 

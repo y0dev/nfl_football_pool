@@ -33,6 +33,7 @@ interface PoolRecord {
   season: number;
   season_scope?: number[];
   huddle_id?: string | null;
+  is_active?: boolean;
 }
 
 function PoolManageContent() {
@@ -153,6 +154,7 @@ function PoolManageContent() {
             seasonScope={pool.season_scope}
             currentWeek={currentWeek}
             currentSeasonType={currentSeasonType}
+            isActive={pool.is_active}
             onPoolDeleted={() => router.push(backTarget)}
           />
         </div>

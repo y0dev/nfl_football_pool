@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Save, Target, Trophy, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { debugError } from '@/lib/utils';
+import { debugError, getPlayoffRoundName } from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -49,13 +49,6 @@ interface RoundPick {
     confidence_points: number;
   }>;
 }
-
-const roundNames: Record<number, string> = {
-  1: 'Wild Card Round',
-  2: 'Divisional Round',
-  3: 'Conference Championships',
-  4: 'Super Bowl',
-};
 
 export function PlayoffParticipantEditDialog({
   open, onOpenChange, participantId, participantName, poolId, poolSeason, onUpdate
@@ -118,9 +111,9 @@ export function PlayoffParticipantEditDialog({
               confidence_points: pick.confidence_points || 0,
             };
           });
-          picksData.push({ round, roundName: roundNames[round], picks });
+          picksData.push({ round, roundName: getPlayoffRoundName(round), picks });
         } else {
-          picksData.push({ round, roundName: roundNames[round], picks: [] });
+          picksData.push({ round, roundName: getPlayoffRoundName(round), picks: [] });
         }
       }
       setRoundPicks(picksData);
@@ -229,7 +222,7 @@ export function PlayoffParticipantEditDialog({
       const response = await fetch(`/api/admin/playoffs/picks?poolId=${poolId}&participantId=${participantId}&round=${round}&season=${poolSeason}`, { method: 'DELETE' });
       const result = await response.json();
       if (result.success) {
-        setSuccessMessage(`${roundNames[round]} picks deleted successfully`);
+        setSuccessMessage(`${getPlayoffRoundName(round)} picks deleted successfully`);
         setShowSuccessDialog(true);
         setRoundPicks(prev => prev.map(rp => rp.round === round ? { ...rp, picks: [] } : rp));
         onUpdate();
@@ -426,14 +419,14 @@ export function PlayoffParticipantEditDialog({
           <AlertDialogHeader>
             <AlertDialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: red, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <AlertTriangle style={{ width: 16, height: 16 }} />
-              Delete {roundToDelete ? roundNames[roundToDelete] : 'Round'} Picks?
+              Delete {roundToDelete ? getPlayoffRoundName(roundToDelete) : 'Round'} Picks?
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div style={{ ...b, fontSize: '0.8rem', color: textDim }}>
                 <p style={{ fontWeight: 700, color: textMid, marginBottom: '0.5rem' }}>This action will permanently delete:</p>
                 <div style={{ padding: '0.65rem 0.85rem', background: `color-mix(in oklch, ${red} 8%, ${surface})`, border: `1px solid color-mix(in oklch, ${red} 25%, ${border})`, borderRadius: 6, marginBottom: '0.5rem' }}>
                   <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    <li style={{ listStyleType: 'disc' }}>All picks for <strong>{roundToDelete ? roundNames[roundToDelete] : 'this round'}</strong></li>
+                    <li style={{ listStyleType: 'disc' }}>All picks for <strong>{roundToDelete ? getPlayoffRoundName(roundToDelete) : 'this round'}</strong></li>
                     <li style={{ listStyleType: 'disc' }}>For participant: <strong>{participantName}</strong></li>
                   </ul>
                 </div>

@@ -496,16 +496,20 @@ export function getSeasonTypeName(seasonType: number): string {
   }
 }
 
-/*
- * Get playoff round name
+/**
+ * Canonical playoff round name — the single source of truth for how each
+ * postseason week is labeled across the app (Current Week displays, the
+ * Picks dropdown, admin playoff tools, the quarter leaderboard, the
+ * homepage). Previously hand-rolled independently in ~5 places with 3
+ * different wordings — consolidated here per the season-status centralization.
  */
-function getPlayoffRoundName(week: number): string {
+export function getPlayoffRoundName(week: number): string {
   switch (week) {
-    case 1: return 'Wild Card';
+    case 1: return 'Wild Card Weekend';
     case 2: return 'Divisional Round';
-    case 3: return 'Conference Championship';
+    case 3: return 'Conference Championships';
     case 4: return 'Super Bowl';
-    default: return `Round ${week}`;
+    default: return `Playoff Round ${week}`;
   }
 }
 
@@ -518,14 +522,7 @@ function getPlayoffRoundName(week: number): string {
 export function getWeekTitle(week: number, seasonType: number): string {
   if (!isOffseason()) {
     if (seasonType === 3) {
-      const roundNames: Record<number, string> = {
-        1: "Wild Card Round",
-        2: "Divisional Round",
-        3: "Conference Championships",
-        4: "Super Bowl",
-      };
-
-      return roundNames[week] ?? `Playoff Round ${week}`;
+      return getPlayoffRoundName(week);
     }
 
     if (seasonType === 1) {
@@ -536,7 +533,23 @@ export function getWeekTitle(week: number, seasonType: number): string {
   }
 
   return "Offseason";
-  
+
+}
+
+/**
+ * Context-aware "Current Week" label for the League Pool page (and any
+ * other surface showing a pool's current week at a glance) — e.g.
+ * "Regular Season • Week 8", "Preseason • Week 2", "Wild Card Weekend",
+ * "Super Bowl", or "Season Complete" once the pool is no longer active.
+ * Pure/no-DB-access by design (poolIsActive is passed in) so it stays
+ * alongside the other label helpers in this file rather than the
+ * DB-reading season-status service.
+ */
+export function getCurrentWeekLabel(params: { seasonType: number; week: number; poolIsActive: boolean }): string {
+  const { seasonType, week, poolIsActive } = params;
+  if (!poolIsActive) return 'Season Complete';
+  if (seasonType === 3) return getPlayoffRoundName(week);
+  return `${seasonType === 1 ? 'Preseason' : 'Regular Season'} • Week ${week}`;
 }
 
 /**

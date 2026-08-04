@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { findAccountById } from '@/lib/accounts';
+import { getOverrideEligibility } from '@/lib/season-status';
 import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
@@ -14,7 +15,10 @@ export async function POST(request: NextRequest) {
       overrideMode,
       overrideReason,
       pickUpdates,
-      adminId
+      adminId,
+      gameId,
+      predictedWinner,
+      confidencePoints,
     } = body;
 
     // Validate required fields
@@ -25,9 +29,88 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const eligibility = await getOverrideEligibility(poolId, week, seasonType);
+    if (!eligibility.allowed) {
+      return NextResponse.json(
+        { success: false, error: eligibility.reason },
+        { status: 403 }
+      );
+    }
+
     const supabase = getSupabaseServiceClient();
 
-    if (overrideMode === 'picks') {
+    if (overrideMode === 'insert') {
+      if (!gameId || !predictedWinner || !confidencePoints) {
+        return NextResponse.json(
+          { success: false, error: 'Missing required fields' },
+          { status: 400 }
+        );
+      }
+
+      const { error: insertError } = await supabase
+        .from('picks')
+        .insert({
+          participant_id: participantId,
+          pool_id: poolId,
+          game_id: gameId,
+          predicted_winner: predictedWinner,
+          confidence_points: confidencePoints,
+          submitted_by: 'admin_override',
+        });
+
+      if (insertError) {
+        debugError('Error inserting pick:', insertError);
+        return NextResponse.json(
+          { success: false, error: `Failed to submit pick: ${insertError.message}` },
+          { status: 500 }
+        );
+      }
+
+      const participant = await supabase
+        .from('participants')
+        .select('name, email')
+        .eq('id', participantId)
+        .single();
+
+      const pool = await supabase
+        .from('pools')
+        .select('name')
+        .eq('id', poolId)
+        .single();
+
+      const callerAccount = await findAccountById(adminId);
+
+      const auditDetails = {
+        pool_name: pool?.data?.name || 'Unknown Pool',
+        participant_name: participant?.data?.name || 'Unknown Participant',
+        participant_email: participant?.data?.email || 'Unknown Email',
+        week,
+        season_type: seasonType,
+        override_reason: overrideReason,
+        override_type: 'insert_pick',
+        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
+        overridden_at: new Date().toISOString(),
+        game_id: gameId,
+        predicted_winner: predictedWinner,
+        confidence_points: confidencePoints,
+      };
+
+      await supabase
+        .from('audit_logs')
+        .insert({
+          action: 'insert_pick',
+          admin_id: adminId,
+          pool_id: poolId,
+          details: JSON.stringify(auditDetails),
+          created_at: new Date().toISOString()
+        });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Pick submitted successfully',
+      });
+
+    } else if (overrideMode === 'picks') {
       // Update specific picks
       if (!pickUpdates || Object.keys(pickUpdates).length === 0) {
         return NextResponse.json(

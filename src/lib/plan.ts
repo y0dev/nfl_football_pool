@@ -154,6 +154,40 @@ export function trialEndDate(daysFromNow = 14): string {
   return d.toISOString();
 }
 
+/**
+ * Centralized "eligible for a fresh free trial" check — the single source
+ * of truth consumed by both the Upgrade page's CTA text and the start-trial
+ * route's server-side enforcement, so the two never drift out of sync.
+ * Ineligible if the account has EVER: started a trial, been comped, held
+ * Standard currently, or completed a paid Standard purchase in the past
+ * (checked via `payments`, since the live `commissioners.plan` column alone
+ * can't show a prior downgrade back to free).
+ */
+export async function isTrialEligible(adminId: string): Promise<boolean> {
+  const supabase = getSupabaseServiceClient();
+
+  const { data: admin } = await supabase
+    .from('commissioners')
+    .select('plan, trial_ends_at, billing_exempt')
+    .eq('id', adminId)
+    .maybeSingle();
+
+  if (!admin || admin.billing_exempt) return false;
+  if (admin.trial_ends_at) return false;
+  if (admin.plan === 'standard') return false;
+
+  const { data: standardPayment } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('admin_id', adminId)
+    .eq('product', 'standard')
+    .eq('status', 'completed')
+    .limit(1)
+    .maybeSingle();
+
+  return !standardPayment;
+}
+
 export interface ParticipantCapacity {
   allowed: boolean;
   count: number;

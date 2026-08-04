@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { createPageUrl, getWeekTitle as getWeekTitleUtil, isOffseason, debugLog, debugError} from '@/lib/utils';
+import { createPageUrl, getWeekTitle as getWeekTitleUtil, getPlayoffRoundName, isOffseason, debugLog, debugError} from '@/lib/utils';
 import { isPricingVisible } from '@/lib/billing';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
@@ -135,8 +135,7 @@ function LandingPage() {
   const getDisplayTitle = () => {
     if (currentSeasonType === 0) return 'Offseason';
     if (currentSeasonType === 3) {
-      const rounds: Record<number, string> = { 1: 'Wild Card', 2: 'Divisional', 3: 'Championship', 4: 'Super Bowl' };
-      return `${rounds[currentWeek] ?? `Playoff Week ${currentWeek}`} Games`;
+      return `${getPlayoffRoundName(currentWeek)} Games`;
     }
     if (currentSeasonType === 1) {
       if (currentWeek === 1) return 'Hall of Fame Game';

@@ -24,6 +24,7 @@ interface PlanStatus {
   isTrialActive: boolean;
   daysLeft: number;
   trialEndsAt: string | null;
+  trialEligible?: boolean;
   poolLimit?: number;
   participantLimit?: number;
   addonPools?: number;
@@ -183,8 +184,7 @@ function UpgradeContent() {
   // resolves currentPlan to 'standard' (see computePlanInfo in
   // src/lib/plan.ts), so trialEndsAt being set here always means a past,
   // already-used trial — one per account, ever.
-  const hasUsedTrial = !!planStatus?.trialEndsAt;
-  const trialOffered = trialEnabled && !hasUsedTrial;
+  const trialOffered = trialEnabled && !!planStatus?.trialEligible;
 
   const handleCheckout = async (product: 'standard' | 'addon_pool', quantity = 1) => {
     if (!user?.id) return;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { getAdminPlan, trialEndDate } from '@/lib/plan';
+import { trialEndDate, isTrialEligible } from '@/lib/plan';
 import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
 import { debugError } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const { data: admin, error: fetchError } = await supabase
       .from('commissioners')
-      .select('plan, trial_ends_at, billing_exempt')
+      .select('id')
       .eq('id', adminId)
       .single();
 
@@ -34,20 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Account not found' }, { status: 404 });
     }
 
-    if (admin.billing_exempt) {
-      return NextResponse.json({ success: false, error: 'This account is comped — no trial needed' }, { status: 400 });
-    }
-
-    if (admin.trial_ends_at) {
-      return NextResponse.json({ success: false, error: 'This account has already used its trial' }, { status: 400 });
-    }
-
-    // Belt-and-suspenders: also reject if the effective plan is already
-    // Standard (e.g. a real paid purchase, even though the raw plan column
-    // and trial_ends_at both looked eligible above).
-    const planInfo = await getAdminPlan(adminId);
-    if (planInfo.plan !== 'free') {
-      return NextResponse.json({ success: false, error: 'This account is already on Standard' }, { status: 400 });
+    if (!(await isTrialEligible(adminId))) {
+      return NextResponse.json({ success: false, error: 'This account is not eligible for a trial.' }, { status: 400 });
     }
 
     const { error } = await supabase
