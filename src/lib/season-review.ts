@@ -1,7 +1,109 @@
 import { getSupabaseServiceClient } from './supabase';
-import { getRegularSeasonPeriods } from './utils';
+import { getRegularSeasonPeriods, PERIOD_WEEKS } from './utils';
 
 const PICKS_PAGE_SIZE = 1000;
+const REGULAR_SEASON_TYPE = 2;
+
+interface PoolTieBreakerInfo {
+  pool_type: string | null;
+  tie_breaker_answer: number | null;
+  tie_breaker_question: string | null;
+}
+
+interface Contender {
+  id: string;
+  points: number;
+  weeks_won?: number;
+}
+
+/**
+ * Tie-breaker resolution — matches (a Node-side port of)
+ * supabase/functions/determine-weekly-winners/index.ts's resolveTieBreaker,
+ * so the cron-populated weekly_winners table and this live computation
+ * agree on tie-broken winners. That function runs in Deno and can't import
+ * this file, so this is an intentional duplication — same relationship it
+ * already documents with winner-calculator.ts.
+ */
+async function resolveTieBreaker<T extends Contender>(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  pool: { id: string } & PoolTieBreakerInfo,
+  week: number,
+  seasonType: number,
+  tied: T[],
+): Promise<T[]> {
+  const poolAnswer = pool.tie_breaker_answer;
+  if (!poolAnswer) {
+    return [...tied].sort(() => Math.random() - 0.5);
+  }
+
+  const { data: tieBreakers } = await supabase
+    .from('tie_breakers')
+    .select('participant_id, answer')
+    .eq('pool_id', pool.id).eq('week', week).eq('season_type', seasonType)
+    .in('participant_id', tied.map(t => t.id));
+
+  const withDiff = tied.map(t => {
+    const tb = tieBreakers?.find(x => x.participant_id === t.id);
+    const diff = tb?.answer != null ? Math.abs(tb.answer - poolAnswer) : Infinity;
+    return { ...t, tie_breaker_difference: diff };
+  });
+
+  return withDiff.sort((a, b) => (a.tie_breaker_difference ?? Infinity) - (b.tie_breaker_difference ?? Infinity));
+}
+
+async function resolvePeriodTieBreaker<T extends Contender>(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  pool: { id: string; season: number } & PoolTieBreakerInfo,
+  period: { startWeek: number; endWeek: number },
+  tied: T[],
+): Promise<T[]> {
+  const poolAnswer = pool.tie_breaker_answer;
+  if (!poolAnswer) {
+    return [...tied].sort((a, b) => (b.weeks_won ?? 0) - (a.weeks_won ?? 0));
+  }
+
+  const { data: tieBreakers } = await supabase
+    .from('tie_breakers')
+    .select('participant_id, answer, week')
+    .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
+    .gte('week', period.startWeek).lte('week', period.endWeek)
+    .in('participant_id', tied.map(t => t.id))
+    .order('week', { ascending: false });
+
+  const withDiff = tied.map(t => {
+    const tb = tieBreakers?.find(x => x.participant_id === t.id);
+    const diff = tb?.answer != null ? Math.abs(tb.answer - poolAnswer) : Infinity;
+    return { ...t, tie_breaker_difference: diff };
+  });
+
+  return withDiff.sort((a, b) => (a.tie_breaker_difference ?? Infinity) - (b.tie_breaker_difference ?? Infinity));
+}
+
+async function resolveSeasonTieBreaker<T extends Contender>(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  pool: { id: string; season: number } & PoolTieBreakerInfo,
+  tied: T[],
+): Promise<T[]> {
+  const poolAnswer = pool.tie_breaker_answer;
+  if (!poolAnswer) {
+    return [...tied].sort((a, b) => (b.weeks_won ?? 0) - (a.weeks_won ?? 0));
+  }
+
+  const { data: tieBreakers } = await supabase
+    .from('tie_breakers')
+    .select('participant_id, answer, week')
+    .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
+    .in('participant_id', tied.map(t => t.id))
+    .order('week', { ascending: false });
+
+  const withDiff = tied.map(t => {
+    const tb = tieBreakers?.find(x => x.participant_id === t.id);
+    const diff = tb?.answer != null ? Math.abs(tb.answer - poolAnswer) : Infinity;
+    return { ...t, tie_breaker_difference: diff };
+  });
+
+  return withDiff.sort((a, b) => (a.tie_breaker_difference ?? Infinity) - (b.tie_breaker_difference ?? Infinity));
+}
 
 /**
  * Supabase/PostgREST caps an unbounded select at 1000 rows by default — a
@@ -89,6 +191,15 @@ export interface SeasonChampion {
   tie_breaker_used: boolean;
 }
 
+export interface PeriodTotalEntry {
+  period_name: string;
+  participant_id: string;
+  participant_name: string;
+  points: number;
+  correct: number;
+  weeks_won: number;
+}
+
 export interface SeasonReviewData {
   poolName: string | null;
   seasonWinner: SeasonChampion | null;
@@ -96,6 +207,9 @@ export interface SeasonReviewData {
   quarterlyWinners: QuarterlyWinner[];
   weeklyWinners: WeeklyWinnerEntry[];
   participantStats: ParticipantStat[];
+  /** Every participant's per-period (Q1-Q4) totals, not just the winner —
+   * used by /api/periods/leaderboard to render a full period leaderboard. */
+  periodTotals: PeriodTotalEntry[];
   seasonStats: {
     total_weeks: number;
     total_participants: number;
@@ -118,6 +232,7 @@ function emptyPayload(poolName: string | undefined): SeasonReviewData {
     quarterlyWinners: [],
     weeklyWinners: [],
     participantStats: [],
+    periodTotals: [],
     seasonStats: {
       total_weeks: 0,
       total_participants: 0,
@@ -154,7 +269,7 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
   const supabase = getSupabaseServiceClient();
 
   const [{ data: pool }, { data: participants }] = await Promise.all([
-    supabase.from('pools').select('name').eq('id', poolId).maybeSingle(),
+    supabase.from('pools').select('name, pool_type, tie_breaker_answer, tie_breaker_question').eq('id', poolId).maybeSingle(),
     supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
   ]);
 
@@ -173,6 +288,15 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
   if (!games || games.length === 0) {
     return emptyPayload(pool?.name);
   }
+
+  const poolTieInfo = {
+    id: poolId,
+    season,
+    pool_type: pool?.pool_type ?? null,
+    tie_breaker_answer: pool?.tie_breaker_answer ?? null,
+    tie_breaker_question: pool?.tie_breaker_question ?? null,
+  };
+  const isNormalPool = poolTieInfo.pool_type === 'normal' || poolTieInfo.pool_type == null;
 
   const weeks = [...new Set(games.map(g => g.week))].sort((a, b) => a - b);
   const weekByGameId = new Map(games.map(g => [g.id, g.week]));
@@ -223,7 +347,22 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
 
     standings.forEach((s, idx) => finishRanks.get(s.id)?.push(idx + 1));
 
-    const winner = standings[0];
+    let winner = standings[0];
+    if (winner && winner.entry.points > 0) {
+      const topScorers = standings.filter(s => s.entry.points === winner.entry.points);
+      // Ties are only formally broken on tie-breaker (period) weeks, or for
+      // non-normal pools — matching the same gating the Deno cron function
+      // uses, since tie_breakers answers are only collected for those weeks.
+      const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
+      if (topScorers.length > 1 && (!isNormalPool || isPeriodWeek)) {
+        const resolved = await resolveTieBreaker(
+          supabase, poolTieInfo, week, 2,
+          topScorers.map(s => ({ id: s.id, points: s.entry.points })),
+        );
+        const resolvedWinner = standings.find(s => s.id === resolved[0]?.id);
+        if (resolvedWinner) winner = resolvedWinner;
+      }
+    }
     const winnerWon = winner && winner.entry.points > 0;
     participants.forEach(p => {
       const wonThisWeek = winnerWon && p.id === winner.id;
@@ -252,8 +391,9 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
 
   // Q1-Q4 period winners.
   const quarterlyWinners: QuarterlyWinner[] = [];
+  const periodTotals: PeriodTotalEntry[] = [];
   for (const period of getRegularSeasonPeriods()) {
-    let best: { id: string; points: number; correct: number } | null = null;
+    const periodParticipantTotals: Array<{ id: string; points: number; correct: number; weeks_won: number }> = [];
     participants.forEach(p => {
       const pw = weeklyBreakdown.get(p.id);
       let periodPoints = 0;
@@ -262,19 +402,55 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
         const entry = pw?.get(week);
         if (entry) { periodPoints += entry.points; periodCorrect += entry.correct; }
       });
-      if (periodPoints > 0 && (!best || periodPoints > best.points)) {
-        best = { id: p.id, points: periodPoints, correct: periodCorrect };
+      if (periodPoints > 0) {
+        // Weeks-won scoped to just this period (not the participant's
+        // season-wide total) — matches the edge function's period-winner
+        // tie-break, which only counts wins within the quarter's own weeks.
+        const periodWeeksWon = weeklyWinners.filter(w => period.weeks.includes(w.week) && w.winner_participant_id === p.id).length;
+        periodParticipantTotals.push({ id: p.id, points: periodPoints, correct: periodCorrect, weeks_won: periodWeeksWon });
       }
     });
-    if (best) {
-      const b = best as { id: string; points: number; correct: number };
-      periodWinsCount.set(b.id, (periodWinsCount.get(b.id) ?? 0) + 1);
+
+    periodParticipantTotals.forEach(t => {
+      periodTotals.push({
+        period_name: period.name,
+        participant_id: t.id,
+        participant_name: participants.find(p => p.id === t.id)?.name ?? 'Unknown',
+        points: t.points,
+        correct: t.correct,
+        weeks_won: t.weeks_won,
+      });
+    });
+
+    if (periodParticipantTotals.length > 0) {
+      const maxPoints = Math.max(...periodParticipantTotals.map(t => t.points));
+      const topScorers = periodParticipantTotals.filter(t => t.points === maxPoints);
+
+      let best = topScorers[0];
+      if (topScorers.length > 1) {
+        if (!isNormalPool) {
+          const resolved = await resolvePeriodTieBreaker(supabase, poolTieInfo, period, topScorers);
+          if (resolved[0]) best = resolved[0];
+        } else {
+          const sortedByWeeksWon = [...topScorers].sort((a, b) => b.weeks_won - a.weeks_won);
+          const maxWeeksWon = sortedByWeeksWon[0].weeks_won;
+          const stillTied = sortedByWeeksWon.filter(t => t.weeks_won === maxWeeksWon);
+          if (stillTied.length === 1) {
+            best = stillTied[0];
+          } else {
+            const resolved = await resolvePeriodTieBreaker(supabase, poolTieInfo, period, stillTied);
+            best = resolved[0] ?? stillTied[0];
+          }
+        }
+      }
+
+      periodWinsCount.set(best.id, (periodWinsCount.get(best.id) ?? 0) + 1);
       quarterlyWinners.push({
         period_name: period.name,
-        winner_participant_id: b.id,
-        winner_name: participants.find(p => p.id === b.id)?.name ?? 'Unknown',
-        period_points: b.points,
-        period_correct_picks: b.correct,
+        winner_participant_id: best.id,
+        winner_name: participants.find(p => p.id === best.id)?.name ?? 'Unknown',
+        period_points: best.points,
+        period_correct_picks: best.correct,
       });
     }
   }
@@ -328,7 +504,15 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
   let runnerUp: ParticipantStat | null = null;
   if (maxPeriodWins > 0) {
     const contenders = participantStats.filter(ps => (periodWinsCount.get(ps.participant_id) ?? 0) === maxPeriodWins);
-    const champion = contenders[0]; // participantStats is already points-sorted descending
+    let champion = contenders[0]; // participantStats is already points-sorted descending
+    if (contenders.length > 1) {
+      const resolved = await resolveSeasonTieBreaker(
+        supabase, poolTieInfo,
+        contenders.map(c => ({ id: c.participant_id, points: c.total_points, weeks_won: c.weeks_won })),
+      );
+      const resolvedChampion = contenders.find(c => c.participant_id === resolved[0]?.id);
+      if (resolvedChampion) champion = resolvedChampion;
+    }
     seasonWinner = {
       pool_id: poolId,
       season,
@@ -387,6 +571,7 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
     quarterlyWinners,
     weeklyWinners,
     participantStats,
+    periodTotals,
     seasonStats,
   };
 }

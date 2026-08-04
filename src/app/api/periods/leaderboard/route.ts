@@ -1,7 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { debugLog, debugError, getPeriodWeeks } from '@/lib/utils';
+import { debugLog, debugError, getPeriodWeeks, getRegularSeasonPeriods } from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
+import { computeSeasonReview } from '@/lib/season-review';
+
+const REGULAR_SEASON_TYPE = 2;
+
+/**
+ * Regular-season (Q1-Q4) branch — computed via the same centralized,
+ * tie-breaker-aware computeSeasonReview() the Season Review tab and the
+ * other winner endpoints already use, instead of this route's own bespoke
+ * computation (which had its own unbounded picks query — the same
+ * 1000-row-truncation class of bug fixed elsewhere for the season
+ * leaderboard — plus a synthetic missing-pick fabrication and a separate
+ * top-3 tie-breaker reorder that could disagree with what Season Review
+ * shows for the same pool/period). Playoffs (seasonType 3) still uses the
+ * bespoke logic further down — computeSeasonReview is regular-season-only
+ * by design, porting playoff semantics is a larger, separate change.
+ */
+async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number, periodName: string) {
+  const period = getRegularSeasonPeriods().find(p => p.name === periodName);
+  if (!period) {
+    return NextResponse.json({ success: false, error: 'Invalid period name' }, { status: 400 });
+  }
+
+  const review = await computeSeasonReview(poolId, season);
+  const periodEntries = review.periodTotals
+    .filter(t => t.period_name === periodName)
+    .map(t => ({
+      participant_id: t.participant_id,
+      name: t.participant_name,
+      total_points: t.points,
+      total_correct: t.correct,
+      weeks_won: t.weeks_won,
+    }))
+    .sort((a, b) => b.total_points - a.total_points);
+
+  const quarterlyWinner = review.quarterlyWinners.find(q => q.period_name === periodName);
+  const periodWinner = quarterlyWinner ? {
+    id: `period-winner-${poolId}-${season}-${periodName}`,
+    pool_id: poolId,
+    season,
+    period_name: periodName,
+    winner_participant_id: quarterlyWinner.winner_participant_id,
+    winner_name: quarterlyWinner.winner_name,
+    winner_points: quarterlyWinner.period_points,
+    winner_correct_picks: quarterlyWinner.period_correct_picks,
+    tie_breaker_used: false,
+    total_participants: periodEntries.length,
+    created_at: new Date().toISOString(),
+  } : null;
+
+  const weeklyWinners = review.weeklyWinners
+    .filter(w => period.weeks.includes(w.week))
+    .map(w => ({
+      week: w.week,
+      winner_name: w.winner_name,
+      winner_points: w.winner_points,
+      winner_correct_picks: w.winner_correct_picks,
+      tie_breaker_used: false,
+      total_participants: w.total_participants,
+    }));
+
+  const supabase = getSupabaseServiceClient();
+  const { data: gamesData } = await supabase
+    .from('games')
+    .select('*')
+    .eq('season', season)
+    .eq('season_type', REGULAR_SEASON_TYPE)
+    .in('week', period.weeks);
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      periodWinner,
+      weeklyWinners,
+      leaderboard: periodEntries,
+      periodInfo: { name: periodName, weeks: period.weeks, totalWeeks: period.weeks.length },
+      games: gamesData || [],
+      tieBreakerInfo: null,
+    },
+  });
+}
 
 interface ParticipantData {
   participant_id: string;
@@ -54,8 +134,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (seasonType === REGULAR_SEASON_TYPE) {
+      return await getRegularSeasonPeriodLeaderboard(poolId, parseInt(season), periodName);
+    }
+
     const supabase = getSupabaseServiceClient();
-    
+
     // Get tie-breaker weeks using the same logic as export
     const periodWeeks = getPeriodWeeks(periodName, seasonType);
     if (periodWeeks.length === 0) {

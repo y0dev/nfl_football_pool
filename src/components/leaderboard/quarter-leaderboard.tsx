@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Target, TrendingUp, Users, RefreshCw, ChevronDown } from 'lucide-react';
-import { getPeriodNameForWeek, debugError } from '@/lib/utils';
+import { getPeriodNameForWeek, getPlayoffRoundName, debugError } from '@/lib/utils';
 
 // Design tokens
 const surface = 'oklch(17% 0.028 255)';
@@ -104,14 +104,8 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
         const weeks = data?.data?.periodInfo?.weeks || [];
         const label = seasonType === 3 ? 'Playoffs' : `Quarter ${periodName.replace('Q', '')}`;
         if (seasonType === 3) {
-          const roundNames: Record<number, string> = {
-            1: 'Wild Card Round',
-            2: 'Divisional Round',
-            3: 'Conference Championships',
-            4: 'Super Bowl',
-          };
           if (weeks.length > 0) {
-            const roundLabels = weeks.map((w: number) => roundNames[w] || `Round ${w}`).join(', ');
+            const roundLabels = weeks.map((w: number) => getPlayoffRoundName(w)).join(', ');
             setPeriodLabel(`Playoffs (${roundLabels})`);
           } else {
             setPeriodLabel('Playoffs');

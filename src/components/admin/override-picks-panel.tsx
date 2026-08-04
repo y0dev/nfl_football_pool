@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Target, Users, Calendar, Edit, RefreshCw } from 'lucide-react';
+import { Target, Users, Calendar, Edit, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, SEASON_TYPE_OPTIONS } from '@/lib/utils';
 import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
+import { useAuth } from '@/lib/auth';
+import type { OverrideEligibility } from '@/lib/season-status';
 
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
@@ -55,6 +58,7 @@ interface OverridePicksPanelProps {
 
 export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScope }: OverridePicksPanelProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Only offer season types this pool actually covers, and the correct week
   // range for whichever one is selected — a pool scoped to Regular Season
@@ -89,7 +93,9 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
   }>>([]);
   const [allParticipants, setAllParticipants] = useState<Array<{ id: string; name: string; email: string | null }>>([]);
   const [newPickData, setNewPickData] = useState({ gameId: '', predictedWinner: '', confidencePoints: 1 });
+  const [overrideReason, setOverrideReason] = useState('');
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
+  const [eligibility, setEligibility] = useState<OverrideEligibility | null>(null);
 
   const getClient = () => getSupabaseServiceClient() || getSupabaseClient();
 
@@ -184,6 +190,16 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
     loadAllParticipants();
   }, [poolId, loadAllParticipants, seasonTypes]);
 
+  const loadEligibility = useCallback(async (week: number, seasonType: number) => {
+    try {
+      const response = await fetch(`/api/admin/override-eligibility?poolId=${poolId}&week=${week}&seasonType=${seasonType}`);
+      const result = await response.json();
+      setEligibility(result.success ? { allowed: result.allowed, reason: result.reason } : { allowed: true });
+    } catch {
+      setEligibility({ allowed: true });
+    }
+  }, [poolId]);
+
   useEffect(() => {
     if (selectedWeek && selectedSeasonType) {
       const week = parseInt(selectedWeek);
@@ -195,40 +211,57 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
       });
       loadPicks(week, seasonType);
       loadAvailableGames(week, seasonType);
+      loadEligibility(week, seasonType);
     } else {
       setWeekInfo(null);
       setPicks([]);
       setAvailableGames([]);
+      setEligibility(null);
     }
-  }, [selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames]);
+  }, [selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadEligibility]);
 
   const submitNewPick = useCallback(async () => {
     const participantId = selectedParticipantForNewPick || selectedParticipantForManagement;
-    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner) {
-      toast({ title: 'Error', description: 'Please fill in all required fields', variant: 'destructive' });
+    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner || !overrideReason.trim()) {
+      toast({ title: 'Error', description: 'Please fill in all required fields, including a reason', variant: 'destructive' });
       return;
     }
+    if (!weekInfo || !user?.id) return;
     setIsSaving(true);
     try {
-      const client = getClient();
-      if (!client) return;
-      const { error } = await client.from('picks').insert({
-        participant_id: participantId, pool_id: poolId,
-        game_id: newPickData.gameId, predicted_winner: newPickData.predictedWinner,
-        confidence_points: newPickData.confidencePoints, submitted_by: 'admin_override',
+      const response = await fetch('/api/admin/override-picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poolId,
+          participantId,
+          week: weekInfo.week,
+          seasonType: weekInfo.seasonType,
+          overrideMode: 'insert',
+          overrideReason: overrideReason.trim(),
+          adminId: user.id,
+          gameId: newPickData.gameId,
+          predictedWinner: newPickData.predictedWinner,
+          confidencePoints: newPickData.confidencePoints,
+        }),
       });
-      if (error) { toast({ title: 'Error', description: 'Failed to submit pick', variant: 'destructive' }); return; }
-      if (selectedWeek) await loadPicks(parseInt(selectedWeek), parseInt(selectedSeasonType || '2'));
+      const result = await response.json();
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+        return;
+      }
+      await loadPicks(weekInfo.week, weekInfo.seasonType);
       setShowAddPickDialog(false);
       setSelectedParticipantForNewPick('');
       setNewPickData({ gameId: '', predictedWinner: '', confidencePoints: 1 });
+      setOverrideReason('');
       toast({ title: 'Success', description: 'Pick submitted successfully' });
     } catch {
       toast({ title: 'Error', description: 'Failed to submit pick', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
-  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, poolId, selectedWeek, selectedSeasonType, loadPicks, toast]);
+  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, overrideReason, poolId, weekInfo, user, loadPicks, toast]);
 
   const submitMondayNightScore = useCallback(async () => {
     if (!selectedParticipantForManagement || !mondayNightScore) {
@@ -332,6 +365,14 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
         </div>
       </div>
 
+      {/* Lock/inactive banner */}
+      {weekInfo && eligibility?.allowed === false && (
+        <div style={{ background: card, border: `1px solid oklch(50% 0.18 60 / 0.4)`, borderLeft: `3px solid ${amber}`, borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <AlertTriangle style={{ width: 16, height: 16, color: amber, flexShrink: 0 }} />
+          <p style={{ ...b, fontSize: '0.85rem', color: text }}>{eligibility.reason}</p>
+        </div>
+      )}
+
       {/* Participant management */}
       {weekInfo && (
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
@@ -376,7 +417,8 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => setShowAddPickDialog(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                    disabled={eligibility?.allowed === false}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: eligibility?.allowed === false ? textDim : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer' }}
                   >
                     <Edit style={{ width: 13, height: 13 }} />
                     {participantPicks.length > 0 ? 'Override Picks' : 'Add Picks'}
@@ -384,7 +426,8 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
                   {(weekInfo.isPeriodWeek || weekInfo.isSuperBowl) && (
                     <button
                       onClick={() => setShowMondayNightDialog(true)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      disabled={eligibility?.allowed === false}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer', opacity: eligibility?.allowed === false ? 0.5 : 1 }}
                     >
                       <Target style={{ width: 13, height: 13 }} />
                       Monday Night Score
@@ -496,9 +539,18 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
                 style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
               />
             </div>
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Reason for Override</Label>
+              <Input
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="e.g., Participant emailed their pick before kickoff"
+                style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.875rem' }}
+              />
+            </div>
           </div>
           <DialogFooter style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-            <button onClick={() => setShowAddPickDialog(false)} style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button onClick={() => { setShowAddPickDialog(false); setOverrideReason(''); }} style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
               Cancel
             </button>
             <button onClick={submitNewPick} disabled={isSaving} style={{ padding: '0.5rem 0.9rem', background: isSaving ? textDim : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isSaving ? 'not-allowed' : 'pointer' }}>

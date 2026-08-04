@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Trophy, Users, TrendingUp, Edit, Calendar, BarChart3, Download, Settings,
-  Link2, Check, AlertTriangle,
+  Link2, Check, AlertTriangle, Target,
 } from 'lucide-react';
 import { ParticipantManagement } from '@/components/admin/participant-management';
 import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
@@ -12,7 +12,7 @@ import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
 import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
 import { PoolSettings } from '@/components/admin/pool-settings';
 import { ExportData } from '@/components/admin/export-data';
-import { debugError } from '@/lib/utils';
+import { debugError, getCurrentWeekLabel } from '@/lib/utils';
 
 // Design tokens (matches app-wide dark theme)
 const surface = 'oklch(17% 0.028 255)';
@@ -177,28 +177,47 @@ export function PoolWorkspace({
           </div>
           <div>
             <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
-            <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>{currentWeek}</p>
+            <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>
+              {getCurrentWeekLabel({ seasonType: currentSeasonType, week: currentWeek, poolIsActive: isActive ?? true })}
+            </p>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div>
               <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Picks Page</p>
-              <button
-                onClick={handleCopyPicksLink}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.3rem 0.65rem',
-                  background: linkCopied ? 'oklch(46% 0.14 155 / 0.15)' : 'transparent',
-                  color: linkCopied ? greenHi : textMid,
-                  border: `1px solid ${linkCopied ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
-                  borderRadius: 5, cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-                }}
-              >
-                {linkCopied
-                  ? <><Check style={{ width: 11, height: 11 }} /> Copied!</>
-                  : <><Link2 style={{ width: 11, height: 11 }} /> Copy Link</>}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={() => router.push(`/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.3rem 0.65rem',
+                    background: green,
+                    color: text,
+                    border: `1px solid ${green}`,
+                    borderRadius: 5, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  }}
+                >
+                  <Target style={{ width: 11, height: 11 }} /> Make Picks
+                </button>
+                <button
+                  onClick={handleCopyPicksLink}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.3rem 0.65rem',
+                    background: linkCopied ? 'oklch(46% 0.14 155 / 0.15)' : 'transparent',
+                    color: linkCopied ? greenHi : textMid,
+                    border: `1px solid ${linkCopied ? 'oklch(46% 0.14 155 / 0.4)' : border}`,
+                    borderRadius: 5, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  }}
+                >
+                  {linkCopied
+                    ? <><Check style={{ width: 11, height: 11 }} /> Copied!</>
+                    : <><Link2 style={{ width: 11, height: 11 }} /> Copy Link</>}
+                </button>
+              </div>
             </div>
             {isActive !== undefined && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

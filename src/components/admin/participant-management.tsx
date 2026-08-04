@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Trash2, Loader2, Search, Users, Download, Upload, Edit, Save, X, Mail, Check } from 'lucide-react';
+import { Trash2, Loader2, Search, Users, Download, Upload, Edit, Save, X, Mail, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getPoolParticipants, removeParticipantFromPool, addParticipantToPool, updateParticipantName } from '@/actions/adminActions';
 import { AddUserDialog } from './add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,8 @@ interface ParticipantManagementProps {
   poolName: string;
 }
 
+const PAGE_SIZE = 6;
+
 const btnBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
   padding: '0.4rem 0.85rem',
@@ -62,6 +64,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
   useEffect(() => { loadParticipants(); }, [poolId]);
@@ -73,6 +76,10 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
     );
     setFilteredParticipants(filtered);
   }, [participants, searchTerm]);
+
+  // Search changes narrow the result set — always land back on page 1
+  // rather than potentially showing an out-of-range empty page.
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
   const loadParticipants = async () => {
     setIsLoading(true);
@@ -205,6 +212,9 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   };
 
   const activeParticipants = filteredParticipants.filter(p => p.is_active);
+  const totalPages = Math.max(1, Math.ceil(activeParticipants.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedParticipants = activeParticipants.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -361,7 +371,7 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
       {/* ── Participant cards ── */}
       {!isLoading && activeParticipants.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.6rem' }}>
-          {activeParticipants.map(participant => {
+          {pagedParticipants.map(participant => {
             const isEditing = editingParticipant === participant.id;
             const isSelected = selectedParticipants.includes(participant.id);
 
@@ -474,6 +484,31 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Pagination ── */}
+      {!isLoading && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+          <button
+            style={{ ...btnGhost, opacity: safePage <= 1 ? 0.4 : 1, cursor: safePage <= 1 ? 'not-allowed' : 'pointer' }}
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+          >
+            <ChevronLeft style={{ width: 14, height: 14 }} />
+            Prev
+          </button>
+          <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>
+            Page {safePage} of {totalPages}
+          </span>
+          <button
+            style={{ ...btnGhost, opacity: safePage >= totalPages ? 0.4 : 1, cursor: safePage >= totalPages ? 'not-allowed' : 'pointer' }}
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+          >
+            Next
+            <ChevronRight style={{ width: 14, height: 14 }} />
+          </button>
         </div>
       )}
     </div>

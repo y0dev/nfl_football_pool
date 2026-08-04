@@ -70,7 +70,7 @@ function CommissionerDashboardContent() {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
-  const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string, season: number, season_scope?: number[]}>>([]);
+  const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string, season: number, season_scope?: number[], is_active?: boolean}>>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [importPicksOpen, setImportPicksOpen] = useState(false);
   const [selectedPoolForImport, setSelectedPoolForImport] = useState<{id: string, name: string} | null>(null);
@@ -692,6 +692,7 @@ function CommissionerDashboardContent() {
                 seasonScope={selectedPool.season_scope}
                 currentWeek={currentWeek}
                 currentSeasonType={currentSeasonType}
+                isActive={selectedPool.is_active}
                 onPoolDeleted={() => setSelectedPoolId('')}
               />
             </div>

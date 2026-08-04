@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminPlan } from '@/lib/plan';
+import { getAdminPlan, isTrialEligible } from '@/lib/plan';
 import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
 
 export async function GET(request: NextRequest) {
@@ -10,10 +10,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const planInfo = await getAdminPlan(adminId);
+    const [planInfo, trialEligible] = await Promise.all([
+      getAdminPlan(adminId),
+      isTrialEligible(adminId),
+    ]);
     return NextResponse.json({
       success: true,
       ...planInfo,
+      trialEligible,
       billing: {
         pricingVisible: isPricingVisible(),
         stripeEnabled: isStripeConfigured() && isPricingVisible(),

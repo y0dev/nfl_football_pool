@@ -1,6 +1,0 @@
-{
-  "cron": "*/30 * * * *",
-  "description": "For each active pool, once all games in a week/quarter/season are finished, computes scores and records the weekly/period/season winner. Skips anything already recorded.",
-  "function": "determine-weekly-winners",
-  "enabled": true
-}

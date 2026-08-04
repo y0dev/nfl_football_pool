@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Target, Users, Calendar, Edit, Shield, RefreshCw, LogOut } from 'lucide-react';
+import { ArrowLeft, Target, Users, Calendar, Edit, Shield, RefreshCw, LogOut, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth';
@@ -14,6 +15,7 @@ import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { useAuth } from '@/lib/auth';
 import { AppNav } from '@/components/layout/AppNav';
+import type { OverrideEligibility } from '@/lib/season-status';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -114,7 +116,9 @@ function OverridePicksContent() {
     predictedWinner: '',
     confidencePoints: 1
   });
+  const [overrideReason, setOverrideReason] = useState('');
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
+  const [eligibility, setEligibility] = useState<OverrideEligibility | null>(null);
 
   const loadPools = useCallback(async () => {
     try {
@@ -342,52 +346,56 @@ function OverridePicksContent() {
     }
   }, [toast]);
 
+  const loadEligibility = useCallback(async (poolId: string, week: number, seasonType: number) => {
+    try {
+      const response = await fetch(`/api/admin/override-eligibility?poolId=${poolId}&week=${week}&seasonType=${seasonType}`);
+      const result = await response.json();
+      setEligibility(result.success ? { allowed: result.allowed, reason: result.reason } : { allowed: true });
+    } catch {
+      setEligibility({ allowed: true });
+    }
+  }, []);
+
   const submitNewPick = useCallback(async () => {
     const participantId = selectedParticipantForNewPick || selectedParticipantForManagement;
-    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner) {
+    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner || !overrideReason.trim()) {
       toast({
         title: 'Error',
-        description: 'Please fill in all required fields',
+        description: 'Please fill in all required fields, including a reason',
         variant: 'destructive'
       });
       return;
     }
+    if (!weekInfo || !user?.id) return;
 
     setIsSaving(true);
     try {
-      const supabase = getSupabaseClient();
-      const serviceSupabase = getSupabaseServiceClient();
-      const client = serviceSupabase || supabase;
-
-      if (!client) {
-      toast({
-          title: 'Error',
-          description: 'Database connection not available',
-          variant: 'destructive'
+      const response = await fetch('/api/admin/override-picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poolId: selectedPool,
+          participantId,
+          week: weekInfo.week,
+          seasonType: weekInfo.seasonType,
+          overrideMode: 'insert',
+          overrideReason: overrideReason.trim(),
+          adminId: user.id,
+          gameId: newPickData.gameId,
+          predictedWinner: newPickData.predictedWinner,
+          confidencePoints: newPickData.confidencePoints,
+        }),
       });
-      return;
-    }
+      const result = await response.json();
 
-        const { error } = await client
-          .from('picks')
-          .insert({
-            participant_id: participantId,
-            pool_id: selectedPool,
-            game_id: newPickData.gameId,
-            predicted_winner: newPickData.predictedWinner,
-            confidence_points: newPickData.confidencePoints,
-            submitted_by: 'admin_override'
-          });
-
-      if (error) {
-        debugError('❌ Error submitting new pick:', error);
-      toast({
+      if (!result.success) {
+        toast({
           title: 'Error',
-          description: 'Failed to submit pick',
+          description: result.error,
           variant: 'destructive'
-      });
-      return;
-    }
+        });
+        return;
+      }
 
       if (selectedPool && selectedWeek && currentSeason) {
         await loadPicks(selectedPool, parseInt(selectedWeek), currentSeason, parseInt(selectedSeasonType || '2'));
@@ -400,6 +408,7 @@ function OverridePicksContent() {
         predictedWinner: '',
         confidencePoints: 1
       });
+      setOverrideReason('');
 
         toast({
         title: 'Success',
@@ -415,7 +424,7 @@ function OverridePicksContent() {
     } finally {
       setIsSaving(false);
     }
-  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, selectedPool, selectedWeek, currentSeason, selectedSeasonType, loadPicks, toast]);
+  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, overrideReason, selectedPool, selectedWeek, currentSeason, selectedSeasonType, weekInfo, user, loadPicks, toast]);
 
   const submitMondayNightScore = useCallback(async () => {
     if (!selectedParticipantForManagement || !mondayNightScore) {
@@ -546,13 +555,15 @@ function OverridePicksContent() {
       loadPicks(selectedPool, week, currentSeason, seasonType);
       loadAvailableGames(week, currentSeason, seasonType);
       loadAllParticipants(selectedPool);
+      loadEligibility(selectedPool, week, seasonType);
       } else {
       setWeekInfo(null);
       setPicks([]);
       setAvailableGames([]);
       setAllParticipants([]);
+      setEligibility(null);
     }
-  }, [selectedPool, selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadAllParticipants]);
+  }, [selectedPool, selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadAllParticipants, loadEligibility]);
 
   const selectedPoolData = pools.find(p => p.id === selectedPool);
 
@@ -724,6 +735,14 @@ function OverridePicksContent() {
             )}
           </div>
 
+          {/* Lock/inactive banner */}
+          {weekInfo && eligibility?.allowed === false && (
+            <div style={{ background: card, border: `1px solid oklch(50% 0.18 60 / 0.4)`, borderLeft: `3px solid ${amber}`, borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <AlertTriangle style={{ width: 16, height: 16, color: amber, flexShrink: 0 }} />
+              <p style={{ ...b, fontSize: '0.85rem', color: text }}>{eligibility.reason}</p>
+            </div>
+          )}
+
           {/* Participant Selection and Management */}
           {weekInfo && selectedPoolData && (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
@@ -778,13 +797,15 @@ function OverridePicksContent() {
                         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => setShowAddPickDialog(true)}
+                            disabled={eligibility?.allowed === false}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '0.4rem',
                               padding: '0.5rem 0.9rem',
-                              background: green, color: text,
+                              background: eligibility?.allowed === false ? textDim : green, color: text,
                               border: 'none', borderRadius: 6,
                               ...bc, fontWeight: 700, fontSize: '0.75rem',
-                              letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                              letterSpacing: '0.07em', textTransform: 'uppercase',
+                              cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer',
                             }}
                           >
                             <Edit style={{ width: 13, height: 13 }} />
@@ -794,13 +815,16 @@ function OverridePicksContent() {
                           {(weekInfo.isPeriodWeek || weekInfo.isSuperBowl) && (
                             <button
                               onClick={() => setShowMondayNightDialog(true)}
+                              disabled={eligibility?.allowed === false}
                               style={{
                                 display: 'flex', alignItems: 'center', gap: '0.4rem',
                                 padding: '0.5rem 0.9rem',
                                 background: 'transparent', color: textMid,
                                 border: `1px solid ${border}`, borderRadius: 6,
                                 ...bc, fontWeight: 700, fontSize: '0.75rem',
-                                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                                letterSpacing: '0.07em', textTransform: 'uppercase',
+                                cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer',
+                                opacity: eligibility?.allowed === false ? 0.5 : 1,
                               }}
                             >
                               <Target style={{ width: 13, height: 13 }} />
@@ -1004,11 +1028,24 @@ function OverridePicksContent() {
                 style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
               />
             </div>
+
+            {/* Reason */}
+            <div>
+              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Reason for Override
+              </Label>
+              <Input
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="e.g., Participant emailed their pick before kickoff"
+                style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.875rem' }}
+              />
+            </div>
           </div>
 
           <DialogFooter style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
             <button
-              onClick={() => setShowAddPickDialog(false)}
+              onClick={() => { setShowAddPickDialog(false); setOverrideReason(''); }}
               style={{
                 padding: '0.5rem 0.9rem',
                 background: 'transparent', color: textMid,

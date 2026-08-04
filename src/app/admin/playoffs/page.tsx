@@ -24,7 +24,7 @@ import {
   AlertTriangle,
   Shield
 } from 'lucide-react';
-import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear, debugError, createPageUrl} from '@/lib/utils';
+import { debugLog, NFL_TEAMS, MAX_WEEKS_REGULAR_SEASON, getNFLSeasonYear, debugError, createPageUrl, getPlayoffRoundName} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -66,13 +66,6 @@ interface PlayoffGame {
   status?: string;
   winner?: string | null;
 }
-
-const ROUND_NAMES: Record<number, string> = {
-  1: 'Wild Card',
-  2: 'Divisional Round',
-  3: 'Conference Championship',
-  4: 'Super Bowl'
-};
 
 const ROUND_GAME_COUNTS: Record<number, number> = {
   1: 6,
@@ -369,11 +362,11 @@ function PlayoffManagementContent() {
         setPendingRound(round);
         setConfirmDialogOpen(true);
       } else {
-        toast({ title: 'Info', description: `No new games to create for ${ROUND_NAMES[round]}.` });
+        toast({ title: 'Info', description: `No new games to create for ${getPlayoffRoundName(round)}.` });
       }
     } catch (error) {
       debugError(`Error fetching games for round ${round}:`, error);
-      toast({ title: 'Error', description: `Failed to fetch games for ${ROUND_NAMES[round]}: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: 'destructive' });
+      toast({ title: 'Error', description: `Failed to fetch games for ${getPlayoffRoundName(round)}: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: 'destructive' });
     } finally {
       setFetchingRoundGames(null);
     }
@@ -389,7 +382,7 @@ function PlayoffManagementContent() {
       });
       const saveData = await saveResponse.json();
       if (saveData.success) {
-        toast({ title: 'Success', description: `Successfully created ${pendingGames.length} game(s) for ${ROUND_NAMES[pendingRound]}.` });
+        toast({ title: 'Success', description: `Successfully created ${pendingGames.length} game(s) for ${getPlayoffRoundName(pendingRound)}.` });
         setConfirmDialogOpen(false);
         setPendingGames([]);
         setPendingRound(null);
@@ -492,7 +485,7 @@ function PlayoffManagementContent() {
     const expectedGames = ROUND_GAME_COUNTS[editingGame.week];
     const currentGamesForRound = getGamesByRound(editingGame.week);
     const willExceed = !editingGame.id && currentGamesForRound.length >= expectedGames;
-    if (willExceed && !confirm(`Warning: ${ROUND_NAMES[editingGame.week]} should have ${expectedGames} game(s), but you're adding a ${currentGamesForRound.length + 1}th game. Continue anyway?`)) return;
+    if (willExceed && !confirm(`Warning: ${getPlayoffRoundName(editingGame.week)} should have ${expectedGames} game(s), but you're adding a ${currentGamesForRound.length + 1}th game. Continue anyway?`)) return;
 
     const idChanged = originalGameId && editingGame.id && originalGameId !== editingGame.id;
     if (idChanged && editingGame.id) {
@@ -897,7 +890,7 @@ function PlayoffManagementContent() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{ ...bc, fontWeight: 800, fontSize: '0.88rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {ROUND_NAMES[round]}
+                            {getPlayoffRoundName(round)}
                           </span>
                           <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>Week {round}</span>
                           {!hasCorrectCount && <AlertCircle style={{ width: 14, height: 14, color: amber }} />}
@@ -1082,7 +1075,7 @@ function PlayoffManagementContent() {
               Configure game matchup
               {editingGame && !editingGame.id && (
                 <span style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.72rem' }}>
-                  Expected games for {ROUND_NAMES[editingGame.week]}: {ROUND_GAME_COUNTS[editingGame.week]}
+                  Expected games for {getPlayoffRoundName(editingGame.week)}: {ROUND_GAME_COUNTS[editingGame.week]}
                 </span>
               )}
             </DialogDescription>
@@ -1103,7 +1096,7 @@ function PlayoffManagementContent() {
                 <Select value={editingGame.week.toString()} onValueChange={(v) => { setEditingGame({ ...editingGame, week: parseInt(v) }); setSelectedRound(parseInt(v)); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(ROUND_NAMES).map(([week, name]) => <SelectItem key={week} value={week}>{name} (Week {week})</SelectItem>)}
+                    {[1, 2, 3, 4].map((week) => <SelectItem key={week} value={week.toString()}>{getPlayoffRoundName(week)} (Week {week})</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1190,7 +1183,7 @@ function PlayoffManagementContent() {
           <DialogHeader>
             <DialogTitle>Review Games Before Saving</DialogTitle>
             <DialogDescription>
-              Please review the {pendingGames.length} game(s) that will be created for {pendingRound ? ROUND_NAMES[pendingRound] : 'this round'}.
+              Please review the {pendingGames.length} game(s) that will be created for {pendingRound ? getPlayoffRoundName(pendingRound) : 'this round'}.
               Click &quot;Confirm &amp; Save&quot; to add them to the database, or &quot;Cancel&quot; to discard.
             </DialogDescription>
           </DialogHeader>

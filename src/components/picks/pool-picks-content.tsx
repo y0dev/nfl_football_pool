@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { GameCard } from '@/components/picks/game-card';
@@ -21,7 +21,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -112,16 +112,13 @@ function WeekNav({
   const nextDisabled = currentSeasonType >= maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
   const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
   // When a pool spans more than one season type (e.g. regular season +
-  // playoffs), list every week across all of them in one dropdown — marking
-  // where a new season type begins — instead of only the current type.
-  const weekOptions = scopeSorted.flatMap((seasonType, groupIndex) =>
-    Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => ({
-      week: i + 1,
-      seasonType,
-      isSeasonStart: i === 0 && groupIndex > 0,
-      seasonLabel: SEASON_TYPE_OPTIONS.find((o) => o.value === seasonType)?.label ?? '',
-    }))
-  );
+  // playoffs), group weeks under a section header per season type instead
+  // of listing every week in one flat, unlabeled list.
+  const weekGroups = scopeSorted.map((seasonType) => ({
+    seasonType,
+    label: SEASON_TYPE_OPTIONS.find((o) => o.value === seasonType)?.label ?? '',
+    weeks: Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => i + 1),
+  }));
   return (
     <div className="week-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
       <button className='week-nav-prev' onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>
@@ -144,18 +141,26 @@ function WeekNav({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {weekOptions.map(({ week, seasonType, isSeasonStart, seasonLabel }) => (
-            <SelectItem key={`${seasonType}-${week}`} value={`${seasonType}-${week}`}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>Week {week}</span>
-                {isSeasonStart && (
-                  <span
-                    title={`Start of ${seasonLabel}`}
-                    style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: amber, flexShrink: 0 }}
-                  />
-                )}
-              </div>
-            </SelectItem>
+          {weekGroups.map((group) => (
+            <SelectGroup key={group.seasonType}>
+              <SelectLabel>{group.label}</SelectLabel>
+              {group.weeks.map((week) => {
+                const isCurrent = week === upcomingWeek.week && group.seasonType === upcomingWeek.seasonType;
+                const itemLabel = group.seasonType === 3 ? getPlayoffRoundName(week) : `Week ${week}`;
+                return (
+                  <SelectItem key={`${group.seasonType}-${week}`} value={`${group.seasonType}-${week}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span>{itemLabel}</span>
+                      {isCurrent && (
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.05em', color: greenHi, textTransform: 'uppercase' }}>
+                          (Current Week)
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectGroup>
           ))}
         </SelectContent>
       </Select>
