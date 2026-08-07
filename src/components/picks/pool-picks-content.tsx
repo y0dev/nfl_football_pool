@@ -414,7 +414,12 @@ export function PoolPicksContent() {
                     winnerName: winner.participant_name,
                     winnerPoints: winner.total_points,
                     winnerCorrectPicks: winner.correct_picks,
-                    totalParticipants: result.totalParticipants || 0
+                    // /api/leaderboard's response has never included a
+                    // totalParticipants field — the previous `result.totalParticipants`
+                    // read was always undefined, so every weekly_winners row written
+                    // via this path silently recorded 0. The scored leaderboard array
+                    // length is the actual participant count.
+                    totalParticipants: result.leaderboard?.length || 0
                   }),
                 });
 

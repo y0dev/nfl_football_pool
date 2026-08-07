@@ -4,6 +4,9 @@
 // period_winners, or season_winners — see determine-weekly-winners for that.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { tryAcquireLock, releaseLock } from '../_shared/cron-lock.ts'
+
+const JOB_NAME = 'update-game-scores'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,16 +15,35 @@ const corsHeaders = {
 
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl'
 
+// Structured, single-line, secret-free logs — every field here is either an
+// id, a count, or a duration, never a key/token/credential.
+function log(event: string, fields: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ fn: 'update-game-scores', event, ...fields, ts: new Date().toISOString() }))
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  const startedAt = Date.now()
+  log('start')
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !supabaseServiceKey) {
+    log('error', { message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY', duration_ms: Date.now() - startedAt })
+    return jsonResponse({ success: false, error: 'Missing required environment configuration' }, 500)
+  }
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  const acquired = await tryAcquireLock(supabase, JOB_NAME)
+  if (!acquired) {
+    log('skipped_concurrent_run', { duration_ms: Date.now() - startedAt })
+    return jsonResponse({ success: true, skipped: true, reason: 'A previous run is still in progress' })
+  }
+
+  try {
     // Only fetch games that aren't finished yet, so completed games (and
     // anything derived from them downstream) are never re-touched here.
     const { data: openGames, error: openGamesError } = await supabase
@@ -33,8 +55,11 @@ serve(async (req) => {
     if (openGamesError) throw openGamesError
 
     if (!openGames || openGames.length === 0) {
+      log('complete', { checked: 0, updated: 0, reason: 'no_open_games', duration_ms: Date.now() - startedAt })
       return jsonResponse({ success: true, message: 'No open games to update', updated: 0, checked: 0 })
     }
+
+    log('open_games_loaded', { open_game_count: openGames.length })
 
     const openGameMap = new Map(openGames.map((g: any) => [g.id, g]))
 
@@ -45,6 +70,7 @@ serve(async (req) => {
     // just which ESPN events overlap our currently-open games.
     const { start, end } = dateWindow(3)
     const events = await fetchScoreboardEvents(start, end)
+    log('espn_events_fetched', { window_start: start, window_end: end, event_count: events.length })
 
     let updated = 0
     const now = new Date().toISOString()
@@ -81,6 +107,8 @@ serve(async (req) => {
       updated++
     }
 
+    log('complete', { checked: openGames.length, updated, duration_ms: Date.now() - startedAt })
+
     return jsonResponse({
       success: true,
       message: `Updated ${updated} of ${openGames.length} open games`,
@@ -89,8 +117,11 @@ serve(async (req) => {
       timestamp: now,
     })
   } catch (error) {
+    log('error', { message: (error as Error).message, duration_ms: Date.now() - startedAt })
     console.error('Error in update-game-scores function:', error)
     return jsonResponse({ success: false, error: (error as Error).message }, 500)
+  } finally {
+    await releaseLock(supabase, JOB_NAME)
   }
 })
 
