@@ -55,7 +55,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
     if (isMounted) {
       loadData();
     }
-  }, [isMounted, poolId, weekNumber, seasonType]);
+  }, [isMounted, poolId, weekNumber, seasonType, poolSeason]);
 
   const loadData = async () => {
     try {
@@ -70,7 +70,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
       setCurrentWeek(weekToUse);
 
       // Load users who haven't submitted picks for this specific pool, week, and season type
-      const availableUsers = await loadUsers(poolId, weekToUse, seasonType || 2);
+      const availableUsers = await loadUsers(poolId, weekToUse, seasonType || 2, poolSeason);
 
       // Ensure we have an array of users
       if (Array.isArray(availableUsers)) {

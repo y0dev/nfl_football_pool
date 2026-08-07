@@ -10,18 +10,18 @@ import { debugLog, DUMMY_PARTICIPANTS, isDummyData, debugError} from '@/lib/util
  * @returns An array of users
  * note: this is a client side function that is used to load users for a pool and week
  */
-export async function loadUsers(poolId?: string, week?: number, seasonType: number = 2) {
+export async function loadUsers(poolId?: string, week?: number, seasonType: number = 2, season?: number) {
   if (isDummyData()) {
     return DUMMY_PARTICIPANTS;
   }
   try {
     const supabase = getSupabaseServiceClient();
-    
+
     // If poolId and week are provided, exclude users who have already submitted picks
     if (poolId && week) {
       try {
         // Get participants who have already submitted picks for this week
-        const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week, seasonType);
+        const submittedParticipantIds = await getUsersWhoSubmitted(poolId, week, seasonType, season);
         
         // Query all participants for this specific pool
         const { data: allParticipants, error } = await supabase

@@ -1899,6 +1899,7 @@ export function PoolPicksContent() {
                           poolId={poolId}
                           weekNumber={currentWeek}
                           seasonType={currentSeasonType}
+                          poolSeason={poolSeason}
                           onUserSelected={handleUserSelected}
                         />
                       </div>
