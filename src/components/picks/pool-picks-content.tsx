@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -10,9 +11,6 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { GameCard } from '@/components/picks/game-card';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
-import { Leaderboard } from '@/components/leaderboard/leaderboard';
-import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
-import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
@@ -41,6 +39,19 @@ const purple  = 'oklch(65% 0.12 290)';
 const liveRed = 'oklch(62% 0.22 25)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+// Code-split — these only render behind the Results tab or a collapsed
+// "Show Season Standings" disclosure, never on the default make-picks view,
+// so they shouldn't be part of this route's initial client bundle.
+const dynamicLoadingPlaceholder = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1.5rem' }}>
+    <RefreshCw style={{ width: 16, height: 16, color: textDim, animation: 'spin 1s linear infinite' }} />
+    <span style={{ ...b, fontSize: '0.82rem', color: textDim }}>Loading standings…</span>
+  </div>
+);
+const Leaderboard = dynamic(() => import('@/components/leaderboard/leaderboard').then(m => m.Leaderboard), { ssr: false, loading: dynamicLoadingPlaceholder });
+const SeasonLeaderboard = dynamic(() => import('@/components/leaderboard/season-leaderboard').then(m => m.SeasonLeaderboard), { ssr: false, loading: dynamicLoadingPlaceholder });
+const QuarterLeaderboard = dynamic(() => import('@/components/leaderboard/quarter-leaderboard').then(m => m.QuarterLeaderboard), { ssr: false, loading: dynamicLoadingPlaceholder });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidUuid(value: string | undefined | null): value is string {
@@ -612,147 +623,128 @@ export function PoolPicksContent() {
       }
 
       let localPoolSeason = DEFAULT_POOL_SEASON;
+      // Set when the pool-metadata fetch below has already handled the
+      // response (notFound/error/closed-pool) and loadData should stop —
+      // checked once both promises below have settled, since the pool
+      // fetch's own early `return`s only exit its own IIFE, not loadData.
+      let stopLoading = false;
 
-      try {
-        const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
-        debugLog('Pool picks page: Fetching from API:', apiUrl);
+      // Pool metadata and admin-status are independent of each other (admin
+      // status only needs poolId + localStorage) — run them concurrently
+      // instead of strictly sequentially. Games+team-records still run
+      // after, since they need localPoolSeason from the pool fetch.
+      const poolFetchPromise = (async () => {
+        try {
+          const apiUrl = `/api/pools/${poolId}?week=${weekToUse}&seasonType=${seasonTypeToUse}`;
+          debugLog('Pool picks page: Fetching from API:', apiUrl);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        debugLog('Fetching pool information with URL:', apiUrl);
-        const response = await fetch(apiUrl, {
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' },
-        });
-        debugLog('API response for pool information:', response);
+          debugLog('Fetching pool information with URL:', apiUrl);
+          const response = await fetch(apiUrl, {
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+          });
+          debugLog('API response for pool information:', response);
 
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.pool) {
-            const pool = result.pool;
-            debugLog('Pool data:', pool);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.pool) {
+              const pool = result.pool;
+              debugLog('Pool data:', pool);
 
-            if (!pool.name || pool.name.trim() === '') {
-              notFound();
-              return;
-            }
+              if (!pool.name || pool.name.trim() === '') {
+                notFound();
+                stopLoading = true;
+                return;
+              }
 
-            const seasonValue = pool.season || DEFAULT_POOL_SEASON;
-            localPoolSeason = seasonValue;
-            setPoolName(pool.name);
-            setPoolSeason(seasonValue);
+              const seasonValue = pool.season || DEFAULT_POOL_SEASON;
+              localPoolSeason = seasonValue;
+              setPoolName(pool.name);
+              setPoolSeason(seasonValue);
 
-            const scope: number[] = (Array.isArray(pool.season_scope) && pool.season_scope.length > 0)
-              ? pool.season_scope
-              : [2];
-            setPoolSeasonScope(scope);
+              const scope: number[] = (Array.isArray(pool.season_scope) && pool.season_scope.length > 0)
+                ? pool.season_scope
+                : [2];
+              setPoolSeasonScope(scope);
 
-            if (!scope.includes(seasonTypeToUse)) {
-              const scopeSorted = [...scope].sort((a, b) => a - b);
-              seasonTypeToUse = scopeSorted[0];
-              weekToUse = 1;
-              setCurrentWeek(1);
-              setCurrentSeasonType(seasonTypeToUse);
-              router.replace(`/pool/${poolId}/picks?week=1&seasonType=${seasonTypeToUse}`, { scroll: false });
-              debugLog('Pool picks page: Season type clamped to scope', { scope, seasonTypeToUse });
-            }
+              if (!scope.includes(seasonTypeToUse)) {
+                const scopeSorted = [...scope].sort((a, b) => a - b);
+                seasonTypeToUse = scopeSorted[0];
+                weekToUse = 1;
+                setCurrentWeek(1);
+                setCurrentSeasonType(seasonTypeToUse);
+                router.replace(`/pool/${poolId}/picks?week=1&seasonType=${seasonTypeToUse}`, { scroll: false });
+                debugLog('Pool picks page: Season type clamped to scope', { scope, seasonTypeToUse });
+              }
 
-            if (!pool.is_active) {
-              setIsPoolClosed(true);
-              return;
-            }
+              if (!pool.is_active) {
+                setIsPoolClosed(true);
+                stopLoading = true;
+                return;
+              }
 
-            if (seasonTypeToUse === 3) {
-              try {
-                const confidenceResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonValue}`);
-                const confidenceData = await confidenceResponse.json();
+              if (seasonTypeToUse === 3) {
+                try {
+                  const confidenceResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${seasonValue}`);
+                  const confidenceData = await confidenceResponse.json();
 
-                if (confidenceData.success && !confidenceData.allSubmitted) {
-                  window.location.href = `/pool/${poolId}/playoffs`;
-                  return;
+                  if (confidenceData.success && !confidenceData.allSubmitted) {
+                    window.location.href = `/pool/${poolId}/playoffs`;
+                    stopLoading = true;
+                    return;
+                  }
+                } catch (error) {
+                  debugError('Error checking playoff confidence points:', error);
                 }
-              } catch (error) {
-                debugError('Error checking playoff confidence points:', error);
               }
-            }
 
-            setParticipantCount(pool.participant_count || 0);
-            setIsTestMode(pool.is_test_mode || false);
+              setParticipantCount(pool.participant_count || 0);
+              setIsTestMode(pool.is_test_mode || false);
 
-            if (pool.picks_status) {
-              setSubmittedCount(pool.picks_status.submittedCount || 0);
-            }
-          } else {
-            notFound();
-          }
-        } else {
-          const errorText = await response.text();
-          debugError('API response error:', response.status, errorText);
-
-          if (response.status === 404) {
-            notFound();
-          } else {
-            setError(`Failed to load pool information (${response.status}). Please try again.`);
-          }
-        }
-      } catch (error) {
-        debugError('Error loading pool:', error);
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-            setError('Request timed out. Please try again.');
-          } else if (error.message.includes('fetch failed')) {
-            setError('Network error: Unable to connect to the server. Please check your internet connection and try again.');
-          } else {
-            setError(`Failed to load pool information: ${error.message}`);
-          }
-        } else {
-          setError('Failed to load pool information. Please try again.');
-        }
-        return;
-      }
-
-      try {
-        // supabase.auth.getSession() only ever resolves for Google-OAuth
-        // sign-ins — password-based commissioner logins (loginUser.ts) never
-        // touch Supabase Auth at all, so that check silently never detects
-        // the majority of commissioners as signed in. localStorage's
-        // nfl-pool-user is the actual stable session record both paths
-        // write (see checkSession in src/lib/auth.tsx).
-        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
-        const localUser: { id?: string; email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
-
-        if (localUser?.id) {
-          // Session user could be a super-admin or a commissioner — resolve
-          // via the same server-side check AdminGuard uses rather than
-          // querying either table directly from the client.
-          const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
-          const data = await res.json();
-
-          if (data.success && data.isAdmin) {
-            setIsAdmin(true);
-            setIsSuperAdmin(data.isSuperAdmin);
-
-            if (poolId) {
-              const { getSupabaseClient } = await import('@/lib/supabase');
-              const supabase = getSupabaseClient();
-              const { data: poolData } = await supabase
-                .from('pools')
-                .select('created_by')
-                .eq('id', poolId)
-                .single();
-
-              if (poolData && poolData.created_by === localUser.email) {
-                setIsPoolAdmin(true);
+              if (pool.picks_status) {
+                setSubmittedCount(pool.picks_status.submittedCount || 0);
               }
+            } else {
+              notFound();
+              stopLoading = true;
+            }
+          } else {
+            const errorText = await response.text();
+            debugError('API response error:', response.status, errorText);
+
+            if (response.status === 404) {
+              notFound();
+              stopLoading = true;
+            } else {
+              setError(`Failed to load pool information (${response.status}). Please try again.`);
+              stopLoading = true;
             }
           }
+        } catch (error) {
+          debugError('Error loading pool:', error);
+          if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+              setError('Request timed out. Please try again.');
+            } else if (error.message.includes('fetch failed')) {
+              setError('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+            } else {
+              setError(`Failed to load pool information: ${error.message}`);
+            }
+          } else {
+            setError('Failed to load pool information. Please try again.');
+          }
+          stopLoading = true;
         }
-      } catch (error) {
-        debugError('Error checking admin status:', error);
-      }
+      })();
+
+      await Promise.all([poolFetchPromise, checkAdminStatus(poolId)]);
+
+      if (stopLoading) return;
 
       try {
         debugLog('Pool picks page: Loading games for week:', weekToUse, 'season type:', seasonTypeToUse, 'season:', localPoolSeason);
@@ -889,15 +881,9 @@ export function PoolPicksContent() {
   }, [isPoolClosed]);
 
   useEffect(() => {
-    loadParticipantStats();
-    checkAdminPermissions();
-    checkWeekPicksStatus();
-  }, [poolId, currentWeek, currentSeasonType]);
-
-  useEffect(() => {
     checkUserSubmissionStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUser, poolId, currentWeek, currentSeasonType]);
+  }, [selectedUser, poolId, currentWeek, currentSeasonType, games]);
 
   const handleRefresh = async () => {
     setIsLoading(true);
@@ -948,7 +934,6 @@ export function PoolPicksContent() {
     }
 
     await loadData();
-    await loadParticipantStats();
     await checkUserSubmissionStatus();
 
     setSelectedUser(null);
@@ -993,8 +978,49 @@ export function PoolPicksContent() {
     }
   };
 
-  const loadParticipantStats = async () => {
-    debugLog('Participant stats loaded from API endpoint');
+  // Independent of pool metadata (only needs poolId + localStorage) — run
+  // concurrently with the pool-metadata fetch in loadData() rather than
+  // strictly after it.
+  const checkAdminStatus = async (targetPoolId: string) => {
+    try {
+      // supabase.auth.getSession() only ever resolves for Google-OAuth
+      // sign-ins — password-based commissioner logins (loginUser.ts) never
+      // touch Supabase Auth at all, so that check silently never detects
+      // the majority of commissioners as signed in. localStorage's
+      // nfl-pool-user is the actual stable session record both paths
+      // write (see checkSession in src/lib/auth.tsx).
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+      const localUser: { id?: string; email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+
+      if (localUser?.id) {
+        // Session user could be a super-admin or a commissioner — resolve
+        // via the same server-side check AdminGuard uses rather than
+        // querying either table directly from the client.
+        const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
+        const data = await res.json();
+
+        if (data.success && data.isAdmin) {
+          setIsAdmin(true);
+          setIsSuperAdmin(data.isSuperAdmin);
+
+          if (targetPoolId) {
+            const { getSupabaseClient } = await import('@/lib/supabase');
+            const supabase = getSupabaseClient();
+            const { data: poolData } = await supabase
+              .from('pools')
+              .select('created_by')
+              .eq('id', targetPoolId)
+              .single();
+
+            if (poolData && poolData.created_by === localUser.email) {
+              setIsPoolAdmin(true);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      debugError('Error checking admin status:', error);
+    }
   };
 
   const checkUserSubmissionStatus = async () => {
@@ -1004,28 +1030,17 @@ export function PoolPicksContent() {
     try {
       debugLog('Checking submission status for:', { participantId: selectedUser.id, poolId, currentWeek, currentSeasonType });
 
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-
-      const { data: gamesForWeek, error: gamesError } = await supabase
-        .from('games')
-        .select('id')
-        .eq('week', currentWeek)
-        .eq('season_type', currentSeasonType);
-
-      if (gamesError) {
-        debugError('Error fetching games for week:', gamesError);
-        return;
-      }
-
-      debugLog('Games for week:', { gamesForWeek, count: gamesForWeek?.length || 0 });
-
-      if (!gamesForWeek || gamesForWeek.length === 0) {
+      // Reuse the week's games already held in state (loaded by loadData())
+      // instead of re-querying Supabase for the same week/season_type.
+      if (games.length === 0) {
         debugLog('No games found for week, cannot check picks');
         return;
       }
 
-      const gameIds = gamesForWeek.map(g => g.id);
+      const gameIds = games.map(g => g.id);
+
+      const { getSupabaseServiceClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseServiceClient();
 
       const { data: picks, error: picksError } = await supabase
         .from('picks')
@@ -1049,14 +1064,6 @@ export function PoolPicksContent() {
     } catch (error) {
       debugError('Error checking submission status:', error);
     }
-  };
-
-  const checkWeekPicksStatus = async () => {
-    debugLog('Week picks status loaded from API endpoint');
-  };
-
-  const checkAdminPermissions = async () => {
-    debugLog('Admin permissions loaded from API endpoint');
   };
 
   const unlockParticipantPicks = async (participantId: string) => {
@@ -1095,7 +1102,6 @@ export function PoolPicksContent() {
       toast({ title: "Picks Unlocked", description: "Participant can now make new picks" });
       setHasSubmitted(prev => ({ ...prev, [participantId]: { submitted: false, name: '' } }));
       await checkUserSubmissionStatus();
-      await loadParticipantStats();
     } catch (error) {
       debugError('Error unlocking picks:', error);
       toast({ title: "Error", description: "Failed to unlock picks", variant: "destructive" });
@@ -1854,6 +1860,7 @@ export function PoolPicksContent() {
                             games={devDisplayGames}
                             preventGameLoading={true}
                             forceWeekUnlocked={forceWeekUnlocked}
+                            upcomingWeek={upcomingWeek}
                             onPicksSubmitted={handlePicksSubmitted}
                             onUserChangeRequested={handleUserChangeRequested}
                           />
