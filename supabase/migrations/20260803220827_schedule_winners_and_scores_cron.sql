@@ -13,6 +13,14 @@
 -- editor. The project ref (muvtenjtdzlwcwmzksxy) is already filled in below
 -- — only the service_role_key secret still needs to be substituted before
 -- running (see the REPLACE BEFORE RUNNING note just below).
+--
+-- Both Edge Functions authenticate callers via jsr:@supabase/server's
+-- withSupabase({ auth: 'secret' }) wrapper, which checks the secret
+-- (service-role) key on the `apikey` header — not `Authorization: Bearer`,
+-- which is what a JWT-based caller would use instead. This also requires
+-- each function's `verify_jwt` deploy setting to be false (see
+-- supabase/config.toml) so the platform's own JWT gate doesn't reject a
+-- secret-key caller before the function's own auth check ever runs.
 
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net with schema extensions;
@@ -39,7 +47,7 @@ select cron.schedule(
     url := 'https://muvtenjtdzlwcwmzksxy.supabase.co/functions/v1/determine-weekly-winners',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
+      'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
     ),
     body := '{}'::jsonb
   );
@@ -57,7 +65,7 @@ select cron.schedule(
     url := 'https://muvtenjtdzlwcwmzksxy.supabase.co/functions/v1/update-game-scores',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
+      'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
     ),
     body := '{}'::jsonb
   );

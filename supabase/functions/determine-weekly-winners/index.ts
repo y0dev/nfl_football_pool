@@ -14,16 +14,11 @@
 // — an empty-looking `weeks: []` used to be indistinguishable between "still
 // mid-season, nothing finished yet" (expected) and "something is actually
 // broken" (not expected). It's the former unless a status says otherwise.
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { withSupabase } from "jsr:@supabase/server@^1"
 import { tryAcquireLock, releaseLock } from '../_shared/cron-lock.ts'
 
 const JOB_NAME = 'determine-weekly-winners'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 const REGULAR_SEASON_TYPE = 2
 const SUPER_BOWL_SEASON_TYPE = 3
@@ -41,70 +36,62 @@ function log(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ fn: 'determine-weekly-winners', event, ...fields, ts: new Date().toISOString() }))
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+// auth: 'secret' — only callers presenting a real secret (service-role)
+// key on the `apikey` header can invoke this (pg_cron, another Edge
+// Function, or a manual admin test). Requires this function's `verify_jwt`
+// deploy setting to be false (see supabase/config.toml) — otherwise
+// Supabase's platform-level JWT check would reject a secret-key caller
+// before ctx.authMode ever gets evaluated. ctx.supabaseAdmin is a
+// pre-configured, RLS-bypassing client — no manual createClient() call or
+// env-var reads needed.
+export default {
+  fetch: withSupabase({ auth: 'secret' }, async (_req, ctx) => {
+    const supabase = ctx.supabaseAdmin
+    const startedAt = Date.now()
+    log('start')
 
-  const startedAt = Date.now()
-  log('start')
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !supabaseServiceKey) {
-    log('error', { message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY', duration_ms: Date.now() - startedAt })
-    return jsonResponse({ success: false, error: 'Missing required environment configuration' }, 500)
-  }
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-  const acquired = await tryAcquireLock(supabase, JOB_NAME)
-  if (!acquired) {
-    log('skipped_concurrent_run', { duration_ms: Date.now() - startedAt })
-    return jsonResponse({ success: true, skipped: true, reason: 'A previous run is still in progress' })
-  }
-
-  try {
-    const { data: pools, error: poolsError } = await supabase
-      .from('pools')
-      .select('id, name, season, pool_type, tie_breaker_question, tie_breaker_answer')
-      .eq('is_active', true)
-
-    if (poolsError) throw poolsError
-
-    log('pools_loaded', { pool_count: pools?.length ?? 0 })
-
-    const summary: any[] = []
-    for (const pool of pools ?? []) {
-      summary.push(await processPool(supabase, pool))
+    const acquired = await tryAcquireLock(supabase, JOB_NAME)
+    if (!acquired) {
+      log('skipped_concurrent_run', { duration_ms: Date.now() - startedAt })
+      return Response.json({ success: true, skipped: true, reason: 'A previous run is still in progress' })
     }
 
-    const weeksCreated = summary.reduce((n, p) => n + p.weeks.filter((w: any) => w.status === 'created').length, 0)
-    const periodsCreated = summary.reduce((n, p) => n + p.periods.filter((pd: any) => pd.status === 'created').length, 0)
-    const seasonsCreated = summary.filter(p => p.season?.status === 'created').length
+    try {
+      const { data: pools, error: poolsError } = await supabase
+        .from('pools')
+        .select('id, name, season, pool_type, tie_breaker_question, tie_breaker_answer')
+        .eq('is_active', true)
 
-    log('complete', {
-      pool_count: summary.length,
-      weeks_created: weeksCreated,
-      periods_created: periodsCreated,
-      seasons_created: seasonsCreated,
-      duration_ms: Date.now() - startedAt,
-    })
+      if (poolsError) throw poolsError
 
-    return jsonResponse({ success: true, pools: summary.length, summary })
-  } catch (error) {
-    log('error', { message: (error as Error).message, duration_ms: Date.now() - startedAt })
-    console.error('Error in determine-weekly-winners function:', error)
-    return jsonResponse({ success: false, error: (error as Error).message }, 500)
-  } finally {
-    await releaseLock(supabase, JOB_NAME)
-  }
-})
+      log('pools_loaded', { pool_count: pools?.length ?? 0 })
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    status,
-  })
+      const summary: any[] = []
+      for (const pool of pools ?? []) {
+        summary.push(await processPool(supabase, pool))
+      }
+
+      const weeksCreated = summary.reduce((n, p) => n + p.weeks.filter((w: any) => w.status === 'created').length, 0)
+      const periodsCreated = summary.reduce((n, p) => n + p.periods.filter((pd: any) => pd.status === 'created').length, 0)
+      const seasonsCreated = summary.filter(p => p.season?.status === 'created').length
+
+      log('complete', {
+        pool_count: summary.length,
+        weeks_created: weeksCreated,
+        periods_created: periodsCreated,
+        seasons_created: seasonsCreated,
+        duration_ms: Date.now() - startedAt,
+      })
+
+      return Response.json({ success: true, pools: summary.length, summary })
+    } catch (error) {
+      log('error', { message: (error as Error).message, duration_ms: Date.now() - startedAt })
+      console.error('Error in determine-weekly-winners function:', error)
+      return Response.json({ success: false, error: (error as Error).message }, { status: 500 })
+    } finally {
+      await releaseLock(supabase, JOB_NAME)
+    }
+  }),
 }
 
 function nameOf(row: any): string {

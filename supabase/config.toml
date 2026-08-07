@@ -1,0 +1,19 @@
+# Supabase CLI project configuration.
+#
+# verify_jwt = false on both functions below: each authenticates its own
+# caller via jsr:@supabase/server's withSupabase({ auth: 'secret' }) wrapper
+# (checks the secret/service-role key on the `apikey` header). Leaving the
+# platform-level verify_jwt on would reject a secret-key caller (pg_cron,
+# a manual admin test) before that check ever runs, since a secret key is
+# not a JWT.
+#
+# Applies on deploy via `supabase functions deploy <name>` once the project
+# is linked (`supabase link --project-ref <ref>`) — this file is what the
+# CLI reads to configure that, it isn't applied automatically just by
+# existing in the repo until a deploy is run.
+
+[functions.determine-weekly-winners]
+verify_jwt = false
+
+[functions.update-game-scores]
+verify_jwt = false
