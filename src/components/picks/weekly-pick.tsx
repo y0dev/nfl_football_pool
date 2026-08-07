@@ -499,14 +499,13 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   };
 
-  // Validate picks
+  // Validate picks — every requirement below is derived from games.length
+  // (and which games actually have a pick), never a hardcoded count, so
+  // this scales correctly from a single-game week (e.g. the Hall of Fame
+  // Game) up through a full slate.
   const validatePicks = (): string[] => {
     const errors: string[] = [];
     const usedConfidencePoints = new Set<number>();
-    // For playoff mode, confidence_points can be 0 or any value (from playoff_confidence_points table)
-    const validPicks = isPlayoffMode
-      ? picks.filter(pick => pick.predicted_winner && pick.predicted_winner.trim() !== '')
-      : picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
 
     // Check if participant_id is set
     if (!selectedUser?.id || picks.some(pick => !pick.participant_id || pick.participant_id !== selectedUser.id)) {
@@ -514,12 +513,37 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       return errors;
     }
 
-    if (validPicks.length !== games.length) {
-      errors.push('Please make a pick for all games');
+    // Missing-winner and missing-confidence-point are reported separately
+    // (rather than one generic "make a pick for all games" message) so a
+    // user who already picked a winner but forgot the confidence point
+    // isn't told to redo work they've already done.
+    const missingWinner = games.filter(game => {
+      const pick = picks.find(p => p.game_id === game.id);
+      return !pick?.predicted_winner || pick.predicted_winner.trim() === '';
+    });
+    if (missingWinner.length > 0) {
+      errors.push(
+        missingWinner.length === 1
+          ? "You're missing a pick for 1 remaining game."
+          : `You're missing picks for ${missingWinner.length} remaining games.`
+      );
     }
 
     // For regular season only: validate confidence points uniqueness and sequentiality
     if (!isPlayoffMode) {
+      const missingConfidence = games.filter(game => {
+        const pick = picks.find(p => p.game_id === game.id);
+        return pick?.predicted_winner && pick.predicted_winner.trim() !== '' && !(pick.confidence_points > 0);
+      });
+      if (missingConfidence.length > 0) {
+        errors.push(
+          missingConfidence.length === 1
+            ? 'Please assign a confidence point to your remaining game.'
+            : `Please assign confidence points to your ${missingConfidence.length} remaining games.`
+        );
+      }
+
+      const validPicks = picks.filter(pick => pick.predicted_winner && pick.confidence_points > 0);
       validPicks.forEach(pick => {
         if (usedConfidencePoints.has(pick.confidence_points)) {
           errors.push(`Confidence point ${pick.confidence_points} is used multiple times`);
@@ -549,8 +573,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   
   const handleSelectTeam = (gameId: string, team: string) => {
+    // A single-game week (e.g. the Hall of Fame Game) has exactly one
+    // possible confidence value — requiring a separate click to assign the
+    // only value that could ever apply is pure friction, so assign it
+    // automatically the moment the winner is picked.
+    const isOnlyPossibleConfidenceValue = !isPlayoffMode && games.length === 1;
     const updatedPicks = picks.map(p =>
-      p.game_id === gameId ? { ...p, predicted_winner: team } : p
+      p.game_id === gameId
+        ? { ...p, predicted_winner: team, confidence_points: isOnlyPossibleConfidenceValue ? 1 : p.confidence_points }
+        : p
     );
     setPicks(updatedPicks);
     setHasUnsavedChanges(true);

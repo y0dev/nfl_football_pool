@@ -44,9 +44,9 @@ async function checkUserSubmission(participantId: string, poolId: string, week: 
   }
 }
 
-export async function getUsersWhoSubmitted(poolId: string, week: number, seasonType: number = 2) {
+export async function getUsersWhoSubmitted(poolId: string, week: number, seasonType: number = 2, season?: number) {
   try {
-    
+
     // Validate inputs
     if (!poolId || !week || week < 1) {
       debugLog('Invalid inputs provided to getUsersWhoSubmitted');
@@ -59,16 +59,22 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
       debugError('Invalid poolId format (not a UUID):', poolId);
       return [];
     }
-    
+
     const supabase = getSupabaseServiceClient();
-    
-    // First get the games for this week and season type
-    // For playoffs, only count games where teams have been determined (not empty team names)
-    const { data: games, error: gamesError } = await supabase
+
+    // First get the games for this week and season type. Week numbers reset
+    // every season, so without a season filter this blends unrelated years'
+    // games sharing the same week/season_type (e.g. every preseason's Hall
+    // of Fame Game is week 1/season_type 1) — a participant could then never
+    // be counted as "submitted" because one of the required game ids belongs
+    // to a past, unpickable season no one has (or ever will have) a pick for.
+    let gamesQuery = supabase
       .from('games')
       .select('id, away_team, home_team')
       .eq('week', week)
       .eq('season_type', seasonType);
+    if (season !== undefined) gamesQuery = gamesQuery.eq('season', season);
+    const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
       debugError('Error getting games for week:', gamesError);
