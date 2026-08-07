@@ -6,7 +6,6 @@ import {
   poolsTable,
   adminPoolsTable,
   participantsTable,
-  gamesTable,
   picksTable,
   scoresTable,
   tieBreakersTable,

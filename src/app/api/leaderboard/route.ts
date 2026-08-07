@@ -8,7 +8,6 @@ import {
   DUMMY_LEADERBOARD_REGULAR,
   getDummyLeaderboardPlayoffs,
   isDummyData, debugError} from '@/lib/utils';
-import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -129,16 +128,24 @@ export async function GET(request: NextRequest) {
     const playoffConfidencePointsMap = new Map<string, Record<string, number>>();
     
     if (isPlayoffSeasonType) {
-      for (const participant of participants) {
-        try {
-          const playoffPoints = await getPlayoffConfidencePoints(poolId, gameSeason, participant.id);
-          debugLog('Playoff confidence points for participant:', participant.id, playoffPoints);
-          if (playoffPoints) {
-            playoffConfidencePointsMap.set(participant.id, playoffPoints);
+      // One batched query instead of one round trip per participant.
+      const { data: allPlayoffPoints, error: playoffPointsError } = await supabase
+        .from('playoff_confidence_points')
+        .select('participant_id, team_name, confidence_points')
+        .eq('pool_id', poolId)
+        .eq('season', gameSeason)
+        .in('participant_id', participants.map(p => p.id));
+
+      if (playoffPointsError) {
+        debugError('Error loading playoff confidence points:', playoffPointsError);
+      } else {
+        allPlayoffPoints?.forEach(row => {
+          if (!playoffConfidencePointsMap.has(row.participant_id)) {
+            playoffConfidencePointsMap.set(row.participant_id, {});
           }
-        } catch (error) {
-          debugError(`Error loading playoff confidence points for participant ${participant.id}:`, error);
-        }
+          playoffConfidencePointsMap.get(row.participant_id)![row.team_name] = row.confidence_points;
+        });
+        debugLog('Playoff confidence points loaded (batched):', Object.fromEntries(playoffConfidencePointsMap));
       }
     }
 

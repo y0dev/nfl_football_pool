@@ -8,13 +8,17 @@
 // This is a Supabase Edge Function, so it can't import src/lib/winner-calculator.ts
 // directly — the logic below is a Deno-compatible port of it, using the same
 // tie-breaker rules (weeks-won, then Monday-night tie-breaker answer).
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+//
+// Every week/period/season entry in the response always carries a `status`
+// (and `reason` when nothing was written) instead of being silently omitted
+// — an empty-looking `weeks: []` used to be indistinguishable between "still
+// mid-season, nothing finished yet" (expected) and "something is actually
+// broken" (not expected). It's the former unless a status says otherwise.
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { withSupabase } from "jsr:@supabase/server@^1"
+import { tryAcquireLock, releaseLock } from '../_shared/cron-lock.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const JOB_NAME = 'determine-weekly-winners'
 
 const REGULAR_SEASON_TYPE = 2
 const SUPER_BOWL_SEASON_TYPE = 3
@@ -26,40 +30,68 @@ const QUARTERS: Record<number, { name: string; startWeek: number; endWeek: numbe
   18: { name: 'Q4', startWeek: 15, endWeek: 18 },
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+// Structured, single-line, secret-free logs — every field here is either an
+// id, a count, or a duration, never a key/token/credential.
+function log(event: string, fields: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ fn: 'determine-weekly-winners', event, ...fields, ts: new Date().toISOString() }))
+}
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+// auth: 'secret' — only callers presenting a real secret (service-role)
+// key on the `apikey` header can invoke this (pg_cron, another Edge
+// Function, or a manual admin test). Requires this function's `verify_jwt`
+// deploy setting to be false (see supabase/config.toml) — otherwise
+// Supabase's platform-level JWT check would reject a secret-key caller
+// before ctx.authMode ever gets evaluated. ctx.supabaseAdmin is a
+// pre-configured, RLS-bypassing client — no manual createClient() call or
+// env-var reads needed.
+export default {
+  fetch: withSupabase({ auth: 'secret' }, async (_req, ctx) => {
+    const supabase = ctx.supabaseAdmin
+    const startedAt = Date.now()
+    log('start')
 
-    const { data: pools, error: poolsError } = await supabase
-      .from('pools')
-      .select('id, name, season, pool_type, tie_breaker_question, tie_breaker_answer')
-      .eq('is_active', true)
-
-    if (poolsError) throw poolsError
-
-    const summary: any[] = []
-    for (const pool of pools ?? []) {
-      summary.push(await processPool(supabase, pool))
+    const acquired = await tryAcquireLock(supabase, JOB_NAME)
+    if (!acquired) {
+      log('skipped_concurrent_run', { duration_ms: Date.now() - startedAt })
+      return Response.json({ success: true, skipped: true, reason: 'A previous run is still in progress' })
     }
 
-    return jsonResponse({ success: true, pools: summary.length, summary })
-  } catch (error) {
-    console.error('Error in determine-weekly-winners function:', error)
-    return jsonResponse({ success: false, error: (error as Error).message }, 500)
-  }
-})
+    try {
+      const { data: pools, error: poolsError } = await supabase
+        .from('pools')
+        .select('id, name, season, pool_type, tie_breaker_question, tie_breaker_answer')
+        .eq('is_active', true)
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    status,
-  })
+      if (poolsError) throw poolsError
+
+      log('pools_loaded', { pool_count: pools?.length ?? 0 })
+
+      const summary: any[] = []
+      for (const pool of pools ?? []) {
+        summary.push(await processPool(supabase, pool))
+      }
+
+      const weeksCreated = summary.reduce((n, p) => n + p.weeks.filter((w: any) => w.status === 'created').length, 0)
+      const periodsCreated = summary.reduce((n, p) => n + p.periods.filter((pd: any) => pd.status === 'created').length, 0)
+      const seasonsCreated = summary.filter(p => p.season?.status === 'created').length
+
+      log('complete', {
+        pool_count: summary.length,
+        weeks_created: weeksCreated,
+        periods_created: periodsCreated,
+        seasons_created: seasonsCreated,
+        duration_ms: Date.now() - startedAt,
+      })
+
+      return Response.json({ success: true, pools: summary.length, summary })
+    } catch (error) {
+      log('error', { message: (error as Error).message, duration_ms: Date.now() - startedAt })
+      console.error('Error in determine-weekly-winners function:', error)
+      return Response.json({ success: false, error: (error as Error).message }, { status: 500 })
+    } finally {
+      await releaseLock(supabase, JOB_NAME)
+    }
+  }),
 }
 
 function nameOf(row: any): string {
@@ -92,6 +124,10 @@ async function processPool(supabase: any, pool: any) {
     .eq('season', pool.season)
   const seasonTypes = [...new Set((seasonTypeRows ?? []).map((r: any) => r.season_type))]
 
+  if (seasonTypes.length === 0) {
+    log('pool_no_games_for_season', { pool_id: pool.id, season: pool.season })
+  }
+
   for (const seasonType of seasonTypes) {
     const { data: weekRows } = await supabase
       .from('games')
@@ -101,19 +137,27 @@ async function processPool(supabase: any, pool: any) {
     const weeks = [...new Set((weekRows ?? []).map((r: any) => r.week))].sort((a: any, b: any) => a - b)
 
     for (const week of weeks) {
-      const result = await ensureWeekWinner(supabase, pool, week, seasonType)
-      if (result) weeksProcessed.push(result)
+      weeksProcessed.push(await ensureWeekWinner(supabase, pool, week, seasonType))
     }
 
     if (seasonType === REGULAR_SEASON_TYPE) {
       for (const quarterWeek of Object.keys(QUARTERS).map(Number)) {
         if (!weeks.includes(quarterWeek)) continue
-        const result = await ensurePeriodWinner(supabase, pool, quarterWeek)
-        if (result) periodsProcessed.push(result)
+        periodsProcessed.push(await ensurePeriodWinner(supabase, pool, quarterWeek))
       }
       seasonProcessed = await ensureSeasonWinner(supabase, pool)
     }
   }
+
+  const created = weeksProcessed.filter(w => w.status === 'created').length
+  log('pool_processed', {
+    pool_id: pool.id,
+    season: pool.season,
+    weeks_checked: weeksProcessed.length,
+    weeks_created: created,
+    periods_created: periodsProcessed.filter(p => p.status === 'created').length,
+    season_status: seasonProcessed?.status ?? 'not_regular_season',
+  })
 
   return { pool_id: pool.id, pool_name: pool.name, weeks: weeksProcessed, periods: periodsProcessed, season: seasonProcessed }
 }
@@ -121,33 +165,37 @@ async function processPool(supabase: any, pool: any) {
 // ---- Weekly winner ----
 
 async function ensureWeekWinner(supabase: any, pool: any, week: number, seasonType: number) {
+  const base = { week, season_type: seasonType }
+
   const { data: existing } = await supabase
     .from('weekly_winners')
     .select('id')
     .eq('pool_id', pool.id).eq('week', week).eq('season', pool.season).eq('season_type', seasonType)
     .maybeSingle()
-  if (existing) return null
+  if (existing) return { ...base, status: 'already_recorded' }
 
   const { data: games } = await supabase
     .from('games')
     .select('status, winner')
     .eq('week', week).eq('season', pool.season).eq('season_type', seasonType)
-  if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g))) return null
+  if (!games || games.length === 0) return { ...base, status: 'no_games' }
+  if (!games.every((g: any) => isGameFinished(g))) {
+    return { ...base, status: 'not_all_finished', games_finished: games.filter(isGameFinished).length, games_total: games.length }
+  }
 
   await computeAndSaveScores(supabase, pool.id, week, pool.season, seasonType)
 
   const winner = await calculateWeeklyWinner(supabase, pool, week, seasonType)
-  if (!winner) return null
+  if (!winner) return { ...base, status: 'no_scorable_picks' }
 
   const { error } = await supabase
     .from('weekly_winners')
     .upsert(winner, { onConflict: 'pool_id,week,season,season_type' })
   if (error) {
     console.error(`Failed to save weekly winner for pool ${pool.id} week ${week}:`, error)
-    return null
+    return { ...base, status: 'save_failed', reason: error.message }
   }
-  return { week, season_type: seasonType, winner: winner.winner_name }
+  return { ...base, status: 'created', winner: winner.winner_name }
 }
 
 async function computeAndSaveScores(supabase: any, poolId: string, week: number, season: number, seasonType: number) {
@@ -184,6 +232,7 @@ async function computeAndSaveScores(supabase: any, poolId: string, week: number,
   if (rows.length > 0) {
     const { error } = await supabase.from('scores').insert(rows)
     if (error) console.error(`Failed to insert scores for pool ${poolId} week ${week}:`, error)
+    else log('scores_saved', { pool_id: poolId, week, season, season_type: seasonType, rows: rows.length })
   }
 }
 
@@ -260,34 +309,37 @@ async function resolveTieBreaker(supabase: any, pool: any, week: number, seasonT
 
 async function ensurePeriodWinner(supabase: any, pool: any, quarterWeek: number) {
   const quarter = QUARTERS[quarterWeek]
-  if (!quarter) return null
+  const base = { period: quarter?.name ?? `week${quarterWeek}` }
+  if (!quarter) return { ...base, status: 'unknown_period' }
 
   const { data: existing } = await supabase
     .from('period_winners')
     .select('id')
     .eq('pool_id', pool.id).eq('season', pool.season).eq('period_name', quarter.name)
     .maybeSingle()
-  if (existing) return null
+  if (existing) return { ...base, status: 'already_recorded' }
 
   const { data: games } = await supabase
     .from('games')
     .select('status, winner')
     .eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
     .gte('week', quarter.startWeek).lte('week', quarter.endWeek)
-  if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g))) return null
+  if (!games || games.length === 0) return { ...base, status: 'no_games' }
+  if (!games.every((g: any) => isGameFinished(g))) {
+    return { ...base, status: 'not_all_finished', games_finished: games.filter(isGameFinished).length, games_total: games.length }
+  }
 
   const winner = await calculatePeriodWinner(supabase, pool, quarter)
-  if (!winner) return null
+  if (!winner) return { ...base, status: 'no_scorable_picks' }
 
   const { error } = await supabase
     .from('period_winners')
     .upsert(winner, { onConflict: 'pool_id,season,period_name' })
   if (error) {
     console.error(`Failed to save period winner for pool ${pool.id} ${quarter.name}:`, error)
-    return null
+    return { ...base, status: 'save_failed', reason: error.message }
   }
-  return { period: quarter.name, winner: winner.winner_name }
+  return { ...base, status: 'created', winner: winner.winner_name }
 }
 
 async function calculatePeriodWinner(supabase: any, pool: any, quarter: { name: string; startWeek: number; endWeek: number }) {
@@ -416,26 +468,28 @@ async function ensureSeasonWinner(supabase: any, pool: any) {
     .select('id')
     .eq('pool_id', pool.id).eq('season', pool.season)
     .maybeSingle()
-  if (existing) return null
+  if (existing) return { status: 'already_recorded' }
 
   const { data: games } = await supabase
     .from('games')
     .select('status, winner')
     .eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
-  if (!games || games.length === 0) return null
-  if (!games.every((g: any) => isGameFinished(g))) return null
+  if (!games || games.length === 0) return { status: 'no_games' }
+  if (!games.every((g: any) => isGameFinished(g))) {
+    return { status: 'not_all_finished', games_finished: games.filter(isGameFinished).length, games_total: games.length }
+  }
 
   const winner = await calculateSeasonWinner(supabase, pool)
-  if (!winner) return null
+  if (!winner) return { status: 'no_scorable_picks' }
 
   const { error } = await supabase
     .from('season_winners')
     .upsert(winner, { onConflict: 'pool_id,season' })
   if (error) {
     console.error(`Failed to save season winner for pool ${pool.id}:`, error)
-    return null
+    return { status: 'save_failed', reason: error.message }
   }
-  return { season: pool.season, winner: winner.winner_name }
+  return { status: 'created', winner: winner.winner_name }
 }
 
 async function calculateSeasonWinner(supabase: any, pool: any) {

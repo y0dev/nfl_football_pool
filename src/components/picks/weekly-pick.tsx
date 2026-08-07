@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { submitPicks } from '@/actions/submitPicks';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { isWeekUnlockedForPicks, getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { isWeekUnlockedForPicks, getUpcomingWeek, computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
 import { PickConfirmationDialog } from './pick-confirmation-dialog';
 import { MondayNightScoreInput } from './monday-night-score-input';
 import { userSessionManager } from '@/lib/user-session';
@@ -49,11 +49,15 @@ interface WeeklyPickProps {
   games?: Game[];
   preventGameLoading?: boolean;
   forceWeekUnlocked?: boolean;
+  /** Already-known "current/upcoming week" result — when provided alongside
+   * preventGameLoading+games, the unlock check is computed synchronously via
+   * computeWeekUnlockStatus instead of an async isWeekUnlockedForPicks call. */
+  upcomingWeek?: { week: number; seasonType: number };
   onPicksSubmitted?: () => void;
   onUserChangeRequested?: () => void;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, forceWeekUnlocked: propForceWeekUnlocked, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, forceWeekUnlocked: propForceWeekUnlocked, upcomingWeek, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -66,7 +70,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [isWeekUnlocked, setIsWeekUnlocked] = useState(false);
+  // null = not yet determined — must never be treated as "locked" by any
+  // consumer below. Starts null (rather than false) so the UI shows a
+  // neutral loading state instead of flashing the locked view before the
+  // real status is known.
+  const [isWeekUnlocked, setIsWeekUnlocked] = useState<boolean | null>(null);
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
   const devForceUnlockedRef = useRef(process.env.NEXT_PUBLIC_NODE_ENV === 'development');
@@ -104,16 +112,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
         debugLog('WeeklyPick: Using propGames, setting currentWeek to:', weekNumber || 1);
 
-        // Check if this week is unlocked for picks
-        const weekUnlocked = await isWeekUnlockedForPicks(weekNumber || 1, seasonType || 2);
-        setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
-
-        // Get unlock time if week is locked
-        if (!weekUnlocked && propGames && propGames.length > 0) {
-          const firstGameTime = new Date(propGames[0].kickoff_time);
-          const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
-          setUnlockTime(daysBeforeFirstGame.toLocaleString());
-        }
+        // Unlock status is computed by the dedicated effect below (keyed on
+        // games/currentWeek/seasonType) — not here, so it only runs once.
 
         // Initialize picks array with the provided games
         const initialPicks: Pick[] = propGames.map((game: Game) => ({
@@ -150,16 +150,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setGames(gamesData);
         debugLog('WeeklyPick: Games loaded:', gamesData);
 
-        // Check if this week is unlocked for picks
-        const weekUnlocked = await isWeekUnlockedForPicks(weekToUse, seasonTypeToUse);
-        setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
-
-        // Get unlock time if week is locked
-        if (!weekUnlocked && gamesData.length > 0) {
-          const firstGameTime = new Date(gamesData[0].kickoff_time);
-          const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
-          setUnlockTime(daysBeforeFirstGame.toLocaleString());
-        }
+        // Unlock status is computed by the dedicated effect below (keyed on
+        // games/currentWeek/seasonType) — not here, so it only runs once.
         debugLog('Selected user:', selectedUser);
         // Initialize picks array
         const initialPicks: Pick[] = gamesData.map((game: Game) => ({
@@ -312,36 +304,53 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [selectedUser, games, poolId, currentWeek, toast]);
 
-  // Check if week is unlocked for picks when games are loaded
+  // Check if week is unlocked for picks when games are loaded — the single
+  // source of truth for isWeekUnlocked (the loadData effect above no longer
+  // computes this itself, to avoid the same check firing twice per mount).
   useEffect(() => {
-    const checkWeekUnlocked = async () => {
-      if (games.length > 0 && currentWeek > 0) {
-        try {
-          debugLog('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
-          const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
-          debugLog('WeeklyPick: Week unlock result:', weekUnlocked);
-          setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
+    if (games.length === 0 || currentWeek <= 0) return;
 
-          // If week is locked, get unlock time
-          if (!weekUnlocked && games.length > 0) {
-            const firstGameTime = new Date(games[0].kickoff_time);
-            const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
-            setUnlockTime(daysBeforeFirstGame.toLocaleString());
-            debugLog('WeeklyPick: Week is locked, unlock time:', daysBeforeFirstGame.toLocaleString());
-          } else {
-            debugLog('WeeklyPick: Week is unlocked for picks');
-          }
-        } catch (error) {
-          debugError('Error checking week unlock status:', error);
-          // Default to unlocked if there's an error
-          setIsWeekUnlocked(true);
-          debugLog('WeeklyPick: Defaulting to unlocked due to error');
-        }
+    const applyUnlockResult = (weekUnlocked: boolean) => {
+      setIsWeekUnlocked(devForceUnlockedRef.current || weekUnlocked);
+
+      if (!weekUnlocked && games.length > 0) {
+        const firstGameTime = new Date(games[0].kickoff_time);
+        const daysBeforeFirstGame = new Date(firstGameTime.getTime() - (DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000));
+        setUnlockTime(daysBeforeFirstGame.toLocaleString());
+        debugLog('WeeklyPick: Week is locked, unlock time:', daysBeforeFirstGame.toLocaleString());
+      } else {
+        debugLog('WeeklyPick: Week is unlocked for picks');
+      }
+    };
+
+    // When the parent already knows both this week's games and the
+    // upcoming-week result (the Picks page's preventGameLoading usage),
+    // compute the answer synchronously — no network round trip, no async
+    // window where the UI has to guess "locked" before the real answer
+    // is known.
+    if (preventGameLoading && upcomingWeek) {
+      const weekUnlocked = computeWeekUnlockStatus(games, currentWeek, seasonType || 2, upcomingWeek);
+      debugLog('WeeklyPick: Week unlock result (sync):', weekUnlocked);
+      applyUnlockResult(weekUnlocked);
+      return;
+    }
+
+    const checkWeekUnlocked = async () => {
+      try {
+        debugLog('WeeklyPick: Checking if week is unlocked for picks:', currentWeek, 'season type:', seasonType);
+        const weekUnlocked = await isWeekUnlockedForPicks(currentWeek, seasonType || 2);
+        debugLog('WeeklyPick: Week unlock result:', weekUnlocked);
+        applyUnlockResult(weekUnlocked);
+      } catch (error) {
+        debugError('Error checking week unlock status:', error);
+        // Default to unlocked if there's an error
+        setIsWeekUnlocked(true);
+        debugLog('WeeklyPick: Defaulting to unlocked due to error');
       }
     };
 
     checkWeekUnlocked();
-  }, [games, currentWeek, seasonType]);
+  }, [games, currentWeek, seasonType, preventGameLoading, upcomingWeek]);
 
   // Auto-save picks to localStorage when picks change (backup mechanism)
   useEffect(() => {
@@ -365,7 +374,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Countdown timer for week unlock
   useEffect(() => {
-    if (!isWeekUnlocked && unlockTime) {
+    if (isWeekUnlocked === false && unlockTime) {
       const timer = setInterval(() => {
         const now = new Date();
         const unlockDate = new Date(unlockTime);
@@ -772,8 +781,23 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         </div>
       )}
 
+      {/* Neutral loading state while unlock status is still being determined
+          — must never render the locked banner/button before we actually
+          know the answer. */}
+      {isWeekUnlocked === null && (
+        <div style={{
+          background: surface,
+          border: `1px solid ${border}`,
+          borderRadius: 7,
+          padding: '0.75rem 1rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+        }}>
+          <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Checking picks availability for Week {currentWeek}…</span>
+        </div>
+      )}
+
       {/* Week locked warning */}
-      {!isWeekUnlocked && (
+      {isWeekUnlocked === false && (
         <div style={{
           background: 'oklch(72% 0.16 60 / 0.1)',
           border: '1px solid oklch(72% 0.16 60 / 0.4)',
@@ -900,7 +924,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
         {games.map((game) => {
           const pick = picks.find(p => p.game_id === game.id);
-          const isLocked = !isWeekUnlocked;
+          const isLocked = isWeekUnlocked !== true;
           const usedConfidencePoints = picks
             .filter(p => p.game_id !== game.id && p.confidence_points > 0)
             .map(p => p.confidence_points);
@@ -931,7 +955,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           onScoreChange={setMondayNightScore}
           isRequired={PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) || (seasonType === SUPER_BOWL_SEASON_TYPE && currentWeek === 4)}
           games={games}
-          isLocked={!isWeekUnlocked}
+          isLocked={isWeekUnlocked !== true}
         />
       )}
 
@@ -947,7 +971,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
             borderRadius: 5,
             width: '100%',
           }}>
-            <p>Debug: isLoading={isLoading.toString()}, isWeekUnlocked={isWeekUnlocked.toString()}</p>
+            <p>Debug: isLoading={isLoading.toString()}, isWeekUnlocked={String(isWeekUnlocked)}</p>
             <p>Selected User: {selectedUser?.id || 'None'}</p>
             <p>Picks Count: {picks.length}</p>
             <p>Valid Picks: {picks.filter(p => p.predicted_winner && p.confidence_points > 0).length}</p>
@@ -959,7 +983,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           <button
             type="button"
             onClick={generateRandomPicks}
-            disabled={isLoading || !isWeekUnlocked}
+            disabled={isLoading || isWeekUnlocked !== true}
             style={{
               padding: '0.6rem 1.5rem',
               background: 'oklch(65% 0.12 290 / 0.15)',
@@ -968,8 +992,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
               borderRadius: 6,
               ...bc, fontWeight: 700, fontSize: '0.78rem',
               letterSpacing: '0.06em', textTransform: 'uppercase',
-              cursor: (isLoading || !isWeekUnlocked) ? 'not-allowed' : 'pointer',
-              opacity: (isLoading || !isWeekUnlocked) ? 0.5 : 1,
+              cursor: (isLoading || isWeekUnlocked !== true) ? 'not-allowed' : 'pointer',
+              opacity: (isLoading || isWeekUnlocked !== true) ? 0.5 : 1,
               width: '100%',
             }}
           >
@@ -979,24 +1003,24 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
         <button
           onClick={handleSubmit}
-          disabled={isLoading || !isWeekUnlocked}
+          disabled={isLoading || isWeekUnlocked !== true}
           style={{
             padding: '0.75rem 2rem',
-            background: (isLoading || !isWeekUnlocked) ? 'oklch(26% 0.03 255)' : green,
-            color: (isLoading || !isWeekUnlocked) ? textDim : text,
-            border: `1px solid ${(isLoading || !isWeekUnlocked) ? border : green}`,
+            background: (isLoading || isWeekUnlocked !== true) ? 'oklch(26% 0.03 255)' : green,
+            color: (isLoading || isWeekUnlocked !== true) ? textDim : text,
+            border: `1px solid ${(isLoading || isWeekUnlocked !== true) ? border : green}`,
             borderRadius: 6,
             ...bc, fontWeight: 800, fontSize: '0.92rem',
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: (isLoading || !isWeekUnlocked) ? 'not-allowed' : 'pointer',
+            cursor: (isLoading || isWeekUnlocked !== true) ? 'not-allowed' : 'pointer',
             width: '100%',
             transition: 'all 0.12s',
           }}
         >
-          {isLoading ? 'Submitting...' : !isWeekUnlocked ? 'Week Locked' : 'Submit Picks'}
+          {isLoading ? 'Submitting...' : isWeekUnlocked === false ? 'Week Locked' : isWeekUnlocked === null ? 'Checking Week Status…' : 'Submit Picks'}
         </button>
 
-        {!isWeekUnlocked && unlockTime && (
+        {isWeekUnlocked === false && unlockTime && (
           <div style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <p>Picks will unlock on {unlockTime}</p>
             <p style={{ fontSize: '0.7rem' }}>You can make your selections now and submit when the week unlocks</p>
@@ -1009,7 +1033,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           </div>
         )}
 
-        {isWeekUnlocked && (
+        {isWeekUnlocked === true && (
           <div style={{ textAlign: 'center' }}>
             <p style={{ ...b, fontSize: '0.75rem', color: greenHi }}>✓ Week is unlocked — you can submit your picks</p>
           </div>

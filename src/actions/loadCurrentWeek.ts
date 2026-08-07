@@ -128,12 +128,66 @@ export async function hasWeekPickWindowOpened(weekNumber: number, seasonType: nu
   }
 }
 
+/**
+ * Pure decision logic for whether a week's picks are unlocked — factored out
+ * of isWeekUnlockedForPicks so a caller that already has `games` and the
+ * upcoming-week result loaded (e.g. the Picks page, which loads both before
+ * WeeklyPick ever mounts) can compute this synchronously instead of paying
+ * for a second, redundant set of DB round trips and an async race where the
+ * UI has to guess "locked" until the real answer resolves.
+ */
+export function computeWeekUnlockStatus(
+  games: Array<{ kickoff_time: string; status?: string | null }>,
+  weekNumber: number,
+  seasonType: number,
+  upcomingWeek: { week: number; seasonType: number } | null,
+  now: Date = new Date()
+): boolean {
+  if (!games || games.length === 0) {
+    // If no games found for this week, don't allow picks
+    return false;
+  }
+
+  const sortedGames = [...games].sort(
+    (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+  );
+
+  // Check if any games have already started
+  const hasStartedGames = sortedGames.some(game => {
+    const kickoffTime = new Date(game.kickoff_time);
+    return kickoffTime <= now || game.status !== 'scheduled';
+  });
+
+  if (hasStartedGames) {
+    // If any games have started, don't allow picks for this week
+    return false;
+  }
+
+  // Check if we're within 3 days of the first game
+  const firstGameTime = new Date(sortedGames[0].kickoff_time);
+  const timeUntilFirstGame = firstGameTime.getTime() - now.getTime();
+  const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+
+  if (timeUntilFirstGame > daysToKickoffInMs) {
+    // More than 3 days before the first game, don't allow picks
+    return false;
+  }
+
+  // Check if this is the upcoming week (closest future week)
+  if (upcomingWeek && upcomingWeek.week === weekNumber && upcomingWeek.seasonType === seasonType) {
+    // This is the upcoming week, allow picks
+    return true;
+  }
+
+  // Allow picks for any week within 3 days of kickoff
+  return timeUntilFirstGame <= daysToKickoffInMs && timeUntilFirstGame > 0;
+}
+
 // Function to determine if picks should be unlocked for a given week
 export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: number = 2): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
-    const now = new Date();
-    
+
     // Get all games for this specific week and season type
     const { data: games, error } = await supabase
       .from('games')
@@ -147,39 +201,10 @@ export async function isWeekUnlockedForPicks(weekNumber: number, seasonType: num
       return false;
     }
 
-    // Check if any games have already started
-    const hasStartedGames = games.some(game => {
-      const kickoffTime = new Date(game.kickoff_time);
-      return kickoffTime <= now || game.status !== 'scheduled';
-    });
-
-    if (hasStartedGames) {
-      // If any games have started, don't allow picks for this week
-      return false;
-    }
-
-    // Check if we're within 3 days of the first game
-    const firstGameTime = new Date(games[0].kickoff_time);
-    const timeUntilFirstGame = firstGameTime.getTime() - now.getTime();
-    const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-    
-    if (timeUntilFirstGame > daysToKickoffInMs) {
-      // More than 3 days before the first game, don't allow picks
-      return false;
-    }
-
-    // Check if this is the upcoming week (closest future week)
     const { getWeekForPicks } = await import('./getCurrentWeekFromGames');
     const upcomingWeek = await getWeekForPicks();
-    
-    if (upcomingWeek.week === weekNumber && upcomingWeek.seasonType === seasonType) {
-      // This is the upcoming week, allow picks
-      return true;
-    }
 
-    // Allow picks for any week within 3 days of kickoff
-    return timeUntilFirstGame <= daysToKickoffInMs && timeUntilFirstGame > 0;
-    
+    return computeWeekUnlockStatus(games, weekNumber, seasonType, upcomingWeek);
   } catch (error) {
     debugError('Error checking if week is unlocked for picks:', error);
     // Fallback to permissive behavior
