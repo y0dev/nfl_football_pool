@@ -7,11 +7,21 @@
 const LOCK_STALE_MS = 5 * 60 * 1000 // 5 minutes — comfortably longer than either job's expected runtime
 
 export async function tryAcquireLock(supabase: any, jobName: string): Promise<boolean> {
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('cron_run_locks')
     .select('locked_at')
     .eq('job_name', jobName)
     .maybeSingle()
+
+  // Errors here (e.g. the cron_run_locks table not existing yet) used to be
+  // silently swallowed, which made every call fall through to the upsert
+  // below, fail the same way, and report "A previous run is still in
+  // progress" — indistinguishable from genuine lock contention. Log it
+  // explicitly so the real cause shows up in `supabase functions logs`.
+  if (selectError) {
+    console.error(JSON.stringify({ event: 'lock_select_failed', job_name: jobName, error: selectError.message ?? String(selectError) }))
+    return false
+  }
 
   if (existing) {
     const age = Date.now() - new Date(existing.locked_at).getTime()
@@ -19,11 +29,16 @@ export async function tryAcquireLock(supabase: any, jobName: string): Promise<bo
     // else: stale lock from a crashed/killed run — safe to take over
   }
 
-  const { error } = await supabase
+  const { error: upsertError } = await supabase
     .from('cron_run_locks')
     .upsert({ job_name: jobName, locked_at: new Date().toISOString() }, { onConflict: 'job_name' })
 
-  return !error
+  if (upsertError) {
+    console.error(JSON.stringify({ event: 'lock_upsert_failed', job_name: jobName, error: upsertError.message ?? String(upsertError) }))
+    return false
+  }
+
+  return true
 }
 
 export async function releaseLock(supabase: any, jobName: string): Promise<void> {
