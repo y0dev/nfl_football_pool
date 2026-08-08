@@ -159,7 +159,7 @@ function LandingPage() {
   const commissionerSteps = [
     { n: '01', title: 'Create a Pool',    body: 'Register as a commissioner and set up your pool in minutes' },
     { n: '02', title: 'Invite Players',   body: 'Share your pool link — players join and submit picks each week' },
-    { n: '03', title: 'Run the Season',   body: 'Manage picks, unlock weeks, and crown winners all season long' },
+    { n: '03', title: 'Run the Season',   body: 'Weeks unlock automatically before kickoff — manage picks and crown winners all season long' },
   ];
 
   const playerSteps = [

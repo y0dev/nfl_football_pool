@@ -54,6 +54,10 @@ export const PERIOD_WEEKS = [4, 9, 14, 18] as const;
 // Super Bowl is in season_type 3 (playoffs)
 export const SUPER_BOWL_SEASON_TYPE = 3;
 
+// Preseason is season_type 1 — like playoffs, it numbers its own weeks
+// independently of the regular season and has no Q1-Q4 structure of its own.
+export const PRESEASON_SEASON_TYPE = 1;
+
 const TERMINAL_GAME_STATUSES = new Set(['final', 'finished', 'cancelled']);
 
 /**
@@ -106,19 +110,21 @@ export function getRegularSeasonPeriods(): PeriodDefinition[] {
 }
 
 /**
- * Week list for a named period. Playoffs number their own weeks
- * independently of the regular season (season_type 3, weeks 1-4 = the four
- * playoff rounds), so they're handled as a distinct case rather than a
- * regular-season period.
+ * Week list for a named period. Playoffs and preseason both number their own
+ * weeks independently of the regular season (season_type 3/1, weeks 1-4 =
+ * every round/week that season_type has), so both are a single combined
+ * period rather than split into Q1-Q4 the way the regular season is.
  */
 export function getPeriodWeeks(periodName: string, seasonType: number = 2): number[] {
   if (seasonType === SUPER_BOWL_SEASON_TYPE || periodName === 'Playoffs') return [1, 2, 3, 4];
+  if (seasonType === PRESEASON_SEASON_TYPE || periodName === 'Preseason') return [1, 2, 3, 4];
   return getRegularSeasonPeriods().find(p => p.name === periodName)?.weeks ?? [];
 }
 
 /** Which named period a given week falls into. */
 export function getPeriodNameForWeek(week: number, seasonType: number = 2): string {
   if (seasonType === SUPER_BOWL_SEASON_TYPE) return 'Playoffs';
+  if (seasonType === PRESEASON_SEASON_TYPE) return 'Preseason';
   const period = getRegularSeasonPeriods().find(p => week >= p.startWeek && week <= p.endWeek);
   return period?.name ?? 'Q4';
 }

@@ -554,7 +554,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.total_points - a.total_points);
     
     // Apply top 3 tie-breaker logic for period leaderboard
-    const tieBreakerResult = await applyTopThreeTieBreakerLogicForPeriod(leaderboard, poolId, parseInt(season), periodWeeks);
+    const tieBreakerResult = await applyTopThreeTieBreakerLogicForPeriod(leaderboard, poolId, parseInt(season), periodWeeks, seasonType);
     leaderboard = tieBreakerResult.finalEntries || tieBreakerResult;
     const tieBreakerInfo = tieBreakerResult.tieBreakerInfo || null;
     
@@ -734,7 +734,8 @@ async function applyTopThreeTieBreakerLogicForPeriod(
   entries: ParticipantData[],
   poolId: string,
   season: number,
-  periodWeeks: number[]
+  periodWeeks: number[],
+  seasonType: number = 2
 ): Promise<{ finalEntries: ParticipantData[]; tieBreakerInfo: {
   wasUsed: boolean;
   tieBreakerWeek: number | null;
@@ -797,7 +798,7 @@ async function applyTopThreeTieBreakerLogicForPeriod(
         .eq('pool_id', poolId)
         .eq('week', week)
         .eq('season', season)
-        .eq('season_type', 2) // Periods are always the regular season
+        .eq('season_type', seasonType)
         .in('participant_id', entries.slice(0, 4).map(e => e.participant_id));
 
       if (!error && weekTieBreakers && weekTieBreakers.length > 0) {

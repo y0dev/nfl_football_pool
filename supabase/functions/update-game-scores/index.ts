@@ -132,8 +132,13 @@ function dateWindow(days: number): { start: string; end: string } {
 
 async function fetchScoreboardEvents(start: string, end: string): Promise<any[]> {
   const url = `${ESPN_BASE}/scoreboard?dates=${start}-${end}`
+  console.log(`Fetching ESPN scoreboard events from ${url}`)
+  // Deliberately no custom User-Agent override — ESPN's WAF 403s a spoofed
+  // or app-identifying UA (confirmed: 'NFL-Confidence-Pool/1.0' and even a
+  // full browser UA both get blocked) but passes an honest, unmodified
+  // runtime default (Deno/*, curl/*). Don't "fix" this by adding one back.
   const response = await fetch(url, {
-    headers: { 'Accept': 'application/json', 'User-Agent': 'NFL-Confidence-Pool/1.0' },
+    headers: { 'Accept': 'application/json' },
   })
   if (!response.ok) {
     throw new Error(`ESPN API request failed: ${response.status} ${response.statusText}`)

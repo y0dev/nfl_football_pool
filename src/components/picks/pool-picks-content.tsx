@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -14,12 +14,12 @@ import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
-import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek, computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -72,13 +72,14 @@ function getPeriodNumber(seasonType: number, week: number): number {
   return 0;
 }
 
+// Was previously its own broken duplicate of the canonical
+// getPeriodWeeks(periodName, seasonType) in @/lib/utils — it checked
+// `seasonType === 1` (preseason) for the Q1-Q4 week-range split that was
+// clearly meant for `seasonType === 2` (regular season), so regular-season
+// callers always fell through to `return []`, and preseason wrongly got
+// split into quarters. Now delegates to the fixed canonical version.
 function getPeriodWeeks(seasonType: number, week: number): number[] {
-  if (seasonType === 1 && week <= 4) return [1, 2, 3, 4];
-  if (seasonType === 1 && week <= 9) return [5, 6, 7, 8, 9];
-  if (seasonType === 1 && week <= 14) return [10, 11, 12, 13, 14];
-  if (seasonType === 1 && week <= 18) return [15, 16, 17, 18];
-  if (seasonType === 3 && week <= 4) return [1, 2, 3, 4];
-  return [];
+  return getPeriodWeeksForPeriod(getPeriodNameForWeek(week, seasonType), seasonType);
 }
 
 function PicksNav({
@@ -232,6 +233,29 @@ export function PoolPicksContent() {
   const router = useRouter();
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+
+  // The real, persisted/derived source of truth for this week's state —
+  // deliberately separate from `showGameDetails`, which is only a view
+  // toggle (Game Details panel vs. the picks form) and was previously
+  // mislabeled "Unlock Week" as if it controlled this. There is no
+  // commissioner "unlock a week early" action anywhere in this app (picks
+  // unlock automatically, purely by kickoff-time proximity — see
+  // computeWeekUnlockStatus / isWeekUnlockedForPicks); this only reads that
+  // same real signal, plus the pool's actual active flag and the real
+  // game-data-driven weekEnded state, to answer "what's actually going on
+  // with this week" for display. Pure/sync — no extra network requests,
+  // since games/upcomingWeek/weekEnded/isPoolClosed are already loaded.
+  const weekState = useMemo((): 'pool_inactive' | 'season_complete' | 'ended' | 'locked' | 'unlocked' => {
+    if (isPoolClosed) return 'pool_inactive';
+    if (weekEnded) {
+      const scopeSorted = [...poolSeasonScope].sort((a, b) => a - b);
+      const maxScope = scopeSorted[scopeSorted.length - 1] ?? currentSeasonType;
+      const isFinalWeekOfPool = currentSeasonType === maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
+      return isFinalWeekOfPool ? 'season_complete' : 'ended';
+    }
+    if (games.length === 0) return 'locked';
+    return computeWeekUnlockStatus(games, currentWeek, currentSeasonType, upcomingWeek) ? 'unlocked' : 'locked';
+  }, [isPoolClosed, weekEnded, poolSeasonScope, currentSeasonType, currentWeek, games, upcomingWeek]);
 
   useEffect(() => {
     if (!poolName) return;
@@ -1452,13 +1476,31 @@ export function PoolPicksContent() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
             <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
             <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{seasonTypeNames[seasonTypeParam ? parseInt(seasonTypeParam) : 2] || 'Regular'}</span>
+            {(() => {
+              const badge = {
+                pool_inactive:   { text: 'Pool Inactive',    icon: LogOut,   color: textDim },
+                season_complete: { text: 'Season Complete',  icon: Trophy,   color: gold },
+                ended:           { text: 'Week Ended',       icon: Calendar, color: textMid },
+                locked:          { text: 'Locked',           icon: Lock,     color: amber },
+                unlocked:        { text: 'Unlocked',         icon: Unlock,   color: greenHi },
+              }[weekState];
+              const BadgeIcon = badge.icon;
+              return (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: badge.color, border: `1px solid ${border}` }}>
+                  <BadgeIcon style={{ width: 11, height: 11 }} /> {badge.text}
+                </span>
+              );
+            })()}
             {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
             {[
               { label: 'Share', icon: Share2, onClick: handleShare },
-              { label: showGameDetails ? 'Unlock Week' : 'Game Details', icon: showGameDetails ? Unlock : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
+              // Purely a view toggle (Game Details panel vs. the picks form)
+              // — never claims to "unlock" anything, since no such action
+              // exists; the real lock state is the badge above.
+              { label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),

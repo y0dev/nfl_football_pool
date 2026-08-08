@@ -56,15 +56,18 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
     [currentWeek, seasonType]
   );
 
-  // Playoffs number their own weeks and have no Q1-Q4 selector — the period
-  // is always just "Playoffs" there.
-  const periodName = seasonType === 3 ? 'Playoffs' : (selectedPeriod ?? defaultPeriodName);
+  // Playoffs and preseason both number their own weeks and have no Q1-Q4
+  // selector — the period is always a single combined "Playoffs" or
+  // "Preseason" there, never split into quarters.
+  const isSingleCombinedPeriod = seasonType === 3 || seasonType === 1;
+  const periodName = seasonType === 3 ? 'Playoffs' : seasonType === 1 ? 'Preseason' : (selectedPeriod ?? defaultPeriodName);
 
   // Load which periods are selectable (started, per the pool's current week)
   // — this is what makes every quarter reachable instead of only whichever
-  // one the shared page-level currentWeek happens to fall in.
+  // one the shared page-level currentWeek happens to fall in. Not needed for
+  // playoffs/preseason, which are always a single combined period.
   useEffect(() => {
-    if (seasonType === 3) return;
+    if (isSingleCombinedPeriod) return;
     const loadPeriods = async () => {
       try {
         const res = await fetch(`/api/periods/available?poolId=${poolId}&season=${season}&currentWeek=${currentWeek}&currentSeasonType=${seasonType}`);
@@ -102,7 +105,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
           weeks_won: e.weeks_won,
         })));
         const weeks = data?.data?.periodInfo?.weeks || [];
-        const label = seasonType === 3 ? 'Playoffs' : `Quarter ${periodName.replace('Q', '')}`;
+        const label = seasonType === 3 ? 'Playoffs' : seasonType === 1 ? 'Preseason' : `Quarter ${periodName.replace('Q', '')}`;
         if (seasonType === 3) {
           if (weeks.length > 0) {
             const roundLabels = weeks.map((w: number) => getPlayoffRoundName(w)).join(', ');
@@ -122,7 +125,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
     if (poolId && season) load();
   }, [poolId, season, periodName, seasonType]);
 
-  const selector = seasonType !== 3 && availablePeriods.length > 1 && (
+  const selector = !isSingleCombinedPeriod && availablePeriods.length > 1 && (
     <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <select
         value={periodName}
