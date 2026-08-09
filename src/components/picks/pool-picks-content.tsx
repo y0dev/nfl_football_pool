@@ -19,7 +19,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -256,6 +256,24 @@ export function PoolPicksContent() {
     if (games.length === 0) return 'locked';
     return computeWeekUnlockStatus(games, currentWeek, currentSeasonType, upcomingWeek) ? 'unlocked' : 'locked';
   }, [isPoolClosed, weekEnded, poolSeasonScope, currentSeasonType, currentWeek, games, upcomingWeek]);
+
+  // When locked, when it unlocks — derived from the same real kickoff data,
+  // not hardcoded. Only meaningful (and only computed) while weekState is
+  // actually 'locked'; games not started yet this early can't be relied on
+  // for anything else, so this only needs the earliest kickoff.
+  const unlockTime = useMemo(() => {
+    if (weekState !== 'locked' || games.length === 0) return null;
+    const earliestKickoff = games.reduce(
+      (earliest, g) => Math.min(earliest, new Date(g.kickoff_time).getTime()),
+      Infinity
+    );
+    if (!Number.isFinite(earliestKickoff)) return null;
+    const unlocksAt = new Date(earliestKickoff - DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000);
+    // Already past the unlock threshold but still computed as locked (e.g.
+    // a game already started/finished) — no future date to show.
+    if (unlocksAt.getTime() <= Date.now()) return null;
+    return unlocksAt;
+  }, [weekState, games]);
 
   useEffect(() => {
     if (!poolName) return;
@@ -1493,6 +1511,14 @@ export function PoolPicksContent() {
             })()}
             {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
+
+          {weekState === 'locked' && (
+            <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.4rem' }}>
+              {unlockTime
+                ? `Picks unlock ${unlockTime.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`
+                : `Picks aren't unlocked yet — they open ${DAYS_BEFORE_GAME} days before the first game's kickoff.`}
+            </p>
+          )}
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
             {[
