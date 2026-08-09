@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
 import { debugLog, DAYS_BEFORE_GAME, isDummyData, debugError} from '@/lib/utils';
+import { computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,68 +76,62 @@ export async function POST(request: NextRequest) {
     const isPlayoff = games && games.length > 0 && games[0].season_type === 3;
 
     const now = new Date();
-    
-    // Week is locked if:
-    // 1. First game is more than DAYS_BEFORE_GAME days away (too early to submit)
-    // 2. First game has already started
-    // 3. First game status is not 'scheduled' (finished, in progress, etc.)
-    // For playoff games, we're more lenient with the status check
-    const firstGame = games?.[0];
-    let weekIsLocked = false;
-    let daysToKickoff = 0;
-    let firstGameKickoff: Date | null = null;
-    
+
+    // Single source of truth for the unlock window (7 days before the
+    // FIRST kickoff, same rule for every season type) — this used to be a
+    // separate inline calculation that (a) read games?.[0] as "the first
+    // game" even though that query isn't ordered by kickoff_time, so with
+    // multiple games it could lock/unlock based on the wrong game, and
+    // (b) gave playoff weeks a more lenient rule (only locked once
+    // finished, skipping the 7-day window) that the client-side check
+    // never applied — a real client/server mismatch a participant could
+    // have exploited by calling this endpoint directly during that gap.
+    // computeWeekUnlockStatus sorts by kickoff_time itself and applies the
+    // same rule everywhere, matching what WeeklyPick already shows.
+    //
+    // Deliberately no dev-mode bypass here: the client's dev-only "force
+    // unlocked" toggle (weekly-pick.tsx) only ever affected what's
+    // *displayed* — the payload it sends this endpoint has always been
+    // identical regardless, so this check has always been the real
+    // gatekeeper in every environment. Giving it new dev-only leniency
+    // would be a behavior change beyond what's needed here, not a fix.
+    const sortedByKickoff = [...(games ?? [])].sort(
+      (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+    );
+    const firstGame = sortedByKickoff[0];
+    const weekIsLocked = !computeWeekUnlockStatus(sortedByKickoff, firstGame?.week ?? 0, firstGame?.season_type ?? 2, null, now);
+
     if (firstGame) {
-      firstGameKickoff = new Date(firstGame.kickoff_time);
-      daysToKickoff = (firstGameKickoff.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      
-      // Week is locked if:
-      // - More than DAYS_BEFORE_GAME days before kickoff (too early to submit)
-      // - Game has already started (past kickoff time)
-      // - For non-playoff games: Game status is not 'scheduled' (finished, in progress, etc.)
-      // - For playoff games: Only lock if game is finished or in progress (status is 'final' or 'in')
-      const gameStatus = firstGame.status.toLowerCase();
-      const gameHasStarted = firstGameKickoff <= now;
-      const gameIsFinished = gameStatus === 'final' || gameStatus === 'post';
-      
-      if (isPlayoff) {
-        // For playoff games, only lock if game has finished
-        weekIsLocked = gameIsFinished;
-      } else {
-        // For regular season, use the standard lock rules
-        weekIsLocked = daysToKickoff > DAYS_BEFORE_GAME || 
-                       gameHasStarted || 
-                       gameStatus !== 'scheduled';
-      }
-      
+      const daysToKickoffDebug = (new Date(firstGame.kickoff_time).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
       debugLog('Week lock check:', {
         firstGameId: firstGame.id,
-        kickoffTime: firstGameKickoff.toISOString(),
+        kickoffTime: firstGame.kickoff_time,
         currentTime: now.toISOString(),
-        daysToKickoff: daysToKickoff.toFixed(2),
+        daysToKickoff: daysToKickoffDebug.toFixed(2),
         daysBeforeGame: DAYS_BEFORE_GAME,
         weekIsLocked,
         isPlayoff,
         gameStatus: firstGame.status,
-        lockReason: isPlayoff ? (gameIsFinished ? 'Game finished' : 'Allowed') :
-                   daysToKickoff > DAYS_BEFORE_GAME ? 'Too early to submit' : 
-                   gameHasStarted ? 'Game started' : 
-                   gameStatus !== 'scheduled' ? 'Game not scheduled' : 'Unknown'
       });
     }
 
     if (weekIsLocked) {
+      const daysToKickoff = firstGame
+        ? (new Date(firstGame.kickoff_time).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
       let errorMessage = 'Week is locked - ';
-      if (isPlayoff) {
-        errorMessage += 'games have already finished';
+      if (!firstGame) {
+        errorMessage += 'no games found for this week';
       } else if (daysToKickoff > DAYS_BEFORE_GAME) {
         errorMessage += `picks can only be submitted within ${DAYS_BEFORE_GAME} days of the first game (currently ${daysToKickoff.toFixed(1)} days away)`;
-      } else if (firstGameKickoff && firstGameKickoff <= now) {
+      } else if (new Date(firstGame.kickoff_time) <= now) {
         errorMessage += 'games have already started';
-      } else if (firstGame && firstGame.status !== 'scheduled') {
+      } else if (firstGame.status?.toLowerCase() !== 'scheduled') {
         errorMessage += `game status is '${firstGame.status.toLowerCase()}' (not scheduled)`;
+      } else {
+        errorMessage += 'picks are not currently open for this week';
       }
-      
+
       return NextResponse.json(
         { success: false, error: errorMessage },
         { status: 400 }

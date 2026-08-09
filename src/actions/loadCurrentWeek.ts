@@ -166,7 +166,7 @@ export function computeWeekUnlockStatus(
   // Check if we're within 3 days of the first game
   const firstGameTime = new Date(sortedGames[0].kickoff_time);
   const timeUntilFirstGame = firstGameTime.getTime() - now.getTime();
-  const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+  const daysToKickoffInMs = DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000;
 
   if (timeUntilFirstGame > daysToKickoffInMs) {
     // More than 3 days before the first game, don't allow picks
