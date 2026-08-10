@@ -111,6 +111,19 @@ export async function POST(request: NextRequest) {
       automatic_tax: { enabled: true },
       customer_update: { address: 'auto', name: 'auto' },
       line_items: [{ price: priceId, quantity: qty }],
+      // Pricing is per-season, one-time — not a subscription (mode: 'payment'
+      // above already reflects that), but Stripe's hosted checkout page
+      // otherwise only shows whatever the Product's name/description happen
+      // to say, which depends on Stripe Dashboard config we can't verify
+      // from code. This puts the same fact directly on the payment page
+      // itself, right by the button where money actually changes hands.
+      custom_text: {
+        submit: {
+          message: product === 'addon_pool'
+            ? 'One-time payment covering this NFL season for each additional pool — no auto-renewal or subscription.'
+            : 'One-time payment covering this NFL season — no auto-renewal or subscription.',
+        },
+      },
       success_url: `${baseUrl}/upgrade?checkout=success`,
       cancel_url: `${baseUrl}/upgrade?checkout=cancelled`,
       metadata: { adminId, product, quantity: String(qty) },

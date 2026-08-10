@@ -1044,7 +1044,7 @@ class EmailService {
       </p>
       ${createInfoBox(`
         <strong>Order Summary</strong><br>
-        ${isStandard ? 'Standard plan (per season)' : `Add-on pool${quantity !== 1 ? 's' : ''}: ${quantity}`}<br>
+        ${isStandard ? 'Standard plan (per season)' : `Add-on pool${quantity !== 1 ? 's' : ''} (per season): ${quantity}`}<br>
         ${amount ? `Amount charged: ${amount}<br>` : ''}
         Date: ${new Date().toLocaleString()}
       `, 'success')}
