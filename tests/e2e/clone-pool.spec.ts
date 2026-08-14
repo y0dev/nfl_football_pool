@@ -209,8 +209,8 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
         .select('season, is_active')
         .eq('id', sourcePoolId)
         .single();
-      expect(originalPool.season).toBe(2020);
-      expect(originalPool.is_active).toBe(true);
+      expect(originalPool?.season).toBe(2020);
+      expect(originalPool?.is_active).toBe(true);
 
       const { count: originalPickCount } = await supabase
         .from('picks')

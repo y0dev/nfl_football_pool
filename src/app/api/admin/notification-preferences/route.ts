@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { callerOwnsAccount } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 export const NOTIFICATION_KEYS = ['pick_reminders', 'weekly_summaries', 'season_announcements', 'product_updates'] as const;
@@ -20,6 +21,10 @@ export async function POST(request: NextRequest) {
     const { adminId, preferences } = await request.json();
     if (!adminId || !preferences || typeof preferences !== 'object') {
       return NextResponse.json({ success: false, error: 'Missing adminId or preferences' }, { status: 400 });
+    }
+
+    if (!callerOwnsAccount(request, adminId)) {
+      return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
     }
 
     // Only accept known keys with boolean values — never trust arbitrary

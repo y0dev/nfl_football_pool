@@ -31,16 +31,17 @@ export function useAdminDomain(): AdminDomainResult {
   const callerEmail = user?.email ?? '';
 
   const load = useCallback(async () => {
+    if (!callerEmail) return;
     setIsLoading(true);
     try {
-      const data = await AdminDomainService.fetchAll();
+      const data = await AdminDomainService.fetchAll(callerEmail);
       setUsers(data);
     } catch {
       toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, callerEmail]);
 
   useEffect(() => { load(); }, [load]);
 

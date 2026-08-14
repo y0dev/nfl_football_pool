@@ -4,6 +4,24 @@ import { debugError, debugWarn } from '@/lib/utils';
 
 export async function DELETE(request: NextRequest) {
   try {
+    const adminEmail = request.headers.get('x-admin-email');
+    if (!adminEmail) {
+      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
+    }
+
+    const supabase = getSupabaseServiceClient();
+
+    const { data: currentAdmin } = await supabase
+      .from('admins')
+      .select('is_super_admin, is_active')
+      .eq('email', adminEmail)
+      .eq('is_active', true)
+      .single();
+
+    if (!currentAdmin?.is_super_admin) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const { adminId } = await request.json();
 
     if (!adminId) {
@@ -12,8 +30,6 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const supabase = getSupabaseServiceClient();
 
     // This route only ever targets commissioners — super-admin accounts
     // aren't managed through it.
