@@ -11,12 +11,26 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const providerError = searchParams.get('error');
 
-  console.log('[OAuth:callback] hit — origin:', origin, '| code:', code ? code.slice(0, 12) + '…' : 'MISSING');
+  console.log('[OAuth:callback] hit — origin:', origin, '| code:', code ? code.slice(0, 12) + '…' : 'MISSING', '| error:', providerError ?? 'none');
 
   if (!code) {
-    console.log('[OAuth:callback] no code → redirecting to /login?error=no-code');
-    return NextResponse.redirect(`${origin}/login?error=no-code`);
+    // 'access_denied' is what Google/Supabase send back when the user backs
+    // out of the account chooser or declines consent — that's not a
+    // failure, so it shouldn't produce an error banner (see Step 4/5 of the
+    // Google auth audit: cancelling must never surface a false auth error).
+    // Any other missing-code case (misconfigured provider, expired PKCE
+    // verifier, etc.) is a real failure and should say so rather than fail
+    // silently — the previous behavior mapped every missing-code case to an
+    // unhandled 'no-code' param that the login page never displayed.
+    const wasCancelled = providerError === 'access_denied';
+    const destination = request.cookies.get('oauth_intent')?.value === 'link' ? '/admin/account' : '/login';
+    const errorParam = wasCancelled ? '' : '?error=oauth-failed';
+    console.log(`[OAuth:callback] no code (${wasCancelled ? 'user cancelled' : 'real failure'}) → redirecting to ${destination}${errorParam}`);
+    const response = NextResponse.redirect(`${origin}${destination}${errorParam}`);
+    response.cookies.delete('oauth_intent');
+    return response;
   }
 
   // Capture cookies Supabase wants to set so we can apply them to the response

@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
+import type { NextRequest } from 'next/server';
 
 // Shared resolver for the handful of places that must find an account by
 // email or id without already knowing whether it belongs to a super-admin
@@ -80,4 +81,25 @@ export async function updateAccount(id: string, role: AccountRole, patch: Record
   const supabase = getSupabaseServiceClient();
   const table = role === 'super_admin' ? 'admins' : 'commissioners';
   return supabase.from(table).update(patch).eq('id', id);
+}
+
+// Self-service account routes (account-type, unlink-google, set-password,
+// change-password, notification-preferences, ...) take `adminId` as a plain
+// request parameter — that's fine for READING non-sensitive data scoped to
+// a page the client already knows its own id for, but every one of those
+// routes previously trusted it completely for WRITES too, with nothing
+// checking that the caller is actually signed in as that id. Any request
+// carrying someone else's adminId (leaked, guessed, or just typed into
+// devtools) could flip their google_linked flag, set a password on their
+// Google-only account, or read their auth state — a full account-takeover
+// path, not just an info leak. The one server-side fact that can't be
+// spoofed from the request body is the httpOnly sh-session cookie set at
+// login (src/actions/sessionCookie.ts for password login,
+// src/app/auth/callback/route.ts's buildSessionRedirect for OAuth) — so
+// self-service routes must check the caller's session actually IS the
+// account they're asking to modify, not just that the id resolves to some
+// active account.
+export function callerOwnsAccount(request: NextRequest, adminId: string): boolean {
+  const sessionId = request.cookies.get('sh-session')?.value;
+  return !!sessionId && sessionId === adminId;
 }

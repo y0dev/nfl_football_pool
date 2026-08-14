@@ -8,7 +8,7 @@ import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { requestEmailChange } from '@/actions/emailChange';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, ShieldCheck, Link2, Unlink, Bell } from 'lucide-react';
+import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, ShieldCheck, Link2, Unlink, Bell, Users, ArrowUpRight, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,6 +51,20 @@ const labelSt: React.CSSProperties = { ...bc, fontSize: '0.68rem', fontWeight: 7
 const inputSt: React.CSSProperties = { ...b, background: bg, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', fontSize: '0.875rem' };
 const cardSt: React.CSSProperties = { background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' };
 const sectionTitle: React.CSSProperties = { ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '1.25rem' };
+
+// Links to existing super-admin tools rather than duplicating that
+// functionality here — user management, commissioner accounts (which
+// already includes plan/subscription controls), and pools each have their
+// own full admin page. No standalone "participants" or "purchases" page
+// exists platform-wide (participants are viewed per-pool via Pools;
+// purchases are viewed per-commissioner via Commissioners) so those aren't
+// separate links.
+const ADMIN_LINKS = [
+  { href: '/admin/dashboard', label: 'Dashboard', desc: 'Huddles, pools, and the weekly overview' },
+  { href: '/admin/commissioners', label: 'Commissioners', desc: 'Commissioner accounts, plans, and subscriptions' },
+  { href: '/admin/manage-admins', label: 'Manage Admins', desc: 'Super admin user management' },
+  { href: '/admin/pools', label: 'Pools', desc: 'All pools and their participants' },
+];
 
 const SEASON_TYPES = [
   { value: 0, label: 'Offseason' },
@@ -217,6 +231,16 @@ function AccountSettingsContent() {
   // Google connect/disconnect
   const [googleActionLoading, setGoogleActionLoading] = useState(false);
 
+  // Development-only master-key password reset (see "Development Tools"
+  // card below) — never rendered or reachable outside NODE_ENV=development.
+  const [devMasterKey, setDevMasterKey] = useState('');
+  const [devNewPw, setDevNewPw] = useState('');
+  const [devConfirmPw, setDevConfirmPw] = useState('');
+  const [devResetLoading, setDevResetLoading] = useState(false);
+  const [devResetError, setDevResetError] = useState('');
+  const [devResetSuccess, setDevResetSuccess] = useState('');
+  const [devKeyStatus, setDevKeyStatus] = useState<{ configured: boolean; ageDays: number | null; stale: boolean } | null>(null);
+
   // Email change
   const [newEmail, setNewEmail] = useState('');
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
@@ -373,6 +397,46 @@ function AccountSettingsContent() {
     }
   };
 
+  const loadDevKeyStatus = () => {
+    if (!user?.email || !user.is_super_admin || process.env.NODE_ENV !== 'development') return;
+    fetch('/api/admin/dev-key-status', { headers: { 'x-admin-email': user.email } })
+      .then(r => r.json())
+      .then(d => { if (d.success) setDevKeyStatus({ configured: d.configured, ageDays: d.ageDays, stale: d.stale }); })
+      .catch(() => {});
+  };
+
+  useEffect(loadDevKeyStatus, [user?.email, user?.is_super_admin]);
+
+  const handleDevPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDevResetError('');
+    if (devNewPw !== devConfirmPw) { setDevResetError("Passwords don't match"); return; }
+    if (devNewPw.length < 8) { setDevResetError('Password must be at least 8 characters'); return; }
+    if (!user?.email) return;
+
+    setDevResetLoading(true);
+    try {
+      const res = await fetch('/api/admin/dev-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user.email },
+        body: JSON.stringify({ masterKey: devMasterKey, newPassword: devNewPw }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDevResetSuccess('Password updated successfully.');
+        setDevMasterKey(''); setDevNewPw(''); setDevConfirmPw('');
+        setTimeout(() => setDevResetSuccess(''), 5000);
+        if (data.warning) toast({ title: 'Rotate your dev key', description: data.warning });
+      } else {
+        setDevResetError(data.error || 'Failed to reset password');
+      }
+    } catch {
+      setDevResetError('An unexpected error occurred');
+    } finally {
+      setDevResetLoading(false);
+    }
+  };
+
   const handleRequestDeletion = async () => {
     if (!deleteConfirmed || !user) return;
     setDeleteLoading(true);
@@ -407,7 +471,7 @@ function AccountSettingsContent() {
         {/* Page title */}
         <div style={{ marginBottom: '2rem' }}>
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.63rem', letterSpacing: '0.28em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-            Commissioner
+            {user?.is_super_admin ? 'Super Admin' : 'Commissioner'}
           </p>
           <h1 style={{ ...bc, fontWeight: 900, fontSize: '2rem', color: text, textTransform: 'uppercase', letterSpacing: '0.03em', lineHeight: 1 }}>
             Account Settings
@@ -564,6 +628,121 @@ function AccountSettingsContent() {
             </div>
           )}
 
+          {/* Administration (super admin only) — quick links, not duplicated
+              functionality; see ADMIN_LINKS above for why these four. */}
+          {user?.is_super_admin && (
+            <div style={cardSt}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <Users style={{ width: 15, height: 15, color: greenHi }} />
+                <p style={sectionTitle}>Administration</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {ADMIN_LINKS.map(({ href, label, desc }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
+                      padding: '0.75rem 0.9rem', background: bg, border: `1px solid ${border}`, borderRadius: 8,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <div>
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>{label}</p>
+                      <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{desc}</p>
+                    </div>
+                    <ArrowUpRight style={{ width: 15, height: 15, color: textDim, flexShrink: 0 }} />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Development Tools (super admin only, dev environment only) —
+              server-side enforcement lives in
+              src/app/api/admin/dev-reset-password/route.ts (checks
+              NODE_ENV and a DEV_MASTER_KEY server env var independently of
+              this client-side gate, which is UX only, not the real
+              boundary). Visually separated from real account controls so
+              it's never mistaken for production functionality. */}
+          {user?.is_super_admin && process.env.NODE_ENV === 'development' && (
+            <div style={{ ...cardSt, borderColor: 'oklch(70% 0.16 70 / 0.5)', background: 'oklch(20% 0.03 255)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                <FlaskConical style={{ width: 15, height: 15, color: 'oklch(78% 0.16 70)' }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: 'oklch(78% 0.16 70)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+                  Development Tools
+                </p>
+              </div>
+              <p style={{
+                display: 'inline-block', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.14em',
+                color: 'oklch(78% 0.16 70)', textTransform: 'uppercase', padding: '0.2rem 0.5rem',
+                border: `1px solid oklch(70% 0.16 70 / 0.5)`, borderRadius: 999, marginBottom: '1rem',
+              }}>
+                Development Only
+              </p>
+
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.1rem', lineHeight: 1.5 }}>
+                Reset your own password using the server-side <code>DEV_MASTER_KEY</code>. This tool never renders and the endpoint always rejects outside a development environment, regardless of the key. Limited to 5 attempts per 15 minutes; every attempt is audit-logged (never the key or password).
+              </p>
+
+              {devKeyStatus && (
+                <p style={{
+                  ...b, fontSize: '0.76rem', marginBottom: '1.1rem', lineHeight: 1.5,
+                  color: !devKeyStatus.configured || devKeyStatus.stale ? 'oklch(72% 0.16 60)' : textDim,
+                }}>
+                  {!devKeyStatus.configured
+                    ? <>No <code>DEV_MASTER_KEY</code> configured — run <code>npm run generate-dev-key</code>.</>
+                    : devKeyStatus.ageDays === null
+                    ? <>Key rotation date unknown — run <code>npm run generate-dev-key</code> to record one.</>
+                    : devKeyStatus.stale
+                    ? <>Key is {devKeyStatus.ageDays} days old — consider running <code>npm run generate-dev-key</code> to rotate it.</>
+                    : <>Key rotated {devKeyStatus.ageDays} day{devKeyStatus.ageDays === 1 ? '' : 's'} ago.</>}
+                </p>
+              )}
+
+              <form onSubmit={handleDevPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={labelSt}>Master Key</label>
+                  <PasswordInput value={devMasterKey} onChange={setDevMasterKey} placeholder="DEV_MASTER_KEY value" autoComplete="off" />
+                </div>
+                <div>
+                  <label style={labelSt}>New Password</label>
+                  <PasswordInput value={devNewPw} onChange={setDevNewPw} placeholder="At least 8 characters" autoComplete="new-password" />
+                </div>
+                <div>
+                  <label style={labelSt}>Confirm Password</label>
+                  <PasswordInput value={devConfirmPw} onChange={setDevConfirmPw} placeholder="Repeat new password" autoComplete="new-password" />
+                </div>
+
+                {devResetError && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(62% 0.22 25 / 0.1)', border: `1px solid oklch(62% 0.22 25 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: errRed }}>{devResetError}</p>
+                  </div>
+                )}
+                {devResetSuccess && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>{devResetSuccess}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw}
+                  style={{
+                    padding: '0.65rem 1.25rem',
+                    background: devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw ? 'oklch(35% 0.05 70)' : 'oklch(55% 0.16 70)',
+                    color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw ? 'not-allowed' : 'pointer',
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  {devResetLoading ? 'Resetting…' : 'Reset Password'}
+                </button>
+              </form>
+            </div>
+          )}
+
           {/* Subscription — shared SubscriptionSummaryCard, same component
               the Dashboard used to render, so plan/usage numbers can never
               disagree between screens. Account-specific actions (Purchase
@@ -596,69 +775,71 @@ function AccountSettingsContent() {
             </div>
           )}
 
-          {/* Authentication — sign-in methods */}
-          {!user?.is_super_admin && (
-            <div style={cardSt}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                <ShieldCheck style={{ width: 15, height: 15, color: greenHi }} />
-                <p style={sectionTitle}>Authentication</p>
+          {/* Authentication — sign-in methods. Not gated to commissioners:
+              super-admins use the exact same account-type/connect/disconnect
+              endpoints (src/lib/accounts.ts resolves either table by role),
+              so this was previously just hidden from them with no way to
+              connect or even see their Google-link state. */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <ShieldCheck style={{ width: 15, height: 15, color: greenHi }} />
+              <p style={sectionTitle}>Authentication</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0.9rem', background: bg, border: `1px solid ${border}`, borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <Mail style={{ width: 15, height: 15, color: textDim }} />
+                  <div>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email</p>
+                    <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{user?.email}</p>
+                  </div>
+                </div>
+                <span style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: hasPassword ? greenHi : textDim, padding: '0.2rem 0.6rem', borderRadius: 999, background: hasPassword ? 'oklch(46% 0.14 155 / 0.12)' : 'transparent', border: hasPassword ? 'none' : `1px solid ${border}` }}>
+                  {hasPassword ? 'Active' : 'No password set'}
+                </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0.9rem', background: bg, border: `1px solid ${border}`, borderRadius: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <Mail style={{ width: 15, height: 15, color: textDim }} />
-                    <div>
-                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email</p>
-                      <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{user?.email}</p>
-                    </div>
-                  </div>
-                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: hasPassword ? greenHi : textDim, padding: '0.2rem 0.6rem', borderRadius: 999, background: hasPassword ? 'oklch(46% 0.14 155 / 0.12)' : 'transparent', border: hasPassword ? 'none' : `1px solid ${border}` }}>
-                    {hasPassword ? 'Active' : 'No password set'}
-                  </span>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0.9rem', background: bg, border: `1px solid ${border}`, borderRadius: 8, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    <div>
-                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Google</p>
-                      <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{googleLinked ? 'Connected' : 'Not connected'}</p>
-                    </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0.9rem', background: bg, border: `1px solid ${border}`, borderRadius: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  <div>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Google</p>
+                    <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>{googleLinked ? 'Connected' : 'Not connected'}</p>
                   </div>
-                  {googleLinked ? (
-                    <button
-                      onClick={handleDisconnectGoogle}
-                      disabled={googleActionLoading || !hasPassword}
-                      title={!hasPassword ? 'Create a password below first — an account needs at least one sign-in method' : undefined}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: !hasPassword ? textDim : errRed, border: `1px solid ${!hasPassword ? border : 'oklch(62% 0.22 25 / 0.4)'}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: googleActionLoading || !hasPassword ? 'not-allowed' : 'pointer' }}
-                    >
-                      <Unlink style={{ width: 11, height: 11 }} />
-                      {googleActionLoading ? 'Working…' : 'Disconnect'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConnectGoogle}
-                      disabled={googleActionLoading}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: googleActionLoading ? 'not-allowed' : 'pointer' }}
-                    >
-                      <Link2 style={{ width: 11, height: 11 }} />
-                      {googleActionLoading ? 'Redirecting…' : 'Connect'}
-                    </button>
-                  )}
                 </div>
-                {googleLinked && !hasPassword && (
-                  <p style={{ ...b, fontSize: '0.76rem', color: textDim, lineHeight: 1.5, margin: 0 }}>
-                    Create a password below to be able to disconnect Google — an account needs at least one sign-in method.
-                  </p>
+                {googleLinked ? (
+                  <button
+                    onClick={handleDisconnectGoogle}
+                    disabled={googleActionLoading || !hasPassword}
+                    title={!hasPassword ? 'Create a password below first — an account needs at least one sign-in method' : undefined}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: !hasPassword ? textDim : errRed, border: `1px solid ${!hasPassword ? border : 'oklch(62% 0.22 25 / 0.4)'}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: googleActionLoading || !hasPassword ? 'not-allowed' : 'pointer' }}
+                  >
+                    <Unlink style={{ width: 11, height: 11 }} />
+                    {googleActionLoading ? 'Working…' : 'Disconnect'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleConnectGoogle}
+                    disabled={googleActionLoading}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: googleActionLoading ? 'not-allowed' : 'pointer' }}
+                  >
+                    <Link2 style={{ width: 11, height: 11 }} />
+                    {googleActionLoading ? 'Redirecting…' : 'Connect'}
+                  </button>
                 )}
               </div>
+              {googleLinked && !hasPassword && (
+                <p style={{ ...b, fontSize: '0.76rem', color: textDim, lineHeight: 1.5, margin: 0 }}>
+                  Create a password below to be able to disconnect Google — an account needs at least one sign-in method.
+                </p>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Password */}
           <div style={cardSt}>

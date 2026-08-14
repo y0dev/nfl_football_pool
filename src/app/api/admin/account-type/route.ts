@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findAccountById } from '@/lib/accounts';
+import { findAccountById, callerOwnsAccount } from '@/lib/accounts';
 
 export async function GET(request: NextRequest) {
   const adminId = request.nextUrl.searchParams.get('adminId');
 
   if (!adminId) {
     return NextResponse.json({ success: false, error: 'Missing adminId' }, { status: 400 });
+  }
+
+  if (!callerOwnsAccount(request, adminId)) {
+    return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
   }
 
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findAccountById, updateAccount } from '@/lib/accounts';
+import { findAccountById, updateAccount, callerOwnsAccount } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Disconnects Google as a sign-in method. Requires the account to have a
@@ -11,6 +11,10 @@ export async function POST(request: NextRequest) {
     const { adminId } = await request.json();
     if (!adminId) {
       return NextResponse.json({ success: false, error: 'Missing adminId' }, { status: 400 });
+    }
+
+    if (!callerOwnsAccount(request, adminId)) {
+      return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
     }
 
     const account = await findAccountById(adminId, { activeOnly: true });

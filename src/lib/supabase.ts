@@ -1007,6 +1007,10 @@ CREATE TABLE IF NOT EXISTS admins (
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;
+-- Google auth (see supabase/migrations/20260813120000_add_google_linked_to_admins.sql
+-- and docs/database-schema-updates.md for why admins needs the same
+-- google_linked column commissioners already has):
+-- ALTER TABLE admins ADD COLUMN IF NOT EXISTS google_linked BOOLEAN NOT NULL DEFAULT false;
 -- Billing migration (full version in docs/stripe-billing-setup.md):
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS billing_exempt BOOLEAN NOT NULL DEFAULT false;
 -- ALTER TABLE admins ADD COLUMN IF NOT EXISTS addon_pools INTEGER NOT NULL DEFAULT 0;

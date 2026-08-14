@@ -14,8 +14,10 @@ async function apiFetch(endpoint: string, method: string, body: object, callerEm
 }
 
 export const AdminDomainService = {
-  async fetchAll(): Promise<AdminUser[]> {
-    const res = await fetch('/api/super-admin/admins');
+  async fetchAll(callerEmail: string): Promise<AdminUser[]> {
+    const res = await fetch('/api/super-admin/admins', {
+      headers: { 'X-Admin-Email': callerEmail },
+    });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Failed to load users');
     return AdminDomainMapper.toList(data.admins);

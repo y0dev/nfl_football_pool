@@ -403,3 +403,25 @@ now) are left in place rather than dropped, since dropping columns is
 harder to reverse than leaving unused nullable ones — a follow-up cleanup
 once the split is verified working, not bundled into the live cutover.
 `admin_pools` remains untouched dead code, same as every prior section.
+
+## `google_linked` on `admins`
+
+`commissioners` got a `google_linked BOOLEAN NOT NULL DEFAULT false` column
+when Google OAuth account-linking shipped (decoupled from `password_hash`'s
+`'google_oauth'` sentinel so an account can have both a real password and
+Google linked at once — see `src/lib/supabase.ts`'s `commissionersTable`
+comment). `admins` never got the same column, even though
+`src/app/auth/callback/route.ts` reads/writes `google_linked` generically
+for whichever table `src/lib/accounts.ts` resolves the caller to. Any
+Google sign-in/link/self-heal write against an `admins` row therefore fails
+with "column does not exist" — latent until audited, since super-admins are
+always created with a real password via script, never via Google
+self-registration.
+
+`supabase/migrations/20260813120000_add_google_linked_to_admins.sql` adds
+the column (`DEFAULT false`, additive) and backfills any admin row whose
+`password_hash` is still the `'google_oauth'` sentinel to `google_linked =
+true`. **Applied** — despite the commissioners-split section above saying
+this environment has no working DDL mechanism, `npx supabase db query "<sql>"
+--linked --project-ref <ref>` (Management API auth, no DB password needed)
+does work and was used to apply and verify this migration directly.

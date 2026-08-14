@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findAccountById, updateAccount } from '@/lib/accounts';
+import { findAccountById, updateAccount, callerOwnsAccount } from '@/lib/accounts';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
 
@@ -13,6 +13,10 @@ export async function POST(request: NextRequest) {
 
     if (newPassword.length < 8) {
       return NextResponse.json({ success: false, error: 'New password must be at least 8 characters' }, { status: 400 });
+    }
+
+    if (!callerOwnsAccount(request, adminId)) {
+      return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
     }
 
     const account = await findAccountById(adminId, { activeOnly: true });

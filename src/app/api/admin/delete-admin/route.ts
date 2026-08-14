@@ -5,6 +5,25 @@ import { debugLog, debugError, debugWarn} from '@/lib/utils';
 export async function DELETE(request: NextRequest) {
   try {
     debugLog('Delete admin started');
+
+    const adminEmail = request.headers.get('x-admin-email');
+    if (!adminEmail) {
+      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
+    }
+
+    const supabase = getSupabaseServiceClient();
+
+    const { data: currentAdmin } = await supabase
+      .from('admins')
+      .select('is_super_admin, is_active')
+      .eq('email', adminEmail)
+      .eq('is_active', true)
+      .single();
+
+    if (!currentAdmin?.is_super_admin) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const { adminId } = await request.json();
     debugLog('Delete admin data received:', { adminId });
 
@@ -17,8 +36,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServiceClient();
-    debugLog('Supabase service client created');
 
     // Despite the route name, this only ever deletes commissioners — kept
     // for backward compatibility with existing callers; new code should
