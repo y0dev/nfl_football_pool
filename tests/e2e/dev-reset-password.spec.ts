@@ -107,8 +107,71 @@ test.describe('POST /api/admin/dev-reset-password', () => {
       const matchesOld = await bcrypt.compare('old-dev-reset-password-1', row!.password_hash);
       expect(matchesNew).toBe(true);
       expect(matchesOld).toBe(false);
+
+      // Audit trail — outcome recorded, key/password never present anywhere in it
+      const { data: logs } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('action', 'dev_master_key_password_reset')
+        .eq('admin_id', admin.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      expect(logs?.[0]?.details?.outcome).toBe('success');
+      expect(JSON.stringify(logs)).not.toContain(process.env.DEV_MASTER_KEY);
+      expect(JSON.stringify(logs)).not.toContain('a-brand-new-dev-password-1');
     } finally {
       await cleanup(admin.id);
+    }
+  });
+
+  test('rate-limits repeated wrong-key attempts for the same caller', async ({ request }) => {
+    const admin = await seedSuperAdmin();
+    try {
+      let lastStatus = 0;
+      for (let i = 0; i < 6; i++) {
+        const res = await request.post('/api/admin/dev-reset-password', {
+          headers: { 'x-admin-email': admin.email },
+          data: { masterKey: 'wrong-key-attempt', newPassword: 'irrelevant123' },
+        });
+        lastStatus = res.status();
+      }
+      expect(lastStatus).toBe(429);
+
+      const { data: logs } = await supabase
+        .from('audit_logs')
+        .select('details')
+        .eq('action', 'dev_master_key_password_reset')
+        .eq('admin_id', admin.id);
+      expect(logs?.some(l => l.details?.outcome === 'invalid_key')).toBe(true);
+    } finally {
+      await cleanup(admin.id);
+    }
+  });
+});
+
+test.describe('GET /api/admin/dev-key-status', () => {
+  test('rejects with no x-admin-email header', async ({ request }) => {
+    const res = await request.get('/api/admin/dev-key-status');
+    expect(res.status()).toBe(401);
+  });
+
+  test('rejects a non-super-admin caller', async ({ request }) => {
+    const res = await request.get('/api/admin/dev-key-status', {
+      headers: { 'x-admin-email': COMMISSIONER_EMAIL },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('reports configured/age without ever exposing the key value', async ({ request }) => {
+    const res = await request.get('/api/admin/dev-key-status', {
+      headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(typeof body.configured).toBe('boolean');
+    if (process.env.DEV_MASTER_KEY) {
+      expect(JSON.stringify(body)).not.toContain(process.env.DEV_MASTER_KEY);
     }
   });
 });

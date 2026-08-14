@@ -239,6 +239,7 @@ function AccountSettingsContent() {
   const [devResetLoading, setDevResetLoading] = useState(false);
   const [devResetError, setDevResetError] = useState('');
   const [devResetSuccess, setDevResetSuccess] = useState('');
+  const [devKeyStatus, setDevKeyStatus] = useState<{ configured: boolean; ageDays: number | null; stale: boolean } | null>(null);
 
   // Email change
   const [newEmail, setNewEmail] = useState('');
@@ -396,6 +397,16 @@ function AccountSettingsContent() {
     }
   };
 
+  const loadDevKeyStatus = () => {
+    if (!user?.email || !user.is_super_admin || process.env.NODE_ENV !== 'development') return;
+    fetch('/api/admin/dev-key-status', { headers: { 'x-admin-email': user.email } })
+      .then(r => r.json())
+      .then(d => { if (d.success) setDevKeyStatus({ configured: d.configured, ageDays: d.ageDays, stale: d.stale }); })
+      .catch(() => {});
+  };
+
+  useEffect(loadDevKeyStatus, [user?.email, user?.is_super_admin]);
+
   const handleDevPasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setDevResetError('');
@@ -415,6 +426,7 @@ function AccountSettingsContent() {
         setDevResetSuccess('Password updated successfully.');
         setDevMasterKey(''); setDevNewPw(''); setDevConfirmPw('');
         setTimeout(() => setDevResetSuccess(''), 5000);
+        if (data.warning) toast({ title: 'Rotate your dev key', description: data.warning });
       } else {
         setDevResetError(data.error || 'Failed to reset password');
       }
@@ -670,8 +682,23 @@ function AccountSettingsContent() {
               </p>
 
               <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.1rem', lineHeight: 1.5 }}>
-                Reset your own password using the server-side <code>DEV_MASTER_KEY</code>. This tool never renders and the endpoint always rejects outside a development environment, regardless of the key.
+                Reset your own password using the server-side <code>DEV_MASTER_KEY</code>. This tool never renders and the endpoint always rejects outside a development environment, regardless of the key. Limited to 5 attempts per 15 minutes; every attempt is audit-logged (never the key or password).
               </p>
+
+              {devKeyStatus && (
+                <p style={{
+                  ...b, fontSize: '0.76rem', marginBottom: '1.1rem', lineHeight: 1.5,
+                  color: !devKeyStatus.configured || devKeyStatus.stale ? 'oklch(72% 0.16 60)' : textDim,
+                }}>
+                  {!devKeyStatus.configured
+                    ? <>No <code>DEV_MASTER_KEY</code> configured — run <code>npm run generate-dev-key</code>.</>
+                    : devKeyStatus.ageDays === null
+                    ? <>Key rotation date unknown — run <code>npm run generate-dev-key</code> to record one.</>
+                    : devKeyStatus.stale
+                    ? <>Key is {devKeyStatus.ageDays} days old — consider running <code>npm run generate-dev-key</code> to rotate it.</>
+                    : <>Key rotated {devKeyStatus.ageDays} day{devKeyStatus.ageDays === 1 ? '' : 's'} ago.</>}
+                </p>
+              )}
 
               <form onSubmit={handleDevPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
