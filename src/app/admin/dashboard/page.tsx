@@ -234,15 +234,21 @@ function AdminDashboardContent() {
   const gamesToggleSeeded = useRef(false);
 
   // Seed the games browser to "this week" once real season/week data loads, then
-  // leave it alone so manual toggling isn't fought by later re-renders.
+  // leave it alone so manual toggling isn't fought by later re-renders. Must
+  // wait for isLoading to clear — currentSeasonType defaults to 2 (Regular
+  // Season) before getUpcomingWeek() resolves (see the loadData effect
+  // above), and that default is truthy/non-zero just like a real value, so
+  // without this the one-time ref-guarded seed fired on that placeholder
+  // and permanently locked the games browser onto Regular Season regardless
+  // of the actual current phase (e.g. Preseason).
   useEffect(() => {
-    if (!gamesToggleSeeded.current && currentSeasonType && currentSeasonType !== 0) {
+    if (!gamesToggleSeeded.current && !isLoading && currentSeasonType && currentSeasonType !== 0) {
       gamesToggleSeeded.current = true;
       setGamesSeasonYear(currentSeason);
       setGamesSeasonType(currentSeasonType);
       setGamesWeek(currentWeek);
     }
-  }, [currentSeason, currentSeasonType, currentWeek]);
+  }, [currentSeason, currentSeasonType, currentWeek, isLoading]);
 
   useEffect(() => {
     const loadGamesForSeason = async () => {
