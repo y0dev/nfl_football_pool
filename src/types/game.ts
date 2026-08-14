@@ -34,6 +34,24 @@ export interface Game {
   away_team_record?: TeamRecord;
 }
 
+export type NormalizedGameStatus = 'scheduled' | 'live' | 'finished';
+
+// games.status is written as 'scheduled' | 'live' | 'finished' by the
+// current sync path (supabase/functions/update-game-scores/index.ts,
+// src/lib/nfl-api.ts), but older/other write paths left real rows with
+// 'Scheduled', 'final', 'Final', etc. still in the DB (confirmed: 219 rows
+// as of this audit are 'Final', not 'finished') — status display must not
+// do a strict/case-sensitive match against a single spelling, or it
+// silently mis-displays a real portion of games as still-scheduled instead
+// of final. This does not change what gets written, only how the existing
+// value space is interpreted for display.
+export function normalizeGameStatus(status: string | null | undefined): NormalizedGameStatus {
+  const s = status?.toLowerCase();
+  if (s === 'finished' || s === 'final' || s === 'post') return 'finished';
+  if (s === 'live' || s === 'in_progress' || s === 'in') return 'live';
+  return 'scheduled';
+}
+
 export interface Pick {
   participant_id: string;
   pool_id: string;

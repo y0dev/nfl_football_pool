@@ -13,6 +13,7 @@ import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { AppNav } from '@/components/layout/AppNav';
+import { normalizeGameStatus } from '@/types/game';
 
 interface Game {
   id: string;
@@ -20,8 +21,8 @@ interface Game {
   away_team: string;
   home_team_id?: string | number;
   away_team_id?: string | number;
-  home_score: number;
-  away_score: number;
+  home_score: number | null;
+  away_score: number | null;
   status: string;
   kickoff_time: string;
   winner: string;
@@ -110,8 +111,9 @@ function LandingPage() {
   };
 
   const getGameStatus = (game: Game) => {
-    if (game.status === 'finished') return 'Final';
-    if (game.status === 'live') return 'Live';
+    const status = normalizeGameStatus(game.status);
+    if (status === 'finished') return 'Final';
+    if (status === 'live') return 'Live';
     const kickoff = new Date(game.kickoff_time);
     const now = new Date();
     if (kickoff > now) {
@@ -127,7 +129,10 @@ function LandingPage() {
   };
 
   const getGameScore = (game: Game) => {
-    if (game.status === 'scheduled') return '';
+    if (normalizeGameStatus(game.status) === 'scheduled') return '';
+    // Live/finished games can still have a temporarily missing score (data
+    // lag) — don't render "undefined - undefined" in that case.
+    if (game.home_score == null || game.away_score == null) return '';
     return `${game.away_score} - ${game.home_score}`;
   };
 
@@ -413,7 +418,9 @@ function LandingPage() {
                   </div>
                 </div>
 
-                {validGames.map((game, idx) => (
+                {validGames.map((game, idx) => {
+                  const normStatus = normalizeGameStatus(game.status);
+                  return (
                   <div
                     key={game.id}
                     className="lp-game-row"
@@ -421,7 +428,7 @@ function LandingPage() {
                   >
                     {/* Status */}
                     <div className="lp-game-status">
-                      {game.status === 'live' ? (
+                      {normStatus === 'live' ? (
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
                           ...bc, fontWeight: 700, fontSize: '0.68rem',
@@ -433,7 +440,7 @@ function LandingPage() {
                           }} />
                           Live
                         </span>
-                      ) : game.status === 'finished' ? (
+                      ) : normStatus === 'finished' ? (
                         <span style={{
                           ...bc, fontWeight: 700, fontSize: '0.68rem',
                           letterSpacing: '0.13em', color: greenHi, textTransform: 'uppercase',
@@ -484,7 +491,8 @@ function LandingPage() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : currentSeasonType === 0 || games.length === 0 ? (
               <OffseasonBanner />

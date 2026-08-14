@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog, createPageUrl, debugError} from '@/lib/utils';
+import { debugLog, createPageUrl, debugError, getWeekTitle } from '@/lib/utils';
 import { Game } from '@/types/game';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
@@ -30,6 +30,7 @@ import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
 import { PlanBadge } from '@/components/billing/plan-badge';
 import { AppNav } from '@/components/layout/AppNav';
+import { WeekScoreboard } from '@/components/games/week-scoreboard';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -620,6 +621,16 @@ function CommissionerDashboardContent() {
                   All picks are now locked for Week {currentWeek}
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Week Games */}
+          {currentSeasonType !== 0 && games.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.14em', color: textDim, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+                {getWeekTitle(currentWeek, currentSeasonType)} Games
+              </p>
+              <WeekScoreboard games={games} />
             </div>
           )}
 

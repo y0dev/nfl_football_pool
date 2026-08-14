@@ -8,7 +8,7 @@ import { requestDeletionConfirmation } from '@/actions/accountDeletion';
 import { requestEmailChange } from '@/actions/emailChange';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, ShieldCheck, Link2, Unlink, Bell, Users, ArrowUpRight } from 'lucide-react';
+import { Eye, EyeOff, Trash2, KeyRound, User, Mail, Info, CreditCard, Calendar, Save, Receipt, ShieldCheck, Link2, Unlink, Bell, Users, ArrowUpRight, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 import { createPageUrl, getNFLSeasonYear, debugError } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -231,6 +231,15 @@ function AccountSettingsContent() {
   // Google connect/disconnect
   const [googleActionLoading, setGoogleActionLoading] = useState(false);
 
+  // Development-only master-key password reset (see "Development Tools"
+  // card below) — never rendered or reachable outside NODE_ENV=development.
+  const [devMasterKey, setDevMasterKey] = useState('');
+  const [devNewPw, setDevNewPw] = useState('');
+  const [devConfirmPw, setDevConfirmPw] = useState('');
+  const [devResetLoading, setDevResetLoading] = useState(false);
+  const [devResetError, setDevResetError] = useState('');
+  const [devResetSuccess, setDevResetSuccess] = useState('');
+
   // Email change
   const [newEmail, setNewEmail] = useState('');
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
@@ -384,6 +393,35 @@ function AccountSettingsContent() {
       setPwError('An unexpected error occurred');
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  const handleDevPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDevResetError('');
+    if (devNewPw !== devConfirmPw) { setDevResetError("Passwords don't match"); return; }
+    if (devNewPw.length < 8) { setDevResetError('Password must be at least 8 characters'); return; }
+    if (!user?.email) return;
+
+    setDevResetLoading(true);
+    try {
+      const res = await fetch('/api/admin/dev-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user.email },
+        body: JSON.stringify({ masterKey: devMasterKey, newPassword: devNewPw }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDevResetSuccess('Password updated successfully.');
+        setDevMasterKey(''); setDevNewPw(''); setDevConfirmPw('');
+        setTimeout(() => setDevResetSuccess(''), 5000);
+      } else {
+        setDevResetError(data.error || 'Failed to reset password');
+      }
+    } catch {
+      setDevResetError('An unexpected error occurred');
+    } finally {
+      setDevResetLoading(false);
     }
   };
 
@@ -605,6 +643,76 @@ function AccountSettingsContent() {
                   </Link>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Development Tools (super admin only, dev environment only) —
+              server-side enforcement lives in
+              src/app/api/admin/dev-reset-password/route.ts (checks
+              NODE_ENV and a DEV_MASTER_KEY server env var independently of
+              this client-side gate, which is UX only, not the real
+              boundary). Visually separated from real account controls so
+              it's never mistaken for production functionality. */}
+          {user?.is_super_admin && process.env.NODE_ENV === 'development' && (
+            <div style={{ ...cardSt, borderColor: 'oklch(70% 0.16 70 / 0.5)', background: 'oklch(20% 0.03 255)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                <FlaskConical style={{ width: 15, height: 15, color: 'oklch(78% 0.16 70)' }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: 'oklch(78% 0.16 70)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+                  Development Tools
+                </p>
+              </div>
+              <p style={{
+                display: 'inline-block', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.14em',
+                color: 'oklch(78% 0.16 70)', textTransform: 'uppercase', padding: '0.2rem 0.5rem',
+                border: `1px solid oklch(70% 0.16 70 / 0.5)`, borderRadius: 999, marginBottom: '1rem',
+              }}>
+                Development Only
+              </p>
+
+              <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '1.1rem', lineHeight: 1.5 }}>
+                Reset your own password using the server-side <code>DEV_MASTER_KEY</code>. This tool never renders and the endpoint always rejects outside a development environment, regardless of the key.
+              </p>
+
+              <form onSubmit={handleDevPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={labelSt}>Master Key</label>
+                  <PasswordInput value={devMasterKey} onChange={setDevMasterKey} placeholder="DEV_MASTER_KEY value" autoComplete="off" />
+                </div>
+                <div>
+                  <label style={labelSt}>New Password</label>
+                  <PasswordInput value={devNewPw} onChange={setDevNewPw} placeholder="At least 8 characters" autoComplete="new-password" />
+                </div>
+                <div>
+                  <label style={labelSt}>Confirm Password</label>
+                  <PasswordInput value={devConfirmPw} onChange={setDevConfirmPw} placeholder="Repeat new password" autoComplete="new-password" />
+                </div>
+
+                {devResetError && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(62% 0.22 25 / 0.1)', border: `1px solid oklch(62% 0.22 25 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: errRed }}>{devResetError}</p>
+                  </div>
+                )}
+                {devResetSuccess && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 6 }}>
+                    <p style={{ ...b, fontSize: '0.8rem', color: greenHi }}>{devResetSuccess}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw}
+                  style={{
+                    padding: '0.65rem 1.25rem',
+                    background: devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw ? 'oklch(35% 0.05 70)' : 'oklch(55% 0.16 70)',
+                    color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: devResetLoading || !devMasterKey || !devNewPw || !devConfirmPw ? 'not-allowed' : 'pointer',
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  {devResetLoading ? 'Resetting…' : 'Reset Password'}
+                </button>
+              </form>
             </div>
           )}
 

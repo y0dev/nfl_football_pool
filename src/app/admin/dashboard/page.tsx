@@ -27,6 +27,7 @@ import { useAuth } from '@/lib/auth';
 import { adminService, DashboardStats, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl, debugError, getTeam, getTeamAbbreviation } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -968,9 +969,14 @@ function AdminDashboardContent() {
                 {gamesForSelectedWeek.map(g => {
                   const away = getTeam(getTeamAbbreviation(g.away_team));
                   const home = getTeam(getTeamAbbreviation(g.home_team));
-                  const statusNorm = g.status?.toLowerCase();
-                  const isFinal = statusNorm === 'final' || statusNorm === 'post';
-                  const isLive = statusNorm === 'in_progress' || statusNorm === 'live';
+                  // Real rows use several historical status spellings from
+                  // different write paths ('final', 'Final', 'finished',
+                  // 'Scheduled', ...) — normalizeGameStatus (src/types/game.ts)
+                  // is the single place that interprets all of them.
+                  const normStatus = normalizeGameStatus(g.status);
+                  const isFinal = normStatus === 'finished';
+                  const isLive = normStatus === 'live';
+                  const hasScore = g.home_score != null && g.away_score != null;
                   const winnerCity = g.winner ? getTeam(getTeamAbbreviation(g.winner)).city : null;
                   let kickoffLabel = '';
                   try { kickoffLabel = format(new Date(g.kickoff_time), 'EEE MMM d, h:mm a'); } catch { kickoffLabel = g.kickoff_time; }
@@ -1000,14 +1006,21 @@ function AdminDashboardContent() {
                         {away.city}<span style={{ color: textDim, fontSize: '0.75rem' }}>{formatRecord(awayRecord)}</span> at {home.city}<span style={{ color: textDim, fontSize: '0.75rem' }}>{formatRecord(homeRecord)}</span>
                       </p>
                       <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                        {isFinal && winnerCity ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.78rem', color: greenHi }}>
-                            <Check size={13} /> {winnerCity}
-                          </span>
+                        {isFinal ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem' }}>
+                            {hasScore && (
+                              <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, fontVariantNumeric: 'tabular-nums' }}>
+                                {g.away_score}-{g.home_score}
+                              </span>
+                            )}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: greenHi, textTransform: 'uppercase' }}>
+                              <Check size={11} /> Final{winnerCity ? ` · ${winnerCity}` : ''}
+                            </span>
+                          </div>
                         ) : isLive ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', ...bc, fontWeight: 700, fontSize: '0.78rem', color: liveRed }}>
                             <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, animation: 'pulse 1.4s ease-in-out infinite' }} />
-                            {g.away_score ?? 0}-{g.home_score ?? 0}
+                            {hasScore ? `${g.away_score}-${g.home_score}` : 'Live'}
                           </span>
                         ) : (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...b, fontSize: '0.75rem', color: textDim }}>
