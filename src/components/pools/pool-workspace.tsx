@@ -178,7 +178,7 @@ export function PoolWorkspace({
           <div>
             <p style={{ ...bc, fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.22em', color: textDim, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Current Week</p>
             <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: text }}>
-              {getCurrentWeekLabel({ seasonType: currentSeasonType, week: currentWeek, poolIsActive: isActive ?? true })}
+              {getCurrentWeekLabel({ seasonType: currentSeasonType, week: currentWeek, poolIsActive: isActive ?? true, seasonScope })}
             </p>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>

@@ -551,9 +551,24 @@ export function getWeekTitle(week: number, seasonType: number): string {
  * alongside the other label helpers in this file rather than the
  * DB-reading season-status service.
  */
-export function getCurrentWeekLabel(params: { seasonType: number; week: number; poolIsActive: boolean }): string {
-  const { seasonType, week, poolIsActive } = params;
+export function getCurrentWeekLabel(params: { seasonType: number; week: number; poolIsActive: boolean; seasonScope?: number[] }): string {
+  const { seasonType, week, poolIsActive, seasonScope } = params;
   if (!poolIsActive) return 'Season Complete';
+
+  // seasonType/week here are the globally current week (whatever's actually
+  // happening in the NFL right now), not scoped to this pool — a pool whose
+  // season_scope doesn't include that season type isn't just "on a
+  // different week," its season hasn't started yet or is already over, and
+  // showing e.g. "Preseason Week 2" for a regular-season-only pool while
+  // preseason is happening is actively misleading (a season the pool
+  // doesn't even track).
+  if (seasonScope && seasonScope.length > 0 && !seasonScope.includes(seasonType)) {
+    const minScope = Math.min(...seasonScope);
+    const maxScope = Math.max(...seasonScope);
+    if (seasonType < minScope) return 'Season Has Not Started';
+    if (seasonType > maxScope) return 'Season Complete';
+  }
+
   if (seasonType === 3) return getPlayoffRoundName(week);
   return `${seasonType === 1 ? 'Preseason' : 'Regular Season'} • Week ${week}`;
 }
