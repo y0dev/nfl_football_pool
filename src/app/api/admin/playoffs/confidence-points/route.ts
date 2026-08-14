@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { isDummyData, debugError} from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 
 interface ConfidencePointSubmission {
   team_name: string;
@@ -210,9 +211,9 @@ export async function DELETE(request: NextRequest) {
 
     // Check if any games have started - use game status as the source of truth
     const hasStartedGames = playoffGames?.some((game: any) => {
-      const status = game.status?.toLowerCase();
-      // Game has started if status is live, final, post, or cancelled
-      if (status === 'live' || status === 'final' || status === 'post' || status === 'cancelled') {
+      const status = normalizeGameStatus(game.status);
+      // Game has started if status is live, finished, or cancelled
+      if (status === 'live' || status === 'finished' || game.status?.toLowerCase() === 'cancelled') {
         return true;
       }
       return false;

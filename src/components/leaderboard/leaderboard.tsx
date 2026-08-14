@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Trophy, RefreshCw, BarChart3 } from 'lucide-react';
-import { Game } from '@/types/game';
+import { Game, normalizeGameStatus } from '@/types/game';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
 import { debugError, debugLog, getTeamAbbreviation, PERIOD_WEEKS, isDummyData } from '@/lib/utils';
 
@@ -194,7 +194,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                   {games.map((game, gameIndex) => {
                     const status = game.status?.toLowerCase() || '';
                     const pick = entry.picks?.find(p => p.game_id === game.id);
-                    const isGameFinal = status === 'final' || status === 'post';
+                    const isGameFinal = normalizeGameStatus(game.status) === 'finished';
                     const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
                     const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
                     const pickColor = isGameInProgress
@@ -279,7 +279,7 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
               {games.map((game, gameIndex) => {
                 const status = game.status?.toLowerCase() || '';
                 const pick = entry.picks?.find(p => p.game_id === game.id);
-                const isGameFinal = status === 'final' || status === 'post';
+                const isGameFinal = normalizeGameStatus(game.status) === 'finished';
                 const isGameInProgress = status === 'live' || status === 'in progress' || status === 'in_progress' || status === 'halftime';
                 const isCorrect = pick && isGameFinal && game.winner?.toLowerCase() && pick.predicted_winner?.toLowerCase() === game.winner?.toLowerCase();
                 const confidence = pick?.confidence_points || 0;

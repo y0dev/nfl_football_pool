@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
 import { getUpcomingWeek, computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { Game, SelectedUser } from '@/types/game';
+import { Game, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, debugError} from '@/lib/utils';
@@ -382,9 +382,8 @@ export function PoolPicksContent() {
     if (games.length === 0) return;
 
     const allGamesEnded = games.every(game => {
-      const status = game.status?.toLowerCase();
       const hasWinner = game.winner && game.winner.trim() !== '';
-      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      const isFinished = normalizeGameStatus(game.status) === 'finished' || game.status?.toLowerCase() === 'cancelled';
       const isTieGame = game.home_score !== null && game.away_score !== null &&
                        game.home_score === game.away_score;
       const gameEnded = isFinished && (hasWinner || isTieGame);

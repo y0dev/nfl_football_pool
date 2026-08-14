@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
+import { requireSuperAdmin } from '@/lib/accounts';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { games } = await request.json();
 

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Save, Target, Trophy, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { debugError, getPlayoffRoundName } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -125,8 +126,8 @@ export function PlayoffParticipantEditDialog({
           const gamesResult = await gamesResponse.json();
           if (gamesResult.success && gamesResult.games && gamesResult.games.length > 0) {
             const hasStarted = gamesResult.games.some((game: any) => {
-              const status = game.status?.toLowerCase();
-              return status === 'live' || status === 'final' || status === 'post' || status === 'cancelled';
+              const status = normalizeGameStatus(game.status);
+              return status === 'live' || status === 'finished' || game.status?.toLowerCase() === 'cancelled';
             });
             if (hasStarted) { hasStartedRounds = true; break; }
           }

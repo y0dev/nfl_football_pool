@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { calculateWeeklyWinners } from '@/lib/winner-calculator';
-import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
+import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, isGameDecided, debugError} from '@/lib/utils';
 
 function getQuarterWeeks(quarter: number): number[] {
   switch (quarter) {
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     // Check if all games for this week are finished
     const { data: games, error: gamesError } = await supabase
       .from('games')
-      .select('status')
+      .select('status, winner')
       .eq('week', week)
       .eq('season', season);
 
@@ -89,9 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if all games are finished
-    const allGamesFinished = games.every(game => 
-      game.status === 'final' || game.status === 'post' || game.status === 'cancelled'
-    );
+    const allGamesFinished = games.every(isGameDecided);
 
     if (!allGamesFinished) {
       return NextResponse.json(

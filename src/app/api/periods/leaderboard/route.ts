@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog, debugError, getPeriodWeeks, getRegularSeasonPeriods } from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { computeSeasonReview } from '@/lib/season-review';
+import { normalizeGameStatus } from '@/types/game';
 
 const REGULAR_SEASON_TYPE = 2;
 
@@ -374,10 +375,7 @@ export async function GET(request: NextRequest) {
       const weekGames = gamesData?.filter(game => game.week === week) || [];
       if (weekGames.length === 0) return false; // No games for this week
       
-      const allGamesFinished = weekGames.every(game => {
-        const status = game.status?.toLowerCase() || '';
-        return status === 'final' || status === 'post';
-      });
+      const allGamesFinished = weekGames.every(game => normalizeGameStatus(game.status) === 'finished');
       
       debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
       return allGamesFinished;

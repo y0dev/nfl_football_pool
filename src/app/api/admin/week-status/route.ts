@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,19 +36,15 @@ export async function GET(request: NextRequest) {
     }
     
     // Check if all games are properly finished with both status and winner
-    const allGamesCompleted = games && games.length > 0 && games.every(game => {
-      const status = game.status?.toLowerCase();
+    const isGameCompleted = (game: { status?: string | null; winner?: string | null }) => {
       const hasWinner = game.winner && game.winner.trim() !== '';
-      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
+      const isFinished = normalizeGameStatus(game.status) === 'finished' || game.status?.toLowerCase() === 'cancelled';
       return isFinished && hasWinner;
-    });
-    
-    const completedGames = games?.filter(game => {
-      const status = game.status?.toLowerCase();
-      const hasWinner = game.winner && game.winner.trim() !== '';
-      const isFinished = status === 'final' || status === 'post' || status === 'cancelled';
-      return isFinished && hasWinner;
-    }).length || 0;
+    };
+
+    const allGamesCompleted = games && games.length > 0 && games.every(isGameCompleted);
+
+    const completedGames = games?.filter(isGameCompleted).length || 0;
 
     return NextResponse.json({
       week: parseInt(week),

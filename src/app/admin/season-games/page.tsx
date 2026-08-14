@@ -202,7 +202,7 @@ function WeekCard({
 }
 
 function SeasonGamesContent() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -308,7 +308,7 @@ function SeasonGamesContent() {
       try {
         const res = await fetch('/api/admin/season-games/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
           body: JSON.stringify({ weekStart: range.start, weekEnd: range.end, week }),
         });
         const data = await res.json();
@@ -336,7 +336,7 @@ function SeasonGamesContent() {
       const allGames = previewWeeks.flatMap(w => w.games);
       const res = await fetch('/api/admin/season-games/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
         body: JSON.stringify({ games: allGames }),
       });
       const data = await res.json();
@@ -358,7 +358,7 @@ function SeasonGamesContent() {
     try {
       const res = await fetch('/api/admin/season-games/rollback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
         body: JSON.stringify({ season, seasonType }),
       });
       const data = await res.json();
