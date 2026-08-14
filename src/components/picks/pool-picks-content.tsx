@@ -19,7 +19,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -1652,7 +1652,10 @@ export function PoolPicksContent() {
                           {isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase' }}>Upcoming</span>}
                           {!isFinished && !isLocked && !isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(46% 0.14 155 / 0.15)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, textTransform: 'uppercase' }}>Available</span>}
                         </div>
-                        <div style={{ ...b, fontWeight: 600, fontSize: '0.85rem', color: text }}>{game.away_team} @ {game.home_team}</div>
+                        <div style={{ ...b, fontWeight: 600, fontSize: '0.85rem', color: text }}>
+                          <span className="game-team-full">{game.away_team} @ {game.home_team}</span>
+                          <span className="game-team-abbr">{getTeamAbbreviation(game.away_team)} @ {getTeamAbbreviation(game.home_team)}</span>
+                        </div>
                         <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>{gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                       {game.winner && (
