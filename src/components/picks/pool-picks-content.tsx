@@ -1511,7 +1511,7 @@ export function PoolPicksContent() {
             {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
 
-          {weekState === 'locked' && (
+          {weekState === 'locked' && !effectiveGamesStarted && (
             <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.4rem' }}>
               {unlockTime
                 ? `Picks unlock ${unlockTime.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`
@@ -1525,7 +1525,7 @@ export function PoolPicksContent() {
               // Purely a view toggle (Game Details panel vs. the picks form)
               // — never claims to "unlock" anything, since no such action
               // exists; the real lock state is the badge above.
-              { label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
+              { label: showGameDetails ? (effectiveGamesStarted || weekEnded ? 'View Picks' : 'Make Picks') : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
@@ -1638,17 +1638,19 @@ export function PoolPicksContent() {
                   const gameTime = new Date(game.kickoff_time);
                   const now = new Date();
                   const timeDiff = gameTime.getTime() - now.getTime();
-                  const isLocked = timeDiff <= 0;
+                  const isFinished = normalizeGameStatus(game.status) === 'finished';
+                  const isLocked = timeDiff <= 0 && !isFinished;
                   const isUpcoming = timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
 
                   return (
-                    <div key={game.id} style={{ background: surface, border: `1px solid ${isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <div key={game.id} style={{ background: surface, border: `1px solid ${isFinished ? 'oklch(46% 0.14 155 / 0.2)' : isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
                           <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim }}>Game {index + 1}</span>
+                          {isFinished && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}`, textTransform: 'uppercase' }}>Final</span>}
                           {isLocked && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`, textTransform: 'uppercase' }}>Locked</span>}
                           {isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase' }}>Upcoming</span>}
-                          {!isLocked && !isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(46% 0.14 155 / 0.15)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, textTransform: 'uppercase' }}>Available</span>}
+                          {!isFinished && !isLocked && !isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(46% 0.14 155 / 0.15)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, textTransform: 'uppercase' }}>Available</span>}
                         </div>
                         <div style={{ ...b, fontWeight: 600, fontSize: '0.85rem', color: text }}>{game.away_team} @ {game.home_team}</div>
                         <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>{gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
