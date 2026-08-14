@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Game, Pick } from '@/types/game';
+import { Game, Pick, normalizeGameStatus } from '@/types/game';
 import { GameCard, GameCardPickState } from './game-card';
 import { submitPicks } from '@/actions/submitPicks';
 import { useToast } from '@/hooks/use-toast';
@@ -53,7 +53,7 @@ export function PickEntry({
   const [picks, setPicks] = useState<PickMap>(initialPicks);
   const [saving, setSaving] = useState(false);
 
-  const allFinal = games.length > 0 && games.every(g => g.status === 'final' || g.status === 'post');
+  const allFinal = games.length > 0 && games.every(g => normalizeGameStatus(g.status) === 'finished');
   const isLocked = locked || allFinal;
 
   const handleSelectTeam = (gameId: string, team: string) => {

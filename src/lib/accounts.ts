@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase';
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 // Shared resolver for the handful of places that must find an account by
 // email or id without already knowing whether it belongs to a super-admin
@@ -102,4 +102,34 @@ export async function updateAccount(id: string, role: AccountRole, patch: Record
 export function callerOwnsAccount(request: NextRequest, adminId: string): boolean {
   const sessionId = request.cookies.get('sh-session')?.value;
   return !!sessionId && sessionId === adminId;
+}
+
+// Shared caller-is-an-active-super-admin check for admin-privileged (not
+// self-service) routes — data-management operations like NFL sync, season
+// game import/rollback, commissioner management, etc. Trusts the
+// x-admin-email header, matching the established pattern across every other
+// super-admin route in this app (see e.g. src/app/api/super-admin/admins/route.ts) —
+// not a new mechanism. Several routes in this exact family (nfl-sync,
+// season-games submit/rollback) previously had no auth check at all.
+export async function requireSuperAdmin(request: NextRequest): Promise<
+  { ok: true; email: string; id: string } | { ok: false; response: NextResponse }
+> {
+  const adminEmail = request.headers.get('x-admin-email');
+  if (!adminEmail) {
+    return { ok: false, response: NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 }) };
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: caller } = await supabase
+    .from('admins')
+    .select('id, is_super_admin')
+    .eq('email', adminEmail)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!caller?.is_super_admin) {
+    return { ok: false, response: NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 }) };
+  }
+
+  return { ok: true, email: adminEmail, id: caller.id };
 }

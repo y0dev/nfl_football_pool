@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { nflAPI } from '@/lib/nfl-api';
+import { requireSuperAdmin } from '@/lib/accounts';
 import { debugLog } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { weekStart, weekEnd, week } = await request.json();
 

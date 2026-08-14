@@ -15,7 +15,7 @@ interface TeamRecord {
   road_ties?: number;
 }
 
-interface NFLGame {
+export interface NFLGame {
   id: string;
   date: string;
   time: string;
@@ -264,7 +264,25 @@ class NFLAPIService {
     let season_type, week;
     if (localNow <= localPreEnd) {
       season_type = 1; // PRE
-      week = Math.ceil((d.getUTCDate()) / 7);
+      // Preseason weeks are the same Labor-Day-anchored Thu-Mon windows
+      // weekDateRange() defines — reusing it here (instead of an independent
+      // day-of-month heuristic like Math.ceil(dayOfMonth/7), which drifts
+      // out of sync depending on which weekday Aug 1 falls on) guarantees
+      // classify() can never disagree with the date range
+      // getGamesForWeekContaining() actually fetches.
+      const nowYMD = parseInt(
+        `${yUTC}${String(mUTC + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`,
+        10
+      );
+      week = 1;
+      for (let w = 1; w <= 4; w++) {
+        const range = this.weekDateRange(seasonYear, 1, w);
+        if (nowYMD >= parseInt(range.start, 10) && nowYMD <= parseInt(range.end, 10)) {
+          week = w;
+          break;
+        }
+        if (nowYMD > parseInt(range.end, 10)) week = w;
+      }
     } else if (localNow < localPostStart) {
       season_type = 2; // REG
       week = Math.floor((localNow - localWeek1) / this.WEEK_MS) + 1;
@@ -472,6 +490,20 @@ class NFLAPIService {
   // For a full week across Thu-Mon, use getWeekGames() with weekDateRange() instead.
   async getGamesByDate(date: string): Promise<NFLGame[]> {
     return this.getWeekGames(date, date);
+  }
+
+  // Get every game in the NFL week (Thu-Mon, or the postseason's equivalent
+  // window) that contains the given timestamp — classifies the timestamp
+  // into a season/season_type/week, then fetches that whole week's range.
+  // Use this for "sync the current week" flows; getGamesByDate/
+  // getGamesWithDateEndpoint only return the single selected calendar day,
+  // which misses every other game day in the week.
+  async getGamesForWeekContaining(timestamp?: string): Promise<NFLGame[]> {
+    const ts = timestamp || new Date().toISOString();
+    const { year, season_type, week } = this.classify(ts);
+    const { start, end } = this.weekDateRange(year, season_type, week);
+    debugInfo(`Fetching full week for timestamp ${ts}: season ${year}, type ${season_type}, week ${week} (${start}-${end})`);
+    return this.getWeekGames(start, end);
   }
 
   // Helper function to parse W-L-T from summary string (e.g., "3-5-1" or "2-1-1")

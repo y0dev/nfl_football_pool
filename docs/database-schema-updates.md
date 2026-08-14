@@ -425,3 +425,41 @@ true`. **Applied** — despite the commissioners-split section above saying
 this environment has no working DDL mechanism, `npx supabase db query "<sql>"
 --linked --project-ref <ref>` (Management API auth, no DB password needed)
 does work and was used to apply and verify this migration directly.
+
+## `nfl_sync_runs` + `nfl_sync_proposed_changes` (Manual NFL Data Sync preview/approval)
+
+`/admin/nfl-sync`'s "Sync Now" button used to write straight to `games` on
+every click via `.upsert(..., { onConflict: 'id' })` — no review step, and
+the route had no server-side auth check at all (anyone who knew the URL
+could trigger a write). Auditing it also surfaced the actual reason
+`games.status` had drifted into multiple spellings (`'final'`, `'Final'`,
+`'finished'`, `'Scheduled'`, `'scheduled'` all coexist in the live data):
+this route's own `determineStatus()` remapped the NFL provider's already-
+correct `'finished'` to `'final'` before writing — a second, inconsistent
+vocabulary actively being written on every sync, not just legacy drift.
+
+New tables back a fetch → diff → persist → Super Admin approves → write
+pipeline (`src/app/api/admin/nfl-sync/{preview,apply}/route.ts`,
+`src/lib/nfl-sync.ts`):
+
+- `nfl_sync_runs` — one row per sync attempt: scope (season/season_type/
+  week), status (`pending_review` | `applied`), and summary counts (games
+  checked, new, updated, unchanged, applied, rejected, stale).
+- `nfl_sync_proposed_changes` — one row per proposed game change within a
+  run: `external_game_id` (the provider's own stable id, already `games.id`'s
+  primary key — matching is never home+away+date), `field_diffs` (old/new
+  per changed field), `proposed_payload` (the full row to upsert if
+  approved), `base_snapshot` (the relevant `games` fields at preview time,
+  used to detect the database moved before an approval is applied — see the
+  apply route's staleness check), and `decision`.
+
+Applied via `npx supabase db query -f <migration> --linked --project-ref
+<ref>` (the `--file` flag avoids the inline-SQL comment-parsing issue that
+`--linked` + a raw `"<sql>"` string hits when the SQL starts with a `--`
+comment).
+
+The automated background score sync
+(`supabase/functions/update-game-scores`) is untouched — it already writes
+the correct `'scheduled'|'live'|'finished'` values and only ever touches
+status/score on games that already exist, a much narrower blast radius
+than the admin-triggered full sync this replaces.

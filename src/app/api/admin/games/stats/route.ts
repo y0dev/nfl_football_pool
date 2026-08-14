@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,9 +20,9 @@ export async function GET(request: NextRequest) {
       success: true,
       stats: {
         totalGames: games?.length || 0,
-        liveGames: games?.filter(g => g.status === 'live').length || 0,
-        completedGames: games?.filter(g => g.status === 'final').length || 0,
-        scheduledGames: games?.filter(g => g.status === 'scheduled').length || 0,
+        liveGames: games?.filter(g => normalizeGameStatus(g.status) === 'live').length || 0,
+        completedGames: games?.filter(g => normalizeGameStatus(g.status) === 'finished').length || 0,
+        scheduledGames: games?.filter(g => normalizeGameStatus(g.status) === 'scheduled').length || 0,
       },
     });
   } catch (error) {

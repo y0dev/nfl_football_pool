@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
-import { 
-  debugLog, 
-  DUMMY_PARTICIPANTS, 
+import {
+  debugLog,
+  DUMMY_PARTICIPANTS,
   DUMMY_GAMES,
   DUMMY_PLAYOFF_GAMES,
   DUMMY_LEADERBOARD_REGULAR,
   getDummyLeaderboardPlayoffs,
   isDummyData, debugError} from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 
 export async function GET(request: NextRequest) {
   try {
@@ -221,8 +222,14 @@ export async function GET(request: NextRequest) {
 
           // Calculate points for this game
           let points = 0;
-          const status = game.status.toLowerCase();
-          if ((status === 'final' || status === 'post') && game.winner) {
+          // games.status has several real spellings in the DB ('final',
+          // 'Final', 'finished', ...) from different write paths over time
+          // — normalizeGameStatus is the single place that interprets all
+          // of them. A strict match here previously undercounted every
+          // pick on a game whose status was 'finished' rather than
+          // 'final'/'post', silently zeroing real points and correct-pick
+          // counts on the week leaderboard.
+          if (normalizeGameStatus(game.status) === 'finished' && game.winner) {
             if (pick.predicted_winner.toLowerCase() === game.winner.toLowerCase()) {
               // For playoff games, use playoff confidence points; otherwise use pick confidence points
               points = confidencePoints;
