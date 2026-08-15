@@ -13,7 +13,8 @@ import { useAuth } from '@/lib/auth';
 import { loadPool } from '@/actions/loadPools';
 import { updatePool } from '@/actions/updatePool';
 import { initiatePoolTransfer } from '@/actions/poolTransfers';
-import { Trash2, Lock, Settings, Save, ArrowLeftRight } from 'lucide-react';
+import { setPoolPassword, revealPoolPasswordForCommissioner } from '@/actions/poolPassword';
+import { Trash2, Lock, Settings, Save, ArrowLeftRight, Eye, EyeOff, Copy, KeyRound, AlertTriangle } from 'lucide-react';
 import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, getNFLSeasonYear, debugError} from '@/lib/utils';
 
 const card    = 'oklch(20% 0.03 255)';
@@ -65,6 +66,14 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const [transferRemoveFromSource, setTransferRemoveFromSource] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
+  const [hasPrivatePassword, setHasPrivatePassword] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -95,6 +104,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
         const pool = await loadPool(poolId);
         if (pool) {
           setPoolSeason(pool.season);
+          setHasPrivatePassword(!!pool.private_password_encrypted);
           form.reset({
             name: pool.name,
             season: pool.season,
@@ -211,6 +221,58 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
     }
   };
 
+  const handleSetPassword = async () => {
+    if (!user?.email) return;
+    setPasswordError('');
+    setIsSavingPassword(true);
+    try {
+      const result = await setPoolPassword(poolId, user.email, newPassword, newPasswordConfirm);
+      if (!result.success) {
+        setPasswordError(result.error);
+        return;
+      }
+      setHasPrivatePassword(true);
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setShowPasswordDialog(false);
+      setRevealedPassword(null);
+      toast({ title: 'Password Updated', description: 'Previous access to this pool has been revoked — visitors must enter the new password.' });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const handleRevealPassword = async () => {
+    if (!user?.email) return;
+    if (revealedPassword) { setRevealedPassword(null); return; }
+    setIsRevealing(true);
+    try {
+      const result = await revealPoolPasswordForCommissioner(poolId, user.email);
+      if (result.success) {
+        setRevealedPassword(result.password);
+      } else {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+      }
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  const handleCopyPassword = async () => {
+    if (!user?.email) return;
+    try {
+      const result = await revealPoolPasswordForCommissioner(poolId, user.email);
+      if (result.success) {
+        await navigator.clipboard.writeText(result.password);
+        toast({ title: 'Copied', description: 'Pool password copied to clipboard.' });
+      } else {
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy password.', variant: 'destructive' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div style={cardStyle}>
@@ -318,25 +380,61 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
               )}
             />
 
-            {/* Join password */}
-            <FormField
-              control={form.control}
-              name="join_password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel style={labelStyle}>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></FormLabel>
-                  <FormControl>
-                    <input {...field} placeholder="Leave blank for open access" style={inputStyle} />
-                  </FormControl>
-                  {!form.watch('is_private') && form.watch('join_password') && (
-                    <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
-                      Members will need this password to join from the search page.
-                    </p>
-                  )}
-                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
-                </FormItem>
-              )}
-            />
+            {/* Private pool password — separate from the legacy join_password
+                field below, which stays public-pool-only. */}
+            {form.watch('is_private') ? (
+              <div>
+                <FormLabel style={labelStyle}>Pool Password</FormLabel>
+                {hasPrivatePassword ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', ...b, fontSize: '0.85rem', color: text, background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.5rem 0.75rem', flex: '1 1 auto', minWidth: '10rem' }}>
+                      <KeyRound style={{ width: 13, height: 13, color: greenHi, flexShrink: 0 }} />
+                      {revealedPassword ?? '••••••••'}
+                    </span>
+                    <button type="button" onClick={handleRevealPassword} disabled={isRevealing} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: isRevealing ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      {revealedPassword ? <EyeOff style={{ width: 12, height: 12 }} /> : <Eye style={{ width: 12, height: 12 }} />}
+                      {revealedPassword ? 'Hide' : 'Show'}
+                    </button>
+                    <button type="button" onClick={handleCopyPassword} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      <Copy style={{ width: 12, height: 12 }} /> Copy
+                    </button>
+                    <button type="button" onClick={() => setShowPasswordDialog(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 0.7rem', background: 'transparent', color: greenHi, border: `1px solid color-mix(in oklch, ${green} 45%, ${border})`, borderRadius: 6, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      Change Password
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: `${amber}0f`, border: `1px solid color-mix(in oklch, ${amber} 35%, ${border})`, borderRadius: 6, padding: '0.6rem 0.75rem' }}>
+                    <AlertTriangle style={{ width: 14, height: 14, color: amber, flexShrink: 0 }} />
+                    <p style={{ ...b, fontSize: '0.78rem', color: textMid, flex: 1 }}>No password set yet — this pool isn&apos;t accessible to anyone until you set one.</p>
+                    <button type="button" onClick={() => setShowPasswordDialog(true)} style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '0.4rem 0.7rem', background: amber, color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }}>
+                      Set Password
+                    </button>
+                  </div>
+                )}
+                <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.35rem' }}>
+                  Required to view picks, leaderboard, or results for this private pool. Changing it signs out anyone already viewing.
+                </p>
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="join_password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel style={labelStyle}>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></FormLabel>
+                    <FormControl>
+                      <input {...field} placeholder="Leave blank for open access" style={inputStyle} />
+                    </FormControl>
+                    {form.watch('join_password') && (
+                      <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
+                        Members will need this password to join from the search page.
+                      </p>
+                    )}
+                    <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Visibility */}
             <FormField
@@ -387,6 +485,41 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
           </div>
           </fieldset>
         </div>
+
+        {/* Set/Change pool password */}
+        <Dialog open={showPasswordDialog} onOpenChange={(open) => { setShowPasswordDialog(open); if (!open) { setNewPassword(''); setNewPasswordConfirm(''); setPasswordError(''); } }}>
+          <DialogContent style={{ maxWidth: '24rem', background: card, border: `1px solid ${border}` }}>
+            <DialogHeader>
+              <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {hasPrivatePassword ? 'Change Pool Password' : 'Set Pool Password'}
+              </DialogTitle>
+              <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
+                {hasPrivatePassword
+                  ? 'Anyone currently viewing this pool will need to enter the new password.'
+                  : 'Required before this private pool can be viewed by anyone.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.25rem 0' }}>
+              <div>
+                <label style={labelStyle}>New Password</label>
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} placeholder="At least 4 characters" autoFocus />
+              </div>
+              <div>
+                <label style={labelStyle}>Confirm Password</label>
+                <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} style={inputStyle} placeholder="Re-enter password" />
+              </div>
+              {passwordError && <p style={{ ...b, fontSize: '0.78rem', color: red }}>{passwordError}</p>}
+            </div>
+            <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" onClick={() => setShowPasswordDialog(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleSetPassword} disabled={isSavingPassword} style={{ ...bc, padding: '0.45rem 0.85rem', background: isSavingPassword ? surface : green, color: isSavingPassword ? textDim : text, border: 'none', borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isSavingPassword ? 'not-allowed' : 'pointer' }}>
+                {isSavingPassword ? 'Saving…' : 'Save Password'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Close Season */}
         <div style={{ ...cardStyle, border: `1px solid color-mix(in oklch, ${amber} 35%, ${border})` }}>

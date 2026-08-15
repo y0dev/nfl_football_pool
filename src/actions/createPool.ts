@@ -7,6 +7,7 @@ import { getOrCreateHuddleRecordForCommissioner } from '@/lib/huddles';
 import { CompetitionType, DEFAULT_COMPETITION_TYPE, isAvailableCompetitionType } from '@/lib/poolTypes';
 import { getSeasonSettings } from '@/lib/seasonSettings';
 import { checkSeasonScopeCreatable } from '@/lib/seasonPhase';
+import { encryptPoolPassword, validatePoolPassword } from '@/lib/pool-access';
 
 export type CreatePoolResult =
   | { success: true; data: Record<string, unknown> }
@@ -18,7 +19,13 @@ export async function createPool(poolData: {
   season?: number;
   pool_type?: 'normal' | 'knockout';
   competition_type?: CompetitionType;
+  /** Public pools: optional legacy join-gate password (plaintext, unchanged
+   * behavior). Private pools: the pool's mandatory access password —
+   * required, encrypted into private_password_encrypted instead, never
+   * written to this column. */
   join_password?: string;
+  /** Required (and must match join_password) when is_private is true. */
+  join_password_confirm?: string;
   season_scope?: number[];
   is_private?: boolean;
   /** Target Huddle for this pool. Omit to fall back to the commissioner's
@@ -31,6 +38,17 @@ export async function createPool(poolData: {
     const competitionType = poolData.competition_type ?? DEFAULT_COMPETITION_TYPE;
     if (!isAvailableCompetitionType(competitionType)) {
       return { success: false, error: `${competitionType} pools are coming soon and can't be created yet.` };
+    }
+
+    // Private pools cannot be created without a password (Step 5) — verified
+    // server-side regardless of what the client already checked.
+    let encryptedPrivatePassword: string | undefined;
+    if (poolData.is_private) {
+      const validationError = validatePoolPassword(poolData.join_password ?? '', poolData.join_password_confirm);
+      if (validationError) {
+        return { success: false, error: validationError };
+      }
+      encryptedPrivatePassword = await encryptPoolPassword(poolData.join_password!);
     }
 
     const supabase = getSupabaseServiceClient();
@@ -100,7 +118,13 @@ export async function createPool(poolData: {
         is_active: true,
         is_private: poolData.is_private ?? false,
         season_scope: poolData.season_scope ?? [2],
-        ...(poolData.join_password ? { join_password: poolData.join_password } : {}),
+        // Private pools: password goes to the encrypted column, never the
+        // legacy plaintext join_password. Public pools: unchanged behavior.
+        ...(encryptedPrivatePassword
+          ? { private_password_encrypted: encryptedPrivatePassword }
+          : poolData.join_password
+          ? { join_password: poolData.join_password }
+          : {}),
         ...(poolData.type_settings ? { type_settings: poolData.type_settings } : {}),
       })
       .select()

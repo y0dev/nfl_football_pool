@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Users,
+  Lock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +29,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
+import { getPrivatePoolsNeedingPassword } from '@/actions/poolPassword';
 import { PlanBadge } from '@/components/billing/plan-badge';
 import { AppNav } from '@/components/layout/AppNav';
 import { WeekScoreboard } from '@/components/games/week-scoreboard';
@@ -51,6 +53,13 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 function CommissionerDashboardContent() {
   const { user, signOut, verifyAdminStatus } = useAuth();
+
+  useEffect(() => {
+    if (!user?.email) return;
+    getPrivatePoolsNeedingPassword(user.email)
+      .then(setPoolsNeedingPassword)
+      .catch(() => {});
+  }, [user?.email]);
   const router = useRouter();
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -78,6 +87,8 @@ function CommissionerDashboardContent() {
   const [isImporting, setIsImporting] = useState(false);
   const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [poolsNeedingPassword, setPoolsNeedingPassword] = useState<{ id: string; name: string }[]>([]);
+  const [jumpToSettingsForPoolId, setJumpToSettingsForPoolId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
   const [recentActivity, setRecentActivity] = useState<Array<{
@@ -573,6 +584,41 @@ function CommissionerDashboardContent() {
       <section style={{ background: bg, padding: '2.5rem 0' }}>
         <div className="lp-inner">
 
+          {/* Private pools needing a password (Step 3/4) */}
+          {poolsNeedingPassword.length > 0 && (
+            <div style={{ background: `oklch(72% 0.16 60 / 0.08)`, border: `1px solid oklch(72% 0.16 60 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <Lock style={{ width: 16, height: 16, color: 'oklch(72% 0.16 60)', flexShrink: 0 }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: 'oklch(72% 0.16 60)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {poolsNeedingPassword.length === 1 ? 'Action Required' : 'Private Pools Needing Passwords'}
+                </p>
+              </div>
+              {poolsNeedingPassword.length === 1 ? (
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.75rem' }}>
+                  Your private pool &quot;{poolsNeedingPassword[0].name}&quot; needs a password before participants can access it — it isn&apos;t viewable by anyone until then.
+                </p>
+              ) : (
+                <p style={{ ...b, fontSize: '0.82rem', color: textMid, marginBottom: '0.75rem' }}>
+                  These private pools aren&apos;t viewable by anyone until you set a password for each.
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {poolsNeedingPassword.map(pool => (
+                  <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                    <span style={{ ...b, fontSize: '0.85rem', color: 'oklch(95% 0.006 255)' }}>{pool.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedPoolId(pool.id); setJumpToSettingsForPoolId(pool.id); }}
+                      style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '0.35rem 0.7rem', background: 'oklch(72% 0.16 60)', color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 5, cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      Set Password
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Offseason Banner */}
           {currentSeasonType === 0 && (
             <div style={{ marginBottom: '2rem' }}>
@@ -705,6 +751,7 @@ function CommissionerDashboardContent() {
                 currentSeasonType={currentSeasonType}
                 isActive={selectedPool.is_active}
                 onPoolDeleted={() => setSelectedPoolId('')}
+                initialTab={jumpToSettingsForPoolId === selectedPoolId ? 'settings' : undefined}
               />
             </div>
           ) : (

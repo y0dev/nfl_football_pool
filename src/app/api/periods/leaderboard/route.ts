@@ -4,6 +4,7 @@ import { debugLog, debugError, getPeriodWeeks, getRegularSeasonPeriods } from '@
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { computeSeasonReview } from '@/lib/season-review';
 import { normalizeGameStatus } from '@/types/game';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 const REGULAR_SEASON_TYPE = 2;
 
@@ -133,6 +134,11 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Missing required parameters' },
         { status: 400 }
       );
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
     }
 
     if (seasonType === REGULAR_SEASON_TYPE) {
