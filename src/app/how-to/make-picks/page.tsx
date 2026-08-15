@@ -16,7 +16,7 @@ export default function MakePicksGuide() {
       <Step number={1} title="Open the Pool and Pick a Week">
         <Screenshot
           src="/how-to/picks-page.png"
-          alt="Sunday Huddle picks page for Week 1 showing the game count, week navigation, and a list of all 16 games with kickoff times"
+          alt="Sunday Huddle picks page for Week 1 showing the game count, week navigation, and the Game Details list with kickoff times"
         />
         <Callout
           items={[
