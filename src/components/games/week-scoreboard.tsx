@@ -78,13 +78,14 @@ export function WeekScoreboard({ games, loading, emptyMessage = 'No games schedu
         return (
           <div
             key={game.id}
+            className="ws-row"
             style={{
               display: 'flex', alignItems: 'center', gap: '0.75rem',
               padding: '0.65rem 0.9rem', background: bg,
               borderBottom: idx < validGames.length - 1 ? `1px solid ${border}` : 'none',
             }}
           >
-            <div style={{ width: 92, flexShrink: 0 }}>
+            <div className="ws-status">
               {status === 'live' ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: liveRed, textTransform: 'uppercase' }}>
                   <span className="animate-pulse" style={{ width: 5, height: 5, borderRadius: '50%', background: liveRed, display: 'inline-block', flexShrink: 0 }} />
@@ -95,11 +96,11 @@ export function WeekScoreboard({ games, loading, emptyMessage = 'No games schedu
                   Final
                 </span>
               ) : (
-                <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>{getStatusLabel(game)}</span>
+                <span style={{ ...b, fontSize: '0.72rem', color: textDim, whiteSpace: 'nowrap' }}>{getStatusLabel(game)}</span>
               )}
             </div>
 
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden' }}>
+            <div className="ws-matchup" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden' }}>
               <span title={game.away_team} style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.02em', color: text, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 {game.away_team_id || game.away_team}
               </span>
@@ -109,7 +110,7 @@ export function WeekScoreboard({ games, loading, emptyMessage = 'No games schedu
               </span>
             </div>
 
-            <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 56 }}>
+            <div className="ws-score" style={{ textAlign: 'right' }}>
               {scoreLabel && (
                 <span style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, fontVariantNumeric: 'tabular-nums' }}>
                   {scoreLabel}

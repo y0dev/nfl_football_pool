@@ -494,6 +494,22 @@ input[type="url"], textarea {
   }
 }
 
+/* Week Scoreboard rows (commissioner dashboard) — the date/status column had
+   a fixed 92px width that forced "Wed, Sep 9, 7:20 PM" onto two cramped
+   lines on narrow screens. Below 480px, stack the matchup on its own full
+   row and put status + score on a second row instead of squeezing all
+   three into one horizontal strip. */
+.ws-status { width: 92px; flex-shrink: 0; }
+.ws-matchup { flex: 1 1 auto; min-width: 0; }
+.ws-score { flex-shrink: 0; min-width: 56px; }
+
+@media (max-width: 480px) {
+  .ws-row { flex-wrap: wrap; row-gap: 0.35rem; }
+  .ws-status { order: 2; width: auto; flex: 1 1 auto; }
+  .ws-matchup { order: 1; flex: 1 1 100%; }
+  .ws-score { order: 3; }
+}
+
 /* Admin pools page — card action buttons align right when they wrap below info */
 .admin-pool-card-actions {
   display: flex;
@@ -504,8 +520,13 @@ input[type="url"], textarea {
 @media (max-width: 639px) {
   .admin-pool-card-actions {
     width: 100%;
-    justify-content: flex-end;
-    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  .admin-pool-card-actions > button {
+    width: 100%;
+    justify-content: center;
   }
 }
 

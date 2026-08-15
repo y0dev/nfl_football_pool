@@ -1020,7 +1020,7 @@ function AdminDashboardContent() {
                               </span>
                             )}
                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: greenHi, textTransform: 'uppercase' }}>
-                              <Check size={11} /> Final{winnerCity ? ` · ${winnerCity}` : ''}
+                              <Check size={11} /> Final{winnerCity ? ` · ${winnerCity}` : hasScore && g.home_score === g.away_score ? ' · Draw' : ''}
                             </span>
                           </div>
                         ) : isLive ? (

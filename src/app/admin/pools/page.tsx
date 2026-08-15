@@ -358,8 +358,8 @@ function AdminPoolsContent() {
             ) : (
               groupedByLeague.map(group => (
                 <div key={group.leagueName} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <p style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase', wordBreak: 'break-word' }}>
                       {group.leagueName} ({group.pools.length})
                     </p>
                     {group.huddleId && (

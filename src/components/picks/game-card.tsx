@@ -195,6 +195,11 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
               {winnerCity} wins
             </span>
           )}
+          {isFinal && !winnerCity && game.home_score != null && game.away_score != null && game.home_score === game.away_score && (
+            <span style={{ ...bc, fontSize: '0.75rem', fontWeight: 700, color: amber }}>
+              Draw
+            </span>
+          )}
           {pick?.is_correct === true && (
             <span style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, color: greenHi, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
               <Check size={10} /> +{pick.points_earned}
