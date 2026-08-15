@@ -1559,6 +1559,10 @@ export function PoolPicksContent() {
               </button>
             ))}
           </div>
+
+          <a href="/how-to/make-picks" target="_blank" rel="noopener noreferrer" style={{ ...b, fontSize: '0.75rem', color: textDim, textDecoration: 'none', display: 'inline-block', marginTop: '0.6rem' }}>
+            Not sure how picks work? <span style={{ textDecoration: 'underline' }}>Learn how →</span>
+          </a>
         </div>
       </section>
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />

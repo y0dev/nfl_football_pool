@@ -136,6 +136,10 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
           </DialogDescription>
         </DialogHeader>
 
+        <a href="/how-to/create-a-pool" target="_blank" rel="noopener noreferrer" style={{ ...b, fontSize: '0.75rem', color: textDim, textDecoration: 'none' }}>
+          Need help creating a pool? <span style={{ color: green, textDecoration: 'underline' }}>Learn how →</span>
+        </a>
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <FormField

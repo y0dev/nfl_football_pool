@@ -466,6 +466,11 @@ function CommissionerDashboardContent() {
           links: [
             { label: 'My Huddles', href: '/league' },
           ],
+        }, {
+          label: 'Help',
+          links: [
+            { label: 'How To Guides', href: '/how-to' },
+          ],
         }]}
       />
 
