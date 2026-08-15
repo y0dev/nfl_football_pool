@@ -3,6 +3,18 @@ import { getSupabaseServiceClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 import { validateEmail } from '@/lib/email-validation';
+import { verifyPoolPasswordAttempt, poolAccessCookieName, POOL_ACCESS_COOKIE_MAX_AGE_SECONDS } from '@/lib/pool-access';
+
+function applyPoolAccessCookie(response: NextResponse, poolId: string, token: string | null) {
+  if (!token) return;
+  response.cookies.set(poolAccessCookieName(poolId), token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: POOL_ACCESS_COOKIE_MAX_AGE_SECONDS,
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Check if the pool exists and is active
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, is_active, join_password, huddles(name)')
+      .select('id, name, is_active, is_private, join_password, huddles(name)')
       .eq('id', poolId)
       .single();
 
@@ -46,8 +58,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify join password if the pool requires one
-    if (pool.join_password) {
+    // Private pools: the mandatory pool-access password gates joining too
+    // (one password, not two) — success also grants viewing access so the
+    // new participant isn't immediately prompted again for picks/leaderboard.
+    // Public pools: unchanged legacy plaintext join_password gate.
+    let poolAccessToken: string | null = null;
+    if (pool.is_private) {
+      const result = await verifyPoolPasswordAttempt(poolId, password ?? '');
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 403 });
+      }
+      poolAccessToken = result.token;
+    } else if (pool.join_password) {
       if (!password || password !== pool.join_password) {
         return NextResponse.json(
           { error: 'Incorrect pool password. Please check with your commissioner.' },
@@ -73,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingParticipant) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           message: 'Already joined',
           participant: existingParticipant,
@@ -81,6 +103,8 @@ export async function POST(request: NextRequest) {
         },
         { status: 200 }
       );
+      applyPoolAccessCookie(response, poolId, poolAccessToken);
+      return response;
     }
 
     // Enforce the pool's participant limit (plan-based, or the flat preseason
@@ -134,11 +158,13 @@ export async function POST(request: NextRequest) {
       // Don't fail join if email fails
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: 'Successfully joined pool',
       participant: newParticipant,
       poolName: pool.name
     });
+    applyPoolAccessCookie(response, poolId, poolAccessToken);
+    return response;
 
   } catch (error) {
     debugError('Error in join pool API:', error);

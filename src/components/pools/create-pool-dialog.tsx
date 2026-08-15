@@ -35,7 +35,22 @@ const poolSchema = z.object({
   pool_type: z.literal('normal'),
   season_scope: z.string(),
   join_password: z.string().optional(),
+  confirm_password: z.string().optional(),
   is_private: z.boolean(),
+}).superRefine((data, ctx) => {
+  // Private pools cannot be created without a password (Step 5) — public
+  // pools' join_password stays fully optional, unchanged.
+  if (!data.is_private) return;
+  if (!data.join_password || !data.join_password.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['join_password'], message: 'A password is required for private pools.' });
+    return;
+  }
+  if (data.join_password.length < 4) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['join_password'], message: 'Password must be at least 4 characters.' });
+  }
+  if (data.join_password !== data.confirm_password) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['confirm_password'], message: 'Passwords do not match.' });
+  }
 });
 
 type PoolFormData = z.infer<typeof poolSchema>;
@@ -60,7 +75,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
 
   const form = useForm<PoolFormData>({
     resolver: zodResolver(poolSchema),
-    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, competition_type: DEFAULT_COMPETITION_TYPE, pool_type: 'normal' as const, season_scope: 'regular', join_password: '', is_private: false },
+    defaultValues: { name: '', season: DEFAULT_POOL_SEASON, competition_type: DEFAULT_COMPETITION_TYPE, pool_type: 'normal' as const, season_scope: 'regular', join_password: '', confirm_password: '', is_private: false },
   });
 
   async function onSubmit(data: PoolFormData) {
@@ -78,6 +93,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
         pool_type: data.pool_type,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         join_password: data.join_password || undefined,
+        join_password_confirm: data.confirm_password || undefined,
         is_private: data.is_private,
         huddle_id: huddleId,
       });
@@ -119,6 +135,10 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
             {leagueName ? <>Set up a new pool inside <strong style={{ color: textMid }}>{leagueName}</strong> for the current season.</> : 'Set up a new pool inside your League for the current season.'}
           </DialogDescription>
         </DialogHeader>
+
+        <a href="/how-to/create-a-pool" target="_blank" rel="noopener noreferrer" style={{ ...b, fontSize: '0.75rem', color: textDim, textDecoration: 'none' }}>
+          Need help creating a pool? <span style={{ color: green, textDecoration: 'underline' }}>Learn how →</span>
+        </a>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -236,11 +256,17 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
               name="join_password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel style={labelStyle}>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></FormLabel>
+                  <FormLabel style={labelStyle}>
+                    {form.watch('is_private') ? 'Pool Password *' : <>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></>}
+                  </FormLabel>
                   <FormControl>
-                    <input placeholder="Leave blank for open access" {...field} style={inputStyle} />
+                    <input type="password" placeholder={form.watch('is_private') ? 'Required for private pools' : 'Leave blank for open access'} {...field} style={inputStyle} />
                   </FormControl>
-                  {!form.watch('is_private') && form.watch('join_password') && (
+                  {form.watch('is_private') ? (
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                      Required. Anyone with the pool link will need this to view picks, leaderboard, or results.
+                    </p>
+                  ) : form.watch('join_password') && (
                     <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
                       Members will need this password to join from the search page.
                     </p>
@@ -249,6 +275,22 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
                 </FormItem>
               )}
             />
+
+            {form.watch('is_private') && (
+              <FormField
+                control={form.control}
+                name="confirm_password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel style={labelStyle}>Confirm Password *</FormLabel>
+                    <FormControl>
+                      <input type="password" placeholder="Re-enter password" {...field} style={inputStyle} />
+                    </FormControl>
+                    <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

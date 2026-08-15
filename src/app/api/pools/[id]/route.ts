@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { DUMMY_POOL, isDummyData, debugLog, debugError} from '@/lib/utils';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
-// GET - Get public pool details with stats (no authentication required)
+// GET - Get public pool details with stats (no authentication for public
+// pools; private pools require a valid pool-access cookie — see
+// src/lib/pool-access.ts. Defense-in-depth behind the proxy.ts page gate.)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,6 +20,15 @@ export async function GET(
   try {
     const { id: poolId } = await params;
     debugLog(`Received request for pool ID: ${poolId}`);
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      if (access.reason === 'not_found') {
+        return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const week = searchParams.get('week');
     const seasonType = searchParams.get('seasonType');
@@ -26,7 +38,7 @@ export async function GET(
     // Get pool details
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, season, season_scope, is_active, created_by, created_at, tie_breaker_method, tie_breaker_question, tie_breaker_answer')
+      .select('id, name, season, season_scope, is_active, is_private, created_by, created_at, tie_breaker_method, tie_breaker_question, tie_breaker_answer')
       .eq('id', poolId)
       .single();
 
@@ -82,6 +94,7 @@ export async function GET(
       season: pool.season,
       season_scope: pool.season_scope,
       is_active: pool.is_active,
+      is_private: pool.is_private,
       created_at: pool.created_at,
       tie_breaker_method: pool.tie_breaker_method,
       tie_breaker_question: pool.tie_breaker_question,

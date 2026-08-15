@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { fetchAllPicksForGames } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Missing required parameters: poolId and season' },
         { status: 400 }
       );
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

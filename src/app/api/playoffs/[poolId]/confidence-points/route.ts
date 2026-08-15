@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugLog, DUMMY_PLAYOFF_CONFIDENCE_POINTS, DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS, isDummyData, debugError} from '@/lib/utils';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 interface ConfidencePointSubmission {
   participant_id: string;
@@ -13,6 +14,14 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ poolId: string }> }
 ) {
+
+  if (!isDummyData()) {
+    const { poolId } = await params;
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
+    }
+  }
 
   if (isDummyData()) {
     const { searchParams } = new URL(request.url);

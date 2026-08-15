@@ -188,6 +188,7 @@ export function PoolPicksContent() {
   const seasonTypeParam = searchParams.get('seasonType');
 
   const [poolName, setPoolName] = useState<string>('');
+  const [isPrivatePool, setIsPrivatePool] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [currentSeasonType, setCurrentSeasonType] = useState<number>(2);
   const [poolSeason, setPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
@@ -711,6 +712,7 @@ export function PoolPicksContent() {
               const seasonValue = pool.season || DEFAULT_POOL_SEASON;
               localPoolSeason = seasonValue;
               setPoolName(pool.name);
+              setIsPrivatePool(!!pool.is_private);
               setPoolSeason(seasonValue);
 
               const scope: number[] = (Array.isArray(pool.season_scope) && pool.season_scope.length > 0)
@@ -1012,12 +1014,34 @@ export function PoolPicksContent() {
 
   const handleShare = async () => {
     const url = window.location.href;
+    let text = `Join me in making picks for ${poolName} Week ${currentWeek}!`;
+
+    // Only the commissioner viewing their own private pool ever gets the
+    // password included — revealPoolPasswordForCommissioner independently
+    // re-verifies ownership server-side, so this can't leak another
+    // commissioner's pool password even if isPoolAdmin were ever wrong.
+    if (isPrivatePool && isPoolAdmin) {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (localUser?.email) {
+          const { revealPoolPasswordForCommissioner } = await import('@/actions/poolPassword');
+          const result = await revealPoolPasswordForCommissioner(poolId, localUser.email);
+          if (result.success) {
+            text += `\n\nPassword: ${result.password}`;
+          }
+        }
+      } catch (e) {
+        debugError('Error including pool password in share message:', e);
+      }
+    }
+
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${poolName} - Week ${currentWeek} Picks`, text: `Join me in making picks for ${poolName} Week ${currentWeek}!`, url });
+        await navigator.share({ title: `${poolName} - Week ${currentWeek} Picks`, text, url });
       } else {
-        await navigator.clipboard.writeText(url);
-        toast({ title: "Link Copied", description: "Pool link copied to clipboard" });
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast({ title: "Link Copied", description: text.includes('Password:') ? "Pool link and password copied to clipboard" : "Pool link copied to clipboard" });
       }
     } catch (e) {
       debugError('Error sharing:', e);
@@ -1535,6 +1559,10 @@ export function PoolPicksContent() {
               </button>
             ))}
           </div>
+
+          <a href="/how-to/make-picks" target="_blank" rel="noopener noreferrer" style={{ ...b, fontSize: '0.75rem', color: textDim, textDecoration: 'none', display: 'inline-block', marginTop: '0.6rem' }}>
+            Not sure how picks work? <span style={{ textDecoration: 'underline' }}>Learn how →</span>
+          </a>
         </div>
       </section>
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />

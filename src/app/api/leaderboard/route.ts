@@ -9,6 +9,7 @@ import {
   getDummyLeaderboardPlayoffs,
   isDummyData, debugError} from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,15 @@ export async function GET(request: NextRequest) {
     const seasonType = searchParams.get('seasonType');
     const season = searchParams.get('season');
     debugLog('Leaderboard API request:', { poolId, week, seasonType, season });
+
+    // Defense-in-depth behind the proxy.ts page gate — a direct API call
+    // bypasses page navigation, not this.
+    if (poolId && !isDummyData()) {
+      const access = await checkPoolAccessFromRequest(poolId, request);
+      if (!access.allowed) {
+        return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
+      }
+    }
 
     if (isDummyData()) {
       debugLog('Using dummy data');

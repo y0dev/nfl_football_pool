@@ -215,6 +215,8 @@ type Database = {
           pool_type: string
           is_private: boolean
           join_password: string | null
+          private_password_encrypted: string | null
+          private_password_version: number
           tie_breaker_method: string
           tie_breaker_question: string | null
           tie_breaker_answer: number | null
@@ -235,6 +237,8 @@ type Database = {
           pool_type?: string
           is_private?: boolean
           join_password?: string | null
+          private_password_encrypted?: string | null
+          private_password_version?: number
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
@@ -255,6 +259,8 @@ type Database = {
           pool_type?: string
           is_private?: boolean
           join_password?: string | null
+          private_password_encrypted?: string | null
+          private_password_version?: number
           tie_breaker_method?: string
           tie_breaker_question?: string | null
           tie_breaker_answer?: number | null
@@ -1086,6 +1092,8 @@ CREATE TABLE IF NOT EXISTS pools (
   pool_type VARCHAR(20) DEFAULT 'normal',
   is_private BOOLEAN NOT NULL DEFAULT false,
   join_password TEXT,
+  private_password_encrypted TEXT,
+  private_password_version INTEGER NOT NULL DEFAULT 0,
   tie_breaker_method VARCHAR(50),
   tie_breaker_question VARCHAR(255),
   tie_breaker_answer INTEGER,
@@ -1095,9 +1103,13 @@ CREATE TABLE IF NOT EXISTS pools (
   competition_type VARCHAR(20) NOT NULL DEFAULT 'NFL_CONFIDENCE',
   type_settings JSONB NOT NULL DEFAULT '{}'::jsonb
 );
--- Migrations: see docs/migrations/add-pool-join-password.sql and
+-- Migrations: see docs/migrations/add-pool-join-password.sql,
 -- docs/migrations/add-huddles.sql (huddle_id / competition_type /
--- type_settings / is_private / season_scope).
+-- type_settings / is_private / season_scope), and
+-- supabase/migrations/20260815120000_add_pool_private_password.sql
+-- (private_password_encrypted / private_password_version — mandatory
+-- password gate on VIEWING a private pool, see src/lib/pool-access.ts;
+-- distinct from join_password, which only ever gated self-registration).
 `;
 
 // fallow-ignore-next-line unused-export

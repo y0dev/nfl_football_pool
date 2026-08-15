@@ -43,15 +43,24 @@ interface PoolWorkspaceProps {
   /** Shows an Active/Inactive status pill next to Picks Page when provided (used by the system-wide admin view). */
   isActive?: boolean;
   onPoolDeleted?: () => void;
+  /** Jump straight to a tab (e.g. 'settings' from the dashboard's "needs a
+   * password" warning) instead of the default Overview. Re-applies whenever
+   * this or poolId changes, without forcing a remount. */
+  initialTab?: PoolTab;
 }
 
 export function PoolWorkspace({
   poolId, poolName, season, seasonScope, currentWeek, currentSeasonType,
-  showExportTab = true, isActive, onPoolDeleted,
+  showExportTab = true, isActive, onPoolDeleted, initialTab,
 }: PoolWorkspaceProps) {
   const router = useRouter();
 
-  const [activePoolTab, setActivePoolTab] = useState<PoolTab>('overview');
+  const [activePoolTab, setActivePoolTab] = useState<PoolTab>(initialTab ?? 'overview');
+
+  useEffect(() => {
+    if (initialTab) setActivePoolTab(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab, poolId]);
   const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
   const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
   const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);

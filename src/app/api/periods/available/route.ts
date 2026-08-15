@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase';
 import { debugError, getRegularSeasonPeriods } from '@/lib/utils';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 // Backs the period selector on the public leaderboard's Period tab. A period
 // is "available" once it has started (not only once it's fully complete) —
@@ -19,6 +20,11 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Missing required parameters' },
         { status: 400 }
       );
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();
