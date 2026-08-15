@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
 import { getStripe, getPriceId, BillingProduct } from '@/lib/stripe';
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { calculateWeeklyWinners } from '@/lib/winner-calculator';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, isGameDecided, debugError} from '@/lib/utils';
 

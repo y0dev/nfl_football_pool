@@ -6,7 +6,7 @@ import { ArrowLeft, ShieldOff } from 'lucide-react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { loadOwnedHuddleForCommissioner } from '@/actions/huddles';
-import { HuddleRecord } from '@/lib/huddles';
+import type { HuddleRecord } from '@/lib/huddles';
 import { LeagueManager } from '@/components/league/league-manager';
 import { debugError } from '@/lib/utils';
 

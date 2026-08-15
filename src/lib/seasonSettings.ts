@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { getNFLSeasonYear, debugError } from './utils';
 
 export interface SeasonSettings {

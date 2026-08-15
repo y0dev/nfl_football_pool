@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { validateEmail } from '@/lib/email-validation';
 import { debugError } from '@/lib/utils';
 import { addParticipantToPool } from '@/actions/adminActions';

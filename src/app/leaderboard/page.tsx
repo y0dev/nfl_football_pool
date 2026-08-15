@@ -28,7 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
 import { WeeklyWinner, SeasonWinner, PeriodWinner } from '@/types/winners';
 import { Footer } from '@/components/layout/Footer';
-import { LEADERBOARD_TOOL_PLAN_MESSAGE } from '@/lib/plan';
+import { LEADERBOARD_TOOL_PLAN_MESSAGE } from '@/lib/plan-messages';
 
 // Fake preview rows shown behind the upgrade overlay for free-plan
 // commissioners — never real participant data.
@@ -218,20 +218,13 @@ function LeaderboardContent() {
 
   const loadPoolsData = async (superAdminStatus: boolean) => {
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-
-      let poolsQuery = supabase
-        .from('pools')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!superAdminStatus) {
-        poolsQuery = poolsQuery.eq('created_by', user?.email);
-      }
-
-      const { data: poolsData, error: poolsError } = await poolsQuery;
-      if (poolsError) throw poolsError;
+      if (!user?.email) return;
+      const res = await fetch('/api/admin/my-pools', {
+        headers: { 'x-admin-email': user.email },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pools');
+      const poolsData = data.pools;
 
       setPools(poolsData || []);
       if (poolsData && poolsData.length > 0 && !selectedPool) {

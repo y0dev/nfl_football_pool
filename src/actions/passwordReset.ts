@@ -1,7 +1,7 @@
 'use server';
 
 import { createHmac } from 'crypto';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { findAccountByEmail, findAccountById, updateAccount } from '@/lib/accounts';
 import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';

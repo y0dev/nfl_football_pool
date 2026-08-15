@@ -1,4 +1,6 @@
-import { getSupabaseServiceClient } from './supabase';
+'use server';
+
+import { getSupabaseServiceClient } from './supabase-service';
 import { debugError } from '@/lib/utils';
 
 /**

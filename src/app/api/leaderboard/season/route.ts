@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { fetchAllPicksForGames } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 import { checkPoolAccessFromRequest } from '@/lib/pool-access';

@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getAdminPlanByEmail } from '@/lib/plan';
 import { createPool } from './createPool';
 import { updatePool } from './updatePool';

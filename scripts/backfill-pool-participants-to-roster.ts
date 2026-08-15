@@ -50,7 +50,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { getSupabaseServiceClient } = await import('../src/lib/supabase');
+  const { getSupabaseServiceClient } = await import('../src/lib/supabase-service');
   const supabase = getSupabaseServiceClient();
 
   let resolvedPoolId = poolId;

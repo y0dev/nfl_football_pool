@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getOrCreateHuddleRecordForCommissioner, loadHuddlesForCommissioner, insertHuddleForCommissioner, HuddleRecord } from '@/lib/huddles';
 import { checkHuddleCapacity } from '@/lib/plan';
 import { debugError } from '@/lib/utils';

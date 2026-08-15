@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 
 export interface OverrideEligibility {
   allowed: boolean;

@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { getAdminPlan, isPreseasonOnlyScope, PlanInfo } from './plan';
 
 // Single source of truth for "what does this commissioner have" — read by

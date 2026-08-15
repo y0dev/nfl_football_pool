@@ -73,7 +73,7 @@ async function main() {
 
   // Imported after env validation so getSupabaseServiceClient() (called
   // lazily inside these modules) sees the loaded env vars.
-  const { getSupabaseServiceClient } = await import('../src/lib/supabase');
+  const { getSupabaseServiceClient } = await import('../src/lib/supabase-service');
   const { transferPoolToCommissioner } = await import('../src/lib/poolTransfer');
 
   const supabase = getSupabaseServiceClient();

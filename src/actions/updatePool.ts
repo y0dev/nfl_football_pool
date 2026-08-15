@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
 import { checkPoolCapacity, checkInactivePoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
 import { getSeasonSettings } from '@/lib/seasonSettings';

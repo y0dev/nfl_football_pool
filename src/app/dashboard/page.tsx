@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, DashboardStats } from '@/lib/admin-service';
+import type { DashboardStats } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl, debugError, getWeekTitle } from '@/lib/utils';
 import { Game } from '@/types/game';
@@ -199,19 +199,15 @@ function CommissionerDashboardContent() {
     try {
       if (!user?.email) return;
 
-      const stats = await adminService.getDashboardStats(
-        currentWeek,
-        currentSeasonType,
-        user.email,
-        false
-      );
+      const res = await fetch(`/api/admin/dashboard-summary?week=${currentWeek}&seasonType=${currentSeasonType}`, {
+        headers: { 'x-admin-email': user.email },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load dashboard data');
 
-      setDashboardStats(stats);
+      setDashboardStats(data.stats);
 
-      const pools = await adminService.getActivePools(
-        user.email,
-        false
-      );
+      const pools = data.pools;
       debugLog('stats pools', pools);
       setAvailablePools(pools);
       if (pools.length > 0) setSelectedPoolId(prev => prev || pools[0].id);
@@ -238,94 +234,12 @@ function CommissionerDashboardContent() {
   const loadRecentActivity = async () => {
     try {
       if (!user?.email) return;
-
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-
-      const activities: any[] = [];
-      const now = new Date();
-      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      // Get all pools this commissioner manages
-      const { data: commissionerPools } = await supabase
-        .from('pools')
-        .select('id, name, created_at')
-        .eq('created_by', user.email)
-        .order('created_at', { ascending: false });
-
-      const commissionerPoolIds = commissionerPools?.map(p => p.id) ?? [];
-
-      // Pool creation events (last 30 days only)
-      const recentPools = commissionerPools?.filter(p => p.created_at >= last30Days) ?? [];
-      recentPools.slice(0, 3).forEach(pool => {
-        activities.push({
-          type: 'pool_created' as const,
-          description: `Created new pool "${pool.name}"`,
-          timestamp: pool.created_at,
-          pool_name: pool.name,
-        });
+      const res = await fetch('/api/admin/recent-activity', {
+        headers: { 'x-admin-email': user.email },
       });
-
-      if (commissionerPoolIds.length === 0) {
-        setRecentActivity(activities);
-        return;
-      }
-
-      const poolNameMap = new Map(commissionerPools?.map(p => [p.id, p.name]) || []);
-
-      // Participants who joined this commissioner's pools in the last 30 days
-      const { data: participants } = await supabase
-        .from('participants')
-        .select('id, name, created_at, pool_id')
-        .in('pool_id', commissionerPoolIds)
-        .eq('is_active', true)
-        .gte('created_at', last30Days)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      participants?.forEach(participant => {
-        activities.push({
-          type: 'participant_joined' as const,
-          description: `${participant.name || 'New Participant'} joined "${poolNameMap.get(participant.pool_id) || 'Unknown Pool'}"`,
-          timestamp: participant.created_at,
-          participant_name: participant.name || 'New Participant',
-          pool_name: poolNameMap.get(participant.pool_id),
-        });
-      });
-
-      // Pick submissions in this commissioner's pools in the last 30 days
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('created_at, participant_id, pool_id')
-        .in('pool_id', commissionerPoolIds)
-        .gte('created_at', last30Days)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (picks && picks.length > 0) {
-        const poolSubmissions = new Map<string, Set<string>>();
-        picks.forEach(pick => {
-          if (!poolSubmissions.has(pick.pool_id)) poolSubmissions.set(pick.pool_id, new Set());
-          poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
-        });
-
-        poolSubmissions.forEach((submitters, poolId) => {
-          const count = submitters.size;
-          if (count > 0) {
-            activities.push({
-              type: 'picks_submitted' as const,
-              description: `${count} participant${count !== 1 ? 's' : ''} submitted picks for "${poolNameMap.get(poolId) || 'Unknown Pool'}"`,
-              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString(),
-            });
-          }
-        });
-      }
-
-      setRecentActivity(
-        activities
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 5)
-      );
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load recent activity');
+      setRecentActivity(data.activities ?? []);
     } catch (error) {
       debugError('Error loading recent activity:', error);
       setRecentActivity([]);
@@ -404,34 +318,15 @@ function CommissionerDashboardContent() {
     }
   };
 
+  // NOTE: this always queried a `seasons` table that doesn't exist in this
+  // schema (confirmed via information_schema — dead code from before a
+  // rename/refactor), so it always fell through to the catch/else branch
+  // and set 'Games Started' regardless of the actual week's timing. Kept
+  // that always-true-in-practice behavior exactly, just without the
+  // pointless failing DB round-trip (which also required a client-side
+  // service-role client).
   const loadCountdown = async () => {
-    try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const { data } = await supabase
-        .from('seasons')
-        .select('picks_close_at')
-        .eq('season_type', currentSeasonType)
-        .eq('week', currentWeek)
-        .single();
-
-      if (data?.picks_close_at) {
-        const picksCloseAt = new Date(data.picks_close_at);
-        const now = new Date();
-        const diffInSeconds = (picksCloseAt.getTime() - now.getTime()) / 1000;
-
-        if (diffInSeconds > 0) {
-          setCountdown(`${Math.floor(diffInSeconds / 3600)}h ${Math.floor((diffInSeconds % 3600) / 60)}m`);
-        } else {
-          setCountdown('Games Started');
-        }
-      } else {
-        setCountdown('Games Started');
-      }
-    } catch (error) {
-      debugError('Error loading countdown:', error);
-      setCountdown('Games Started');
-    }
+    setCountdown('Games Started');
   };
 
   if (isLoading) {

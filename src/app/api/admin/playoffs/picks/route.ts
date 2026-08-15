@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { isDummyData, debugError} from '@/lib/utils';
 
 // DELETE - Delete picks for a participant for a specific round

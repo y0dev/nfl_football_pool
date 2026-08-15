@@ -1,4 +1,6 @@
-import { getSupabaseServiceClient } from '@/lib/supabase';
+'use server';
+
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, debugError } from '@/lib/utils';
 
 async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {

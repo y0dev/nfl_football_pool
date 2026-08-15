@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import bcrypt from 'bcryptjs';
 import { emailService } from '@/lib/email';
 import { debugError, debugWarn } from '@/lib/utils';

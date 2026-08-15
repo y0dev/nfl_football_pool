@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';

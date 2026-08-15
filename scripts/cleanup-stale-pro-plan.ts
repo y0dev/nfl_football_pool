@@ -32,7 +32,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 async function main() {
   const apply = process.argv.includes('--apply');
 
-  const { getSupabaseServiceClient } = await import('../src/lib/supabase');
+  const { getSupabaseServiceClient } = await import('../src/lib/supabase-service');
   const supabase = getSupabaseServiceClient();
 
   // plan only lives on commissioners now (see scripts/migrate-commissioners.ts)

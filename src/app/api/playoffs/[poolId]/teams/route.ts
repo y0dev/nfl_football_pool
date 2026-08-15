@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { DUMMY_PLAYOFF_TEAMS, isDummyData, debugError} from '@/lib/utils';
 
 // GET - Get playoff teams for a pool and season

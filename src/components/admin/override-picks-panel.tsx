@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Target, Users, Calendar, Edit, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, SEASON_TYPE_OPTIONS } from '@/lib/utils';
-import { getSupabaseClient, getSupabaseServiceClient } from '@/lib/supabase';
 import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
@@ -97,68 +96,41 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [eligibility, setEligibility] = useState<OverrideEligibility | null>(null);
 
-  const getClient = () => getSupabaseServiceClient() || getSupabaseClient();
+  const loadOverrideData = useCallback(async (week: number, seasonType: number) => {
+    if (!user?.email) return null;
+    const res = await fetch(`/api/admin/override-picks/data?poolId=${poolId}&week=${week}&season=${currentSeason}&seasonType=${seasonType}`, {
+      headers: { 'x-admin-email': user.email },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load override picks data');
+    return data as { games: typeof availableGames; picks: typeof picks };
+  }, [poolId, currentSeason, user?.email]);
 
   const loadPicks = useCallback(async (week: number, seasonType: number) => {
     setIsLoadingPicks(true);
     try {
-      const client = getClient();
-      if (!client) return;
-
-      const { data: gamesData } = await client
-        .from('games').select('id')
-        .eq('week', week).eq('season', currentSeason).eq('season_type', seasonType);
-
-      const gameIds = gamesData?.map(g => g.id) || [];
-      if (gameIds.length === 0) { setPicks([]); return; }
-
-      const { data: picksData, error } = await client
-        .from('picks')
-        .select(`
-          id, participant_id, pool_id, game_id, predicted_winner,
-          confidence_points, locked, submitted_by, created_at,
-          participants(name, email),
-          games(home_team, away_team, week, season, season_type)
-        `)
-        .eq('pool_id', poolId)
-        .in('game_id', gameIds)
-        .order('created_at', { ascending: false });
-
-      if (error) { toast({ title: 'Error', description: 'Failed to load picks', variant: 'destructive' }); return; }
-
-      setPicks((picksData || []).map(p => ({
-        ...p,
-        participants: Array.isArray(p.participants) ? p.participants[0] : p.participants,
-        games: Array.isArray(p.games) ? p.games[0] : p.games,
-      })));
+      const data = await loadOverrideData(week, seasonType);
+      setPicks(data?.picks ?? []);
     } catch {
       toast({ title: 'Error', description: 'Failed to load picks', variant: 'destructive' });
     } finally {
       setIsLoadingPicks(false);
     }
-  }, [poolId, currentSeason, toast]);
+  }, [loadOverrideData, toast]);
 
   const loadAvailableGames = useCallback(async (week: number, seasonType: number) => {
     try {
-      const client = getClient();
-      if (!client) return;
-      const { data } = await client
-        .from('games')
-        .select('id, home_team, away_team, week, season, season_type, kickoff_time, status')
-        .eq('week', week).eq('season', currentSeason).eq('season_type', seasonType)
-        .order('kickoff_time', { ascending: true });
-      setAvailableGames(data || []);
+      const data = await loadOverrideData(week, seasonType);
+      setAvailableGames(data?.games ?? []);
     } catch { /* non-critical */ }
-  }, [currentSeason]);
+  }, [loadOverrideData]);
 
   const loadAllParticipants = useCallback(async () => {
     try {
-      const client = getClient();
-      if (!client) return;
-      const { data } = await client
-        .from('participants').select('id, name, email')
-        .eq('pool_id', poolId).eq('is_active', true).order('name');
-      setAllParticipants(data || []);
+      const res = await fetch(`/api/admin/pool-participants?poolId=${poolId}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error);
+      setAllParticipants(data.participants ?? []);
     } catch { /* non-critical */ }
   }, [poolId]);
 

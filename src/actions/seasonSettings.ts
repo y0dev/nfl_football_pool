@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getSeasonSettings, upsertSeasonSettings, SeasonSettings } from '@/lib/seasonSettings';
 import { getNFLSeasonYear } from '@/lib/utils';
 

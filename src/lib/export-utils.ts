@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { debugLog, PERIOD_WEEKS, getPeriodWeeks as getSharedPeriodWeeks, debugError, debugWarn } from './utils';
 interface WeeklyExportData {
   participant_id: string;

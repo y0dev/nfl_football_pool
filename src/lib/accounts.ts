@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Shared resolver for the handful of places that must find an account by

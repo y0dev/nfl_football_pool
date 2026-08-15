@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, isOffseason, debugError} from '@/lib/utils';
 
 export async function GET(request: NextRequest) {

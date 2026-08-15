@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { getRegularSeasonPeriods, PERIOD_WEEKS } from './utils';
 
 const PICKS_PAGE_SIZE = 1000;

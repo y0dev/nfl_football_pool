@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { adminService, DashboardStats, Admin } from '@/lib/admin-service';
+import type { DashboardStats, Admin } from '@/lib/admin-service';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { debugLog, createPageUrl, debugError, getTeam, getTeamAbbreviation } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
@@ -366,8 +366,12 @@ function AdminDashboardContent() {
   const loadDashboardStats = async () => {
     try {
       if (!user?.email) return;
-      const stats = await adminService.getDashboardStats(currentWeek, currentSeasonType, user.email, true);
-      setDashboardStats(stats);
+      const res = await fetch(`/api/admin/dashboard-summary?week=${currentWeek}&seasonType=${currentSeasonType}`, {
+        headers: { 'x-admin-email': user.email },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load dashboard data');
+      setDashboardStats(data.stats);
     } catch (error) {
       debugError('Error loading dashboard stats:', error);
       toast({ title: 'Error', description: 'Failed to load dashboard data', variant: 'destructive' });
@@ -387,8 +391,13 @@ function AdminDashboardContent() {
 
   const loadAdmins = async () => {
     try {
-      const adminsData = await adminService.getAdmins();
-      setAdmins(adminsData);
+      if (!user?.email) return;
+      const res = await fetch('/api/admin/list-accounts', {
+        headers: { 'x-admin-email': user.email },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load admin data');
+      setAdmins(data.admins);
     } catch (error) {
       debugError('Error loading admins:', error);
       toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
@@ -422,76 +431,13 @@ function AdminDashboardContent() {
 
   const loadRecentActivity = async () => {
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
-      const activities: { type: 'pool_created' | 'participant_joined' | 'picks_submitted'; description: string; timestamp: string; pool_name?: string; pool_id?: string; }[] = [];
-      const now = new Date();
-      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      const { data: allPools } = await supabase.from('pools').select('id, name, created_at');
-      const poolNameMap = new Map(allPools?.map(p => [p.id, p.name]) || []);
-
-      const recentPools = (allPools ?? []).filter(p => p.created_at >= last30Days);
-      recentPools.slice(0, 5).forEach(pool => {
-        activities.push({
-          type: 'pool_created',
-          description: `Pool "${pool.name}" was created`,
-          timestamp: pool.created_at,
-          pool_name: pool.name,
-          pool_id: pool.id,
-        });
+      if (!user?.email) return;
+      const res = await fetch('/api/admin/recent-activity', {
+        headers: { 'x-admin-email': user.email },
       });
-
-      const { data: participants } = await supabase
-        .from('participants')
-        .select('id, name, created_at, pool_id')
-        .eq('is_active', true)
-        .gte('created_at', last30Days)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      participants?.forEach(participant => {
-        activities.push({
-          type: 'participant_joined',
-          description: `${participant.name || 'New Participant'} joined "${poolNameMap.get(participant.pool_id) || 'Unknown Pool'}"`,
-          timestamp: participant.created_at,
-          pool_name: poolNameMap.get(participant.pool_id),
-          pool_id: participant.pool_id,
-        });
-      });
-
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('created_at, participant_id, pool_id')
-        .gte('created_at', last30Days)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (picks && picks.length > 0) {
-        const poolSubmissions = new Map<string, Set<string>>();
-        picks.forEach(pick => {
-          if (!poolSubmissions.has(pick.pool_id)) poolSubmissions.set(pick.pool_id, new Set());
-          poolSubmissions.get(pick.pool_id)?.add(pick.participant_id);
-        });
-        poolSubmissions.forEach((submitters, poolId) => {
-          const count = submitters.size;
-          if (count > 0) {
-            activities.push({
-              type: 'picks_submitted',
-              description: `${count} participant${count !== 1 ? 's' : ''} submitted picks for "${poolNameMap.get(poolId) || 'Unknown Pool'}"`,
-              timestamp: picks.find(p => p.pool_id === poolId)?.created_at || now.toISOString(),
-              pool_name: poolNameMap.get(poolId),
-              pool_id: poolId,
-            });
-          }
-        });
-      }
-
-      setRecentActivity(
-        activities
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 10)
-      );
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load recent activity');
+      setRecentActivity(data.activities ?? []);
     } catch (error) {
       debugError('Error loading recent activity:', error);
       setRecentActivity([]);

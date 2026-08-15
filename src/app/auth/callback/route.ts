@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteClient } from '@/lib/supabase-ssr';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { findAccountByEmail, findAccountById } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 import { trialEndDate } from '@/lib/plan';

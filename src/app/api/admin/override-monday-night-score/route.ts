@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getOverrideEligibility } from '@/lib/season-status';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 

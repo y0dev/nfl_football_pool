@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
 import { debugLog, DAYS_BEFORE_GAME, isDummyData, debugError} from '@/lib/utils';
-import { computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
+import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
 
 export async function POST(request: NextRequest) {
   try {
