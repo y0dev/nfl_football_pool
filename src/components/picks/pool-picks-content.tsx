@@ -434,7 +434,14 @@ export function PoolPicksContent() {
         debugLog('Week status result setWeekEnded if allGamesEnded:', response);
         if (response.ok) {
           const result = await response.json();
-          if (result.success && result.leaderboard && result.leaderboard.length > 0) {
+          // leaderboard has one entry per PARTICIPANT, not per pick — it's
+          // non-empty even when nobody actually submitted anything for this
+          // week (every entry sits at 0 points/0 picks). Checking length
+          // alone previously treated "nobody picked this week" the same as
+          // "a winner was determined," showing a misleading 0-point winner
+          // instead of the existing "Week Not Available" no-picks state.
+          const anyPicksSubmitted = !!result.leaderboard?.some((entry: { total_picks?: number }) => (entry.total_picks ?? 0) > 0);
+          if (result.success && result.leaderboard && result.leaderboard.length > 0 && anyPicksSubmitted) {
             debugLog('Leaderboard result:', result);
             const winner = result.leaderboard[0];
             debugLog('Winner from leaderboard:', winner);
@@ -715,6 +722,30 @@ export function PoolPicksContent() {
               setPoolName(pool.name);
               setIsPrivatePool(!!pool.is_private);
               setPoolSeason(seasonValue);
+
+              // No explicit ?week= in the URL means weekToUse/seasonTypeToUse
+              // above came from getUpcomingWeek() — "what NFL week is
+              // happening right now, globally" — resolved before we knew
+              // anything about this pool. That's the right default for an
+              // active pool (its season IS the current one), but for a
+              // closed pool from a past season it has nothing to do with
+              // where this pool's actual data lives, and the wrong week
+              // then gets carried into the isPoolClosed redirect to
+              // /history below, which shows nothing for a week with no
+              // games/picks. Re-resolve against this pool's own season
+              // once we actually know it's inactive.
+              if (!weekParam && !pool.is_active) {
+                try {
+                  const { getLatestWeekForSeason } = await import('@/actions/loadCurrentWeek');
+                  const latest = await getLatestWeekForSeason(seasonValue, poolId);
+                  weekToUse = latest.week;
+                  seasonTypeToUse = latest.seasonType;
+                  setCurrentWeek(weekToUse);
+                  setCurrentSeasonType(seasonTypeToUse);
+                } catch (err) {
+                  debugError('Failed to resolve latest week for closed pool:', err);
+                }
+              }
 
               const scope: number[] = (Array.isArray(pool.season_scope) && pool.season_scope.length > 0)
                 ? pool.season_scope

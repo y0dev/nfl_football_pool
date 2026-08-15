@@ -42,6 +42,9 @@ function PoolHistoryContent() {
   const [currentSeasonType, setCurrentSeasonType] = useState(parseInt(seasonTypeParam || '2'));
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(false);
+  const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number } | null>(null);
+  const [weekHasPicks, setWeekHasPicks] = useState<boolean | null>(null);
+  const [winnerLoading, setWinnerLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -64,6 +67,53 @@ function PoolHistoryContent() {
       setGames([]);
     } finally {
       setGamesLoading(false);
+    }
+  };
+
+  // Every pool reaching this page is closed, so the week being viewed is
+  // always already over — unlike the picks page, there's no "has this week
+  // ended yet" check needed, just "was a winner determined for it." Mirrors
+  // pool-picks-content.tsx's checkWeekStatus fallback chain (stored winner
+  // → live leaderboard calc → "no picks submitted") so a closed pool gets
+  // the same clear winner announcement an active one does, rather than
+  // being left with just an implicit top-of-table ranking.
+  const loadWeekWinner = async (week: number, seasonType: number, season: number) => {
+    setWinnerLoading(true);
+    setWeekWinner(null);
+    setWeekHasPicks(null);
+    try {
+      const winnerRes = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
+      if (winnerRes.ok) {
+        const winnerCheck = await winnerRes.json();
+        if (winnerCheck.winnerExists && winnerCheck.winner) {
+          setWeekWinner({
+            participant_name: winnerCheck.winner.winner_name,
+            points: winnerCheck.winner.winner_points,
+            correct_picks: winnerCheck.winner.winner_correct_picks,
+          });
+          setWeekHasPicks(true);
+          return;
+        }
+      }
+
+      const lbRes = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
+      if (lbRes.ok) {
+        const result = await lbRes.json();
+        const anyPicksSubmitted = !!result.leaderboard?.some((entry: { total_picks?: number }) => (entry.total_picks ?? 0) > 0);
+        if (result.success && anyPicksSubmitted) {
+          const winner = result.leaderboard[0];
+          setWeekWinner({ participant_name: winner.participant_name, points: winner.total_points, correct_picks: winner.correct_picks });
+          setWeekHasPicks(true);
+        } else {
+          setWeekHasPicks(false);
+        }
+      } else {
+        setWeekHasPicks(false);
+      }
+    } catch {
+      setWeekHasPicks(false);
+    } finally {
+      setWinnerLoading(false);
     }
   };
 
@@ -92,8 +142,23 @@ function PoolHistoryContent() {
         setPoolName(pool.name);
         setPoolSeason(season);
 
-        const week = parseInt(weekParam || '1');
-        const seasonType = parseInt(seasonTypeParam || '2');
+        // With no explicit ?week=, default to this pool's actual latest
+        // week with real data instead of always week 1 — every pool
+        // reaching this page is closed, so "week 1" is almost always the
+        // wrong result for anything but a one-week-old pool.
+        let week = weekParam ? parseInt(weekParam, 10) : NaN;
+        let seasonType = seasonTypeParam ? parseInt(seasonTypeParam, 10) : NaN;
+        if (!weekParam || isNaN(week) || !seasonTypeParam || isNaN(seasonType)) {
+          try {
+            const { getLatestWeekForSeason } = await import('@/actions/loadCurrentWeek');
+            const latest = await getLatestWeekForSeason(season, poolId);
+            week = latest.week;
+            seasonType = latest.seasonType;
+          } catch {
+            week = 1;
+            seasonType = 2;
+          }
+        }
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
 
@@ -115,6 +180,7 @@ function PoolHistoryContent() {
         } catch {}
 
         await loadGames(week, seasonType, season);
+        await loadWeekWinner(week, seasonType, season);
       } catch {
         setError('Failed to load season history. Please try again.');
       } finally {
@@ -132,6 +198,7 @@ function PoolHistoryContent() {
     setCurrentSeasonType(seasonType);
     router.replace(`/pool/${poolId}/history?week=${week}&seasonType=${seasonType}`, { scroll: false });
     await loadGames(week, seasonType, poolSeason);
+    await loadWeekWinner(week, seasonType, poolSeason);
   };
 
   const handlePrev = () => {
@@ -272,7 +339,23 @@ function PoolHistoryContent() {
       <section style={{ background: bg, padding: '1.5rem 0 3rem' }}>
         <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-          
+          {/* Week winner */}
+          {!winnerLoading && weekWinner && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <Trophy style={{ width: 28, height: 28, color: gold, flexShrink: 0 }} />
+              <div>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase', marginBottom: '0.15rem' }}>{getWeekTitle()} Winner</p>
+                <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: text, textTransform: 'uppercase' }}>{weekWinner.participant_name}</p>
+                <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>{weekWinner.points} points &middot; {weekWinner.correct_picks} correct picks</p>
+              </div>
+            </div>
+          )}
+          {!winnerLoading && weekHasPicks === false && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <Calendar style={{ width: 16, height: 16, color: textDim, flexShrink: 0 }} />
+              <span style={{ ...b, fontSize: '0.82rem', color: textMid }}>No picks were submitted for {getWeekTitle().toLowerCase()} in {poolName}.</span>
+            </div>
+          )}
           {/* Week leaderboard */}
           <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
