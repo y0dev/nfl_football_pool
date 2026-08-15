@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-import { getSupabaseServiceClient } from '../src/lib/supabase';
+import { getSupabaseServiceClient } from '../src/lib/supabase-service';
 
 // Data half of the commissioners split. Run scripts/migrate-commissioners.sql
 // in the Supabase SQL editor FIRST (creates the commissioners/payments

@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { checkHuddleCapacity } from '@/lib/plan';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';

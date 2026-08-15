@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { requireSuperAdmin } from '@/lib/accounts';
 import { nflAPI } from '@/lib/nfl-api';
 import { buildSyncPreview, type DbGameRow } from '@/lib/nfl-sync';

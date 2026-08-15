@@ -33,6 +33,8 @@
 
 !supabase
 !supabase/**
+supabase/.temp
+supabase/.temp/**
 !docs
 !docs/**
 !scripts
@@ -40,3 +42,5 @@
 !tests
 !samples
 !samples/**
+.vercel
+.env*

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, DUMMY_PLAYOFF_CONFIDENCE_POINTS, DUMMY_PLAYOFF_CONFIDENCE_POINTS_SUBMISSIONS, isDummyData, debugError} from '@/lib/utils';
 import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 

@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { encryptPoolPassword, revealPoolPassword, validatePoolPassword } from '@/lib/pool-access';
 import { debugError } from '@/lib/utils';
 

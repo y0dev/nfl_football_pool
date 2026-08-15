@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { findAccountByEmail, updateAccount } from '@/lib/accounts';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { debugError } from '@/lib/utils';
 

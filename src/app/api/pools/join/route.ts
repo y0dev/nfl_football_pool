@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 import { validateEmail } from '@/lib/email-validation';

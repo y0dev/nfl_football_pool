@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 
 // Private-pool password protection. `pools.is_private` gates *discoverability*
 // (search results) and the legacy `pools.join_password` only ever gated the

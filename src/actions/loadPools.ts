@@ -1,4 +1,6 @@
-import { getSupabaseServiceClient } from '@/lib/supabase';
+'use server';
+
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, debugError } from '@/lib/utils';
 
 export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {

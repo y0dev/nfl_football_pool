@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { checkPoolTransferCapacity } from '@/lib/plan';
 import { getOrCreateHuddleRecordForCommissioner } from '@/lib/huddles';
 import { emailService } from '@/lib/email';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { trialEndDate, isTrialEligible } from '@/lib/plan';
 import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
 import { debugError } from '@/lib/utils';

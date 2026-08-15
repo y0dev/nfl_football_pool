@@ -372,7 +372,7 @@ export async function getPoolParticipants(poolId: string) {
 export async function addParticipantToPool(poolId: string, name: string, email?: string, huddleMemberId?: string) {
   try {
     // Get the service role client to bypass RLS policies
-    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
     const supabase = getSupabaseServiceClient();
 
     // Email is optional here, but when provided it must be real
@@ -486,7 +486,7 @@ export async function addParticipantToPool(poolId: string, name: string, email?:
 export async function removeParticipantFromPool(participantId: string) {
   try {
     // Get the service role client to bypass RLS policies
-    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
     const supabase = getSupabaseServiceClient();
 
     // First get the participant to get the pool_id for logging
@@ -547,7 +547,7 @@ export async function removeParticipantFromPool(participantId: string) {
 export async function updateParticipantName(participantId: string, newName: string) {
   try {
     // Get the service role client to bypass RLS policies
-    const { getSupabaseServiceClient } = await import('@/lib/supabase');
+    const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
     const supabase = getSupabaseServiceClient();
     
     // First get the participant to get the pool_id for logging

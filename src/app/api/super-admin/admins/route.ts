@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 
 // Lists every account, super-admins and commissioners together (see
 // scripts/migrate-commissioners.ts) — commissioners never have

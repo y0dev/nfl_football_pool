@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { getOrCreateHuddleRecordForCommissioner } from './huddles';
 import { debugError } from './utils';
 

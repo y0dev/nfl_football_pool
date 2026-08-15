@@ -1,11 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 
-// Pin singletons to globalThis so Next.js module re-evaluation (HMR, Strict Mode)
+// Pin singleton to globalThis so Next.js module re-evaluation (HMR, Strict Mode)
 // doesn't create additional GoTrueClient instances in the same browser/process context.
 const g = globalThis as typeof globalThis & {
   __supabaseClient?: SupabaseClient;
-  __supabaseServiceClient?: SupabaseClient;
 };
 
 export function getSupabaseClient() {
@@ -28,26 +27,10 @@ export function getSupabaseClient() {
   return g.__supabaseClient;
 }
 
-export function getSupabaseServiceClient() {
-  if (g.__supabaseServiceClient) return g.__supabaseServiceClient;
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
-
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase Service Key:', supabaseServiceKey ? '***' : 'Not Set');
-
-  if (!supabaseUrl) {
-    throw new Error('Supabase URL is required. Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your environment variables.');
-  }
-
-  if (!supabaseServiceKey) {
-    throw new Error('Supabase service role key is required for server operations. Please set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment variables.');
-  }
-
-  g.__supabaseServiceClient = createClient(supabaseUrl, supabaseServiceKey);
-  return g.__supabaseServiceClient;
-}
+// getSupabaseServiceClient() moved to './supabase-service' (server-only) —
+// keeping it out of this file stops its inlined secret from being bundled
+// into client JS alongside getSupabaseClient(), which client components do
+// legitimately import from here.
 
 function getDefaultSupabaseClient() {
   if (typeof window !== 'undefined') return getSupabaseClient();

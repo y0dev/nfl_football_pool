@@ -14,7 +14,8 @@ import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
 import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
-import { getUpcomingWeek, computeWeekUnlockStatus } from '@/actions/loadCurrentWeek';
+import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { useRouter } from 'next/navigation';
@@ -1109,21 +1110,15 @@ export function PoolPicksContent() {
 
       const gameIds = games.map(g => g.id);
 
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const res = await fetch(`/api/picks?poolId=${poolId}&participantId=${selectedUser.id}&week=${currentWeek}&seasonType=${currentSeasonType}`);
+      const data = await res.json();
 
-      const { data: picks, error: picksError } = await supabase
-        .from('picks')
-        .select('id, game_id')
-        .eq('participant_id', selectedUser.id)
-        .eq('pool_id', poolId)
-        .in('game_id', gameIds);
-
-      if (picksError) {
-        debugError('Error checking picks:', picksError.message ?? picksError.code ?? String(picksError));
+      if (!res.ok || !data.success) {
+        debugError('Error checking picks:', data.error ?? res.statusText);
         setHasSubmitted(prev => ({ ...prev, [selectedUser.id]: { submitted: false, name: selectedUser.name } }));
         return;
       }
+      const picks = data.picks;
 
       debugLog('Picks found for current user:', { picks, count: picks?.length || 0 });
 
@@ -1143,31 +1138,20 @@ export function PoolPicksContent() {
     }
 
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+      const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+      if (!localUser?.email) {
+        toast({ title: "Error", description: "Could not verify your account", variant: "destructive" });
+        return;
+      }
 
-      const { error } = await supabase
-        .from('picks')
-        .delete()
-        .eq('participant_id', participantId)
-        .eq('pool_id', poolId)
-        .in('game_id', games.map(g => g.id));
-
-      if (error) throw error;
-
-      await supabase
-        .from('audit_logs')
-        .insert({
-          action: 'unlock_participant_picks',
-          admin_id: null,
-          entity: 'participant_picks',
-          entity_id: participantId,
-          details: {
-            participant_id: participantId, pool_id: poolId,
-            week: currentWeek, season_type: currentSeasonType,
-            unlocked_by: isSuperAdmin ? 'admin' : 'pool_commissioner'
-          }
-        });
+      const res = await fetch(`/api/pools/${poolId}/unlock-picks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ participantId, gameIds: games.map(g => g.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to unlock picks');
 
       toast({ title: "Picks Unlocked", description: "Participant can now make new picks" });
       setHasSubmitted(prev => ({ ...prev, [participantId]: { submitted: false, name: '' } }));

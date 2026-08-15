@@ -5,7 +5,7 @@ dotenv.config({ path: '.env.local' });
 
 // Reuse the app's own client factory so this exercises the exact same
 // credential-resolution path the checkout/webhook routes use in production.
-import { getSupabaseServiceClient } from '../src/lib/supabase';
+import { getSupabaseServiceClient } from '../src/lib/supabase-service';
 
 const supabase = getSupabaseServiceClient();
 

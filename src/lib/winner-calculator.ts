@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, isGameDecided, debugLog, debugError } from './utils';
 
 /**

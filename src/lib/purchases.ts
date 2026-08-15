@@ -1,5 +1,7 @@
+'use server';
+
 import Stripe from 'stripe';
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { emailService } from './email';
 import { debugError } from './utils';
 

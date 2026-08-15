@@ -32,11 +32,15 @@ class EmailService {
 
   private initializeTransporter() {
     
-    const host = process.env.SMTP_HOST || process.env.NEXT_PUBLIC_SMTP_HOST;
-    const port = process.env.SMTP_PORT || process.env.NEXT_PUBLIC_SMTP_PORT;
-    const user = process.env.SMTP_USER || process.env.NEXT_PUBLIC_SMTP_USER;
-    const pass = process.env.SMTP_PASS || process.env.NEXT_PUBLIC_SMTP_PASS;
-    const from = process.env.SMTP_FROM || process.env.NEXT_PUBLIC_SMTP_FROM;
+    // No NEXT_PUBLIC_ fallback here on purpose — this module is imported by
+    // several src/actions files, and a NEXT_PUBLIC_ var gets inlined into
+    // any bundle that references it, public or not. Same class of bug as
+    // the Supabase service-role-key leak fixed earlier this project.
+    const host = process.env.SMTP_HOST;
+    const port = process.env.SMTP_PORT;
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    const from = process.env.SMTP_FROM;
 
     if (!host || !port || !user || !pass || !from) {
       debugWarn('Email configuration incomplete. Email notifications will be disabled.');

@@ -1,4 +1,6 @@
-import { getSupabaseServiceClient } from '@/lib/supabase';
+'use server';
+
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
 import { debugLog, DUMMY_PARTICIPANTS, isDummyData, debugError} from '@/lib/utils';
 

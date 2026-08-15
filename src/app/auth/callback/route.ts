@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteClient } from '@/lib/supabase-ssr';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { findAccountByEmail, findAccountById } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 import { trialEndDate } from '@/lib/plan';
+import { emailService } from '@/lib/email';
 import { TRIAL_DAYS, isTrialEnabled } from '@/lib/pricing';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -177,12 +178,14 @@ export async function GET(request: NextRequest) {
     .update({ plan: 'free', trial_ends_at: wantsTrial ? trialEndDate(TRIAL_DAYS) : null })
     .eq('id', newCommissioner.id);
 
-  // Non-critical: send welcome email
-  fetch(`${origin}/api/admin/welcome-email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: newCommissioner.email, fullName: newCommissioner.full_name ?? newCommissioner.email }),
-  }).catch(() => {});
+  // Non-critical: send welcome email. Direct call rather than a self-fetch
+  // to a separate API route — that route had no caller-auth check, so it
+  // was reachable by anyone to send arbitrary "your account is ready"
+  // emails to any address; inlining the call removes that public surface
+  // instead of adding an internal-only auth scheme for a same-origin call.
+  emailService
+    .sendAdminCreationNotification(newCommissioner.email, newCommissioner.full_name ?? newCommissioner.email)
+    .catch(() => {});
 
   // Chose Standard with no trial running — there was nothing to grant at
   // account-creation time (plan stayed Free), so the only way "Standard"

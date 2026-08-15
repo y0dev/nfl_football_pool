@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportPeriodData } from '@/lib/export-utils';
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {

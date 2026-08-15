@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServiceClient } from '@/lib/supabase';
+import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { DEFAULT_POOL_SEASON, debugError } from '@/lib/utils';
 import { checkPoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, Plan } from '@/lib/plan';
 import { getOrCreateHuddleRecordForCommissioner } from '@/lib/huddles';

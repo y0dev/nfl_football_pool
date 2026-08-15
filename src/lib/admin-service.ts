@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from './supabase';
+import { getSupabaseServiceClient } from './supabase-service';
 import { debugLog, debugError } from './utils';
 export interface DashboardStats {
   totalPools: number;

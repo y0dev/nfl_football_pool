@@ -84,37 +84,16 @@ export function PoolWorkspace({
 
   const loadStats = useCallback(async () => {
     try {
-      const { getSupabaseServiceClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseServiceClient();
+      const statsRes = await fetch(`/api/pools/${poolId}/workspace-stats?week=${currentWeek}&seasonType=${currentSeasonType}`);
+      const statsData = await statsRes.json();
+      if (!statsRes.ok || !statsData.success) throw new Error(statsData.error || 'Failed to load workspace stats');
 
-      const [{ data: allParticipants }, { data: weekGames }] = await Promise.all([
-        supabase.from('participants').select('id, name').eq('pool_id', poolId).eq('is_active', true),
-        supabase.from('games').select('id').eq('week', currentWeek).eq('season_type', currentSeasonType),
-      ]);
-
-      const total = allParticipants?.length ?? 0;
-      const gameIds = weekGames?.map(g => g.id) ?? [];
-      setWeekGamesCount(gameIds.length);
+      setWeekGamesCount(statsData.weekGamesCount);
+      setSelectedPoolStats(statsData.stats);
+      setMissingParticipants(statsData.missingParticipants ?? []);
 
       const { hasWeekPickWindowOpened } = await import('@/actions/loadCurrentWeek');
       setPickWindowOpened(await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season));
-
-      let submittedIds = new Set<string>();
-      if (gameIds.length > 0) {
-        const { data: picks } = await supabase
-          .from('picks')
-          .select('participant_id')
-          .eq('pool_id', poolId)
-          .in('game_id', gameIds);
-        submittedIds = new Set((picks ?? []).map(p => p.participant_id));
-      }
-
-      const completed = submittedIds.size;
-      const pending = Math.max(0, total - completed);
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      setSelectedPoolStats({ participants: total, completed, pending, completionRate });
-
-      setMissingParticipants((allParticipants ?? []).filter(p => !submittedIds.has(p.id)));
 
       // Season standings compute live from picks+games (the same source the
       // public leaderboard uses) rather than reading `scores` directly —
