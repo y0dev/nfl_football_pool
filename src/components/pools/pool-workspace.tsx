@@ -4,15 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Trophy, Users, TrendingUp, Edit, Calendar, BarChart3, Download, Settings,
-  Link2, Check, AlertTriangle, Target,
+  Link2, Check, AlertTriangle, Target, DollarSign,
 } from 'lucide-react';
 import { ParticipantManagement } from '@/components/admin/participant-management';
 import { OverridePicksPanel } from '@/components/admin/override-picks-panel';
 import { SeasonReviewPanel } from '@/components/admin/season-review-panel';
 import { PlayoffParticipantsList } from '@/components/admin/playoff-participants-list';
 import { PoolSettings } from '@/components/admin/pool-settings';
+import { PayoutSettings } from '@/components/admin/payout-settings';
+import { PayoutCalculator } from '@/components/admin/payout-calculator';
 import { ExportData } from '@/components/admin/export-data';
-import { debugError, getCurrentWeekLabel } from '@/lib/utils';
+import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
+import { getPoolPayoutConfig } from '@/actions/poolPayouts';
+import { computeTotalPool, formatCurrency, PayoutConfig } from '@/lib/payouts';
 
 // Design tokens (matches app-wide dark theme)
 const surface = 'oklch(17% 0.028 255)';
@@ -29,7 +33,7 @@ const amber   = 'oklch(72% 0.16 60)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
-type PoolTab = 'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review' | 'playoffs' | 'export' | 'settings';
+type PoolTab = 'overview' | 'players' | 'leaderboard' | 'override-picks' | 'season-review' | 'playoffs' | 'payouts' | 'export' | 'settings';
 
 interface PoolWorkspaceProps {
   poolId: string;
@@ -76,6 +80,7 @@ export function PoolWorkspace({
   // window has opened yet at all, so Missing Picks doesn't get shown (and
   // participants flagged as delinquent) for a week that's simply too early.
   const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
+  const [payoutConfig, setPayoutConfig] = useState<PayoutConfig | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -153,6 +158,10 @@ export function PoolWorkspace({
     setActivePoolTab('overview');
     loadStats();
   }, [poolId, loadStats]);
+
+  useEffect(() => {
+    getPoolPayoutConfig(poolId).then(setPayoutConfig);
+  }, [poolId]);
 
   const handleCopyPicksLink = async () => {
     const url = `${window.location.origin}/pool/${poolId}/picks?week=${currentWeek}&seasonType=${currentSeasonType}`;
@@ -258,6 +267,7 @@ export function PoolWorkspace({
           { id: 'override-picks', label: 'Override Picks', icon: Edit },
           { id: 'season-review',  label: 'Season Review',  icon: Calendar },
           { id: 'playoffs',       label: 'Playoffs',       icon: Trophy },
+          { id: 'payouts',        label: 'Payouts',        icon: DollarSign },
           ...(showExportTab ? [{ id: 'export' as const, label: 'Export', icon: Download }] : []),
           { id: 'settings',       label: 'Settings',       icon: Settings },
         ] as const)
@@ -303,6 +313,31 @@ export function PoolWorkspace({
                 <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.1rem' }}>
                   {poolLeader.correctPicks} correct pick{poolLeader.correctPicks !== 1 ? 's' : ''} this season
                 </p>
+              </div>
+            </div>
+          )}
+
+          {payoutConfig?.enabled && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderLeft: '3px solid oklch(74% 0.16 72)', borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: 'oklch(74% 0.16 72)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Payouts</p>
+                  <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+                    {payoutConfig.entryFee != null && (
+                      <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Entry Fee: <strong style={{ color: text }}>{formatCurrency(payoutConfig.entryFee)}</strong></span>
+                    )}
+                    <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Participants: <strong style={{ color: text }}>{selectedPoolStats.participants}</strong></span>
+                    <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Prize Pool: <strong style={{ color: 'oklch(74% 0.16 72)' }}>{formatCurrency(computeTotalPool(payoutConfig.entryFee, selectedPoolStats.participants))}</strong></span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => setActivePoolTab('payouts')} style={{ padding: '0.4rem 0.8rem', background: 'transparent', color: 'oklch(74% 0.16 72)', border: '1px solid color-mix(in oklch, oklch(74% 0.16 72) 40%, transparent)', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    View Payouts
+                  </button>
+                  <button onClick={() => setActivePoolTab('payouts')} style={{ padding: '0.4rem 0.8rem', background: 'oklch(74% 0.16 72)', color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Calculate Payout
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -425,6 +460,17 @@ export function PoolWorkspace({
         </div>
       )}
 
+      {/* Payouts tab */}
+      {activePoolTab === 'payouts' && (
+        <PayoutCalculator
+          poolId={poolId}
+          season={season}
+          seasonScope={seasonScope ?? [2]}
+          defaultSeasonType={currentSeasonType}
+          defaultWeek={currentWeek}
+        />
+      )}
+
       {/* Export tab */}
       {showExportTab && activePoolTab === 'export' && (
         <ExportData poolId={poolId} poolName={poolName} currentWeek={currentWeek} currentSeason={season} />
@@ -432,7 +478,10 @@ export function PoolWorkspace({
 
       {/* Settings tab */}
       {activePoolTab === 'settings' && (
-        <PoolSettings poolId={poolId} poolName={poolName} onPoolDeleted={onPoolDeleted} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <PoolSettings poolId={poolId} poolName={poolName} onPoolDeleted={onPoolDeleted} />
+          <PayoutSettings poolId={poolId} isLocked={season < getNFLSeasonYear()} />
+        </div>
       )}
     </div>
   );

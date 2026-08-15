@@ -989,6 +989,103 @@ type Database = {
           created_at?: string
         }
       }
+      payout_configs: {
+        Row: {
+          id: string
+          pool_id: string
+          enabled: boolean
+          entry_fee: number | null
+          tie_policy: 'split' | 'tie_breaker' | 'commissioner'
+          weekly_enabled: boolean
+          weekly_amount_type: 'fixed' | 'percentage'
+          weekly_amount: number | null
+          weekly_positions: { place: number; percentage: number }[]
+          overall_enabled: boolean
+          overall_positions: { place: number; percentage: number }[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          enabled?: boolean
+          entry_fee?: number | null
+          tie_policy?: 'split' | 'tie_breaker' | 'commissioner'
+          weekly_enabled?: boolean
+          weekly_amount_type?: 'fixed' | 'percentage'
+          weekly_amount?: number | null
+          weekly_positions?: { place: number; percentage: number }[]
+          overall_enabled?: boolean
+          overall_positions?: { place: number; percentage: number }[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          enabled?: boolean
+          entry_fee?: number | null
+          tie_policy?: 'split' | 'tie_breaker' | 'commissioner'
+          weekly_enabled?: boolean
+          weekly_amount_type?: 'fixed' | 'percentage'
+          weekly_amount?: number | null
+          weekly_positions?: { place: number; percentage: number }[]
+          overall_enabled?: boolean
+          overall_positions?: { place: number; percentage: number }[]
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      payout_records: {
+        Row: {
+          id: string
+          pool_id: string
+          scope: 'weekly' | 'overall'
+          season: number
+          week: number | null
+          season_type: number | null
+          place: number
+          participant_id: string | null
+          participant_name: string
+          amount: number
+          paid: boolean
+          paid_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          scope: 'weekly' | 'overall'
+          season: number
+          week?: number | null
+          season_type?: number | null
+          place: number
+          participant_id?: string | null
+          participant_name: string
+          amount: number
+          paid?: boolean
+          paid_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          scope?: 'weekly' | 'overall'
+          season?: number
+          week?: number | null
+          season_type?: number | null
+          place?: number
+          participant_id?: string | null
+          participant_name?: string
+          amount?: number
+          paid?: boolean
+          paid_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
@@ -1485,6 +1582,50 @@ CREATE TABLE IF NOT EXISTS reminder_logs (
   email_sent BOOLEAN DEFAULT true,
   email_content JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
+// Payout configuration — see supabase/migrations/20260815180000_add_payout_configuration.sql
+// for the full rationale. Sunday Huddle never collects/holds/transfers
+// money; this only stores how the commissioner wants winnings calculated.
+// fallow-ignore-next-line unused-export
+export const payoutConfigsTable = `
+CREATE TABLE IF NOT EXISTS payout_configs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID NOT NULL UNIQUE REFERENCES pools(id) ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT false,
+  entry_fee NUMERIC(10,2),
+  tie_policy TEXT NOT NULL DEFAULT 'split' CHECK (tie_policy IN ('split', 'tie_breaker', 'commissioner')),
+  weekly_enabled BOOLEAN NOT NULL DEFAULT false,
+  weekly_amount_type TEXT NOT NULL DEFAULT 'fixed' CHECK (weekly_amount_type IN ('fixed', 'percentage')),
+  weekly_amount NUMERIC(10,2),
+  weekly_positions JSONB NOT NULL DEFAULT '[{"place":1,"percentage":100}]'::jsonb,
+  overall_enabled BOOLEAN NOT NULL DEFAULT false,
+  overall_positions JSONB NOT NULL DEFAULT '[{"place":1,"percentage":50},{"place":2,"percentage":30},{"place":3,"percentage":20}]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`;
+
+// Commissioner "Mark Paid" record — record-only, never moves money.
+// fallow-ignore-next-line unused-export
+export const payoutRecordsTable = `
+CREATE TABLE IF NOT EXISTS payout_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
+  scope TEXT NOT NULL CHECK (scope IN ('weekly', 'overall')),
+  season INTEGER NOT NULL,
+  week INTEGER,
+  season_type INTEGER,
+  place INTEGER NOT NULL,
+  participant_id UUID REFERENCES participants(id) ON DELETE SET NULL,
+  participant_name TEXT NOT NULL,
+  amount NUMERIC(10,2) NOT NULL,
+  paid BOOLEAN NOT NULL DEFAULT false,
+  paid_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (pool_id, scope, season, week, place)
 );
 `;
 
