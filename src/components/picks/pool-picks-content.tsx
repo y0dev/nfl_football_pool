@@ -1689,9 +1689,13 @@ export function PoolPicksContent() {
                         </div>
                         <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>{gameTime.toLocaleDateString()} at {gameTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
-                      {game.winner && (
+                      {game.winner ? (
                         <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: `oklch(46% 0.14 155 / 0.2)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, textTransform: 'uppercase', flexShrink: 0 }}>
                           Winner: {game.winner}
+                        </span>
+                      ) : isFinished && game.home_score != null && game.away_score != null && game.home_score === game.away_score && (
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase', flexShrink: 0 }}>
+                          Draw
                         </span>
                       )}
                     </div>
