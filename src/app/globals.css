@@ -48,7 +48,12 @@
 }
 
 body {
-  background: var(--background);
+  /* Hardcoded rather than var(--background): every public/app page paints
+     its own full-height dark wrapper via inline styles (not the light
+     #fafafa --background token), so this is only ever visible during iOS
+     Safari's rubber-band overscroll bounce past the page's real content —
+     which was flashing light gray against an otherwise all-dark UI. */
+  background: oklch(13% 0.025 255);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
