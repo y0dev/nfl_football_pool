@@ -46,6 +46,11 @@ export const HOW_TO_GUIDES: HowToGuide[] = [
     title: 'Manage Your Pool',
     summary: 'Learn how to manage your pool throughout the season.',
   },
+  {
+    slug: 'payouts',
+    title: 'Set Up Payouts',
+    summary: 'Learn how to configure and calculate weekly and season payouts.',
+  },
 ];
 
 export function getGuideBySlug(slug: string): HowToGuide | undefined {
