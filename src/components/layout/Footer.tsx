@@ -43,6 +43,7 @@ export function Footer({
   const pageLinks = [
     { label: "Home", href: "/" },
     { label: "How It Works", href: "/how-it-works" },
+    { label: "How To", href: "/how-to" },
     { label: "FAQ", href: "/faq" },
     ...(isPricingVisible() ? [{ label: "Pricing", href: "/pricing" }] : []),
   ];

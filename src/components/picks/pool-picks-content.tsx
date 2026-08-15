@@ -1667,8 +1667,11 @@ export function PoolPicksContent() {
                   const now = new Date();
                   const timeDiff = gameTime.getTime() - now.getTime();
                   const isFinished = normalizeGameStatus(game.status) === 'finished';
-                  const isLocked = timeDiff <= 0 && !isFinished;
-                  const isUpcoming = timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
+                  // Picks lock for the whole week once the first game of the week kicks off,
+                  // not on a per-game basis — so a later game must also show Locked once
+                  // effectiveGamesStarted is true, even if its own kickoff hasn't happened yet.
+                  const isLocked = (effectiveGamesStarted || timeDiff <= 0) && !isFinished;
+                  const isUpcoming = !isLocked && !isFinished && timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
 
                   return (
                     <div key={game.id} style={{ background: surface, border: `1px solid ${isFinished ? 'oklch(46% 0.14 155 / 0.2)' : isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>

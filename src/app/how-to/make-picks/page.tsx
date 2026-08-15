@@ -35,13 +35,13 @@ export default function MakePicksGuide() {
 
       <Step number={3} title="Submit Your Picks">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
-          Once every game has a team and a confidence value assigned, save your picks. You can come back and change them anytime before a game locks.
+          Once every game has a team and a confidence value assigned, save your picks. You can come back and change them anytime before the week locks.
         </p>
       </Step>
 
       <Step number={4} title="Locked and Finished Games">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
-          A game <strong>locks</strong> once it kicks off — its pick can no longer be changed, even if the rest of the week is still open. Once a game ends, it shows <strong>Final</strong> with the score, and whether your pick was correct.
+          Picks for the entire week <strong>lock</strong> as soon as the first game of that week kicks off — every game shows Locked at that point, even ones that haven&apos;t started yet. Once a game ends, it shows <strong>Final</strong> with the score, and whether your pick was correct.
         </p>
       </Step>
     </GuideLayout>
