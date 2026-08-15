@@ -11,7 +11,7 @@ import {
   computeTotalPool, computeWeeklyDollarAmount, computeOverallAllocation,
   defaultPositionSplit, formatCurrency, ordinal, DEFAULT_PAYOUT_CONFIG,
 } from '@/lib/payouts';
-import { DollarSign, Info, Plus, Trash2, Save, AlertTriangle } from 'lucide-react';
+import { DollarSign, Info, Plus, Trash2, Save, AlertTriangle, Lock } from 'lucide-react';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -143,9 +143,11 @@ function PositionsEditor({
 interface PayoutSettingsProps {
   poolId: string;
   isLocked?: boolean;
+  /** Only used to word the lock notice ("from the {poolSeason} season") — omit and the notice falls back to generic wording. */
+  poolSeason?: number;
 }
 
-export function PayoutSettings({ poolId, isLocked }: PayoutSettingsProps) {
+export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -228,6 +230,17 @@ export function PayoutSettings({ poolId, isLocked }: PayoutSettingsProps) {
         </div>
         <OnOffToggle value={config.enabled} onChange={v => setConfig({ ...config, enabled: v })} disabled={isLocked} />
       </div>
+
+      {isLocked && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.6rem 0.85rem', marginBottom: '0.85rem' }}>
+          <Lock style={{ width: 13, height: 13, color: textDim, flexShrink: 0 }} />
+          <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+            {poolSeason
+              ? `This pool is from the ${poolSeason} season, which has ended. Payout settings can no longer be changed.`
+              : 'This pool is from a season that has ended. Payout settings can no longer be changed.'}
+          </p>
+        </div>
+      )}
 
       {!config.enabled ? (
         <div>
