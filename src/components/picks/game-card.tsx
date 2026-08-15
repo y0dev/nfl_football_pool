@@ -2,6 +2,7 @@
 
 import { Game, TeamRecord } from '@/types/game';
 import { getTeam, getTeamAbbreviation } from '@/lib/utils';
+import { TeamLogo } from '@/components/ui/team-logo';
 import { Check, Clock, Trophy } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -87,31 +88,18 @@ function TeamButton({
         transition: 'background 0.15s ease, outline 0.15s ease',
       }}
     >
-      <div
+      <TeamLogo
+        team={team}
+        size="lg"
+        colorAccent
         className='team-button-abbr'
         style={{
-          width: 64,
-          height: 64,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: team.color,
-          borderBottom: `6px solid ${team.color2}`,
           boxShadow: isSelected
             ? `0 0 22px ${team.color}55, 0 2px 10px rgba(0,0,0,0.6)`
             : '0 2px 10px rgba(0,0,0,0.45)',
           transition: 'box-shadow 0.2s ease',
-          ...bc,
-          fontWeight: 900,
-          fontSize: '0.88rem',
-          letterSpacing: '0.03em',
-          color: '#fff',
-          flexShrink: 0,
         }}
-      >
-        {team.abbreviation}
-      </div>
+      />
       <span style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: isSelected ? text : textMid, lineHeight: 1.1 }}>
         {team.city}
       </span>

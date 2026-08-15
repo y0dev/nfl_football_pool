@@ -533,6 +533,16 @@ input[type="url"], textarea {
   .pool-tab-label { display: inline; }
 }
 
+/* Picks page — Game Details team names: abbreviated ("KC @ GB") below
+   640px where full names ("Kansas City Chiefs @ Green Bay Packers")
+   wrap/overflow on narrow screens, full names at/above it. */
+.game-team-abbr { display: inline; }
+.game-team-full { display: none; }
+@media (min-width: 640px) {
+  .game-team-abbr { display: none; }
+  .game-team-full { display: inline; }
+}
+
 /* ── End admin layout ─────────────────────────────────────────────────────── */
 
 /* ── Admin dark theme ────────────────────────────────────────────────────── */
