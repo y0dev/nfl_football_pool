@@ -1,0 +1,31 @@
+-- Full re-audit of every index in public (86 total, cross-referenced against
+-- real pg_stat_user_indexes scan counts, uniqueness, constraint-backing, and
+-- codebase query patterns) per explicit request not to assume the prior two
+-- cleanup migrations (20260816160000, 20260816170000) were complete.
+--
+-- Systematically detected every exact-duplicate and leftmost-prefix-subset
+-- index pair in the schema (10 pairs found). Cross-referenced each against
+-- live scan counts:
+--   - 9 of the 10 pairs are legitimate: either both indexes show real scans
+--     (Postgres genuinely uses both for different query shapes), or the
+--     wider index only exists to back a UNIQUE constraint (0 scans there is
+--     expected — constraint enforcement isn't a "scan" — and it must stay
+--     regardless of scan count per the task's own rule).
+--   - idx_payout_configs_pool_id is the one genuine redundant duplicate:
+--     it indexes the exact same single column (pool_id) as the UNIQUE
+--     constraint's own backing index (payout_configs_pool_id_key), which
+--     already independently shows real scans, proving it's a fully capable
+--     substitute. Keeping both only adds write-time maintenance cost with
+--     zero query benefit. This one isn't literally "unused" (124 scans) but
+--     is a true structural duplicate, which the audit was also asked to check.
+--
+-- Every other currently-zero-scan index in the schema (verified via a full
+-- pg_stat_user_indexes sweep) is either a PRIMARY KEY, backs a UNIQUE
+-- constraint, or is one of the 11 foreign-key-covering indexes added in
+-- 20260816160000 (still too new to have accumulated scans) or
+-- idx_pools_huddle_id / idx_weekly_winners_pool_season (small tables where
+-- Postgres prefers a seq scan regardless of index existence, but both have
+-- confirmed real query matches in the codebase — see prior migrations'
+-- commit messages for the exact grep evidence). None of those are dropped.
+
+DROP INDEX IF EXISTS public.idx_payout_configs_pool_id;
