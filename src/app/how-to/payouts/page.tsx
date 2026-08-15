@@ -1,4 +1,5 @@
 import { GuideLayout, textMid, textDim, b, bc, surface, border, gold } from '@/components/how-to/guide-layout';
+import { Screenshot } from '@/components/how-to/screenshot';
 import { Callout } from '@/components/how-to/callout';
 import { Step } from '@/components/how-to/step';
 
@@ -51,9 +52,13 @@ export default function PayoutsGuide() {
       </Step>
 
       <Step number={4} title="Overall Season Payouts">
-        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
+        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
           Turn on Overall Payout to reward the season&apos;s final standings. Configure however many places you want to pay (not limited to three) and each place&apos;s percentage of the overall pool — which is automatically the total prize pool minus whatever&apos;s been allocated to weekly payouts. Weekly and Overall payouts are independent: you can run either one alone, or both together.
         </p>
+        <Screenshot
+          src="/how-to/payouts-settings.png"
+          alt="Payouts section in Pool Settings with tracking enabled, a $20 entry fee, Weekly Payouts on with a $50 fixed weekly prize and 1 winner, and Overall Season Payout on with 3 winners"
+        />
       </Step>
 
       <Step number={5} title="Handling Ties">
@@ -70,9 +75,13 @@ export default function PayoutsGuide() {
       </Step>
 
       <Step number={6} title="Calculating Payouts">
-        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
+        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
           Open the <strong>Payouts</strong> tab in Pool Management. Pick a week and click Calculate to see that week&apos;s winners and dollar amounts pulled straight from the live leaderboard — no manual math. At the end of the season, use the Overall Payout Calculator the same way against final standings.
         </p>
+        <Screenshot
+          src="/how-to/payouts-calculator.png"
+          alt="Payouts tab showing the Total Prize Pool and Weekly Payout Calculator results for Week 2, with three tied participants each shown as T-1st and a Mark Paid button"
+        />
       </Step>
 
       <Step number={7} title="Marking Payouts as Paid">
