@@ -1369,7 +1369,7 @@ export function PoolPicksContent() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
               <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
-              {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
+              {process.env.NODE_ENV === 'development' && lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
             </div>
           </div>
         </section>
@@ -1599,7 +1599,7 @@ export function PoolPicksContent() {
             );
           })()}
 
-          {countdown && countdown !== 'Games Started' && (
+          {countdown && countdown !== 'Games Started' && !(participantCount > 0 && submittedCount >= participantCount) && (
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.3)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                 <Clock style={{ width: 18, height: 18, color: 'oklch(68% 0.12 250)', flexShrink: 0 }} />
