@@ -8,7 +8,6 @@ import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { createPageUrl, getWeekTitle as getWeekTitleUtil, getPlayoffRoundName, isOffseason, debugLog, debugError} from '@/lib/utils';
-import { isPricingVisible } from '@/lib/billing';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
@@ -180,14 +179,6 @@ function LandingPage() {
         isAuthenticated={!!user}
         isSuperAdmin={isSuperAdmin === true}
         onSignOut={handleSignOut}
-        extraSections={[{
-          label: 'Learn More',
-          links: [
-            { label: 'How It Works', href: '/how-it-works' },
-            { label: 'FAQ', href: '/faq' },
-            ...(isPricingVisible() ? [{ label: 'Pricing', href: '/pricing' }] : []),
-          ],
-        }]}
       />
 
       {/* ── HERO ── */}

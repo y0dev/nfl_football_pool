@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
+import { AppNav } from '@/components/layout/AppNav';
 import { Breadcrumbs, type BreadcrumbItem } from './breadcrumbs';
 import { PrevNext } from './prev-next';
 import { getGuideNeighbors } from '@/lib/how-to-guides';
@@ -20,36 +19,6 @@ const amber   = 'oklch(72% 0.16 60)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
-/** Shared nav header for every /how-to page — matches the public-page nav
- * pattern used on /how-it-works and /faq, with a How To link added. */
-function HowToNav() {
-  return (
-    <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'oklch(13% 0.025 255 / 0.95)', backdropFilter: 'blur(14px)', borderBottom: `1px solid ${border}` }}>
-      <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0, textDecoration: 'none' }}>
-            <BrandLogo variant="icon" size={32} />
-            <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Sunday Huddle
-            </span>
-          </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <Link href="/how-to" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', textDecoration: 'none' }}>
-              How To
-            </Link>
-            <Link href="/how-it-works" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-              How It Works
-            </Link>
-            <Link href="/faq" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-              FAQ
-            </Link>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 interface GuideLayoutProps {
   /** Current guide's slug — used to look up Previous/Next neighbors. Omit on the landing page. */
   slug?: string;
@@ -64,7 +33,7 @@ export function GuideLayout({ slug, breadcrumbs, title, intro, children }: Guide
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
-      <HowToNav />
+      <AppNav isAuthenticated={false} />
 
       <section style={{ background: bg, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0 1rem' }}>
         <div className="lp-inner">

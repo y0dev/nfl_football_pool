@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Shield, Plus, ChevronDown } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
-import { BrandLogo } from '@/components/ui/brand-logo';
-import { isPricingVisible } from '@/lib/billing';
+import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const bg      = 'oklch(13% 0.025 255)';
@@ -33,7 +32,7 @@ const faqs = [
   },
   {
     q: 'Can I change my picks after I submit them?',
-    a: 'Yes, the commissioner can make changes for you up until the kicks off of the first game of that week. Once the first game starts, the pick are locks in for that week — but picks for the other games that week stay open until each one starts.',
+    a: 'Yes, the commissioner can make changes for you right up until kickoff of the first game of that week. Once that first game starts, picks for the entire week lock — including games that haven\'t kicked off yet.',
   },
   {
     q: 'Does my pool include the playoffs?',
@@ -94,76 +93,7 @@ export default function FaqPage() {
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
 
-      {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'oklch(13% 0.025 255 / 0.95)',
-        backdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${border}`,
-      }}>
-        <div className="lp-inner" style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0, textDecoration: 'none' }}>
-              <BrandLogo variant="icon" size={32} />
-              <span style={{
-                ...bc, fontWeight: 800, fontSize: '0.95rem',
-                letterSpacing: '0.07em', color: text, textTransform: 'uppercase',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                Sunday Huddle
-              </span>
-            </Link>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }}>
-              <div className="lp-nav-links">
-                <Link href="/how-it-works" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                  How It Works
-                </Link>
-                <Link href="/faq" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', textDecoration: 'none' }}>
-                  FAQ
-                </Link>
-                {isPricingVisible() && (
-                  <Link href="/pricing" style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', color: textMid, textTransform: 'uppercase', textDecoration: 'none' }}>
-                    Pricing
-                  </Link>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                <button
-                  onClick={() => router.push('/login')}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.45rem 0.9rem',
-                    background: 'transparent', color: textMid,
-                    border: `1px solid ${border}`, borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.78rem',
-                    letterSpacing: '0.08em', textTransform: 'uppercase',
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  <span className="pools-nav-label">Sign In</span>
-                </button>
-                <button
-                  onClick={() => router.push('/register')}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.45rem 0.9rem',
-                    background: green, color: text, border: 'none', borderRadius: 6,
-                    ...bc, fontWeight: 700, fontSize: '0.78rem',
-                    letterSpacing: '0.08em', textTransform: 'uppercase',
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="pools-nav-label">Create Pool</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppNav isAuthenticated={false} />
 
       {/* ── HERO ── */}
       <section style={{
