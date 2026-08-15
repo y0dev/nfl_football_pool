@@ -1,3 +1,5 @@
+'use server';
+
 import { getSupabaseClient } from '@/lib/supabase';
 import { emailService } from '@/lib/email';
 import { debugLog, debugError, debugWarn } from '@/lib/utils';

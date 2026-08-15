@@ -42,3 +42,5 @@ supabase/.temp/**
 !tests
 !samples
 !samples/**
+.vercel
+.env*

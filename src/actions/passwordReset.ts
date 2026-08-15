@@ -82,7 +82,14 @@ export async function requestPasswordReset(
 
   try {
     const { emailService } = await import('@/lib/email');
-    await emailService.sendPasswordResetLink(admin.email, admin.full_name || 'Commissioner', resetUrl);
+    const sent = await emailService.sendPasswordResetLink(admin.email, admin.full_name || 'Commissioner', resetUrl);
+    // sendEmail() catches SMTP errors internally and resolves false rather
+    // than throwing, so a delivery failure never reaches this catch block —
+    // log it here instead. Still returns {success:true} to the client (not
+    // {success:false}) to preserve the anti-enumeration guarantee above:
+    // the response must look identical whether the account doesn't exist
+    // or the account exists but the send failed.
+    if (!sent) debugError('Password reset email failed to send (no exception thrown) for:', admin.email);
   } catch (err) {
     debugError('Password reset email failed:', err);
     return { success: false, error: 'Failed to send reset email. Please try again.' };

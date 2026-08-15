@@ -86,7 +86,12 @@ export async function requestMagicLink(
 
   try {
     const { emailService } = await import('@/lib/email');
-    await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
+    const sent = await emailService.sendMagicLink(admin.email, admin.full_name || 'Commissioner', magicUrl);
+    // sendEmail() catches SMTP errors internally and resolves false rather
+    // than throwing, so a delivery failure never reaches this catch block —
+    // log it here instead. Still returns {success:true} to the client to
+    // preserve the anti-enumeration guarantee above.
+    if (!sent) debugError('Magic link email failed to send (no exception thrown) for:', admin.email);
   } catch (err) {
     debugError('Magic link email send failed:', err);
     return { success: false, error: 'Failed to send magic link. Please try again.' };
