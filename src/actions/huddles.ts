@@ -3,9 +3,10 @@
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getOrCreateHuddleRecordForCommissioner, loadHuddlesForCommissioner, insertHuddleForCommissioner, HuddleRecord } from '@/lib/huddles';
 import { checkHuddleCapacity } from '@/lib/plan';
-import { debugError } from '@/lib/utils';
+import { debugError, isDummyData, DUMMY_HUDDLE } from '@/lib/utils';
 
 export async function loadHuddleForCommissioner(email: string): Promise<HuddleRecord> {
+  if (isDummyData()) return DUMMY_HUDDLE;
   return getOrCreateHuddleRecordForCommissioner(email);
 }
 
@@ -18,6 +19,8 @@ export interface CommissionerHuddleSummary {
 /** Every Huddle a commissioner owns, oldest first, with each one's pool
  * count — backs the "My Huddles" list page. */
 export async function loadAllHuddlesForCommissioner(email: string): Promise<CommissionerHuddleSummary[]> {
+  if (isDummyData()) return [{ id: DUMMY_HUDDLE.id, name: DUMMY_HUDDLE.name, poolCount: 1 }];
+
   const huddles = await loadHuddlesForCommissioner(email);
   if (huddles.length === 0) return [];
 
@@ -41,6 +44,8 @@ export async function loadAllHuddlesForCommissioner(email: string): Promise<Comm
  * someone else, so the page can 404 rather than leak another commissioner's
  * Huddle by id guessing. */
 export async function loadOwnedHuddleForCommissioner(huddleId: string, email: string): Promise<HuddleRecord | null> {
+  if (isDummyData()) return DUMMY_HUDDLE;
+
   const supabase = getSupabaseServiceClient();
   const { data } = await supabase
     .from('huddles')

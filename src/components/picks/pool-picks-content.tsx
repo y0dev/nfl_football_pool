@@ -20,7 +20,7 @@ import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -224,15 +224,23 @@ export function PoolPicksContent() {
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
   const [poolSeasonScope, setPoolSeasonScope] = useState<number[]>([2]);
-  const [forcePicks, setForcePicks] = useState(process.env.NEXT_PUBLIC_DUMMY_DATA === 'true');
-  const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
+  const [forcePicks, setForcePicks] = useState(simulatePicksEnabled());
+  const [forceWeekUnlocked, setForceWeekUnlocked] = useState(simulatePicksEnabled());
   const [devSimInProgress, setDevSimInProgress] = useState(false);
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
+  const [devSimSubmitted, setDevSimSubmitted] = useState(false);
   const [activeResultsTab, setActiveResultsTab] = useState<'leaderboard' | 'results'>('leaderboard');
 
   const { toast } = useToast();
   const router = useRouter();
+
+  // Debug-panel-only override: treat the selected user as submitted without
+  // touching the database, so the locked/submitted view can be screenshotted.
+  const isSubmittedForUser = (userId: string) => {
+    if (showDebugPanel() && devSimSubmitted && selectedUser?.id === userId) return true;
+    return !!hasSubmitted[userId]?.submitted;
+  };
 
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
 
@@ -1286,7 +1294,7 @@ export function PoolPicksContent() {
               <ArrowLeft style={{ width: 13, height: 13 }} /> Back to Home
             </Link>
           </div>
-          {process.env.NODE_ENV === 'development' && (
+          {showDebugPanel() && (
             <div style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '1rem', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 5, textAlign: 'left' }}>
               <p><strong>Pool ID:</strong> {poolId || 'undefined'}</p>
               <p><strong>Week:</strong> {weekParam || 'undefined'}</p>
@@ -1720,12 +1728,12 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true') && (
+          {showDebugPanel() && (
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
               <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'} | <strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'} | <strong>Games:</strong> {games.length}</p>
-                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'} | <strong>Has Submitted:</strong> {selectedUser ? (hasSubmitted[selectedUser.id]?.submitted ? 'Yes' : 'No') : 'N/A'}</p>
+                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'} | <strong>Has Submitted:</strong> {selectedUser ? (isSubmittedForUser(selectedUser.id) ? 'Yes' : 'No') : 'N/A'}{devSimSubmitted ? ' (simulated)' : ''}</p>
                 <p><strong>Leaderboard:</strong> {showLeaderboard ? 'Shown' : 'Hidden'} | <strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
                 <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
               </div>
@@ -1775,11 +1783,20 @@ export function PoolPicksContent() {
                   />
                   <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show week leaderboard</span>
                 </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={devSimSubmitted}
+                    onChange={(e) => setDevSimSubmitted(e.target.checked)}
+                    style={{ accentColor: 'oklch(65% 0.12 290)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate picks submitted for the selected user (shows the locked/submitted view — nothing is written to the database)</span>
+                </label>
               </div>
             </div>
           )}
 
-          {process.env.NODE_ENV === 'development' && (
+          {showDebugPanel() && (
             <div style={{ background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
               <p style={{ ...b, fontSize: '0.78rem', color: greenHi }}>
                 <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}, Week ended: {weekEnded ? 'Yes' : 'No'}
@@ -1822,7 +1839,7 @@ export function PoolPicksContent() {
                 {effectiveGamesStarted && !weekEnded && submittedCount >= participantCount && (
                   <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 1rem' }}>Games in progress</span>
                 )}
-                {process.env.NODE_ENV === 'development' && devForceLeaderboard && !weekEnded && !(effectiveGamesStarted && submittedCount >= participantCount) && (
+                {showDebugPanel() && devForceLeaderboard && !weekEnded && !(effectiveGamesStarted && submittedCount >= participantCount) && (
                   <span style={{ alignSelf: 'center', marginLeft: 'auto', marginRight: '1rem', ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.1rem 0.4rem', textTransform: 'uppercase' }}>Dev</span>
                 )}
               </div>
@@ -1945,7 +1962,7 @@ export function PoolPicksContent() {
                     <div>
                       <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Week {currentWeek} Picks</span>
                       <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>
-                        {selectedUser && hasSubmitted[selectedUser.id]?.submitted
+                        {selectedUser && isSubmittedForUser(selectedUser.id)
                           ? 'You have already submitted your picks for this week. Only admins can unlock your picks to make changes.'
                           : 'Select the winner for each game and assign confidence points'}
                       </span>
@@ -1953,7 +1970,7 @@ export function PoolPicksContent() {
                   </div>
                   <div style={{ padding: '1.25rem' }}>
                     {selectedUser ? (
-                      hasSubmitted[selectedUser.id]?.submitted ? (
+                      isSubmittedForUser(selectedUser.id) ? (
                         <div style={{ textAlign: 'center', padding: '2rem' }}>
                           <Lock style={{ width: 40, height: 40, color: textDim, margin: '0 auto 0.75rem' }} />
                           <p style={{ ...bc, fontWeight: 700, fontSize: '1rem', color: textMid, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Picks Submitted</p>
@@ -1969,12 +1986,12 @@ export function PoolPicksContent() {
                         </div>
                       ) : games.length > 0 ? (
                         <div>
-                          {process.env.NODE_ENV === 'development' && (
+                          {showDebugPanel() && (
                             <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 6 }}>
                               <div style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                                 <p><strong>User:</strong> {selectedUser.name} (ID: {selectedUser.id})</p>
                                 <p><strong>Pool:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
-                                <p><strong>Submission Status:</strong> {hasSubmitted[selectedUser.id]?.submitted ? 'Submitted' : 'Not Submitted'}</p>
+                                <p><strong>Submission Status:</strong> {isSubmittedForUser(selectedUser.id) ? 'Submitted' : 'Not Submitted'}</p>
                                 <p><strong>All Users Status:</strong> {JSON.stringify(hasSubmitted)}</p>
                               </div>
                             </div>

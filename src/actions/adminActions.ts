@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabaseClient } from '@/lib/supabase';
-import { debugLog, debugError, debugWarn } from '@/lib/utils';
+import { debugLog, debugError, debugWarn, isDummyData, DUMMY_PARTICIPANTS, DUMMY_POOL } from '@/lib/utils';
 
 // Get weekly submissions for a pool
 async function getWeeklySubmissions(poolId: string, week: number) {
@@ -359,6 +359,15 @@ async function getAdminPools() {
 
 // Get pool participants
 export async function getPoolParticipants(poolId: string) {
+  if (isDummyData()) {
+    return DUMMY_PARTICIPANTS.map(p => ({
+      ...p,
+      pool_id: DUMMY_POOL.id,
+      is_active: true,
+      created_at: DUMMY_POOL.created_at,
+    }));
+  }
+
   try {
     const { adminService } = await import('@/lib/admin-service');
     return await adminService.getPoolParticipants(poolId);

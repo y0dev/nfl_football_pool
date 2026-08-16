@@ -1,9 +1,11 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { debugLog, debugError } from '@/lib/utils';
+import { debugLog, debugError, isDummyData, DUMMY_POOL } from '@/lib/utils';
 
 export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
+  if (isDummyData()) return [DUMMY_POOL];
+
   try {
     const supabase = getSupabaseServiceClient();
     let query = supabase
@@ -32,6 +34,8 @@ export async function loadPools(adminEmail?: string, isSuperAdmin?: boolean) {
  * inactive pools (with is_active on each row) so a deactivated pool still
  * shows up with its status rather than silently disappearing. */
 export async function loadPoolsByHuddleId(huddleId: string) {
+  if (isDummyData()) return [DUMMY_POOL];
+
   try {
     const supabase = getSupabaseServiceClient();
     const { data, error } = await supabase
@@ -49,6 +53,8 @@ export async function loadPoolsByHuddleId(huddleId: string) {
 }
 
 export async function loadPool(poolId: string) {
+  if (isDummyData()) return DUMMY_POOL;
+
   try {
     const supabase = getSupabaseServiceClient();
     const { data, error } = await supabase

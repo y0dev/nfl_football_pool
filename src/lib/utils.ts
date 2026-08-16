@@ -320,6 +320,12 @@ export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseco
 // Game Timing Configuration
 export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
 
+// How long the landing page keeps showing a week as "current" after its
+// last game is decided, before advancing to the next week. Games don't have
+// a stored end time, so this is measured from the latest kickoff_time in
+// the week (kickoff + this many hours is always well past a real game's end).
+export const HOURS_AFTER_LAST_GAME_WEEK_OVER = 12;
+
 // API Configuration
 const API_ENDPOINTS = {
   POOLS: '/api/pools',
@@ -661,36 +667,85 @@ const debugIf = (condition: boolean, ...args: unknown[]) => {
   }
 }; 
 
+/**
+ * Dummy-data mode — pools, huddles, participants, games, and leaderboards
+ * are all served from the DUMMY_* constants below instead of the database,
+ * so How-To guide screenshots don't depend on real seeded rows. Gated on
+ * real NODE_ENV so a NEXT_PUBLIC_* (or plain) value alone can never enable
+ * it in a production build — every visitor would otherwise see the same
+ * fake pool instead of their real one.
+ */
 export const isDummyData = () => {
-  return process.env.DUMMY_DATA === 'true' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true';
+  return process.env.NODE_ENV === 'development' &&
+    (process.env.DUMMY_DATA === 'true' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true');
 };
 
-// Create dummy data for development 
+/**
+ * Dev-only debug panel (picks page "Debug Info" block + toggles). Gated on
+ * real NODE_ENV so it can never be flipped on by a NEXT_PUBLIC_* value baked
+ * into a production build — only NEXT_PUBLIC_SHOW_DEBUG_PANEL, checked
+ * alongside it, decides whether it renders in a dev build.
+ */
+export const showDebugPanel = () => {
+  return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_SHOW_DEBUG_PANEL === 'true';
+};
+
+/**
+ * Auto-fills picks with deterministic simulated selections and lets
+ * submission succeed without writing to the database — for capturing
+ * How-To guide screenshots against a real pool without seeding real pick
+ * rows. Same NODE_ENV safety gate as showDebugPanel().
+ */
+export const simulatePicksEnabled = () => {
+  return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_SIMULATE_PICKS === 'true';
+};
+
+// Create dummy data for development — themed as "Morgan Family" to match the
+// How-To guide's screenshots, so isDummyData() mode reproduces the same
+// pool/huddle/participant names those screenshots already show without
+// needing real seeded rows.
+
+// Dummy huddle — the League a dummy pool belongs to
+export const DUMMY_HUDDLE = {
+  id: 'dummy-huddle-id-12345',
+  name: 'Morgan Family',
+  commissioner_email: 'commissioner@example.com',
+  is_active: true,
+};
+
 // Dummy pool
 export const DUMMY_POOL = {
   id: 'dummy-pool-id-12345',
-  name: 'NFL Fantasy Pool 2025',
-  description: 'A fun NFL fantasy football pool for the 2025 season',
+  name: 'Morgan Family Pool',
+  description: "A fun NFL confidence pool for the Morgan family",
   season: DEFAULT_POOL_SEASON,
   is_active: true,
   created_by: 'dummy-admin-id',
   created_at: new Date().toISOString(),
+  huddle_id: DUMMY_HUDDLE.id,
   tie_breaker_method: 'total_points',
   tie_breaker_question: 'What will be the total points scored in the Super Bowl?',
   tie_breaker_answer: 45,
   require_access_code: false,
   access_code: null,
   logo_url: null,
-  participant_count: 4, // Matches DUMMY_PARTICIPANTS length
+  participant_count: 3, // Matches DUMMY_PARTICIPANTS length
 };
 
-
-// Dummy participants 
+// Dummy participants
 export const DUMMY_PARTICIPANTS = [
-  { id: '1', name: 'Participant 1', email: 'participant1@example.com' },
-  { id: '2', name: 'Participant 2', email: 'participant2@example.com' },
-  { id: '3', name: 'Participant 3', email: 'participant3@example.com' },
-  { id: '4', name: 'Participant 4', email: 'participant4@example.com' }
+  { id: 'dummy-participant-1', name: 'Alex Morgan', email: 'alex.morgan@example.com' },
+  { id: 'dummy-participant-2', name: 'Jordan Lee', email: 'jordan.lee@example.com' },
+  { id: 'dummy-participant-3', name: 'Sam Rivera', email: 'sam.rivera@example.com' },
+];
+
+// Dummy huddle roster — same three people as DUMMY_PARTICIPANTS, already
+// assigned into DUMMY_POOL (mirrors the real Morgan Family seed data the
+// How-To screenshots were captured from), shaped to match HuddleMember.
+export const DUMMY_HUDDLE_MEMBERS = [
+  { id: 'dummy-huddle-member-1', name: 'Alex Morgan', email: 'alex.morgan@example.com', poolIds: [DUMMY_POOL.id] },
+  { id: 'dummy-huddle-member-2', name: 'Jordan Lee', email: 'jordan.lee@example.com', poolIds: [DUMMY_POOL.id] },
+  { id: 'dummy-huddle-member-3', name: 'Sam Rivera', email: 'sam.rivera@example.com', poolIds: [DUMMY_POOL.id] },
 ];
 
 // Dummy Playoff Teams - 7 AFC teams and 7 NFC teams (14 total)

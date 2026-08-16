@@ -35,7 +35,7 @@ export default function MakePicksGuide() {
         <Screenshot
           src="/how-to/make-picks-step2-select.png"
           alt="Make Picks screen on a phone with Seattle selected and highlighted green for the first game, and a Confidence Points Summary showing points still available"
-          width={1170} height={1992}
+          width={1170} height={2620}
         />
       </Step>
 
