@@ -12,7 +12,7 @@ import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
 import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
-import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { GameCard } from '@/components/picks/game-card';
 import {
@@ -78,7 +78,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [isWeekUnlocked, setIsWeekUnlocked] = useState<boolean | null>(null);
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
-  const devForceUnlockedRef = useRef(process.env.NEXT_PUBLIC_NODE_ENV === 'development');
+  const devForceUnlockedRef = useRef(simulatePicksEnabled());
   const [devForceUnlocked, setDevForceUnlocked] = useState(devForceUnlockedRef.current);
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
@@ -684,52 +684,41 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   };
 
-  // Generate random picks for testing (development only)
-  const generateRandomPicks = () => {
+  // Fills every game with a predicted winner + confidence points. Shared by
+  // the "Generate Random Picks" dev button (shuffled, re-rollable) and the
+  // NEXT_PUBLIC_SIMULATE_PICKS auto-fill (deterministic, so screenshots are
+  // reproducible across reloads).
+  const fillPicks = (deterministic: boolean) => {
     if (!games.length) return;
 
-    // Create a copy of current picks
     const newPicks = [...picks];
-
-    // Get available confidence points (1 to number of games)
     const availablePoints = Array.from({ length: games.length }, (_, i) => i + 1);
-
-    // Shuffle available points for random assignment
-    const shuffledPoints = availablePoints.sort(() => Math.random() - 0.5);
+    const orderedPoints = deterministic ? availablePoints : availablePoints.sort(() => Math.random() - 0.5);
 
     games.forEach((game, index) => {
-      // Randomly pick home or away team
       const teams = [game.home_team, game.away_team];
-      const randomTeam = teams[Math.random() < 0.5 ? 0 : 1];
+      const winner = deterministic ? teams[index % 2] : teams[Math.random() < 0.5 ? 0 : 1];
+      const points = orderedPoints[index];
 
-      // Assign random confidence points
-      const randomPoints = shuffledPoints[index];
-
-      // Find the pick for this game
       const pickIndex = newPicks.findIndex(p => p.game_id === game.id);
       if (pickIndex !== -1) {
-        newPicks[pickIndex] = {
-          ...newPicks[pickIndex],
-          predicted_winner: randomTeam,
-          confidence_points: randomPoints
-        };
+        newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: winner, confidence_points: points };
       }
     });
 
-    // Update picks state
     setPicks(newPicks);
     setHasUnsavedChanges(true);
 
-    // Convert picks to StoredPick format with timestamps
-    const storedPicks = newPicks.map(pick => ({
-      ...pick,
-      timestamp: Date.now()
-    }));
-
-    // Save to localStorage
+    const storedPicks = newPicks.map(pick => ({ ...pick, timestamp: Date.now() }));
     pickStorage.savePicks(storedPicks, selectedUser!.id, poolId, currentWeek);
     setLastSaved(new Date());
 
+    return newPicks;
+  };
+
+  // Generate random picks for testing (development only)
+  const generateRandomPicks = () => {
+    if (!fillPicks(false)) return;
     toast({
       title: 'Random Picks Generated',
       description: `Generated random picks for ${games.length} games with shuffled confidence points`,
@@ -750,6 +739,19 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       onUserChangeRequested();
     }
   };
+
+  // NEXT_PUBLIC_SIMULATE_PICKS: auto-fill every game once per selected user
+  // so How-To guide screenshots can show a fully-picked form without seeding
+  // real pick rows. Deterministic so reloading gives the same screenshot.
+  const simulatedFillDoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!simulatePicksEnabled() || !selectedUser || games.length === 0) return;
+    if (picks.length !== games.length) return;
+    if (simulatedFillDoneRef.current === selectedUser.id) return;
+    if (picks.some(p => p.predicted_winner)) return; // don't clobber real/existing picks
+    simulatedFillDoneRef.current = selectedUser.id;
+    fillPicks(true);
+  }, [selectedUser, games, picks]);
 
   if (!selectedUser) {
     // Don't render anything if no user is selected - parent component handles this
@@ -994,7 +996,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       {/* Submit button area */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem' }}>
         {/* Debug information - only show in development */}
-        {process.env.NODE_ENV === 'development' && (
+        {showDebugPanel() && (
           <div style={{
             ...b, fontSize: '0.68rem', color: textDim,
             padding: '0.5rem 0.75rem',
@@ -1011,7 +1013,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         )}
 
         {/* Random Picks Button - Only show in development */}
-        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_NODE_ENV === 'development') && (
+        {(showDebugPanel() || simulatePicksEnabled()) && (
           <button
             type="button"
             onClick={generateRandomPicks}

@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
-import { debugLog, DAYS_BEFORE_GAME, isDummyData, debugError} from '@/lib/utils';
+import { debugLog, DAYS_BEFORE_GAME, isDummyData, simulatePicksEnabled, debugError} from '@/lib/utils';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
 
 export async function POST(request: NextRequest) {
   try {
-    
-    if (isDummyData()) {
+
+    if (isDummyData() || simulatePicksEnabled()) {
       return NextResponse.json({
         success: true,
-        message: 'Picks submitted successfully'
+        message: 'Picks submitted successfully (simulated — not written to the database)'
       });
     }
 

@@ -665,6 +665,26 @@ export const isDummyData = () => {
   return process.env.DUMMY_DATA === 'true' || process.env.NEXT_PUBLIC_DUMMY_DATA === 'true';
 };
 
+/**
+ * Dev-only debug panel (picks page "Debug Info" block + toggles). Gated on
+ * real NODE_ENV so it can never be flipped on by a NEXT_PUBLIC_* value baked
+ * into a production build — only NEXT_PUBLIC_SHOW_DEBUG_PANEL, checked
+ * alongside it, decides whether it renders in a dev build.
+ */
+export const showDebugPanel = () => {
+  return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_SHOW_DEBUG_PANEL === 'true';
+};
+
+/**
+ * Auto-fills picks with deterministic simulated selections and lets
+ * submission succeed without writing to the database — for capturing
+ * How-To guide screenshots against a real pool without seeding real pick
+ * rows. Same NODE_ENV safety gate as showDebugPanel().
+ */
+export const simulatePicksEnabled = () => {
+  return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_SIMULATE_PICKS === 'true';
+};
+
 // Create dummy data for development 
 // Dummy pool
 export const DUMMY_POOL = {
