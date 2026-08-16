@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { isOffseason, isGameDecided, debugLog, debugError} from '@/lib/utils';
+import { isOffseason, isGameDecided, HOURS_AFTER_LAST_GAME_WEEK_OVER, debugLog, debugError} from '@/lib/utils';
 
 interface WeekGame {
   week: number;
@@ -26,8 +26,16 @@ interface WeekGame {
  * starting after right now," permanently locking in whatever the loop had
  * last picked instead of continuing to evaluate later weeks. Fixed with an
  * explicit bestWeekSet boolean.
+ *
+ * @param graceHoursAfterLastGame - Keeps a just-finished week as "the best
+ * week" for this many hours past its last game's kickoff_time (no stored
+ * end time exists, so kickoff is the closest available reference point)
+ * before letting the next week take over. Defaults to
+ * HOURS_AFTER_LAST_GAME_WEEK_OVER so every caller — landing page, dashboard,
+ * picks — gets the same grace period without having to opt in; pass 0
+ * explicitly for the rare case that needs the original instant handoff.
  */
-function findBestWeek(games: WeekGame[], now: Date): { week: number; seasonType: number } {
+function findBestWeek(games: WeekGame[], now: Date, graceHoursAfterLastGame = HOURS_AFTER_LAST_GAME_WEEK_OVER): { week: number; seasonType: number } {
   // Group games by season/week/season_type
   const weekGroups = games.reduce((acc, game) => {
     const key = `${game.season}-${game.week}-${game.season_type}`;
@@ -37,6 +45,26 @@ function findBestWeek(games: WeekGame[], now: Date): { week: number; seasonType:
     acc[key].push(game);
     return acc;
   }, {} as Record<string, WeekGame[]>);
+
+  if (graceHoursAfterLastGame > 0) {
+    const graceMs = graceHoursAfterLastGame * 60 * 60 * 1000;
+    let recentlyFinished: { week: number; seasonType: number; latestKickoff: number } | null = null;
+
+    for (const [key, weekGames] of Object.entries(weekGroups)) {
+      const [, week, seasonType] = key.split('-').map(Number);
+      if (!weekGames.every(isGameDecided)) continue;
+
+      const latestKickoff = Math.max(...weekGames.map(g => new Date(g.kickoff_time).getTime()));
+      const withinGrace = now.getTime() >= latestKickoff && now.getTime() - latestKickoff < graceMs;
+      if (withinGrace && (!recentlyFinished || latestKickoff > recentlyFinished.latestKickoff)) {
+        recentlyFinished = { week, seasonType, latestKickoff };
+      }
+    }
+
+    if (recentlyFinished) {
+      return { week: recentlyFinished.week, seasonType: recentlyFinished.seasonType };
+    }
+  }
 
   let bestWeek = 1;
   let bestSeasonType = 2;

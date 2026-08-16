@@ -320,6 +320,12 @@ export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseco
 // Game Timing Configuration
 export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for various operations
 
+// How long the landing page keeps showing a week as "current" after its
+// last game is decided, before advancing to the next week. Games don't have
+// a stored end time, so this is measured from the latest kickoff_time in
+// the week (kickoff + this many hours is always well past a real game's end).
+export const HOURS_AFTER_LAST_GAME_WEEK_OVER = 12;
+
 // API Configuration
 const API_ENDPOINTS = {
   POOLS: '/api/pools',
