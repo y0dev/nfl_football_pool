@@ -57,8 +57,8 @@ export default function PayoutsGuide() {
         </p>
         <Screenshot
           src="/how-to/payouts-settings.png"
-          alt="Payouts section in Pool Settings on a phone, with tracking enabled and an explanation of how weekly and overall payouts work"
-          width={1170} height={1992}
+          alt="Payouts section in Pool Settings on a phone, right after General Settings, with tracking enabled and Weekly Payouts configured for 3 winners"
+          width={1170} height={4600}
         />
       </Step>
 
