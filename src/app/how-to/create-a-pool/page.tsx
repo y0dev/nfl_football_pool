@@ -17,7 +17,8 @@ export default function CreateAPoolGuide() {
       <Step number={1} title="Open Your Huddle">
         <Screenshot
           src="/how-to/my-huddles.png"
-          alt="My Huddles page listing the Morgan Family Huddle with a Create Huddle button"
+          alt="My Huddles page on a phone, listing the Morgan Family Huddle with a Create Huddle button"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           From the nav menu, open <strong>My Huddles</strong>, then click into the Huddle you want to create a pool in. Need a separate Huddle for a different group of friends or family? Use <strong>Create Huddle</strong> here.
@@ -27,7 +28,8 @@ export default function CreateAPoolGuide() {
       <Step number={2} title='Click "Create Pool"'>
         <Screenshot
           src="/how-to/huddle-detail-top.png"
-          alt="Huddle detail page for Morgan Family showing the League Roster and a Create Pool button"
+          alt="Huddle detail page for Morgan Family on a phone, showing the League Roster and a Create Pool button"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           Inside your Huddle, click <strong>Create Pool</strong> to open the setup form.
@@ -37,7 +39,8 @@ export default function CreateAPoolGuide() {
       <Step number={3} title="Configure Your Pool">
         <Screenshot
           src="/how-to/create-pool-dialog.png"
-          alt="Create New Pool dialog showing fields for competition type, pool name, season, season scope, pool type, password, and public/private visibility"
+          alt="Create New Pool dialog on a phone, showing fields for competition type, pool name, season, season scope, and pool type"
+          width={1170} height={1992}
         />
         <Callout
           items={[
@@ -53,7 +56,8 @@ export default function CreateAPoolGuide() {
       <Step number={4} title="Private Pools Require a Password">
         <Screenshot
           src="/how-to/create-pool-dialog-private.png"
-          alt="Create New Pool dialog with Private selected, showing required Pool Password and Confirm Password fields"
+          alt="Create New Pool dialog on a phone with Private selected, showing required Pool Password and Confirm Password fields"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           Switch <strong>Visibility</strong> to <strong>Private</strong> and a password becomes required — anyone with the pool link will need it to view picks, the leaderboard, or results. You can view, copy, or change this password later from the pool&apos;s Settings tab.

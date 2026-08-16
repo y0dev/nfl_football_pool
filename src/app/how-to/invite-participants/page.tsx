@@ -34,7 +34,8 @@ export default function InviteParticipantsGuide() {
       <Step number={1} title="Add People to Your Huddle Roster">
         <Screenshot
           src="/how-to/huddle-detail-roster.png"
-          alt="Morgan Family Huddle page showing the League Roster with three members added, and the Morgan Family Pool card with an Add from Roster section"
+          alt="Morgan Family Huddle page on a phone, showing the League Roster with three members added, and the Morgan Family Pool card with an Add from Roster section"
+          width={1170} height={4107}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           On your Huddle page, enter a <strong>name</strong> (required) and an optional <strong>email</strong>, then click <strong>Add to League</strong>. Adding an email lets that person be invited automatically when you add them to a pool — leave it blank if you&apos;d rather notify them yourself.

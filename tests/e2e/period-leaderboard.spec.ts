@@ -127,6 +127,37 @@ async function setupWithNoPicks(h: TestHelpers) {
   await h.mockAPIResponse('**/api/team-records**', { success: true, records: [] });
 }
 
+// Shared setup: final games, participants exist in the pool, but NONE of
+// them submitted picks this week — the leaderboard still returns one entry
+// per participant (all zeroed out), unlike setupWithNoPicks's empty array.
+// This is the real production shape (a pool with active participants that
+// simply has no picks for a specific past week) that previously showed a
+// misleading "winner" with 0 points/0 correct picks instead of the
+// no-picks banner, because the old check only looked at leaderboard.length.
+async function setupWithParticipantsButNoPicks(h: TestHelpers) {
+  await h.mockPoolByIdAPI(POOL_ID, testData.poolDetail.regularOnly);
+  await h.mockAPIResponse('**/api/games/week**', { games: FINAL_GAMES, success: true });
+  await h.mockAPIResponse('**/api/picks**', { picks: [], success: true });
+  await h.mockAPIResponse('**/api/admin/week-winner**', { winnerExists: false, winner: null });
+  await h.mockAPIResponse('**/api/leaderboard**', {
+    success: true,
+    leaderboard: [
+      { participant_id: 'p-1', participant_name: 'Alice', total_points: 0, correct_picks: 0, total_picks: 0, picks: [] },
+      { participant_id: 'p-2', participant_name: 'Bob', total_points: 0, correct_picks: 0, total_picks: 0, picks: [] },
+    ],
+    participants: [
+      { id: 'p-1', name: 'Alice' },
+      { id: 'p-2', name: 'Bob' },
+    ],
+    games: FINAL_GAMES,
+    totalParticipants: 2,
+  });
+  await h.mockAPIResponse('**/api/periods/leaderboard**', MOCK_PERIOD_LEADERBOARD);
+  await h.mockAPIResponse('**/api/scores**', { scores: [], success: true });
+  await h.mockAPIResponse('**/api/tie-breakers**', { tieBreakerAnswer: null, userAnswer: null, success: true });
+  await h.mockAPIResponse('**/api/team-records**', { success: true, records: [] });
+}
+
 test.describe('Pool Picks — winner page after week ends with picks', () => {
   test('winner page banner is visible when all games are final and picks exist', async ({ page }) => {
     const h = new TestHelpers(page);
@@ -231,6 +262,21 @@ test.describe('Pool Picks — no-picks banner when week ends with no picks', () 
 
     const submitBtn = page.locator('button', { hasText: /submit picks|save picks/i });
     await expect(submitBtn).not.toBeVisible();
+  });
+});
+
+test.describe('Pool Picks — no-picks banner when participants exist but nobody picked this week', () => {
+  test('shows no-picks banner, not a 0-point winner, when leaderboard has zero-pick entries', async ({ page }) => {
+    const h = new TestHelpers(page);
+    await setupWithParticipantsButNoPicks(h);
+
+    await page.goto(`/pool/${POOL_ID}/picks?week=7&seasonType=2`);
+    await h.waitForPageLoad();
+
+    await expect(page.locator('#no-picks-banner')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#final-results-banner')).not.toBeVisible();
+    // Neither zeroed-out participant name should appear as a declared "winner"
+    await expect(page.getByText(/Alice.*points|Bob.*points/i)).not.toBeVisible();
   });
 });
 

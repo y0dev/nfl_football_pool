@@ -19,17 +19,24 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Check if winner already exists in weekly_winners table
-    const { data: existingWinner, error } = await supabase
+    // Check if winner already exists in weekly_winners table. .maybeSingle()
+    // rather than .single() — a stray duplicate row (wrong-season write from
+    // before the POST-side validation below existed) throws with .single()
+    // instead of resolving, which silently fell through the caller's
+    // winnerCheckResponse.ok check to "no winner" every time. Sorting by
+    // created_at picks the original/oldest row if a duplicate ever recurs.
+    const { data: existingWinners, error } = await supabase
       .from('weekly_winners')
       .select('*')
       .eq('pool_id', poolId)
       .eq('week', parseInt(week))
       .eq('season', parseInt(season))
       .eq('season_type', parseInt(seasonType))
-      .single();
+      .order('created_at', { ascending: true })
+      .limit(1);
+    const existingWinner = existingWinners?.[0] ?? null;
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+    if (error) {
       debugError('Error checking weekly winner:', error);
       return NextResponse.json(
         { error: 'Failed to check weekly winner' },
@@ -83,6 +90,33 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServiceClient();
+
+    // Guard against writing a winner row under the wrong season — this is
+    // exactly how a real corrupted row got in: a client-side caller resolved
+    // its "current week" against today's real-world NFL season instead of
+    // this specific pool's own season, then POSTed a winner for week 1 under
+    // the wrong (current) year while actually scoring that pool's real
+    // season-1 games/picks, producing a duplicate week-1 row for the wrong
+    // season with the same winner/points as the real one. The client is a
+    // convenience cache-filler for data the server already computed
+    // (winner-calculator.ts / the leaderboard route) — verifying the
+    // pool's actual season server-side costs one query and closes that
+    // whole class of mistake regardless of which caller gets it wrong.
+    const { data: poolRow, error: poolError } = await supabase
+      .from('pools')
+      .select('season')
+      .eq('id', poolId)
+      .maybeSingle();
+    if (poolError || !poolRow) {
+      return NextResponse.json({ error: 'Pool not found' }, { status: 404 });
+    }
+    if (poolRow.season !== parseInt(season)) {
+      debugError('week-winner POST season mismatch:', { poolId, poolSeason: poolRow.season, requestedSeason: season });
+      return NextResponse.json(
+        { error: `Season mismatch: pool ${poolId} is season ${poolRow.season}, not ${season}` },
+        { status: 400 }
+      );
+    }
 
     // Check if winner already exists to avoid duplicates
     const { data: existingWinner, error: checkError } = await supabase

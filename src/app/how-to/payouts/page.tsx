@@ -57,7 +57,8 @@ export default function PayoutsGuide() {
         </p>
         <Screenshot
           src="/how-to/payouts-settings.png"
-          alt="Payouts section in Pool Settings with tracking enabled, a $20 entry fee, Weekly Payouts on with a $50 fixed weekly prize and 1 winner, and Overall Season Payout on with 3 winners"
+          alt="Payouts section in Pool Settings on a phone, with tracking enabled and an explanation of how weekly and overall payouts work"
+          width={1170} height={1992}
         />
       </Step>
 
@@ -80,7 +81,8 @@ export default function PayoutsGuide() {
         </p>
         <Screenshot
           src="/how-to/payouts-calculator.png"
-          alt="Payouts tab showing the Total Prize Pool and Weekly Payout Calculator results for Week 2, with three tied participants each shown as T-1st and a Mark Paid button"
+          alt="Payouts tab on a phone, showing the Total Prize Pool and Weekly Payout Calculator, currently not yet enabled for this pool"
+          width={1170} height={1992}
         />
       </Step>
 

@@ -15,7 +15,8 @@ export default function ShareAPoolGuide() {
       <Step number={1} title="Find the Share Button">
         <Screenshot
           src="/how-to/picks-page.png"
-          alt="Sunday Huddle picks page showing the Share, Make Picks, and Stats buttons below the week heading"
+          alt="Sunday Huddle picks page on a phone, showing the Share, Make Picks, and Stats buttons below the week heading"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           On the pool&apos;s Picks page, click <strong>Share</strong>. On mobile, this opens your device&apos;s normal share sheet (text, email, whatever apps you have). On desktop, it copies the pool link — and password, if the pool is private — to your clipboard.

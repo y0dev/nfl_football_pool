@@ -16,7 +16,8 @@ export default function LeaderboardGuide() {
       <Step number={1} title="Weekly, Season, and Periods">
         <Screenshot
           src="/how-to/leaderboard-page.png"
-          alt="Sunday Huddle leaderboard page showing Weekly, Season, and Periods tabs, and a standings table with rank, participant, points, and correct picks columns"
+          alt="Sunday Huddle leaderboard page on a phone, showing Weekly, Season, and Periods tabs, and a standings table with rank, participant, and points"
+          width={1170} height={1992}
         />
         <Callout
           items={[
