@@ -16,7 +16,8 @@ export default function ManageYourPoolGuide() {
       <Step number={1} title="Overview">
         <Screenshot
           src="/how-to/pool-workspace-overview.png"
-          alt="Pool Workspace Overview tab showing participant count, pending picks, completion rate, and a list of participants missing this week's picks"
+          alt="Pool Workspace Overview tab on a phone, showing participant count, pending picks, completion rate, and a list of participants missing this week's picks"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           The Overview tab is your at-a-glance check for the current week: how many participants have submitted picks, who&apos;s still pending, and the pool&apos;s overall completion rate.
@@ -26,7 +27,8 @@ export default function ManageYourPoolGuide() {
       <Step number={2} title="Players">
         <Screenshot
           src="/how-to/pool-workspace-players.png"
-          alt="Pool Workspace Players tab listing pool participants with their email and join date, and Add User / Bulk Add / Export controls"
+          alt="Pool Workspace Players tab on a phone, listing pool participants with their email and join date, and Add User / Bulk Add / Export controls"
+          width={1170} height={1992}
         />
         <Callout
           items={[
@@ -40,7 +42,8 @@ export default function ManageYourPoolGuide() {
       <Step number={3} title="Leaderboard">
         <Screenshot
           src="/how-to/pool-workspace-leaderboard.png"
-          alt="Pool Workspace Leaderboard tab showing season standings for the pool"
+          alt="Pool Workspace Leaderboard tab on a phone, showing season standings for the pool"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           The same standings your participants see publicly, without leaving your dashboard. See the <a href="/how-to/leaderboard" style={{ color: textMid, textDecoration: 'underline' }}>Leaderboard guide</a> for how Weekly, Season, and Periods work.
@@ -50,7 +53,8 @@ export default function ManageYourPoolGuide() {
       <Step number={4} title="Settings">
         <Screenshot
           src="/how-to/pool-workspace-settings.png"
-          alt="Pool Workspace Settings tab showing General Settings (name, season scope, status, password, visibility) along with Close Season, Transfer to Another League, and Danger Zone sections"
+          alt="Pool Workspace Settings tab on a phone, showing General Settings (name, season scope, status, password, visibility) along with Close Season, Transfer to Another League, and Danger Zone sections"
+          width={1170} height={1992}
         />
         <Callout
           items={[

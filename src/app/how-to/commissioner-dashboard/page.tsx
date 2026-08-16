@@ -16,17 +16,19 @@ export default function CommissionerDashboardGuide() {
       <Step number={1} title="Your Access & Stats">
         <Screenshot
           src="/how-to/dashboard-top.png"
-          alt="Sunday Huddle commissioner dashboard header showing account status, number of Huddles, pools, and members"
+          alt="Sunday Huddle commissioner dashboard on a phone, showing account status, number of Huddles, pools, and members"
+          width={1170} height={1992}
         />
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           The top of your dashboard shows your account status, plan (Standard Commissioner in this example), and quick counts: how many Huddles you run, how many pools are active, and how many members are across all of them.
         </p>
       </Step>
 
-      <Step number={2} title="The Full Dashboard">
+      <Step number={2} title="The Pool Workspace">
         <Screenshot
-          src="/how-to/dashboard-full.png"
-          alt="Full Sunday Huddle commissioner dashboard showing this week's games, your League card, and the Pool Workspace with tabs for Overview, Players, Leaderboard, and Settings"
+          src="/how-to/dashboard-workspace.png"
+          alt="Pool Workspace section of the commissioner dashboard on a phone, showing the Overview tab with participant and completion stats"
+          width={1170} height={1992}
         />
         <Callout
           items={[

@@ -16,7 +16,8 @@ export default function MakePicksGuide() {
       <Step number={1} title="Open the Pool and Pick a Week">
         <Screenshot
           src="/how-to/make-picks-step1-open.png"
-          alt="Sunday Huddle picks page for Week 3 showing the game count, week navigation, and the Game Details list with kickoff times"
+          alt="Sunday Huddle picks page on a phone showing Week 1, 16 games, and a Locked badge with the unlock date"
+          width={1170} height={1992}
         />
         <Callout
           items={[
@@ -29,32 +30,25 @@ export default function MakePicksGuide() {
 
       <Step number={2} title="Select a Team and Confidence Points">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
-          Click <strong>Make Picks</strong>, choose your name, then for each game tap the team you think will win — its logo and colors highlight to confirm your selection. Assign each pick a <strong>confidence point</strong> value (1 up to the number of games that week): use your highest number on the game you&apos;re most sure about, since correct picks are worth more points at higher confidence.
+          Once the week unlocks, click <strong>Make Picks</strong>, choose your name, then for each game tap the team you think will win — its logo and colors highlight to confirm your selection. Assign each pick a <strong>confidence point</strong> value (1 up to the number of games that week): use your highest number on the game you&apos;re most sure about, since correct picks are worth more points at higher confidence.
         </p>
         <Screenshot
           src="/how-to/make-picks-step2-select.png"
-          alt="Make Picks screen with a team selected and confidence point 16 assigned on the first game, and a second game's winner just picked"
+          alt="Make Picks screen on a phone with Seattle selected and highlighted green for the first game, and a Confidence Points Summary showing points still available"
+          width={1170} height={1992}
         />
       </Step>
 
       <Step number={3} title="Submit Your Picks">
-        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
-          Once every game has a team and a confidence value assigned, save your picks. Review the confirmation screen — it lists every pick sorted by confidence point — then confirm your name and submit. You can come back and change them anytime before the week locks.
+        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
+          Once every game has a team and a confidence value assigned — the Confidence Points Summary at the top shows 0 remaining — scroll to the bottom and tap <strong>Submit Picks</strong>. You can come back and change your picks anytime before the week locks at kickoff.
         </p>
-        <Screenshot
-          src="/how-to/make-picks-step3-submit.png"
-          alt="Confirm Your Picks dialog listing all 16 picks sorted by confidence point, with a checkbox to confirm the participant's identity before submitting"
-        />
       </Step>
 
       <Step number={4} title="Locked and Finished Games">
-        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6, marginBottom: '1rem' }}>
+        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           Picks for the entire week <strong>lock</strong> as soon as the first game of that week kicks off — every game shows Locked at that point, even ones that haven&apos;t started yet. Once a game ends, it shows <strong>Final</strong> with the score, and whether your pick was correct.
         </p>
-        <Screenshot
-          src="/how-to/make-picks-step4-locked.png"
-          alt="Game Details list for a locked week showing Final games with winners alongside Locked games that haven't kicked off yet"
-        />
       </Step>
     </GuideLayout>
   );
