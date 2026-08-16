@@ -145,6 +145,27 @@ export function LeagueManager({
     );
   }, [members, memberSearch]);
 
+  // m.poolIds comes from the huddle_member_id link on participants, which
+  // only gets set when someone's added via "Add from Roster" — a direct
+  // admin add, a self-joined pool link, or older data from before that
+  // linkage existed all miss it. Falling back to a name match against each
+  // pool's actual participants catches those too, so both the roster's "In
+  // X of Y pools" count and the "Add from Roster" list agree with reality.
+  const effectivePoolIdsByMember = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const m of members) {
+      const nameLower = m.name.trim().toLowerCase();
+      const ids = new Set(m.poolIds);
+      for (const pool of pools) {
+        if ((participantsByPool[pool.id] ?? []).some(p => p.name.trim().toLowerCase() === nameLower)) {
+          ids.add(pool.id);
+        }
+      }
+      map.set(m.id, ids);
+    }
+    return map;
+  }, [members, pools, participantsByPool]);
+
   const handleRename = async () => {
     const result = await renameHuddle(huddleId, nameDraft);
     if (!result.success) {
@@ -432,7 +453,7 @@ export function LeagueManager({
                     </span>
                   </div>
                   <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', color: textDim, background: 'oklch(26% 0.03 255 / 0.6)', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase' }}>
-                    In {m.poolIds.length} of {pools.length} pool{pools.length === 1 ? '' : 's'}
+                    In {effectivePoolIdsByMember.get(m.id)?.size ?? m.poolIds.length} of {pools.length} pool{pools.length === 1 ? '' : 's'}
                   </span>
                   <button onClick={() => handleRemoveMember(m.id)} title="Remove from League" style={{ display: 'flex', alignItems: 'center', padding: '0.3rem', background: 'transparent', color: textDim, border: 'none', cursor: 'pointer' }}>
                     <X style={{ width: 14, height: 14 }} />
@@ -473,7 +494,7 @@ export function LeagueManager({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {pools.map(pool => {
                 const current = participantsByPool[pool.id] ?? [];
-                const notYetIn = members.filter(m => !m.poolIds.includes(pool.id));
+                const notYetIn = members.filter(m => !effectivePoolIdsByMember.get(m.id)?.has(pool.id));
                 return (
                   <div key={pool.id} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
