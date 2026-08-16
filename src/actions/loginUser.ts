@@ -16,7 +16,7 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 export async function loginUser(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  if (!checkRateLimit(`login:${normalizedEmail}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)) {
+  if (!(await checkRateLimit(`login:${normalizedEmail}`, LOGIN_LIMIT, LOGIN_WINDOW_MS))) {
     return { success: false, error: TOO_MANY_ATTEMPTS };
   }
 

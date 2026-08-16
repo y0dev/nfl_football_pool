@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // 5 registrations per IP per hour
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    if (!checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000))) {
       return NextResponse.json(
         { success: false, error: 'Too many registration attempts. Please try again later.' },
         { status: 429 }
