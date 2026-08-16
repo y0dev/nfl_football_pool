@@ -67,7 +67,7 @@ export async function requestPasswordReset(
   const normalizedEmail = email.toLowerCase().trim();
 
   // Rate limit silently — return success to avoid enumeration
-  if (!checkRateLimit(`reset:${normalizedEmail}`, RESET_LIMIT, RESET_WINDOW_MS)) {
+  if (!(await checkRateLimit(`reset:${normalizedEmail}`, RESET_LIMIT, RESET_WINDOW_MS))) {
     return { success: true };
   }
 

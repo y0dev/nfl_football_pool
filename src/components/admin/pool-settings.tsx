@@ -51,9 +51,13 @@ interface PoolSettingsProps {
   poolId: string;
   poolName: string;
   onPoolDeleted?: () => void;
+  /** Rendered directly after General Settings, before Close Season/Transfer/
+   * Danger Zone — e.g. Payout Configuration, which belongs with the pool's
+   * regular settings rather than after its irreversible/destructive ones. */
+  children?: React.ReactNode;
 }
 
-export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsProps) {
+export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: PoolSettingsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -292,8 +296,9 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
   const scopeDesc = SEASON_SCOPE_OPTIONS.find(o => o.value === watchedScope)?.desc ?? '';
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
 
         {/* General Settings */}
         <div style={{ ...cardStyle, borderLeft: `3px solid ${isLocked ? textDim : green}` }}>
@@ -485,8 +490,15 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
           </div>
           </fieldset>
         </div>
+        </form>
+      </Form>
 
-        {/* Set/Change pool password */}
+      {/* Payout Configuration (and anything else the caller wants placed
+          right after General Settings, ahead of Close Season/Transfer/
+          Danger Zone) */}
+      {children}
+
+      {/* Set/Change pool password */}
         <Dialog open={showPasswordDialog} onOpenChange={(open) => { setShowPasswordDialog(open); if (!open) { setNewPassword(''); setNewPasswordConfirm(''); setPasswordError(''); } }}>
           <DialogContent style={{ maxWidth: '24rem', background: card, border: `1px solid ${border}` }}>
             <DialogHeader>
@@ -693,7 +705,6 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted }: PoolSettingsPr
           </Dialog>
         </div>
 
-      </form>
-    </Form>
+    </div>
   );
 }

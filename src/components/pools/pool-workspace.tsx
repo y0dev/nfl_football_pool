@@ -457,10 +457,9 @@ export function PoolWorkspace({
 
       {/* Settings tab */}
       {activePoolTab === 'settings' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <PoolSettings poolId={poolId} poolName={poolName} onPoolDeleted={onPoolDeleted} />
+        <PoolSettings poolId={poolId} poolName={poolName} onPoolDeleted={onPoolDeleted}>
           <PayoutSettings poolId={poolId} isLocked={season < getNFLSeasonYear()} poolSeason={season} />
-        </div>
+        </PoolSettings>
       )}
     </div>
   );

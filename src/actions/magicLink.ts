@@ -68,7 +68,7 @@ export async function requestMagicLink(
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  if (!checkRateLimit(`magic:${normalizedEmail}`, MAGIC_LIMIT, MAGIC_WINDOW_MS)) {
+  if (!(await checkRateLimit(`magic:${normalizedEmail}`, MAGIC_LIMIT, MAGIC_WINDOW_MS))) {
     // Return success to avoid leaking whether the email exists or whether limit was hit
     return { success: true };
   }

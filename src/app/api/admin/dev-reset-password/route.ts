@@ -55,9 +55,9 @@ function keyStaleWarning(): string | undefined {
 // The target account is never a client-supplied id — it's resolved from the
 // x-admin-email header the same way every other admin route in this app
 // resolves the caller, so this can only ever reset the caller's own account.
-// Also rate-limited (checkRateLimit — same in-memory limiter loginUser.ts
-// uses, no database required) and audit-logged, both keyed off the caller's
-// resolved account rather than anything client-supplied.
+// Also rate-limited (checkRateLimit — same limiter loginUser.ts uses) and
+// audit-logged, both keyed off the caller's resolved account rather than
+// anything client-supplied.
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {
     return NextResponse.json({ success: false, error: 'Not available' }, { status: 403 });
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
     }
 
-    if (!checkRateLimit(`dev-reset-password:${adminEmail.toLowerCase()}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    if (!(await checkRateLimit(`dev-reset-password:${adminEmail.toLowerCase()}`, RATE_LIMIT, RATE_WINDOW_MS))) {
       return NextResponse.json({ success: false, error: 'Too many attempts. Please wait 15 minutes and try again.' }, { status: 429 });
     }
 
