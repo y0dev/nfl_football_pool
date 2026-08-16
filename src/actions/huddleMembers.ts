@@ -2,7 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { validateEmail } from '@/lib/email-validation';
-import { debugError } from '@/lib/utils';
+import { debugError, isDummyData, DUMMY_HUDDLE_MEMBERS } from '@/lib/utils';
 import { addParticipantToPool } from '@/actions/adminActions';
 
 export interface HuddleMember {
@@ -13,6 +13,8 @@ export interface HuddleMember {
 }
 
 export async function loadHuddleMembers(huddleId: string): Promise<HuddleMember[]> {
+  if (isDummyData()) return DUMMY_HUDDLE_MEMBERS;
+
   const supabase = getSupabaseServiceClient();
 
   const { data: members, error } = await supabase
