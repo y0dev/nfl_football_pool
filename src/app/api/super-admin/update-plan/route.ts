@@ -45,9 +45,10 @@ export async function POST(request: NextRequest) {
       updateData.billing_exempt = billingExempt;
     }
 
-    // Manually grant additional pools — the only path for a comped
-    // (billing_exempt) commissioner to get more than the plan's base pool
-    // limit, since /api/stripe/checkout refuses billing_exempt accounts.
+    // Manually grant additional pools — a comped (billing_exempt)
+    // commissioner can also buy real add-on pools via /api/stripe/checkout
+    // (only their base-plan purchase is blocked there), but this stays
+    // available for cases the site admin wants to grant directly instead.
     if (addonPools !== undefined) {
       const addonPoolsNum = Number(addonPools);
       if (!Number.isInteger(addonPoolsNum) || addonPoolsNum < 0) {

@@ -56,8 +56,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Comped accounts never pay — their plan is managed by the site admin
-    if (admin.billing_exempt === true) {
+    // Comped accounts never pay for the base plan itself — it's managed by
+    // the site admin. Add-on pools are a genuine separate purchase, so a
+    // comped Standard commissioner can still buy real extra pools here
+    // instead of needing the site admin to manually bump addon_pools.
+    if (admin.billing_exempt === true && product === 'standard') {
       return NextResponse.json(
         { success: false, error: 'This account does not require payment — your plan is managed by the site admin.' },
         { status: 400 }

@@ -178,8 +178,13 @@ function UpgradeContent() {
 
   const currentPlan = planStatus?.plan ?? 'free';
   const billingExempt = planStatus?.billingExempt ?? false;
-  // Comped accounts never see pay CTAs — their plan is managed by the site admin
+  // Comped accounts never see a pay CTA for the base plan — that's managed
+  // by the site admin at no cost. Add-on pools are a separate, real
+  // purchase though, so a comped Standard commissioner can still buy them
+  // via Stripe (addonStripeEnabled below) instead of needing the site admin
+  // to manually grant more every time.
   const stripeEnabled = (planStatus?.billing?.stripeEnabled ?? false) && !billingExempt;
+  const addonStripeEnabled = planStatus?.billing?.stripeEnabled ?? false;
   // Only meaningful while currentPlan === 'free': an active trial already
   // resolves currentPlan to 'standard' (see computePlanInfo in
   // src/lib/plan.ts), so trialEndsAt being set here always means a past,
@@ -530,11 +535,7 @@ function UpgradeContent() {
                   </div>
                 </div>
 
-                {billingExempt ? (
-                  <div style={{ padding: '0.55rem 1rem', background: 'oklch(70% 0.12 270 / 0.1)', border: `1px solid oklch(70% 0.12 270 / 0.4)`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(70% 0.12 270)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    Managed by site admin
-                  </div>
-                ) : stripeEnabled ? (
+                {addonStripeEnabled ? (
                   <button
                     onClick={() => handleCheckout('addon_pool', extraPools)}
                     disabled={isCheckingOut}
@@ -577,7 +578,7 @@ function UpgradeContent() {
           {/* Footer note */}
           <p style={{ ...b, fontSize: '0.78rem', color: textDim, textAlign: 'center', marginTop: '2rem' }}>
             {billingExempt
-              ? 'Your account is comped — the site admin manages your plan and no payment is ever required.'
+              ? `Your ${currentPlan === 'standard' ? 'Standard plan' : 'plan'} is comped — the site admin manages it at no cost. Add-on pools are still a real purchase, processed securely by Stripe.`
               : stripeEnabled
               ? 'Prices shown are before tax. Payments are processed securely by Stripe — your plan updates automatically after checkout, and any applicable sales tax is calculated based on your billing address.'
               : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
