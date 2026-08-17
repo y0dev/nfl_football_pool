@@ -40,8 +40,8 @@ interface PayoutCalculatorProps {
 
 interface LeaderboardRow { participant_id: string; participant_name: string; total_points: number }
 
-async function fetchWeekLeaderboard(poolId: string, week: number, seasonType: number): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=${seasonType}`);
+async function fetchWeekLeaderboard(poolId: string, week: number, seasonType: number, season: number): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
   const data = await res.json();
   if (!data.success) return [];
   return (data.leaderboard as LeaderboardRow[])
@@ -187,7 +187,7 @@ function WeeklyCalculator({
   const runCalculation = useCallback(async () => {
     setIsCalculating(true);
     try {
-      const rows = await fetchWeekLeaderboard(poolId, week, seasonType);
+      const rows = await fetchWeekLeaderboard(poolId, week, seasonType, season);
       setStandings(rows);
       const existing = await getPayoutRecords(poolId, 'weekly', season, week);
       setRecords(Object.fromEntries(existing.map(r => [`${r.place}`, { id: r.id, paid: r.paid }])));
