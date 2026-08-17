@@ -106,13 +106,23 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get games for the specified week and season type
-    const { data: games, error: gamesError } = await supabase
+    // Get games for the specified week and season type. Week numbers reset
+    // every year, so without also filtering by season this pulls in every
+    // year's games sharing that week/season_type (e.g. last year's AND this
+    // year's Week 2 Preseason) — doubling (or worse) the games returned,
+    // which doubles the pick-tick badges rendered per participant on the
+    // leaderboard. seasonNumber is only sometimes provided by callers (see
+    // gameSeason fallback below), so this filter is conditional rather than
+    // required.
+    let gamesQuery = supabase
       .from('games')
       .select('*')
       .eq('week', weekNumber)
-      .eq('season_type', seasonTypeNumber)
-      .order('kickoff_time', { ascending: true });
+      .eq('season_type', seasonTypeNumber);
+    if (seasonNumber !== undefined) {
+      gamesQuery = gamesQuery.eq('season', seasonNumber);
+    }
+    const { data: games, error: gamesError } = await gamesQuery.order('kickoff_time', { ascending: true });
 
     if (gamesError) {
       debugError('Error loading games:', gamesError);
