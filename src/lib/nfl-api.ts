@@ -306,11 +306,22 @@ class NFLAPIService {
     try {
       debugInfo(`Making ESPN API request to: ${url.toString()}`);
       
+      // ESPN's site API is unofficial and appears to silently return
+      // `events: []` (a valid 200, no error) for requests that don't look
+      // like they came from a browser hitting espn.com — confirmed this
+      // happens specifically for requests from Vercel's serverless IPs,
+      // even though the identical request succeeds from a residential IP.
+      // Mimicking a real browser's headers (Referer/Origin/Accept-Language
+      // plus a real Chrome UA instead of a custom one) to see if that's
+      // enough to avoid whatever fingerprinting causes it.
       const response = await fetch(url.toString(), {
         headers: {
           'Accept': 'application/json',
           'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': 'NFL-Confidence-Pool/1.0',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.espn.com/nfl/scoreboard',
+          'Origin': 'https://www.espn.com',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         },
       });
 
