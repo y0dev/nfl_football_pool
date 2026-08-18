@@ -146,6 +146,7 @@ function NFLSyncContent() {
   const [currentStats, setCurrentStats] = useState({ totalGames: 0, liveGames: 0, completedGames: 0, scheduledGames: 0 });
   const [previewDate, setPreviewDate] = useState(new Date());
   const [showSyncOptions, setShowSyncOptions] = useState(false);
+  const [syncWholeWeek, setSyncWholeWeek] = useState(false);
 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
@@ -219,8 +220,9 @@ function NFLSyncContent() {
     }
   };
 
-  const handlePreview = async (dateOverride?: Date) => {
+  const handlePreview = async (dateOverride?: Date, wholeWeekOverride?: boolean) => {
     const targetDate = dateOverride ?? previewDate;
+    const wholeWeek = wholeWeekOverride ?? syncWholeWeek;
     setPreviewLoading(true);
     setPreviewError('');
     setApplyResult(null);
@@ -228,7 +230,7 @@ function NFLSyncContent() {
       const res = await fetch('/api/admin/nfl-sync/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ date: targetDate.toISOString() }),
+        body: JSON.stringify({ date: targetDate.toISOString(), wholeWeek }),
       });
       const data = await res.json();
       if (data.success) {
@@ -237,7 +239,7 @@ function NFLSyncContent() {
           setApprovedIds(new Set());
         } else {
           setPreview(null);
-          toast({ title: 'Nothing to preview', description: data.message || 'No games found for this week.' });
+          toast({ title: 'Nothing to preview', description: data.message || `No games found for this ${wholeWeek ? 'week' : 'day'}.` });
         }
         debugLog('Preview loaded:', data);
       } else {
@@ -344,8 +346,9 @@ function NFLSyncContent() {
   // flow instead of building a second review UI for the same job.
   const reviewGapWeek = (gap: WeekGapReport) => {
     setPreviewDate(new Date(gap.representativeDate));
+    setSyncWholeWeek(true);
     setShowSyncOptions(false);
-    handlePreview(new Date(gap.representativeDate));
+    handlePreview(new Date(gap.representativeDate), true);
     document.getElementById('manual-sync-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -447,12 +450,6 @@ function NFLSyncContent() {
         isAuthenticated
         isSuperAdmin
         onSignOut={handleLogout}
-        rightSlot={
-          <button onClick={() => handlePreview()} disabled={previewLoading} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.875rem', background: previewLoading ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: previewLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-            <RefreshCw style={{ width: 13, height: 13 }} className={previewLoading ? 'animate-spin' : ''} />
-            <span className="pools-nav-label">{previewLoading ? 'Fetching…' : 'Preview NFL Data'}</span>
-          </button>
-        }
       />
 
       {/* ── HERO ── */}
@@ -727,21 +724,40 @@ function NFLSyncContent() {
               {showSyncOptions ? (
                 <div>
                   <label htmlFor="sync-date" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
-                    Any date within the target week
+                    {syncWholeWeek ? 'Any date within the target week' : 'The day to sync'}
                   </label>
                   <input
                     id="sync-date"
                     type="date"
                     value={previewDate.toISOString().split('T')[0]}
                     onChange={(e) => setPreviewDate(e.target.value ? new Date(e.target.value) : new Date())}
-                    style={{ width: '100%', padding: '0.5rem 0.75rem', background: card, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
+                    style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', display: 'block', padding: '0.5rem 0.75rem', background: card, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
                   />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={syncWholeWeek}
+                      onChange={(e) => setSyncWholeWeek(e.target.checked)}
+                      style={{ width: 15, height: 15, accentColor: green, cursor: 'pointer' }}
+                    />
+                    <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Sync the whole week instead of just this day</span>
+                  </label>
                 </div>
               ) : (
                 <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
-                  Week containing {format(previewDate, 'MMM dd, yyyy', { locale: enUS })}
+                  {syncWholeWeek
+                    ? `Week containing ${format(previewDate, 'MMM dd, yyyy', { locale: enUS })}`
+                    : format(previewDate, 'MMM dd, yyyy', { locale: enUS })}
                 </p>
               )}
+              <button
+                onClick={() => handlePreview()}
+                disabled={previewLoading}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', marginTop: '1rem', padding: '0.6rem 0.875rem', background: previewLoading ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: previewLoading ? 'not-allowed' : 'pointer' }}
+              >
+                <RefreshCw style={{ width: 13, height: 13 }} className={previewLoading ? 'animate-spin' : ''} />
+                {previewLoading ? 'Fetching…' : 'Preview NFL Data'}
+              </button>
             </div>
 
             <div style={{ background: surface, border: `1px solid ${border}`, borderLeft: `3px solid ${gold}`, borderRadius: 8, padding: '1.5rem' }}>

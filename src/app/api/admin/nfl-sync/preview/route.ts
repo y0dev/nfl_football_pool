@@ -20,8 +20,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const referenceDate: string = body.date || new Date().toISOString();
+    // Defaults to a whole-week sync (the only mode this endpoint ever had)
+    // so any caller that doesn't send the flag keeps today's behavior.
+    const wholeWeek: boolean = body.wholeWeek !== false;
 
-    const incomingGames = await nflAPI.getGamesForWeekContaining(referenceDate);
+    const incomingGames = wholeWeek
+      ? await nflAPI.getGamesForWeekContaining(referenceDate)
+      : await nflAPI.getGamesForDayContaining(referenceDate);
 
     if (incomingGames.length === 0) {
       return NextResponse.json({
@@ -29,7 +34,7 @@ export async function POST(request: NextRequest) {
         runId: null,
         summary: { gamesChecked: 0, newCount: 0, updatedCount: 0, unchangedCount: 0 },
         changes: [],
-        message: 'No games found from the NFL data provider for this week.',
+        message: `No games found from the NFL data provider for this ${wholeWeek ? 'week' : 'day'}.`,
       });
     }
 

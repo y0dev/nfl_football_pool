@@ -502,6 +502,16 @@ class NFLAPIService {
     return this.getWeekGames(date, date);
   }
 
+  // Same idea as getGamesForWeekContaining(), but for a single calendar
+  // day — takes an ISO timestamp (matching the admin sync UI's date
+  // picker) and converts it to the YYYYMMDD getGamesByDate() expects.
+  async getGamesForDayContaining(timestamp?: string): Promise<NFLGame[]> {
+    const ts = timestamp || new Date().toISOString();
+    const d = new Date(ts);
+    const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    return this.getGamesByDate(ymd);
+  }
+
   // Get every game in the NFL week (Thu-Mon, or the postseason's equivalent
   // window) that contains the given timestamp — classifies the timestamp
   // into a season/season_type/week, then fetches that whole week's range.
@@ -512,8 +522,20 @@ class NFLAPIService {
     const ts = timestamp || new Date().toISOString();
     const { year, season_type, week } = this.classify(ts);
     const { start, end } = this.weekDateRange(year, season_type, week);
-    debugInfo(`Fetching full week for timestamp ${ts}: season ${year}, type ${season_type}, week ${week} (${start}-${end})`);
-    return this.getWeekGames(start, end);
+    // weekDateRange()'s own window is Thu-Mon (5 days), but consecutive
+    // weeks are 7 days apart — leaving Tue/Wed structurally uncovered by
+    // every week's fetch. Almost always empty, but the rare Tue/Wed game
+    // (e.g. a Thanksgiving-eve Wednesday-night game) would otherwise never
+    // appear in ANY week's preview, with no way to sync it at all. Pad the
+    // fetch (not weekDateRange() itself, which other callers rely on for
+    // the canonical Thu-Mon label) back 2 days to close that gap; harmless
+    // for every other week since games are essentially never scheduled
+    // Tue/Wed, and any real overlap with the previous week's own range
+    // just gets grouped by that game's own reported week field downstream.
+    const paddedStartDate = this.addDaysUTC(new Date(`${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}T00:00:00Z`), -2);
+    const paddedStart = `${paddedStartDate.getUTCFullYear()}${String(paddedStartDate.getUTCMonth() + 1).padStart(2, '0')}${String(paddedStartDate.getUTCDate()).padStart(2, '0')}`;
+    debugInfo(`Fetching full week for timestamp ${ts}: season ${year}, type ${season_type}, week ${week} (${paddedStart}-${end}, padded from ${start})`);
+    return this.getWeekGames(paddedStart, end);
   }
 
   // Helper function to parse W-L-T from summary string (e.g., "3-5-1" or "2-1-1")
