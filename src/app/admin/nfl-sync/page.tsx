@@ -7,13 +7,13 @@ import { enUS } from 'date-fns/locale';
 import {
   RefreshCw, CheckCircle, XCircle, AlertTriangle,
   Calendar as CalendarIcon, Clock, Trophy,
-  Database, Settings, Check, X, CircleDot,
+  Database, Settings, Check, X, CircleDot, Search, Eye,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { debugLog, debugError} from '@/lib/utils';
+import { debugLog, debugError, DEFAULT_POOL_SEASON } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -59,6 +59,38 @@ interface SyncStatusState {
   lastRun: SyncRunSummary | null;
   lastSuccessfulRun: SyncRunSummary | null;
   pendingRuns: Pick<SyncRunSummary, 'id' | 'created_at' | 'season' | 'season_type' | 'week' | 'new_count' | 'updated_count' | 'unchanged_count'>[];
+}
+
+interface GapGameRef {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  kickoff?: string;
+}
+
+interface WeekGapReport {
+  seasonType: number;
+  week: number;
+  espnCount: number;
+  dbCount: number;
+  missingGames: GapGameRef[];
+  extraInDb: GapGameRef[];
+  representativeDate: string;
+}
+
+interface ScanResult {
+  season: number;
+  scannedWeeks: number;
+  notYetScheduled: number;
+  totalMissingGames: number;
+  totalExtraInDb: number;
+  gaps: WeekGapReport[];
+}
+
+interface GameCountRow {
+  season: number;
+  seasonType: number;
+  count: number;
 }
 
 // Design tokens
@@ -125,6 +157,14 @@ function NFLSyncContent() {
   const [syncStatus, setSyncStatus] = useState<SyncStatusState | null>(null);
   const [teamRecordsSyncing, setTeamRecordsSyncing] = useState(false);
 
+  const [scanSeason, setScanSeason] = useState(DEFAULT_POOL_SEASON);
+  const [scanSeasonTypes, setScanSeasonTypes] = useState<Set<number>>(new Set([1, 2, 3]));
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+
+  const [gameCounts, setGameCounts] = useState<GameCountRow[]>([]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -134,6 +174,7 @@ function NFLSyncContent() {
           if (!superAdminStatus) { router.push('/dashboard'); return; }
           await loadCurrentStats();
           await loadSyncStatus();
+          await loadGameCounts();
         }
       } catch (error) {
         debugError('Error loading data:', error);
@@ -167,7 +208,19 @@ function NFLSyncContent() {
     }
   };
 
-  const handlePreview = async () => {
+  const loadGameCounts = async () => {
+    if (!user?.email) return;
+    try {
+      const res = await fetch('/api/admin/nfl-sync/game-counts', { headers: { 'x-admin-email': user.email } });
+      const data = await res.json();
+      if (data.success) setGameCounts(data.rows);
+    } catch (error) {
+      debugError('Error loading game counts:', error);
+    }
+  };
+
+  const handlePreview = async (dateOverride?: Date) => {
+    const targetDate = dateOverride ?? previewDate;
     setPreviewLoading(true);
     setPreviewError('');
     setApplyResult(null);
@@ -175,7 +228,7 @@ function NFLSyncContent() {
       const res = await fetch('/api/admin/nfl-sync/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ date: previewDate.toISOString() }),
+        body: JSON.stringify({ date: targetDate.toISOString() }),
       });
       const data = await res.json();
       if (data.success) {
@@ -219,6 +272,7 @@ function NFLSyncContent() {
         setApprovedIds(new Set());
         await loadCurrentStats();
         await loadSyncStatus();
+        await loadGameCounts();
       } else {
         toast({ title: 'Apply Failed', description: data.error, variant: 'destructive' });
       }
@@ -248,6 +302,51 @@ function NFLSyncContent() {
     } finally {
       setTeamRecordsSyncing(false);
     }
+  };
+
+  const toggleScanSeasonType = (value: number) => {
+    setScanSeasonTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      return next;
+    });
+  };
+
+  const handleScanSeason = async () => {
+    setScanning(true);
+    setScanError('');
+    setScanResult(null);
+    try {
+      const res = await fetch('/api/admin/nfl-sync/scan-season', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
+        body: JSON.stringify({ season: scanSeason, seasonTypes: Array.from(scanSeasonTypes) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setScanResult(data);
+        if (data.gaps.length === 0) {
+          toast({ title: 'No Gaps Found', description: `Checked ${data.scannedWeeks} weeks — everything ESPN has matches the database.` });
+        }
+      } else {
+        setScanError(data.error || 'Scan failed');
+        toast({ title: 'Scan Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      setScanError('Failed to connect to sync service');
+      toast({ title: 'Error', description: 'Failed to connect to sync service', variant: 'destructive' });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Jumps a found gap straight into the existing single-week preview/apply
+  // flow instead of building a second review UI for the same job.
+  const reviewGapWeek = (gap: WeekGapReport) => {
+    setPreviewDate(new Date(gap.representativeDate));
+    setShowSyncOptions(false);
+    handlePreview(new Date(gap.representativeDate));
+    document.getElementById('manual-sync-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const toggleApproved = (id: string) => {
@@ -285,6 +384,9 @@ function NFLSyncContent() {
 
   const newChanges = preview?.changes.filter(c => c.changeType === 'new') ?? [];
   const updatedChanges = preview?.changes.filter(c => c.changeType === 'updated') ?? [];
+
+  const WEEKS_PER_SEASON_TYPE: Record<number, number> = { 1: 4, 2: 18, 3: 4 };
+  const scanWeeksToCheck = Array.from(scanSeasonTypes).reduce((sum, t) => sum + (WEEKS_PER_SEASON_TYPE[t] ?? 0), 0);
 
   const renderChangeCard = (change: ProposedChangeView) => {
     const approved = approvedIds.has(change.id);
@@ -346,7 +448,7 @@ function NFLSyncContent() {
         isSuperAdmin
         onSignOut={handleLogout}
         rightSlot={
-          <button onClick={handlePreview} disabled={previewLoading} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.875rem', background: previewLoading ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: previewLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+          <button onClick={() => handlePreview()} disabled={previewLoading} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.875rem', background: previewLoading ? 'oklch(35% 0.08 155)' : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: previewLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
             <RefreshCw style={{ width: 13, height: 13 }} className={previewLoading ? 'animate-spin' : ''} />
             <span className="pools-nav-label">{previewLoading ? 'Fetching…' : 'Preview NFL Data'}</span>
           </button>
@@ -388,6 +490,47 @@ function NFLSyncContent() {
           </div>
         </div>
       </section>
+
+      {/* ── GAME INVENTORY ── */}
+      {gameCounts.length > 0 && (
+        <section style={{ background: bg, padding: '2.5rem 0 0' }}>
+          <div className="lp-inner">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
+              <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>Games By Season</h3>
+            </div>
+            <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Season', 'Preseason', 'Regular Season', 'Postseason', 'Total'].map((h, i) => (
+                      <th key={h} style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: textDim, textTransform: 'uppercase', textAlign: i === 0 ? 'left' : 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}`, whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...new Set(gameCounts.map(r => r.season))].sort((a, b) => b - a).map(season => {
+                    const bySeasonType: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+                    for (const r of gameCounts) if (r.season === season) bySeasonType[r.seasonType] = r.count;
+                    const total = bySeasonType[1] + bySeasonType[2] + bySeasonType[3];
+                    return (
+                      <tr key={season}>
+                        <td style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{season}</td>
+                        <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[1]}</td>
+                        <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[2]}</td>
+                        <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[3]}</td>
+                        <td style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', color: greenHi, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{total}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── SYNC STATUS ── */}
       <section style={{ background: bg, padding: '2.5rem 0 0' }}>
@@ -439,8 +582,131 @@ function NFLSyncContent() {
         </div>
       </section>
 
+      {/* ── FIND MISSING GAMES ── */}
+      <section style={{ background: surface, padding: '2.5rem 0' }}>
+        <div className="lp-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <span style={{ display: 'block', width: 3, height: 22, background: gold, borderRadius: 2 }} />
+            <h3 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase' }}>Find Missing Games</h3>
+          </div>
+          <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.25rem', maxWidth: '60ch' }}>
+            Scans every week of a season against ESPN and reports gaps — games ESPN has that never made it into the database (a sync that was skipped or failed for one week), and games still in the database that ESPN no longer lists for that week.
+          </p>
+
+          <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${gold}`, borderRadius: 8, padding: '1.5rem', marginBottom: scanResult || scanError ? '1.5rem' : 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'flex-end' }}>
+              <div>
+                <label htmlFor="scan-season" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                  Season
+                </label>
+                <input
+                  id="scan-season"
+                  type="number"
+                  value={scanSeason}
+                  onChange={(e) => setScanSeason(parseInt(e.target.value) || DEFAULT_POOL_SEASON)}
+                  style={{ width: '7rem', padding: '0.5rem 0.75rem', background: surface, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
+                />
+              </div>
+
+              <div>
+                <p style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                  Season Types
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {[{ value: 1, label: 'Preseason' }, { value: 2, label: 'Regular' }, { value: 3, label: 'Playoffs' }].map(opt => {
+                    const active = scanSeasonTypes.has(opt.value);
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleScanSeasonType(opt.value)}
+                        style={{ padding: '0.5rem 0.85rem', background: active ? 'oklch(74% 0.16 72 / 0.15)' : 'transparent', color: active ? gold : textDim, border: `1px solid ${active ? gold : border}`, borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={handleScanSeason}
+                disabled={scanning || scanSeasonTypes.size === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.1rem', background: scanning || scanSeasonTypes.size === 0 ? 'oklch(35% 0.08 70)' : gold, color: 'oklch(13% 0.025 255)', border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: scanning || scanSeasonTypes.size === 0 ? 'not-allowed' : 'pointer' }}
+              >
+                <Search style={{ width: 13, height: 13 }} className={scanning ? 'animate-spin' : ''} />
+                {scanning ? 'Scanning…' : 'Scan Season'}
+              </button>
+            </div>
+            <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.85rem' }}>
+              Checks up to {scanWeeksToCheck} week{scanWeeksToCheck === 1 ? '' : 's'} against ESPN — takes several seconds.
+            </p>
+          </div>
+
+          {scanError && (
+            <div style={{ background: 'oklch(62% 0.22 25 / 0.1)', border: `1px solid oklch(62% 0.22 25 / 0.4)`, borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+              <XCircle style={{ width: 16, height: 16, color: liveRed, flexShrink: 0, marginTop: 1 }} />
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>{scanError}</p>
+            </div>
+          )}
+
+          {scanResult && (
+            <div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                {[
+                  { label: 'Weeks Checked', value: scanResult.scannedWeeks, color: textMid },
+                  { label: 'Not Yet Scheduled', value: scanResult.notYetScheduled, color: textDim },
+                  { label: 'Missing from DB', value: scanResult.totalMissingGames, color: scanResult.totalMissingGames > 0 ? liveRed : greenHi },
+                  { label: 'Extra in DB', value: scanResult.totalExtraInDb, color: scanResult.totalExtraInDb > 0 ? gold : greenHi },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 6, padding: '0.6rem 1rem', textAlign: 'center' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.3rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.65rem', color: textDim, marginTop: '0.15rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {scanResult.gaps.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'oklch(46% 0.14 155 / 0.1)', border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+                  <CheckCircle style={{ width: 16, height: 16, color: greenHi, flexShrink: 0 }} />
+                  <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>No gaps found for {scanResult.season} in the season types checked.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {scanResult.gaps.map(gap => (
+                    <div key={`${gap.seasonType}-${gap.week}`} style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${gap.missingGames.length > 0 ? liveRed : gold}`, borderRadius: 8, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <p style={{ ...bc, fontWeight: 800, fontSize: '0.88rem', color: text, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.25rem' }}>
+                          {getSeasonTypeLabel(gap.seasonType)} · Week {gap.week}
+                        </p>
+                        <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+                          ESPN has {gap.espnCount}, database has {gap.dbCount}
+                          {gap.missingGames.length > 0 && <span style={{ color: liveRed }}> · {gap.missingGames.length} missing</span>}
+                          {gap.extraInDb.length > 0 && <span style={{ color: gold }}> · {gap.extraInDb.length} extra in DB</span>}
+                        </p>
+                        {gap.missingGames.length > 0 && (
+                          <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.3rem' }}>
+                            {gap.missingGames.map(g => `${g.awayTeam} @ ${g.homeTeam}`).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => reviewGapWeek(gap)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.5)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Eye style={{ width: 12, height: 12 }} />
+                        Review This Week
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* ── SYNC CONFIG ── */}
-      <section style={{ background: bg, padding: '2.5rem 0 3rem' }}>
+      <section id="manual-sync-section" style={{ background: bg, padding: '2.5rem 0 3rem' }}>
         <div className="lp-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <span style={{ display: 'block', width: 3, height: 22, background: green, borderRadius: 2 }} />
