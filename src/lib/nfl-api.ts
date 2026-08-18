@@ -434,11 +434,21 @@ class NFLAPIService {
 
   // Get all games for a full NFL week using the date-range format (YYYYMMDD-YYYYMMDD).
   // Use weekDateRange() to build start/end from season metadata.
-  async getWeekGames(weekStart: string, weekEnd: string): Promise<NFLGame[]> {
+  //
+  // ESPN's scoreboard endpoint silently caps results at 100 events when no
+  // `limit` is given — invisible for a single ~5-day week (never more than
+  // ~16 games), but a wide multi-week range (e.g. scanning a full season)
+  // gets truncated with no error, which then looks like missing games that
+  // were never actually missing. Pass an explicit limit for any range wider
+  // than one week; default stays unset so this can't change behavior for
+  // every existing single-week caller.
+  async getWeekGames(weekStart: string, weekEnd: string, limit?: number): Promise<NFLGame[]> {
     try {
       debugInfo(`Fetching games for ${weekStart}-${weekEnd}...`);
 
-      const data = await this.makeRequest('/scoreboard', { dates: `${weekStart}-${weekEnd}` }) as ESPNScoreboardResponse;
+      const params: Record<string, string> = { dates: `${weekStart}-${weekEnd}` };
+      if (limit !== undefined) params.limit = String(limit);
+      const data = await this.makeRequest('/scoreboard', params) as ESPNScoreboardResponse;
 
       if (!data.events || data.events.length === 0) {
         debugWarn(`No events found for weekStart ${weekStart}`);
