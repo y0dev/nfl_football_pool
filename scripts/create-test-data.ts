@@ -116,6 +116,45 @@ async function createTestData() {
   console.log('');
 
   try {
+    // Step 0: Clear out any test pools (and their participants) left by a
+    // previous run. Pools/participants are plain inserts with a fresh
+    // randomUUID() each time — unlike the admins upsert below, re-running
+    // this script used to pile up duplicate pools indefinitely instead of
+    // reusing them, since nothing here was keyed for idempotency.
+    console.log('🧹 Clearing previous test pools...');
+    const testPoolNames = TEST_CONFIG.pools.map(p => p.name);
+    const testAdminEmails = TEST_CONFIG.admins.map(a => a.email);
+    const { data: stalePools, error: staleFindError } = await supabase
+      .from('pools')
+      .select('id')
+      .in('name', testPoolNames)
+      .in('created_by', testAdminEmails);
+
+    if (staleFindError) {
+      console.error('❌ Error finding previous test pools:', staleFindError);
+    } else if (stalePools && stalePools.length > 0) {
+      const staleIds = stalePools.map(p => p.id);
+      const { error: staleParticipantsError } = await supabase
+        .from('participants')
+        .delete()
+        .in('pool_id', staleIds);
+      if (staleParticipantsError) {
+        console.error('❌ Error clearing previous test participants:', staleParticipantsError);
+      }
+      const { error: stalePoolsError } = await supabase
+        .from('pools')
+        .delete()
+        .in('id', staleIds);
+      if (stalePoolsError) {
+        console.error('❌ Error clearing previous test pools:', stalePoolsError);
+      } else {
+        console.log(`✅ Cleared ${staleIds.length} previous test pool(s)`);
+      }
+    } else {
+      console.log('✅ No previous test pools to clear');
+    }
+    console.log('');
+
     // Step 1: Create admin users with password hashes
     console.log('👥 Creating admin users...');
     const adminUsers: AdminUser[] = [];
