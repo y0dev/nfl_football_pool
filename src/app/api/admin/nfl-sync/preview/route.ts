@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { requireSuperAdmin } from '@/lib/accounts';
 import { nflAPI } from '@/lib/nfl-api';
 import { buildSyncPreview, type DbGameRow } from '@/lib/nfl-sync';
+import { mapEspnEventsToGames, type ESPNScoreboardEvent } from '@/lib/espn-scoreboard';
 import { debugError } from '@/lib/utils';
 
 // Manual NFL Data Sync — step 1 of 2 (preview -> apply). Fetches from ESPN,
@@ -11,6 +12,14 @@ import { debugError } from '@/lib/utils';
 // proposal — it never writes to `games` itself. See
 // src/app/api/admin/nfl-sync/apply/route.ts for the write step, and
 // src/lib/nfl-sync.ts for the diff logic.
+//
+// `espnEvents`: raw ESPN scoreboard events, when the CLIENT already fetched
+// them directly (see src/lib/espn-scoreboard.ts's header comment — ESPN's
+// CDN hard-blocks Vercel's server IPs, but allows direct browser requests).
+// When present, this skips the server's own ESPN fetch entirely and just
+// maps + diffs what the browser already retrieved. Omitting it falls back
+// to the server fetching ESPN itself — unchanged behavior for any
+// environment where that isn't blocked (e.g. local dev).
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.response;
@@ -23,10 +32,13 @@ export async function POST(request: NextRequest) {
     // Defaults to a whole-week sync (the only mode this endpoint ever had)
     // so any caller that doesn't send the flag keeps today's behavior.
     const wholeWeek: boolean = body.wholeWeek !== false;
+    const clientEspnEvents: ESPNScoreboardEvent[] | undefined = Array.isArray(body.espnEvents) ? body.espnEvents : undefined;
 
-    const incomingGames = wholeWeek
-      ? await nflAPI.getGamesForWeekContaining(referenceDate)
-      : await nflAPI.getGamesForDayContaining(referenceDate);
+    const incomingGames = clientEspnEvents
+      ? mapEspnEventsToGames(clientEspnEvents)
+      : wholeWeek
+        ? await nflAPI.getGamesForWeekContaining(referenceDate)
+        : await nflAPI.getGamesForDayContaining(referenceDate);
 
     if (incomingGames.length === 0) {
       return NextResponse.json({

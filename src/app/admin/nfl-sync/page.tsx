@@ -16,6 +16,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { debugLog, debugError, DEFAULT_POOL_SEASON } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
+import { ESPN_SCOREBOARD_BASE_URL, getWeekRangeContaining, getDayContaining, type ESPNScoreboardEvent } from '@/lib/espn-scoreboard';
 
 interface ProposedChangeView {
   id: string;
@@ -148,6 +149,15 @@ function NFLSyncContent() {
   const [showSyncOptions, setShowSyncOptions] = useState(false);
   const [syncWholeWeek, setSyncWholeWeek] = useState(false);
 
+  // ESPN's CDN hard-blocks Vercel's server IPs but allows direct browser
+  // requests (see src/lib/espn-scoreboard.ts) — 'client' fetches ESPN from
+  // this page directly and POSTs the raw events to the backend; 'server'
+  // keeps the original server-side fetch. Dev-only toggle to compare both
+  // paths; always 'client' outside development, since that's the one that
+  // actually works in production.
+  const isDev = process.env.NODE_ENV === 'development';
+  const [fetchMode, setFetchMode] = useState<'client' | 'server'>('client');
+
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
   const [preview, setPreview] = useState<SyncPreviewState | null>(null);
@@ -220,6 +230,28 @@ function NFLSyncContent() {
     }
   };
 
+  // Fetches ESPN's scoreboard directly from the browser (the admin's own
+  // IP — not blocked, unlike Vercel's server IPs; ESPN's endpoint sends
+  // Access-Control-Allow-Origin: * so this is CORS-permitted). Returns null
+  // on any failure so the caller can fall back to the server-side fetch
+  // instead of hard-failing the whole preview.
+  const fetchEspnEventsFromBrowser = async (wholeWeek: boolean, date: Date): Promise<ESPNScoreboardEvent[] | null> => {
+    try {
+      const iso = date.toISOString();
+      const dates = wholeWeek
+        ? (() => { const r = getWeekRangeContaining(iso); return `${r.start}-${r.end}`; })()
+        : getDayContaining(iso).date;
+      const url = `${ESPN_SCOREBOARD_BASE_URL}?dates=${dates}`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data?.events) ? data.events : [];
+    } catch (error) {
+      debugError('Direct browser fetch of ESPN failed:', error);
+      return null;
+    }
+  };
+
   const handlePreview = async (dateOverride?: Date, wholeWeekOverride?: boolean) => {
     const targetDate = dateOverride ?? previewDate;
     const wholeWeek = wholeWeekOverride ?? syncWholeWeek;
@@ -227,10 +259,16 @@ function NFLSyncContent() {
     setPreviewError('');
     setApplyResult(null);
     try {
+      // In 'server' mode (dev-only toggle), skip the browser fetch entirely
+      // and let the backend fetch ESPN itself, exactly as before this fix.
+      const espnEvents = fetchMode === 'client'
+        ? await fetchEspnEventsFromBrowser(wholeWeek, targetDate)
+        : null;
+
       const res = await fetch('/api/admin/nfl-sync/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ date: targetDate.toISOString(), wholeWeek }),
+        body: JSON.stringify({ date: targetDate.toISOString(), wholeWeek, ...(espnEvents ? { espnEvents } : {}) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -742,6 +780,37 @@ function NFLSyncContent() {
                     />
                     <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Sync the whole week instead of just this day</span>
                   </label>
+                  {isDev && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px dashed ${border}` }}>
+                      <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                        Dev only — ESPN fetch source
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.35rem', background: bg, border: `1px solid ${border}`, borderRadius: 6, padding: '0.25rem' }}>
+                        {(['client', 'server'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setFetchMode(mode)}
+                            style={{
+                              flex: 1, padding: '0.35rem 0.6rem',
+                              background: fetchMode === mode ? green : 'transparent',
+                              color: fetchMode === mode ? text : textDim,
+                              border: 'none', borderRadius: 4,
+                              ...bc, fontWeight: 700, fontSize: '0.66rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {mode === 'client' ? 'Browser Fetch' : 'Server Fetch'}
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginTop: '0.3rem' }}>
+                        {fetchMode === 'client'
+                          ? 'This browser calls ESPN directly, then sends the results to the backend.'
+                          : 'The backend calls ESPN itself — blocked in production, works locally.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>

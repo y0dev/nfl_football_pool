@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { debugInfo, debugWarn, debugLog, debugError } from './utils';
+import { classify as classifyShared, weekDateRange as weekDateRangeShared, mapEspnEventsToGames, type ESPNScoreboardEvent } from './espn-scoreboard';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
@@ -245,53 +246,12 @@ class NFLAPIService {
     return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10));
   }
 
+  // Delegates to src/lib/espn-scoreboard.ts's classify() — the single
+  // source of truth, shared with the client-side browser-fetch path (see
+  // that file's header comment for why the browser fetches ESPN directly
+  // at all).
   private classify(dateIsoStr: string): { year: number; season_type: number; week: number } {
-    const d = new Date(dateIsoStr);
-    const yUTC = d.getUTCFullYear();
-    const mUTC = d.getUTCMonth();
-
-    const seasonYear = (mUTC >= 8) ? yUTC : (mUTC <= 1 ? yUTC - 1 : yUTC);
-    const week1UTC = this.kickoffThursdayUTC(seasonYear);
-    const postStartUTC = this.addDaysUTC(week1UTC, 18 * 7);
-    const preseasonEnd = new Date(Date.UTC(seasonYear, 7, 25, 23, 59, 59)); // Aug 25 UTC
-
-    const offMin = this.offsetMinutesFromIso(dateIsoStr);
-    const localNow = d.getTime() + offMin * 60000;
-    const localWeek1 = week1UTC.getTime() + offMin * 60000;
-    const localPostStart = postStartUTC.getTime() + offMin * 60000;
-    const localPreEnd = preseasonEnd.getTime() + offMin * 60000;
-
-    let season_type, week;
-    if (localNow <= localPreEnd) {
-      season_type = 1; // PRE
-      // Preseason weeks are the same Labor-Day-anchored Thu-Mon windows
-      // weekDateRange() defines — reusing it here (instead of an independent
-      // day-of-month heuristic like Math.ceil(dayOfMonth/7), which drifts
-      // out of sync depending on which weekday Aug 1 falls on) guarantees
-      // classify() can never disagree with the date range
-      // getGamesForWeekContaining() actually fetches.
-      const nowYMD = parseInt(
-        `${yUTC}${String(mUTC + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`,
-        10
-      );
-      week = 1;
-      for (let w = 1; w <= 4; w++) {
-        const range = this.weekDateRange(seasonYear, 1, w);
-        if (nowYMD >= parseInt(range.start, 10) && nowYMD <= parseInt(range.end, 10)) {
-          week = w;
-          break;
-        }
-        if (nowYMD > parseInt(range.end, 10)) week = w;
-      }
-    } else if (localNow < localPostStart) {
-      season_type = 2; // REG
-      week = Math.floor((localNow - localWeek1) / this.WEEK_MS) + 1;
-    } else {
-      season_type = 3; // POST
-      week = Math.floor((localNow - localPostStart) / this.WEEK_MS) + 1;
-    }
-    if (week < 1) week = 1;
-    return { year: seasonYear, season_type, week };
+    return classifyShared(dateIsoStr);
   }
 
   private async makeRequest(endpoint: string, params: Record<string, string> = {}) {
@@ -400,47 +360,10 @@ class NFLAPIService {
 
   // Compute the date range (YYYYMMDD) for a given season / season-type / week.
   // Returns { start, end } where start is Thursday (or Saturday for postseason) and
-  // end is the last game day of that week.
+  // end is the last game day of that week. Delegates to
+  // src/lib/espn-scoreboard.ts — see classify()'s comment above.
   weekDateRange(year: number, seasonType: number, week: number): { start: string; end: string } {
-    const toYMD = (d: Date) => {
-      const y = d.getUTCFullYear();
-      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(d.getUTCDate()).padStart(2, '0');
-      return `${y}${m}${day}`;
-    };
-    const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
-
-    const sep1 = new Date(Date.UTC(year, 8, 1));
-    const dow = sep1.getUTCDay();
-    const toNextMonday = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
-    const laborDay = new Date(Date.UTC(year, 8, 1 + toNextMonday));
-    const kickoff = add(laborDay, 3); // Thu
-
-    if (seasonType === 1) {
-      // Preseason: Thu-Mon (same rhythm as regular season)
-      const thu = add(kickoff, -(5 - week) * 7);
-      return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
-    }
-
-    if (seasonType === 2) {
-      // Regular season: Thu-Mon
-      const thu = add(kickoff, (week - 1) * 7);
-      return { start: toYMD(thu), end: toYMD(add(thu, 4)) };
-    }
-
-    // Postseason: anchored to Week 18 Sunday
-    const week18Sun = add(kickoff, 17 * 7 + 3);
-    // Week 1 Wild Card: Sat-Mon (+6 to +8)
-    // Week 2 Divisional: Sat-Sun (+13 to +14)
-    // Week 3 Championship: Sun (+21)
-    // Week 4 Super Bowl: Sun (+35)
-    const startOffsets = [6, 13, 21, 35];
-    const endOffsets   = [8, 14, 21, 35];
-    const s = week - 1;
-    return {
-      start: toYMD(add(week18Sun, startOffsets[s] ?? 35)),
-      end:   toYMD(add(week18Sun, endOffsets[s]   ?? 35)),
-    };
+    return weekDateRangeShared(year, seasonType, week);
   }
 
   // Get all games for a full NFL week using the date-range format (YYYYMMDD-YYYYMMDD).
@@ -468,35 +391,9 @@ class NFLAPIService {
 
       debugInfo(`Found ${data.events.length} events for weekStart ${weekStart}`);
 
-      const games: NFLGame[] = data.events.map((game: ESPNGame) => {
-        const homeTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'home');
-        const awayTeam = game.competitions[0]?.competitors.find(c => c.homeAway === 'away');
-
-        if (!homeTeam || !awayTeam) {
-          debugWarn(`⚠️  Missing team data for game ${game.id}`);
-          return null;
-        }
-
-        const state = game.competitions[0]?.status?.type?.state ?? 'pre';
-        const status: NFLGame['status'] =
-          state === 'post' ? 'finished' : state === 'in' ? 'live' : 'scheduled';
-
-        return {
-          id: game.id,
-          date: game.date,
-          time: game.date,
-          home_team: homeTeam.team.displayName,
-          away_team: awayTeam.team.displayName,
-          home_score: homeTeam.score ? parseInt(homeTeam.score) : undefined,
-          away_score: awayTeam.score ? parseInt(awayTeam.score) : undefined,
-          status,
-          week: game.week?.number ?? 0,
-          season: game.season?.year ?? new Date().getFullYear(),
-          season_type: game.season?.type ?? 2,
-          home_team_id: homeTeam.team.abbreviation,
-          away_team_id: awayTeam.team.abbreviation,
-        };
-      }).filter(Boolean) as NFLGame[];
+      // Delegates to src/lib/espn-scoreboard.ts — see classify()'s comment
+      // above for why this mapping needs to exist outside this Node-only file.
+      const games = mapEspnEventsToGames(data.events as unknown as ESPNScoreboardEvent[]);
 
       debugInfo(`Successfully converted ${games.length} games`);
       return games;
