@@ -251,45 +251,39 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="join_password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel style={labelStyle}>
-                    {form.watch('is_private') ? 'Pool Password *' : <>Join Password <span style={{ color: textDim, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '0.68rem' }}>(optional)</span></>}
-                  </FormLabel>
-                  <FormControl>
-                    <input type="password" placeholder={form.watch('is_private') ? 'Required for private pools' : 'Leave blank for open access'} {...field} style={inputStyle} />
-                  </FormControl>
-                  {form.watch('is_private') ? (
-                    <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
-                      Required. Anyone with the pool link will need this to view picks, leaderboard, or results.
-                    </p>
-                  ) : form.watch('join_password') && (
-                    <p style={{ ...b, fontSize: '0.72rem', color: 'oklch(74% 0.16 72)', marginTop: '0.25rem' }}>
-                      Members will need this password to join from the search page.
-                    </p>
-                  )}
-                  <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
-                </FormItem>
-              )}
-            />
-
             {form.watch('is_private') && (
-              <FormField
-                control={form.control}
-                name="confirm_password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={labelStyle}>Confirm Password *</FormLabel>
-                    <FormControl>
-                      <input type="password" placeholder="Re-enter password" {...field} style={inputStyle} />
-                    </FormControl>
-                    <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
-                  </FormItem>
-                )}
-              />
+              <>
+                <FormField
+                  control={form.control}
+                  name="join_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel style={labelStyle}>Pool Password *</FormLabel>
+                      <FormControl>
+                        <input type="password" placeholder="Required for private pools" {...field} style={inputStyle} />
+                      </FormControl>
+                      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
+                        Required. Anyone with the pool link will need this to view picks, leaderboard, or results.
+                      </p>
+                      <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="confirm_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel style={labelStyle}>Confirm Password *</FormLabel>
+                      <FormControl>
+                        <input type="password" placeholder="Re-enter password" {...field} style={inputStyle} />
+                      </FormControl>
+                      <FormMessage style={{ ...b, fontSize: '0.75rem', color: red, marginTop: '0.2rem' }} />
+                    </FormItem>
+                  )}
+                />
+              </>
             )}
 
             <FormField
@@ -303,7 +297,17 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
                       <button
                         key={String(val)}
                         type="button"
-                        onClick={() => field.onChange(val)}
+                        onClick={() => {
+                          field.onChange(val);
+                          // Password fields are only rendered for Private —
+                          // clear anything typed before switching to Public
+                          // so it can't be silently submitted as a legacy
+                          // join_password once the fields are hidden.
+                          if (!val) {
+                            form.setValue('join_password', '');
+                            form.setValue('confirm_password', '');
+                          }
+                        }}
                         style={{
                           flex: 1, padding: '0.4rem 0.75rem',
                           background: field.value === val ? (val ? 'oklch(62% 0.22 25 / 0.18)' : green) : 'transparent',
@@ -321,7 +325,7 @@ export function CreatePoolDialog({ open, onOpenChange, onPoolCreated, leagueName
                   <FormDescription style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>
                     {field.value
                       ? 'Invitation only. This pool will not appear in search results.'
-                      : 'Anyone can find this pool by searching. A password still restricts who can join.'}
+                      : 'Anyone can find this pool by searching and join without a password.'}
                   </FormDescription>
                 </FormItem>
               )}

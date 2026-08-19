@@ -230,6 +230,22 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
     setPasswordError('');
     setIsSavingPassword(true);
     try {
+      // The Visibility toggle above is only a pending form field until "Save
+      // Settings" is clicked — but this dialog is reachable as soon as the
+      // form shows Private selected, before that save happens. setPoolPassword
+      // checks the pool's actually-persisted is_private, so without this it
+      // fails with "Only private pools have a password" the moment someone
+      // toggles to Private and immediately sets a password in one pass.
+      if (form.getValues('is_private')) {
+        try {
+          await updatePool(poolId, { is_private: true });
+        } catch (persistError) {
+          debugError('Failed to persist is_private before setting password:', persistError);
+          setPasswordError('Could not save this pool as private. Please try again.');
+          return;
+        }
+      }
+
       const result = await setPoolPassword(poolId, user.email, newPassword, newPasswordConfirm);
       if (!result.success) {
         setPasswordError(result.error);
