@@ -20,11 +20,11 @@ const siteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'htt
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Sunday Huddle",
+    default: "Sunday Huddle — NFL Confidence Pool for Friends & Family",
     template: "%s | Sunday Huddle",
   },
   description:
-    "Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.",
+    "Create an NFL confidence pool for friends, family, or coworkers. Weekly picks, confidence points, live standings, playoff pools, and season-long prizes — free to start.",
   keywords: [
     'NFL', 'football', 'confidence pool', 'sports picks', 'weekly picks',
     'NFL pool', 'football pool', 'sports competition', 'game predictions',
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Sunday Huddle',
-    title: 'Sunday Huddle',
+    title: 'Sunday Huddle — NFL Confidence Pool for Friends & Family',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
     url: siteUrl,
     locale: 'en_US',
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     site: '@sundayhuddle',
-    title: 'Sunday Huddle',
+    title: 'Sunday Huddle — NFL Confidence Pool for Friends & Family',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
     images: ['/brand/main_logo_white.png'],
   },
@@ -81,7 +81,7 @@ export default function RootLayout({
               '@type': 'WebApplication',
               name: 'Sunday Huddle',
               url: siteUrl,
-              description: 'Run your NFL confidence pool with friends and family. Weekly picks, live standings, and season-long competition made simple.',
+              description: 'Create an NFL confidence pool for friends, family, or coworkers. Weekly picks, confidence points, live standings, playoff pools, and season-long prizes — free to start.',
               applicationCategory: 'SportsApplication',
               applicationSubCategory: 'Sports',
               operatingSystem: 'Web',
