@@ -966,6 +966,53 @@ class EmailService {
     return this.sendEmail({ to: toEmail, subject, html });
   }
 
+  // Sent to every participant with an email address, plus the commissioner,
+  // when a pool is deleted — everyone who had picks/standings riding on it
+  // finds out it's gone rather than just seeing it vanish next time they
+  // check. Same wording works for both audiences: a participant learns
+  // their pool was removed, and the commissioner gets a confirmation record
+  // of their own action.
+  async sendPoolDeletedNotification(
+    recipientEmail: string,
+    recipientName: string,
+    poolName: string,
+    commissionerEmail: string,
+    participantCount: number,
+    season?: number
+  ): Promise<boolean> {
+    const subject = `Pool Deleted: "${poolName}"`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${recipientName},
+      </p>
+
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        The pool <strong style="color: #f1f5f9;">"${poolName}"</strong>${season ? ` (${season} season)` : ''} has been deleted by its commissioner (<strong style="color: #f1f5f9;">${commissionerEmail}</strong>).
+      </p>
+
+      ${createInfoBox(`
+        This pool${participantCount > 0 ? `, its ${participantCount} participant${participantCount === 1 ? '' : 's'},` : ''} and all associated picks, scores, and standings have been permanently removed. This cannot be undone.
+      `, 'warning')}
+
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        If you believe this was a mistake, reach out to your commissioner directly.
+      </p>
+    `;
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const html = createResponsiveEmailTemplate({
+      title: 'Pool Deleted',
+      content,
+      buttonText: 'Go to Dashboard',
+      buttonUrl: `${baseUrl}/dashboard`,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+      accentColor: '#dc2626',
+    });
+
+    return this.sendEmail({ to: recipientEmail, subject, html });
+  }
+
   // Sent to both parties once a pool transfer has fully completed.
   async sendPoolTransferCompleted(recipientEmail: string, poolName: string, otherPartyEmail: string): Promise<boolean> {
     const subject = `Transfer complete: "${poolName}"`;

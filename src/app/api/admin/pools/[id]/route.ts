@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugError } from '@/lib/utils';
+import { emailService } from '@/lib/email';
 
 // GET - Get pool details
 export async function GET(
@@ -117,17 +118,19 @@ export async function DELETE(
     const { id: poolId } = await params;
     const supabase = getSupabaseServiceClient();
 
-    // First, get the pool details for logging
+    // First, get the pool details for logging (and, below, for notifying
+    // participants/commissioner once the delete succeeds)
     const { data: pool } = await supabase
       .from('pools')
-      .select('name')
+      .select('name, season, created_by')
       .eq('id', poolId)
       .single();
 
-    // Get counts of related data for logging
+    // Get counts of related data for logging — also doubles as the
+    // notification recipient list (name/email) once the delete succeeds
     const { data: participants, error: participantsError } = await supabase
       .from('participants')
-      .select('id')
+      .select('id, name, email')
       .eq('pool_id', poolId);
 
     const { data: picks, error: picksError } = await supabase
@@ -198,6 +201,26 @@ export async function DELETE(
       scores: scores?.length || 0,
       tieBreakers: tieBreakers?.length || 0
     };
+
+    // Notify every participant with an email, plus the commissioner —
+    // deduped by email so a commissioner who's also a participant in their
+    // own pool only gets one copy. sendEmail() swallows its own errors and
+    // returns false rather than throwing, so a delivery failure here can't
+    // turn a successful delete into a 500 response.
+    if (pool) {
+      const recipients = new Map<string, string>();
+      for (const p of participants ?? []) {
+        if (p.email) recipients.set(p.email, p.name || p.email);
+      }
+      if (pool.created_by) {
+        recipients.set(pool.created_by, recipients.get(pool.created_by) ?? pool.created_by);
+      }
+      await Promise.all(
+        Array.from(recipients.entries()).map(([email, name]) =>
+          emailService.sendPoolDeletedNotification(email, name, pool.name, pool.created_by, deletedCounts.participants, pool.season)
+        )
+      );
+    }
 
     return NextResponse.json({
       success: true,
