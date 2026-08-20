@@ -34,8 +34,8 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'SURVIVOR',
     label: 'Survivor Pool',
-    description: 'Coming soon.',
-    available: false,
+    description: "Pick one team each week. A loss eliminates you — last one standing wins.",
+    available: true,
   },
   {
     id: 'PICKEM',
