@@ -495,7 +495,13 @@ export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSu
   let winnerParticipantIds: string[];
   let resolution: string;
 
-  const active = state.participants.filter(p => p.status === 'ACTIVE');
+  // Includes WINNER, not just ACTIVE: a participant already declared the
+  // winner by a previous finalize call was never eliminated, so re-running
+  // finalize (e.g. after a score correction) must still count them as a
+  // surviving candidate — otherwise a second call sees zero ACTIVE
+  // participants (they're all WINNER already) and zero ELIMINATED ones,
+  // and incorrectly falls through to the "no participants" error below.
+  const active = state.participants.filter(p => p.status === 'ACTIVE' || p.status === 'WINNER');
 
   if (active.length === 1) {
     winnerParticipantIds = [active[0].participantId];

@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { poolId, week, seasonType } = body as { poolId?: string; week?: number; seasonType?: number };
-    if (!poolId || !week || !seasonType) {
-      return NextResponse.json({ success: false, error: 'poolId, week, and seasonType are all required' }, { status: 400 });
+    const { poolId, week: bodyWeek, seasonType: bodySeasonType } = body as { poolId?: string; week?: number; seasonType?: number };
+    if (!poolId) {
+      return NextResponse.json({ success: false, error: 'poolId is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseServiceClient();
@@ -34,6 +34,31 @@ export async function POST(request: NextRequest) {
     }
 
     const state = await computeSurvivorPoolState(poolId);
+
+    // week/seasonType are optional — the commissioner overview's "Notify
+    // Week Results" button always wants "whatever most recently finished",
+    // not a specific week, so default to the most recent (season_type,
+    // week) with at least one resolved (non-pending) pick anywhere in the
+    // pool, rather than requiring the caller to know it.
+    let week = bodyWeek;
+    let seasonType = bodySeasonType;
+    if (!week || !seasonType) {
+      let mostRecent: { week: number; seasonType: number } | null = null;
+      for (const p of state.participants) {
+        for (const pick of p.picks) {
+          if (pick.result === 'pending') continue;
+          if (!mostRecent || pick.seasonType > mostRecent.seasonType || (pick.seasonType === mostRecent.seasonType && pick.week > mostRecent.week)) {
+            mostRecent = { week: pick.week, seasonType: pick.seasonType };
+          }
+        }
+      }
+      if (!mostRecent) {
+        return NextResponse.json({ success: true, message: 'No resolved week to announce yet.', results: { successful: 0, failed: 0, total: 0 } });
+      }
+      week = mostRecent.week;
+      seasonType = mostRecent.seasonType;
+    }
+
     const { data: participantRows, error: participantsError } = await supabase
       .from('participants')
       .select('id, email')
@@ -75,7 +100,7 @@ export async function POST(request: NextRequest) {
     const successful = results.filter(r => r.success).length;
     return NextResponse.json({
       success: true,
-      message: `Sent ${successful} result email${successful !== 1 ? 's' : ''}`,
+      message: `Sent ${successful} result email${successful !== 1 ? 's' : ''} for Week ${week}`,
       results: { successful, failed: results.length - successful, total: results.length },
     });
   } catch (error) {

@@ -34,7 +34,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'SURVIVOR',
     label: 'Survivor Pool',
-    description: "Pick one team each week. A loss eliminates you — last one standing wins.",
+    description: "Pick one team each week. If your team loses, you're eliminated — and you can't use the same team twice.",
     available: true,
   },
   {

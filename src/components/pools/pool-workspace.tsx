@@ -199,6 +199,32 @@ export function PoolWorkspace({
     }
   };
 
+  const [notifyingSurvivorResults, setNotifyingSurvivorResults] = useState(false);
+  const handleNotifySurvivorResults = async () => {
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setNotifyingSurvivorResults(true);
+    setSurvivorReminderResult(null);
+    try {
+      // No week/seasonType — the route defaults to the most recently
+      // resolved week, which is what "announce results" always means here.
+      const res = await fetch('/api/survivor/notify-week-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setSurvivorReminderResult(data.success ? data.message : (data.error ?? 'Failed to send result emails.'));
+    } catch (error) {
+      debugError('Error sending Survivor result emails:', error);
+      setSurvivorReminderResult('Failed to send result emails.');
+    } finally {
+      setNotifyingSurvivorResults(false);
+      setTimeout(() => setSurvivorReminderResult(null), 5000);
+    }
+  };
+
   const poolStats = [
     { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
     { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
@@ -341,6 +367,9 @@ export function PoolWorkspace({
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button onClick={handleSendSurvivorReminders} disabled={sendingSurvivorReminders} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: amber, border: `1px solid ${amber}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: sendingSurvivorReminders ? 'not-allowed' : 'pointer' }}>
                     {sendingSurvivorReminders ? 'Sending…' : 'Send Pick Reminders'}
+                  </button>
+                  <button onClick={handleNotifySurvivorResults} disabled={notifyingSurvivorResults} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: 'oklch(59% 0.18 230)', border: `1px solid oklch(59% 0.18 230)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: notifyingSurvivorResults ? 'not-allowed' : 'pointer' }}>
+                    {notifyingSurvivorResults ? 'Sending…' : 'Notify Week Results'}
                   </button>
                   <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
                     Full Standings →
