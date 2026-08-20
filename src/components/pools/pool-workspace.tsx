@@ -14,6 +14,7 @@ import { PoolSettings } from '@/components/admin/pool-settings';
 import { PayoutSettings } from '@/components/admin/payout-settings';
 import { PayoutCalculator } from '@/components/admin/payout-calculator';
 import { ExportData } from '@/components/admin/export-data';
+import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
 import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
 import { getPoolPayoutConfig } from '@/actions/poolPayouts';
 import { computeTotalPool, formatCurrency, PayoutConfig } from '@/lib/payouts';
@@ -81,6 +82,23 @@ export function PoolWorkspace({
   // participants flagged as delinquent) for a week that's simply too early.
   const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig | null>(null);
+  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const isSurvivor = competitionType === 'SURVIVOR';
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/pools/${poolId}`);
+        const data = await res.json();
+        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+      } catch (error) {
+        debugError('Error loading pool competition type:', error);
+        if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [poolId]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -135,8 +153,12 @@ export function PoolWorkspace({
 
   useEffect(() => {
     setActivePoolTab('overview');
-    loadStats();
-  }, [poolId, loadStats]);
+    // loadStats() pulls from picks/scores/leaderboard endpoints that are
+    // Confidence-shaped and never populated for a Survivor pool — wait
+    // until competitionType actually resolves so this doesn't fire once
+    // for every pool before that fetch completes.
+    if (competitionType && !isSurvivor) loadStats();
+  }, [poolId, loadStats, competitionType, isSurvivor]);
 
   useEffect(() => {
     getPoolPayoutConfig(poolId).then(setPayoutConfig);
@@ -252,6 +274,12 @@ export function PoolWorkspace({
         ] as const)
           .filter(t => t.id !== 'playoffs' || hasPlayoffs)
           .filter(t => t.id !== 'season-review' || hasRegularSeason)
+          // Survivor has no Q1-Q4/season-champion concept (Season Review),
+          // no playoff-confidence-points bracket (Playoffs), and no
+          // confidence-point picks to override (Override Picks) — its
+          // Leaderboard tab already covers everything a commissioner needs
+          // (active/eliminated/winner), so nothing is added in their place.
+          .filter(t => !isSurvivor || !['override-picks', 'season-review', 'playoffs'].includes(t.id))
           .map(({ id, label, icon: Icon }) => {
           const active = activePoolTab === id;
           return (
@@ -278,6 +306,18 @@ export function PoolWorkspace({
       {/* Overview tab */}
       {activePoolTab === 'overview' && (
         <>
+          {isSurvivor && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase' }}>Survivor Pool</p>
+                <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Full Standings →
+                </button>
+              </div>
+              <SurvivorStandingsPanel poolId={poolId} />
+            </div>
+          )}
+
           {poolLeader && (
             <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderLeft: `4px solid ${gold}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'oklch(74% 0.16 72 / 0.18)', border: `1px solid oklch(74% 0.16 72 / 0.45)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -371,7 +411,16 @@ export function PoolWorkspace({
       )}
 
       {/* Leaderboard tab */}
-      {activePoolTab === 'leaderboard' && (
+      {activePoolTab === 'leaderboard' && isSurvivor && (
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+            <Trophy style={{ width: 16, height: 16, color: gold }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Survivor Standings</p>
+          </div>
+          <SurvivorStandingsPanel poolId={poolId} />
+        </div>
+      )}
+      {activePoolTab === 'leaderboard' && !isSurvivor && (
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
             <Trophy style={{ width: 16, height: 16, color: gold }} />

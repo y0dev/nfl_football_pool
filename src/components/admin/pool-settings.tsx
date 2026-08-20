@@ -16,6 +16,7 @@ import { initiatePoolTransfer } from '@/actions/poolTransfers';
 import { setPoolPassword, revealPoolPasswordForCommissioner } from '@/actions/poolPassword';
 import { Trash2, Lock, Settings, Save, ArrowLeftRight, Eye, EyeOff, Copy, KeyRound, AlertTriangle } from 'lucide-react';
 import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, getNFLSeasonYear, debugError} from '@/lib/utils';
+import { DEFAULT_SURVIVOR_TYPE_SETTINGS, parseSurvivorTypeSettings, type SurvivorTypeSettings } from '@/lib/survivor-settings';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -57,6 +58,51 @@ interface PoolSettingsProps {
   children?: React.ReactNode;
 }
 
+/** One configurable Survivor rule — a labeled two-option toggle, matching
+ * the existing Visibility field's visual pattern. Not a react-hook-form
+ * field like the rest of this form (Survivor settings live in
+ * pools.type_settings, a separate JSONB column from everything else this
+ * form's schema covers), so it's plain controlled state passed in/out. */
+function SurvivorRuleToggle({ label, description, value, options, onChange, last }: {
+  label: string;
+  description: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  last?: boolean;
+}) {
+  return (
+    <div style={{ marginBottom: last ? 0 : '1.1rem' }}>
+      <p style={labelStyle}>{label}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left',
+              padding: '0.5rem 0.75rem', borderRadius: 6,
+              background: value === opt.value ? 'oklch(46% 0.14 155 / 0.14)' : 'transparent',
+              border: `1px solid ${value === opt.value ? green : border}`,
+              color: value === opt.value ? text : textMid,
+              cursor: 'pointer', width: '100%',
+            }}
+          >
+            <span style={{
+              display: 'inline-block', width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${value === opt.value ? greenHi : textDim}`,
+              background: value === opt.value ? greenHi : 'transparent',
+            }} />
+            <span style={{ ...b, fontSize: '0.82rem' }}>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+      <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>{description}</p>
+    </div>
+  );
+}
+
 export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: PoolSettingsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,6 +124,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
   const [isRevealing, setIsRevealing] = useState(false);
+  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [survivorSettings, setSurvivorSettings] = useState<SurvivorTypeSettings>(DEFAULT_SURVIVOR_TYPE_SETTINGS);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -109,6 +157,8 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
         if (pool) {
           setPoolSeason(pool.season);
           setHasPrivatePassword(!!pool.private_password_encrypted);
+          setCompetitionType(pool.competition_type ?? 'NFL_CONFIDENCE');
+          setSurvivorSettings(parseSurvivorTypeSettings(pool.type_settings));
           form.reset({
             name: pool.name,
             season: pool.season,
@@ -141,6 +191,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
         join_password: data.join_password || null,
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         tie_breaker_method: data.tie_breaker_method,
+        ...(competitionType === 'SURVIVOR' ? { type_settings: survivorSettings as unknown as Record<string, unknown> } : {}),
       });
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
@@ -493,6 +544,51 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
               )}
             />
           </div>
+
+          {competitionType === 'SURVIVOR' && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: `1px solid ${border}` }}>
+              <h4 style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                Survivor Rules
+              </h4>
+              <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginBottom: '1rem' }}>
+                One team per week, and a team can never be reused during the pool — these two rules always apply. The three below are configurable.
+              </p>
+
+              <SurvivorRuleToggle
+                label="No Pick"
+                description="What happens if a participant doesn't submit a pick before the week locks."
+                value={survivorSettings.noPickRule}
+                options={[
+                  { value: 'eliminate', label: 'Eliminate participant' },
+                  { value: 'keep_active', label: 'Keep participant active' },
+                ]}
+                onChange={(v) => setSurvivorSettings(s => ({ ...s, noPickRule: v as typeof s.noPickRule }))}
+              />
+
+              <SurvivorRuleToggle
+                label="Tie"
+                description="What happens if a participant's selected team ties."
+                value={survivorSettings.tieRule}
+                options={[
+                  { value: 'eliminate', label: 'Eliminate participant' },
+                  { value: 'keep_active', label: 'Keep participant active' },
+                ]}
+                onChange={(v) => setSurvivorSettings(s => ({ ...s, tieRule: v as typeof s.tieRule }))}
+              />
+
+              <SurvivorRuleToggle
+                label="End of Season"
+                description="What happens if more than one participant is still active once the season ends."
+                value={survivorSettings.endOfSeasonRule}
+                options={[
+                  { value: 'all_remaining_winners', label: 'All remaining participants are winners' },
+                  { value: 'margin_tiebreaker', label: 'Tiebreaker — cumulative margin of victory' },
+                ]}
+                onChange={(v) => setSurvivorSettings(s => ({ ...s, endOfSeasonRule: v as typeof s.endOfSeasonRule }))}
+                last
+              />
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
             <button

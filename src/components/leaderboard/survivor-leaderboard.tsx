@@ -24,20 +24,13 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PoolInfo { id: string; name: string; season: number; }
 
-// Survivor's own standings view — deliberately not a tab bolted onto the
-// Confidence leaderboard (no weekly points, no periods, no season-champion
-// concept apply here). ACTIVE participants sort first (most weeks
-// survived, i.e. deepest into an active pick history, first), then
-// ELIMINATED sorted by most-recent elimination first — whoever's still
-// alive should be immediately obvious at a glance.
-export function SurvivorLeaderboard() {
-  const params = useParams();
-  const poolId = params.id as string;
+/** Fetches and holds Survivor pool state — shared by both the standalone
+ * standings page and the embedded panel used inside pool management's
+ * Leaderboard tab, so there's exactly one fetch/loading implementation. */
+function useSurvivorLeaderboardData(poolId: string) {
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [state, setState] = useState<SurvivorPoolState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -57,6 +50,105 @@ export function SurvivorLeaderboard() {
   }, [poolId]);
 
   useEffect(() => { if (poolId) loadData(); }, [poolId, loadData]);
+
+  return { pool, state, isLoading };
+}
+
+/** Content-only Survivor standings — no page chrome (nav/hero/footer), so
+ * it can be embedded directly inside a tab panel (pool management's
+ * Leaderboard tab) as well as wrapped into a full page below. ACTIVE
+ * participants sort first (most weeks survived), then ELIMINATED sorted by
+ * most-recent elimination first — whoever's still alive should be
+ * immediately obvious at a glance. This is also where a commissioner gets
+ * elimination visibility (week, team, result) — no separate "Eliminations"
+ * view exists, since it would just show the same data computeSurvivorPoolState()
+ * already provides here. */
+export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
+  const { state, isLoading } = useSurvivorLeaderboardData(poolId);
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+        <div className="animate-spin rounded-full h-10 w-10" style={{ borderWidth: '3px', borderStyle: 'solid', borderColor: border, borderTopColor: green }} />
+      </div>
+    );
+  }
+
+  const winners = state?.participants.filter(p => p.status === 'WINNER') ?? [];
+  const active = (state?.participants.filter(p => p.status === 'ACTIVE') ?? [])
+    .sort((a, b2) => b2.picks.length - a.picks.length);
+  const eliminated = (state?.participants.filter(p => p.status === 'ELIMINATED') ?? [])
+    .sort((a, b2) => (b2.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
+
+  return (
+    <div>
+      {state?.currentWeek && (
+        <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1rem' }}>
+          Week {state.currentWeek.week} — {active.length} still alive, {eliminated.length} eliminated
+        </p>
+      )}
+
+      {winners.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: `${gold}18`, border: `1px solid ${gold}55`, borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+          <Trophy style={{ width: 22, height: 22, color: gold, flexShrink: 0 }} />
+          <p style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: gold, textTransform: 'uppercase' }}>
+            {winners.length === 1 ? `Winner: ${winners[0].participantName}` : `Winners: ${winners.map(w => w.participantName).join(', ')}`}
+          </p>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+        <ShieldCheck style={{ width: 16, height: 16, color: greenHi }} />
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.05em', color: text, textTransform: 'uppercase' }}>Active ({active.length})</p>
+      </div>
+      {active.length === 0 ? (
+        <p style={{ ...b, fontSize: '0.82rem', color: textDim, marginBottom: '1.25rem' }}>No participants are still active.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          {active.map(p => (
+            <div key={p.participantId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
+              <span style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{p.participantName}</span>
+              <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>{p.picks.length} pick{p.picks.length === 1 ? '' : 's'} made</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {eliminated.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+            <Skull style={{ width: 16, height: 16, color: red }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.05em', color: text, textTransform: 'uppercase' }}>Eliminated ({eliminated.length})</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {eliminated.map(p => (
+              <div key={p.participantId} style={{ background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${red}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: textMid }}>{p.participantName}</span>
+                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', color: red, textTransform: 'uppercase' }}>Eliminated Week {p.eliminatedWeek}</span>
+                </div>
+                <p style={{ ...b, fontSize: '0.74rem', color: textDim, marginTop: '0.15rem' }}>
+                  {p.eliminatedReason === 'no_pick'
+                    ? 'Did not submit a pick'
+                    : `Pick: ${p.eliminatedTeam} — ${p.eliminatedReason === 'tie' ? 'tied' : 'lost'}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Full-page Survivor standings — used by /pool/[id]/leaderboard when the
+// pool's competition_type is SURVIVOR (see that route's own router).
+export function SurvivorLeaderboard() {
+  const params = useParams();
+  const poolId = params.id as string;
+  const { pool, state, isLoading } = useSurvivorLeaderboardData(poolId);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -82,12 +174,6 @@ export function SurvivorLeaderboard() {
     );
   }
 
-  const winners = state?.participants.filter(p => p.status === 'WINNER') ?? [];
-  const active = (state?.participants.filter(p => p.status === 'ACTIVE') ?? [])
-    .sort((a, b2) => b2.picks.length - a.picks.length);
-  const eliminated = (state?.participants.filter(p => p.status === 'ELIMINATED') ?? [])
-    .sort((a, b2) => (b2.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
-
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={() => {}} poolId={poolId} />
@@ -97,78 +183,19 @@ export function SurvivorLeaderboard() {
           <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
             Survivor Standings
           </p>
-          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 1, color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 1, color: text, textTransform: 'uppercase' }}>
             {pool?.name ?? 'Loading…'}
           </h1>
-          {state?.currentWeek && (
-            <p style={{ ...b, fontSize: '0.9rem', color: textMid }}>
-              Week {state.currentWeek.week} — {active.length} still alive, {eliminated.length} eliminated
-            </p>
-          )}
         </div>
       </section>
 
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      {winners.length > 0 && (
-        <section style={{ background: surface, padding: '1.75rem 0' }}>
-          <div className="lp-inner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: `${gold}18`, border: `1px solid ${gold}55`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-              <Trophy style={{ width: 24, height: 24, color: gold, flexShrink: 0 }} />
-              <p style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: gold, textTransform: 'uppercase' }}>
-                {winners.length === 1 ? `Winner: ${winners[0].participantName}` : `Winners: ${winners.map(w => w.participantName).join(', ')}`}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section style={{ background: bg, padding: '2rem 0' }}>
-        <div className="lp-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <ShieldCheck style={{ width: 18, height: 18, color: greenHi }} />
-            <h2 style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase' }}>Active ({active.length})</h2>
-          </div>
-          {active.length === 0 ? (
-            <p style={{ ...b, fontSize: '0.85rem', color: textDim }}>No participants are still active.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {active.map(p => (
-                <div key={p.participantId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8, padding: '0.75rem 1.25rem' }}>
-                  <span style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: text }}>{p.participantName}</span>
-                  <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{p.picks.length} pick{p.picks.length === 1 ? '' : 's'} made</span>
-                </div>
-              ))}
-            </div>
-          )}
+      <section style={{ background: surface, padding: '2rem 0 3rem' }}>
+        <div className="lp-inner" style={{ maxWidth: 640 }}>
+          <SurvivorStandingsPanel poolId={poolId} />
         </div>
       </section>
-
-      {eliminated.length > 0 && (
-        <section style={{ background: surface, padding: '2rem 0 3rem' }}>
-          <div className="lp-inner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <Skull style={{ width: 18, height: 18, color: red }} />
-              <h2 style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase' }}>Eliminated ({eliminated.length})</h2>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {eliminated.map(p => (
-                <div key={p.participantId} style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${red}`, borderRadius: 8, padding: '0.75rem 1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.95rem', color: textMid }}>{p.participantName}</span>
-                    <span style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: red, textTransform: 'uppercase' }}>Eliminated Week {p.eliminatedWeek}</span>
-                  </div>
-                  <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.2rem' }}>
-                    {p.eliminatedReason === 'no_pick'
-                      ? 'Did not submit a pick'
-                      : `Pick: ${p.eliminatedTeam} — ${p.eliminatedReason === 'tie' ? 'tied' : 'lost'}`}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       <Footer pageName="Survivor Standings" />
     </div>
