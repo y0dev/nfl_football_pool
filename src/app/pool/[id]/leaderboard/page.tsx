@@ -11,6 +11,7 @@ import {
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
+import { SurvivorLeaderboard } from '@/components/leaderboard/survivor-leaderboard';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { getLatestWeekForSeason } from '@/actions/loadCurrentWeek';
@@ -309,17 +310,50 @@ function PoolLeaderboardContent() {
   );
 }
 
+const leaderboardLoadingFallback = (
+  <div style={{ minHeight: '100vh', background: 'oklch(13% 0.025 255)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+      <RefreshCw style={{ width: 32, height: 32, color: 'oklch(50% 0.018 255)', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
+      <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>Loading leaderboard…</p>
+    </div>
+  </div>
+);
+
+// Branches to Survivor's own standings view before either UI mounts — same
+// pattern as /pool/[id]/picks. PoolLeaderboardContent (Confidence, tabs
+// above) is otherwise completely untouched.
+function LeaderboardRouter() {
+  const params = useParams();
+  const poolId = params.id as string;
+  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPoolType = async () => {
+      try {
+        const res = await fetch(`/api/pools/${poolId}`);
+        const data = await res.json();
+        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+      } catch {
+        if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    if (poolId) loadPoolType();
+    return () => { cancelled = true; };
+  }, [poolId]);
+
+  if (loading || !competitionType) return leaderboardLoadingFallback;
+  if (competitionType === 'SURVIVOR') return <SurvivorLeaderboard />;
+  return <PoolLeaderboardContent />;
+}
+
 export default function PoolLeaderboardPage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: '100vh', background: 'oklch(13% 0.025 255)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
-          <RefreshCw style={{ width: 32, height: 32, color: 'oklch(50% 0.018 255)', margin: '0 auto 0.75rem', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>Loading leaderboard…</p>
-        </div>
-      </div>
-    }>
-      <PoolLeaderboardContent />
+    <Suspense fallback={leaderboardLoadingFallback}>
+      <LeaderboardRouter />
     </Suspense>
   );
 }
