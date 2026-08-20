@@ -171,6 +171,34 @@ export function PoolWorkspace({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  const [sendingSurvivorReminders, setSendingSurvivorReminders] = useState(false);
+  const [survivorReminderResult, setSurvivorReminderResult] = useState<string | null>(null);
+  const handleSendSurvivorReminders = async () => {
+    // This component has no AuthProvider guarantee in every context it's
+    // rendered from — read the session record directly, same pattern
+    // survivor-picks-content.tsx uses for the same reason.
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setSendingSurvivorReminders(true);
+    setSurvivorReminderResult(null);
+    try {
+      const res = await fetch('/api/survivor/send-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setSurvivorReminderResult(data.success ? data.message : (data.error ?? 'Failed to send reminders.'));
+    } catch (error) {
+      debugError('Error sending Survivor reminders:', error);
+      setSurvivorReminderResult('Failed to send reminders.');
+    } finally {
+      setSendingSurvivorReminders(false);
+      setTimeout(() => setSurvivorReminderResult(null), 5000);
+    }
+  };
+
   const poolStats = [
     { label: 'Participants', value: String(selectedPoolStats.participants), sub: 'In this pool',    accent: text },
     { label: 'Pending',      value: String(selectedPoolStats.pending),      sub: 'Need picks',      accent: amber },
@@ -310,10 +338,18 @@ export function PoolWorkspace({
             <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase' }}>Survivor Pool</p>
-                <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Full Standings →
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={handleSendSurvivorReminders} disabled={sendingSurvivorReminders} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: amber, border: `1px solid ${amber}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: sendingSurvivorReminders ? 'not-allowed' : 'pointer' }}>
+                    {sendingSurvivorReminders ? 'Sending…' : 'Send Pick Reminders'}
+                  </button>
+                  <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Full Standings →
+                  </button>
+                </div>
               </div>
+              {survivorReminderResult && (
+                <p style={{ ...b, fontSize: '0.75rem', color: textMid, marginBottom: '0.75rem' }}>{survivorReminderResult}</p>
+              )}
               <SurvivorStandingsPanel poolId={poolId} />
             </div>
           )}
