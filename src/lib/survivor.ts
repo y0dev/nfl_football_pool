@@ -62,6 +62,8 @@ interface GameRow {
   week: number;
   season: number;
   season_type: number;
+  home_team: string;
+  away_team: string;
   kickoff_time: string;
   status: string | null;
   home_team_id: string | null;
@@ -106,6 +108,18 @@ export interface SurvivorParticipantState {
   eliminatedReason?: SurvivorEliminationReason;
 }
 
+export interface SurvivorCurrentWeekGame {
+  id: string;
+  week: number;
+  seasonType: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  kickoffTime: string;
+  status: string | null;
+}
+
 export interface SurvivorPoolState {
   poolId: string;
   season: number;
@@ -115,6 +129,14 @@ export interface SurvivorPoolState {
   activeCount: number;
   eliminatedCount: number;
   winnerParticipantIds: string[];
+  /** The next (season_type, week) in the pool's season_scope that isn't
+   * fully resolved yet — chronologically first among weeks where at least
+   * one game still needs a final score. Null once every scheduled game in
+   * scope has finished. The Picks page uses this to know what to show;
+   * week-lock itself is still computed client-side via
+   * computeWeekUnlockStatus (see currentWeekGames below). */
+  currentWeek: { week: number; seasonType: number } | null;
+  currentWeekGames: SurvivorCurrentWeekGame[];
 }
 
 function hasFinalResult(game: GameRow): boolean {
@@ -170,7 +192,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
   if (gameIds.length > 0) {
     const { data: games, error: gamesError } = await supabase
       .from('games')
-      .select('id, week, season, season_type, kickoff_time, status, home_team_id, away_team_id, home_score, away_score')
+      .select('id, week, season, season_type, home_team, away_team, kickoff_time, status, home_team_id, away_team_id, home_score, away_score')
       .in('id', gameIds);
     if (gamesError) throw new Error(gamesError.message);
     for (const g of games ?? []) gamesById.set(g.id, g as GameRow);
@@ -183,7 +205,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
   // per-participant per-week query.
   const { data: allSeasonGames, error: allGamesError } = await supabase
     .from('games')
-    .select('id, week, season, season_type, kickoff_time, status, home_team_id, away_team_id, home_score, away_score')
+    .select('id, week, season, season_type, home_team, away_team, kickoff_time, status, home_team_id, away_team_id, home_score, away_score')
     .eq('season', pool.season)
     .in('season_type', seasonScope);
   if (allGamesError) throw new Error(allGamesError.message);
@@ -325,6 +347,20 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     }
   }
 
+  const currentWeekEntry = weekOrder.find(w => !w.games.every(hasFinalResult)) ?? null;
+  const currentWeek = currentWeekEntry ? { week: currentWeekEntry.week, seasonType: currentWeekEntry.seasonType } : null;
+  const currentWeekGames: SurvivorCurrentWeekGame[] = (currentWeekEntry?.games ?? []).map(g => ({
+    id: g.id,
+    week: g.week,
+    seasonType: g.season_type,
+    homeTeam: g.home_team,
+    awayTeam: g.away_team,
+    homeTeamId: g.home_team_id,
+    awayTeamId: g.away_team_id,
+    kickoffTime: g.kickoff_time,
+    status: g.status,
+  }));
+
   return {
     poolId,
     season: pool.season,
@@ -334,6 +370,8 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     activeCount: participantStates.filter(p => p.status === 'ACTIVE').length,
     eliminatedCount: participantStates.filter(p => p.status === 'ELIMINATED').length,
     winnerParticipantIds,
+    currentWeek,
+    currentWeekGames,
   };
 }
 
