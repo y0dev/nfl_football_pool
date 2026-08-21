@@ -254,6 +254,16 @@ function CommissionerDashboardContent() {
     });
   };
 
+  // Clearing selectedPoolId alone left the deleted pool sitting in
+  // availablePools (and its stale data on screen) until the next full page
+  // load, since availablePools is only ever set inside loadDashboardStats —
+  // refetch it here the same way handlePoolCreated does.
+  const handlePoolDeleted = async () => {
+    setSelectedPoolId('');
+    await loadDashboardStats();
+    await loadRecentActivity();
+  };
+
   const generateNotifications = useCallback(() => {
     const newNotifications: string[] = [];
 
@@ -621,7 +631,7 @@ function CommissionerDashboardContent() {
                 currentWeek={currentWeek}
                 currentSeasonType={currentSeasonType}
                 isActive={selectedPool.is_active}
-                onPoolDeleted={() => setSelectedPoolId('')}
+                onPoolDeleted={handlePoolDeleted}
                 initialTab={jumpToSettingsForPoolId === selectedPoolId ? 'settings' : undefined}
               />
             </div>

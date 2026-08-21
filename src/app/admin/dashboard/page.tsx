@@ -488,6 +488,15 @@ function AdminDashboardContent() {
     toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
+  // Clearing selectedPoolId alone left the deleted pool sitting in `pools`
+  // (and its stale data on screen) until the next full page load, since
+  // `pools` is only ever set inside loadPools — refetch it here the same
+  // way handlePoolCreated does.
+  const handlePoolDeleted = async () => {
+    setSelectedPoolId('');
+    await Promise.all([loadDashboardStats(), loadPools()]);
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -1088,7 +1097,7 @@ function AdminDashboardContent() {
               currentSeasonType={currentSeasonType}
               showExportTab={false}
               isActive={selectedPool.is_active}
-              onPoolDeleted={() => setSelectedPoolId('')}
+              onPoolDeleted={handlePoolDeleted}
             />
           ) : !poolsLoading ? (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>
