@@ -90,7 +90,7 @@ export interface PickemWeekResult {
   /** Every game a participant must pick this week — dynamically the actual
    * schedule for this (season, season_type, week), never a hardcoded count
    * (a preseason week can have as few as one game). */
-  eligibleGames: Array<{ id: string; homeTeam: string; awayTeam: string; kickoffTime: string; status: string | null }>;
+  eligibleGames: Array<{ id: string; homeTeam: string; awayTeam: string; homeTeamId: string | null; awayTeamId: string | null; kickoffTime: string; status: string | null }>;
   /** True once every eligible game has a final result — winner/tiebreaker
    * resolution only applies once this is true. */
   isWeekFinal: boolean;
@@ -266,7 +266,7 @@ export async function computePickemWeekResult(poolId: string, week: number, seas
     season: pool.season,
     seasonType,
     week,
-    eligibleGames: games.map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, kickoffTime: g.kickoff_time, status: g.status })),
+    eligibleGames: games.map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, homeTeamId: g.home_team_id, awayTeamId: g.away_team_id, kickoffTime: g.kickoff_time, status: g.status })),
     isWeekFinal,
     tiebreakerGame,
     participants: participantWeeks,

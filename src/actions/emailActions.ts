@@ -296,11 +296,19 @@ export async function checkAndSendUrgentReminders(): Promise<void> {
       gamesByWeek.get(game.week)!.push(game);
     }
 
-    // Get all active pools
+    // Get all active pools — Confidence only. getParticipantsWithoutPicks
+    // below reads the Confidence-only `picks` table, which Survivor and
+    // Pick'em pools never populate (they each have their own authoritative
+    // reminder flow — /api/survivor/send-reminders and
+    // /api/pickem/send-reminders — triggered by the commissioner, not this
+    // hourly cron). Without this filter every active Survivor/Pick'em pool
+    // would look permanently 100% "missing picks" and send its commissioner
+    // a confusing, wrongly-worded urgent reminder every run.
     const { data: allPools, error: poolsError } = await supabase
       .from('pools')
       .select('id, name, created_by')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .in('competition_type', ['NFL_CONFIDENCE', 'NCAA_CONFIDENCE']);
 
     if (poolsError || !allPools) {
       return;

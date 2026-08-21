@@ -17,6 +17,7 @@ import { setPoolPassword, revealPoolPasswordForCommissioner } from '@/actions/po
 import { Trash2, Lock, Settings, Save, ArrowLeftRight, Eye, EyeOff, Copy, KeyRound, AlertTriangle } from 'lucide-react';
 import { DEFAULT_POOL_SEASON, SEASON_SCOPE_OPTIONS, seasonTypesToScopeValue, getNFLSeasonYear, debugError} from '@/lib/utils';
 import { DEFAULT_SURVIVOR_TYPE_SETTINGS, parseSurvivorTypeSettings, type SurvivorTypeSettings } from '@/lib/survivor-settings';
+import { DEFAULT_PICKEM_TYPE_SETTINGS, parsePickemTypeSettings, type PickemTypeSettings } from '@/lib/pickem-settings';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -58,12 +59,13 @@ interface PoolSettingsProps {
   children?: React.ReactNode;
 }
 
-/** One configurable Survivor rule — a labeled two-option toggle, matching
- * the existing Visibility field's visual pattern. Not a react-hook-form
- * field like the rest of this form (Survivor settings live in
- * pools.type_settings, a separate JSONB column from everything else this
- * form's schema covers), so it's plain controlled state passed in/out. */
-function SurvivorRuleToggle({ label, description, value, options, onChange, last }: {
+/** One configurable per-competition-type rule (Survivor or Pick'em) — a
+ * labeled two-option toggle, matching the existing Visibility field's visual
+ * pattern. Not a react-hook-form field like the rest of this form (these
+ * settings live in pools.type_settings, a separate JSONB column from
+ * everything else this form's schema covers), so it's plain controlled
+ * state passed in/out. */
+function RuleToggle({ label, description, value, options, onChange, last }: {
   label: string;
   description: string;
   value: string;
@@ -126,6 +128,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
   const [isRevealing, setIsRevealing] = useState(false);
   const [competitionType, setCompetitionType] = useState<string | null>(null);
   const [survivorSettings, setSurvivorSettings] = useState<SurvivorTypeSettings>(DEFAULT_SURVIVOR_TYPE_SETTINGS);
+  const [pickemSettings, setPickemSettings] = useState<PickemTypeSettings>(DEFAULT_PICKEM_TYPE_SETTINGS);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -159,6 +162,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
           setHasPrivatePassword(!!pool.private_password_encrypted);
           setCompetitionType(pool.competition_type ?? 'NFL_CONFIDENCE');
           setSurvivorSettings(parseSurvivorTypeSettings(pool.type_settings));
+          setPickemSettings(parsePickemTypeSettings(pool.type_settings));
           form.reset({
             name: pool.name,
             season: pool.season,
@@ -192,6 +196,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
         season_scope: scopeOption ? [...scopeOption.types] : [2],
         tie_breaker_method: data.tie_breaker_method,
         ...(competitionType === 'SURVIVOR' ? { type_settings: survivorSettings as unknown as Record<string, unknown> } : {}),
+        ...(competitionType === 'PICKEM' ? { type_settings: pickemSettings as unknown as Record<string, unknown> } : {}),
       });
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
     } catch (error) {
@@ -554,7 +559,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                 One team per week, and a team can never be reused during the pool — these two rules always apply. The three below are configurable.
               </p>
 
-              <SurvivorRuleToggle
+              <RuleToggle
                 label="No Pick"
                 description="What happens if a participant doesn't submit a pick before the week locks."
                 value={survivorSettings.noPickRule}
@@ -565,7 +570,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                 onChange={(v) => setSurvivorSettings(s => ({ ...s, noPickRule: v as typeof s.noPickRule }))}
               />
 
-              <SurvivorRuleToggle
+              <RuleToggle
                 label="Tie"
                 description="What happens if a participant's selected team ties."
                 value={survivorSettings.tieRule}
@@ -576,7 +581,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                 onChange={(v) => setSurvivorSettings(s => ({ ...s, tieRule: v as typeof s.tieRule }))}
               />
 
-              <SurvivorRuleToggle
+              <RuleToggle
                 label="End of Season"
                 description="What happens if more than one participant is still active once the season ends."
                 value={survivorSettings.endOfSeasonRule}
@@ -585,6 +590,29 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                   { value: 'margin_tiebreaker', label: 'Tiebreaker — cumulative margin of victory' },
                 ]}
                 onChange={(v) => setSurvivorSettings(s => ({ ...s, endOfSeasonRule: v as typeof s.endOfSeasonRule }))}
+                last
+              />
+            </div>
+          )}
+
+          {competitionType === 'PICKEM' && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: `1px solid ${border}` }}>
+              <h4 style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.06em', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                Pick&apos;em Settings
+              </h4>
+              <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginBottom: '1rem' }}>
+                Scoring is always 1 point per correct pick — no confidence points. The tiebreaker below is the only configurable rule.
+              </p>
+
+              <RuleToggle
+                label="Tiebreaker"
+                description="Predict the combined score of the week's tiebreaker game (Monday Night Football, or the week's late game if there's no MNF) to break ties in weekly and season standings."
+                value={pickemSettings.tiebreakerEnabled ? 'enabled' : 'disabled'}
+                options={[
+                  { value: 'enabled', label: 'Enabled' },
+                  { value: 'disabled', label: 'Disabled' },
+                ]}
+                onChange={(v) => setPickemSettings(s => ({ ...s, tiebreakerEnabled: v === 'enabled' }))}
                 last
               />
             </div>

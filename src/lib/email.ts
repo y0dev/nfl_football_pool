@@ -351,6 +351,83 @@ class EmailService {
     return this.sendEmail({ to: participantEmail, subject, html });
   }
 
+  // Pick'em's equivalent of sendPickReminder — separate method (not a
+  // branch inside that one) so Confidence's reminder wording/behavior stays
+  // completely untouched. Names how many games are still unpicked, since
+  // Pick'em's per-game submission means a participant can be partway done.
+  async sendPickemPickReminder(participantEmail: string, participantName: string, poolName: string, weekNumber: number, poolLink: string, gamesRemaining: number, huddleName?: string): Promise<boolean> {
+    const subject = `⏰ Week ${weekNumber} Pick'em Picks Due - ${poolName}`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${participantName},
+      </p>
+
+      <p style="margin: 0 0 20px; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Your Week ${weekNumber} Pick'em picks for <strong style="color: #f1f5f9;">${poolName}</strong>${huddleName ? ` (${huddleName})` : ''} are due.
+      </p>
+
+      ${createInfoBox(`
+        <strong>${gamesRemaining} game${gamesRemaining === 1 ? '' : 's'}</strong> still need${gamesRemaining === 1 ? 's' : ''} a pick.<br><br>
+        Pick the winner of every game — each correct pick is worth one point. A game locks once it starts, so pick early.
+      `, 'warning')}
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: `Week ${weekNumber} Pick'em Picks Due`,
+      content,
+      buttonText: 'Make Your Picks Now',
+      buttonUrl: poolLink,
+      footerText: 'This is an automated reminder from your Sunday Huddle.'
+    });
+
+    return this.sendEmail({ to: participantEmail, subject, html });
+  }
+
+  // Sent after a Pick'em week is fully final — one participant at a time
+  // (caller loops). Distinguishes a clean win from a tie the tiebreaker
+  // prediction was used to resolve, per the Pick'em spec's explicit email
+  // wording examples.
+  async sendPickemWeekResult(
+    participantEmail: string,
+    participantName: string,
+    poolName: string,
+    weekNumber: number,
+    poolLink: string,
+    result: { correctCount: number; totalGames: number; isWinner: boolean; wasTiedForFirst: boolean; tiebreakerUsed: boolean }
+  ): Promise<boolean> {
+    const subject = result.isWinner
+      ? `You won Week ${weekNumber}! - ${poolName}`
+      : `Week ${weekNumber} Results - ${poolName}`;
+
+    const resultLine = `You got <strong>${result.correctCount} of ${result.totalGames}</strong> picks correct this week.`;
+    const winnerLine = result.isWinner
+      ? `<br><br><strong>You won Week ${weekNumber}!</strong>`
+      : result.wasTiedForFirst
+        ? `<br><br>You tied for the most correct picks.${result.tiebreakerUsed ? ' Your tiebreaker prediction was used.' : ''}`
+        : '';
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${participantName},
+      </p>
+      ${createInfoBox(`${resultLine}${winnerLine}`, result.isWinner ? 'success' : 'info')}
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        Check the standings to see this week's full results and your season total.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: result.isWinner ? `You Won Week ${weekNumber}` : `Week ${weekNumber} Results`,
+      content,
+      buttonText: 'View Standings',
+      buttonUrl: poolLink,
+      footerText: 'This is an automated notification from Sunday Huddle.',
+    });
+
+    return this.sendEmail({ to: participantEmail, subject, html });
+  }
+
   // Template for admin submission summary
   async sendAdminSubmissionSummary(
     adminEmail: string,

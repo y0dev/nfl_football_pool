@@ -41,7 +41,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
     id: 'PICKEM',
     label: "Pick'em Pool",
     description: "Pick the winner of every game. Each correct pick is worth one point.",
-    available: false, // backend service layer exists; Picks/Leaderboard/Settings UI not yet built — see session notes
+    available: true,
   },
   {
     id: 'MARCH_MADNESS',

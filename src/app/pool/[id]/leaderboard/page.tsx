@@ -12,6 +12,7 @@ import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { QuarterLeaderboard } from '@/components/leaderboard/quarter-leaderboard';
 import { SurvivorLeaderboard } from '@/components/leaderboard/survivor-leaderboard';
+import { PickemLeaderboard } from '@/components/leaderboard/pickem-leaderboard';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { getLatestWeekForSeason } from '@/actions/loadCurrentWeek';
@@ -347,6 +348,7 @@ function LeaderboardRouter() {
 
   if (loading || !competitionType) return leaderboardLoadingFallback;
   if (competitionType === 'SURVIVOR') return <SurvivorLeaderboard />;
+  if (competitionType === 'PICKEM') return <PickemLeaderboard />;
   return <PoolLeaderboardContent />;
 }
 

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Footer } from '@/components/layout/Footer';
 import { PoolPicksContent } from '@/components/picks/pool-picks-content';
 import { SurvivorPicksContent } from '@/components/picks/survivor-picks-content';
+import { PickemPicksContent } from '@/components/picks/pickem-picks-content';
 import { debugError } from '@/lib/utils';
 
 const bg = 'oklch(13% 0.025 255)';
@@ -57,6 +58,15 @@ function PicksRouter() {
       <>
         <SurvivorPicksContent />
         <Footer pageName="Survivor Pick" />
+      </>
+    );
+  }
+
+  if (competitionType === 'PICKEM') {
+    return (
+      <>
+        <PickemPicksContent />
+        <Footer pageName="Pick'em Pick" />
       </>
     );
   }
