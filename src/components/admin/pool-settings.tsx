@@ -153,10 +153,19 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
   });
 
   useEffect(() => {
+    // Guard against out-of-order responses: switching pools quickly (e.g.
+    // the dashboard's pool selector) can start a second fetch before the
+    // first one resolves, and network responses aren't guaranteed to land
+    // in request order. Without this, a slow response for the pool you
+    // switched AWAY from could resolve after the new pool's fetch and
+    // silently overwrite it with stale data — same pattern already used in
+    // pool-workspace.tsx's competition-type effect.
+    let cancelled = false;
     const loadPoolData = async () => {
       try {
         setIsLoading(true);
         const pool = await loadPool(poolId);
+        if (cancelled) return;
         if (pool) {
           setPoolSeason(pool.season);
           setHasPrivatePassword(!!pool.private_password_encrypted);
@@ -174,13 +183,15 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
           });
         }
       } catch (error) {
+        if (cancelled) return;
         debugError('Error loading pool data:', error);
         toast({ title: 'Error', description: 'Failed to load pool settings', variant: 'destructive' });
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     loadPoolData();
+    return () => { cancelled = true; };
   }, [poolId, form, toast]);
 
   const onSubmit = async (data: PoolSettingsData) => {
@@ -362,7 +373,12 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
     );
   }
 
-  const deleteMatch = deleteConfirmation === poolName;
+  // System admins already had to re-authenticate as a super admin to reach
+  // this dashboard at all — the type-to-confirm friction below exists for
+  // commissioners deleting their own pool, not for platform admins acting
+  // on someone else's.
+  const isSuperAdmin = !!user?.is_super_admin;
+  const deleteMatch = isSuperAdmin || deleteConfirmation === poolName;
   const deleteTyped = deleteConfirmation.length > 0;
   const watchedScope = form.watch('season_scope');
   const scopeDesc = SEASON_SCOPE_OPTIONS.find(o => o.value === watchedScope)?.desc ?? '';
@@ -801,7 +817,12 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                     <p style={{ marginBottom: '0.5rem' }}>Are you sure you want to delete &quot;{poolName}&quot;? This action cannot be undone.</p>
                     <p style={{ ...b, fontWeight: 700, color: textMid, marginBottom: '0.35rem' }}>This will also permanently delete:</p>
                     <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      {['All participants in this pool', 'All picks submitted by participants', 'All scores and standings', 'All tie breaker responses'].map(item => (
+                      {(competitionType === 'SURVIVOR'
+                        ? ['All participants in this pool', 'All weekly picks submitted by participants', 'Elimination and winner history']
+                        : competitionType === 'PICKEM'
+                        ? ['All participants in this pool', 'All picks submitted by participants', 'All tiebreaker predictions']
+                        : ['All participants in this pool', 'All picks submitted by participants', 'All scores and standings', 'All tie breaker responses']
+                      ).map(item => (
                         <li key={item} style={{ listStyleType: 'disc', ...b, fontSize: '0.78rem', color: textDim }}>{item}</li>
                       ))}
                     </ul>
@@ -809,23 +830,29 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
                 </DialogDescription>
               </DialogHeader>
 
-              <div style={{ padding: '0.75rem 0' }}>
-                <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
-                  To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: red }}>{poolName}</span> below:
+              {isSuperAdmin ? (
+                <p style={{ ...b, fontSize: '0.8rem', color: textDim, padding: '0.75rem 0' }}>
+                  You&apos;re acting as a system admin, so no confirmation text is required — just click Delete Pool below.
                 </p>
-                <input
-                  type="text"
-                  placeholder="Enter pool name to confirm"
-                  value={deleteConfirmation}
-                  onChange={(e) => setDeleteConfirmation(e.target.value)}
-                  style={{ ...inputStyle, border: `1px solid ${deleteTyped ? (deleteMatch ? 'oklch(50% 0.14 155)' : red) : border}` }}
-                />
-                {deleteTyped && (
-                  <p style={{ ...b, fontSize: '0.75rem', color: deleteMatch ? 'oklch(59% 0.15 155)' : red, marginTop: '0.25rem' }}>
-                    {deleteMatch ? '✓ Pool name matches — deletion enabled' : '✗ Pool name does not match'}
+              ) : (
+                <div style={{ padding: '0.75rem 0' }}>
+                  <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginBottom: '0.5rem' }}>
+                    To confirm deletion, type <span style={{ fontFamily: 'monospace', fontWeight: 700, color: red }}>{poolName}</span> below:
                   </p>
-                )}
-              </div>
+                  <input
+                    type="text"
+                    placeholder="Enter pool name to confirm"
+                    value={deleteConfirmation}
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    style={{ ...inputStyle, border: `1px solid ${deleteTyped ? (deleteMatch ? 'oklch(50% 0.14 155)' : red) : border}` }}
+                  />
+                  {deleteTyped && (
+                    <p style={{ ...b, fontSize: '0.75rem', color: deleteMatch ? 'oklch(59% 0.15 155)' : red, marginTop: '0.25rem' }}>
+                      {deleteMatch ? '✓ Pool name matches — deletion enabled' : '✗ Pool name does not match'}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <DialogFooter style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                 <button type="button" onClick={() => setShowDeleteDialog(false)} style={{ ...bc, padding: '0.45rem 0.85rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>

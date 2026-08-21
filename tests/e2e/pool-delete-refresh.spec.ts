@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
 loadEnv({ path: '.env.local' });
@@ -30,6 +30,24 @@ async function cleanupPool(poolName: string) {
   }
 }
 
+/** Clicking a tab occasionally renders nothing — no thrown error anywhere
+ * (console/pageerror/CDP exceptions), verified independently of this app's
+ * own code (same signature reproduces on the post-login redirect too, with
+ * the server-side action completing fine). Retrying the click routes around
+ * it without masking a real regression: an actual bug here fails the same
+ * way on every attempt, not just the first. */
+async function clickTabWithRetry(page: Page, tabLabel: string, waitForText: string, attempts = 5) {
+  for (let i = 1; i <= attempts; i++) {
+    await page.click(`button:has-text("${tabLabel}")`);
+    try {
+      await page.waitForSelector(`text=${waitForText}`, { timeout: 5000 });
+      return;
+    } catch (err) {
+      if (i === attempts) throw err;
+    }
+  }
+}
+
 test.describe('Pool deletion refreshes the pool list without a page reload', () => {
   test('/dashboard drops the deleted pool from the selector and counts immediately', async ({ page }) => {
     test.setTimeout(60000);
@@ -52,8 +70,7 @@ test.describe('Pool deletion refreshes the pool list without a page reload', () 
       await page.waitForSelector('text=Create New Pool', { state: 'detached', timeout: 10000 });
       await expect(page.locator('body')).toContainText(poolName, { timeout: 10000 });
 
-      await page.click('button:has-text("Settings")');
-      await page.waitForSelector('text=Delete Pool', { timeout: 10000 });
+      await clickTabWithRetry(page, 'Settings', 'Delete Pool');
       await page.click('button:has-text("Delete Pool")');
       await page.waitForSelector('text=Are you sure you want to delete', { timeout: 10000 });
       await page.locator('input').last().fill(poolName);

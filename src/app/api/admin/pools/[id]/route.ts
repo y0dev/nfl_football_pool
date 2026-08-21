@@ -119,10 +119,13 @@ export async function DELETE(
     const supabase = getSupabaseServiceClient();
 
     // First, get the pool details for logging (and, below, for notifying
-    // participants/commissioner once the delete succeeds)
+    // participants/commissioner once the delete succeeds) — competition_type
+    // decides which picks/tiebreaker tables actually hold this pool's data;
+    // Pick'em and Survivor each use their own tables, not the Confidence-only
+    // picks/scores/tie_breakers ones.
     const { data: pool } = await supabase
       .from('pools')
-      .select('name, season, created_by')
+      .select('name, season, created_by, competition_type')
       .eq('id', poolId)
       .single();
 
@@ -133,32 +136,56 @@ export async function DELETE(
       .select('id, name, email')
       .eq('pool_id', poolId);
 
-    const { data: picks, error: picksError } = await supabase
-      .from('picks')
-      .select('id')
-      .eq('pool_id', poolId);
-
-    const { data: scores, error: scoresError } = await supabase
-      .from('scores')
-      .select('id')
-      .eq('pool_id', poolId);
-
-    const { data: tieBreakers, error: tieBreakersError } = await supabase
-      .from('tie_breakers')
-      .select('id')
-      .eq('pool_id', poolId);
-
     if (participantsError) {
       debugError('Error checking participants:', participantsError);
     }
-    if (picksError) {
-      debugError('Error checking picks:', picksError);
-    }
-    if (scoresError) {
-      debugError('Error checking scores:', scoresError);
-    }
-    if (tieBreakersError) {
-      debugError('Error checking tie breakers:', tieBreakersError);
+
+    let picksCount = 0;
+    let scoresCount = 0;
+    let tieBreakersCount = 0;
+
+    if (pool?.competition_type === 'SURVIVOR') {
+      const { data: survivorPicks, error: survivorPicksError } = await supabase
+        .from('survivor_picks')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (survivorPicksError) debugError('Error checking survivor picks:', survivorPicksError);
+      picksCount = survivorPicks?.length || 0;
+    } else if (pool?.competition_type === 'PICKEM') {
+      const { data: pickemPicks, error: pickemPicksError } = await supabase
+        .from('pickem_picks')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (pickemPicksError) debugError('Error checking pickem picks:', pickemPicksError);
+      picksCount = pickemPicks?.length || 0;
+
+      const { data: pickemTiebreakers, error: pickemTiebreakersError } = await supabase
+        .from('pickem_tiebreakers')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (pickemTiebreakersError) debugError('Error checking pickem tiebreakers:', pickemTiebreakersError);
+      tieBreakersCount = pickemTiebreakers?.length || 0;
+    } else {
+      const { data: picks, error: picksError } = await supabase
+        .from('picks')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (picksError) debugError('Error checking picks:', picksError);
+      picksCount = picks?.length || 0;
+
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (scoresError) debugError('Error checking scores:', scoresError);
+      scoresCount = scores?.length || 0;
+
+      const { data: tieBreakers, error: tieBreakersError } = await supabase
+        .from('tie_breakers')
+        .select('id')
+        .eq('pool_id', poolId);
+      if (tieBreakersError) debugError('Error checking tie breakers:', tieBreakersError);
+      tieBreakersCount = tieBreakers?.length || 0;
     }
 
     // Delete the pool
@@ -183,23 +210,24 @@ export async function DELETE(
         admin_id: null, // Service role doesn't have specific admin ID
         entity: 'pools',
         entity_id: poolId,
-        details: { 
+        details: {
           pool_name: pool?.name || 'Unknown',
+          competition_type: pool?.competition_type || 'NFL_CONFIDENCE',
           action: 'deleted',
           related_data_deleted: {
             participants_count: participants?.length || 0,
-            picks_count: picks?.length || 0,
-            scores_count: scores?.length || 0,
-            tie_breakers_count: tieBreakers?.length || 0
+            picks_count: picksCount,
+            scores_count: scoresCount,
+            tie_breakers_count: tieBreakersCount
           }
         }
       });
 
     const deletedCounts = {
       participants: participants?.length || 0,
-      picks: picks?.length || 0,
-      scores: scores?.length || 0,
-      tieBreakers: tieBreakers?.length || 0
+      picks: picksCount,
+      scores: scoresCount,
+      tieBreakers: tieBreakersCount
     };
 
     // Notify every participant with an email, plus the commissioner —
