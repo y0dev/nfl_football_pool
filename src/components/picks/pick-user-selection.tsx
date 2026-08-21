@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { loadUsers } from '@/actions/loadUsers';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
@@ -11,7 +11,6 @@ import { useRouter } from 'next/navigation';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 
 // Design tokens
-const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
@@ -36,7 +35,7 @@ interface PickUserSelectionProps {
 }
 
 export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelected, usersNeedingConfidencePoints, poolSeason }: PickUserSelectionProps) {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<Awaited<ReturnType<typeof loadUsers>>>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -51,13 +50,7 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
     setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isMounted) {
-      loadData();
-    }
-  }, [isMounted, poolId, weekNumber, seasonType, poolSeason]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -90,7 +83,13 @@ export function PickUserSelection({ poolId, weekNumber, seasonType, onUserSelect
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [weekNumber, poolId, seasonType, poolSeason, toast]);
+
+  useEffect(() => {
+    if (isMounted) {
+      loadData();
+    }
+  }, [isMounted, poolId, weekNumber, seasonType, poolSeason, loadData]);
 
   const handleVerifyAccess = async () => {
     if (!selectedUserId) {

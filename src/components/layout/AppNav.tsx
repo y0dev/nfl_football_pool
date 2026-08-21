@@ -7,7 +7,6 @@ import { Menu, X, LogOut } from 'lucide-react';
 import { BrandLogo } from '@/components/ui/brand-logo';
 
 const border  = 'oklch(26% 0.03 255)';
-const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -77,8 +76,14 @@ function useDismissable(onClose: () => void) {
 export function AppNav({ isAuthenticated, isSuperAdmin, onSignOut, poolId, extraSections, rightSlot }: AppNavProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // Close the menu on navigation — adjusted during render (React's own
+  // pattern for "reset state when a prop changes") rather than in an
+  // effect, which would cause an extra commit/paint after every navigation.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
   const menuRef = useDismissable(() => setOpen(false));
 
   const dashboardHref = isSuperAdmin ? '/admin/dashboard' : '/dashboard';

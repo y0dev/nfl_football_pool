@@ -24,13 +24,6 @@ if (!supabaseUrl || !supabaseServiceKey) {
 // Create Supabase client using the service role key for admin operations
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-const NFL_TEAMS = [
-  'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
-  'DAL', 'DEN', 'DET', 'GB', 'HOU', 'IND', 'JAX', 'KC',
-  'LAC', 'LAR', 'LV', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
-  'NYJ', 'PHI', 'PIT', 'SEA', 'SF', 'TB', 'TEN', 'WAS'
-]
-
 const SAMPLE_GAMES = [
   {
     week: 1,

@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { Leaderboard } from '@/components/leaderboard/leaderboard';
 import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
-import { Trophy, Lock, ChevronLeft, ChevronRight, RefreshCw, LogOut, ArrowLeft, Calendar, AlertTriangle } from 'lucide-react';
+import { Trophy, Lock, ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, Calendar, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
@@ -16,7 +16,6 @@ import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboar
 import { Game } from '@/types/game';
 
 const bg      = 'oklch(13% 0.025 255)';
-const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const greenHi = 'oklch(59% 0.15 155)';
@@ -43,7 +42,7 @@ function PoolHistoryContent() {
   const [currentWeek, setCurrentWeek] = useState(parseInt(weekParam || '1'));
   const [currentSeasonType, setCurrentSeasonType] = useState(parseInt(seasonTypeParam || '2'));
   const [games, setGames] = useState<Game[]>([]);
-  const [gamesLoading, setGamesLoading] = useState(false);
+  const [, setGamesLoading] = useState(false);
   const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState<boolean | null>(null);
   const [winnerLoading, setWinnerLoading] = useState(false);

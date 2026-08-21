@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -242,7 +242,7 @@ export function PoolPicksContent() {
     return !!hasSubmitted[userId]?.submitted;
   };
 
-  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+  const getWeekTitle = useCallback(() => getWeekTitleUtil(currentWeek, currentSeasonType), [currentWeek, currentSeasonType]);
 
   // The real, persisted/derived source of truth for this week's state —
   // deliberately separate from `showGameDetails`, which is only a view
@@ -288,7 +288,7 @@ export function PoolPicksContent() {
   useEffect(() => {
     if (!poolName) return;
     document.title = `${poolName} - ${getWeekTitle()} | Sunday Huddle`;
-  }, [poolName, currentWeek, currentSeasonType]);
+  }, [poolName, currentWeek, currentSeasonType, getWeekTitle]);
 
   const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
     if (!poolId) return false;
@@ -849,10 +849,19 @@ export function PoolPicksContent() {
             if (recordsResponse.ok) {
               const recordsResult = await recordsResponse.json();
               if (recordsResult.success && recordsResult.records) {
-                const recordsMapById = new Map<string, any>();
-                const recordsMapByAbbr = new Map<string, any>();
+                interface TeamRecordLite {
+                  wins: number; losses: number; ties: number;
+                  home_wins?: number; home_losses?: number; home_ties?: number;
+                  road_wins?: number; road_losses?: number; road_ties?: number;
+                }
+                interface TeamRecordApiRow extends TeamRecordLite {
+                  team_id?: string;
+                  team_abbreviation?: string;
+                }
+                const recordsMapById = new Map<string, TeamRecordLite>();
+                const recordsMapByAbbr = new Map<string, TeamRecordLite>();
 
-                recordsResult.records.forEach((record: any) => {
+                recordsResult.records.forEach((record: TeamRecordApiRow) => {
                   const recordData = {
                     wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0,
                     home_wins: record.home_wins, home_losses: record.home_losses, home_ties: record.home_ties,
@@ -1571,8 +1580,12 @@ export function PoolPicksContent() {
               { label: 'Share', icon: Share2, onClick: handleShare },
               // Purely a view toggle (Game Details panel vs. the picks form)
               // — never claims to "unlock" anything, since no such action
-              // exists; the real lock state is the badge above.
-              { label: showGameDetails ? (effectiveGamesStarted || weekEnded ? 'View Picks' : 'Make Picks') : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
+              // exists; the real lock state is the badge above. Once games
+              // are locked/finished, the Game Results tab already shows
+              // each game's score and status, so this redundant summary
+              // panel (and its toggle) is dropped entirely rather than
+              // relabeled — nothing left for "View Picks" to close.
+              ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
@@ -1676,7 +1689,7 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {showGameDetails && games.length > 0 && (
+          {showGameDetails && games.length > 0 && !(effectiveGamesStarted || weekEnded) && (
             <div
               id="game-details-card"
               style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -1763,7 +1776,7 @@ export function PoolPicksContent() {
                     onChange={(e) => setDevSimInProgress(e.target.checked)}
                     style={{ accentColor: 'oklch(72% 0.16 60)', width: 14, height: 14 }}
                   />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows "Games Started" banner, locks picks)</span>
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows &quot;Games Started&quot; banner, locks picks)</span>
                 </label>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input
@@ -1772,7 +1785,7 @@ export function PoolPicksContent() {
                     onChange={(e) => setDevSimFinished(e.target.checked)}
                     style={{ accentColor: 'oklch(46% 0.14 155)', width: 14, height: 14 }}
                   />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with "Force show picks form")</span>
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with &quot;Force show picks form&quot;)</span>
                 </label>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input

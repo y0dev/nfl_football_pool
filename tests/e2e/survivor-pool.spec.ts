@@ -722,6 +722,39 @@ test.describe('Survivor Pool — closed-season history page', () => {
   });
 });
 
+test.describe('Survivor Pool — locked game result display', () => {
+  test('a finished game in the current week shows the score and survived/eliminated result instead of pick buttons', async ({ page }) => {
+    const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
+    try {
+      // Two games in the same week: one already final (Thursday-night style),
+      // one still upcoming — keeps the week "current" (not fully resolved)
+      // while still exercising the finished game's result display. Real
+      // team abbreviations (not the "HA"/"AA" placeholders other tests in
+      // this file use) so getTeam() resolves a real city name to render.
+      const finishedGame = await createGame(fixture, { week: 1, homeTeam: 'Philadelphia Eagles', awayTeam: 'Dallas Cowboys', homeTeamId: 'PHI', awayTeamId: 'DAL', kickoff: daysAgo(3), status: 'finished', homeScore: 20, awayScore: 10, winner: 'Philadelphia Eagles' });
+      await createGame(fixture, { week: 1, homeTeam: 'Buffalo Bills', awayTeam: 'Miami Dolphins', homeTeamId: 'BUF', awayTeamId: 'MIA', kickoff: daysFromNow(3), status: 'scheduled' });
+      await supabase.from('survivor_picks').insert({ participant_id: fixture.participants.Alice, pool_id: fixture.poolId, game_id: finishedGame, season: fixture.season, season_type: 2, week: 1, selected_team: 'PHI' });
+
+      await page.goto(`/pool/${fixture.poolId}/picks`);
+      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      await page.selectOption('select', { label: 'Alice' });
+      await page.waitForSelector('text=/Choose Your Team/i', { timeout: 15000 });
+
+      await expect(page.locator('button:has-text("Philadelphia")')).toHaveCount(0);
+      await expect(page.getByText('Final', { exact: true })).toBeVisible();
+      await expect(page.locator('text=/^20$/')).toBeVisible();
+      await expect(page.locator('text=/^10$/')).toBeVisible();
+      await expect(page.locator('text=/Your pick:\\s*Philadelphia/i')).toBeVisible();
+      await expect(page.getByText('Survived', { exact: true })).toBeVisible();
+      // The still-upcoming game in the same week communicates it's locked
+      // (kickoff already inside the week's lock window) without a score yet.
+      await expect(page.getByText('Locked', { exact: true })).toBeVisible();
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+});
+
 test.describe('Survivor Pool — mobile leaderboard', () => {
   test.use({ viewport: { width: 375, height: 667 } });
 

@@ -3,11 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2 } from 'lucide-react';
+import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Check, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
+import { TeamLogo } from '@/components/ui/team-logo';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
-import { debugError } from '@/lib/utils';
+import { getTeam, getTeamAbbreviation, debugError } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -23,6 +25,98 @@ const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+// Locked/finished current-week game: replaces the plain "this week is
+// locked" sentence with the actual result once available — teams, logos,
+// score, and (for the game this participant picked) survived/eliminated —
+// no separate "Game Details" disclosure needed once the result IS the detail.
+function LockedSurvivorGameRow({
+  game,
+  pickedTeam,
+}: {
+  game: SurvivorCurrentWeekGame;
+  pickedTeam: string | undefined;
+}) {
+  const normalized = normalizeGameStatus(game.status);
+  const isFinished = normalized === 'finished';
+  const isLive = normalized === 'live';
+  const awayTeam = getTeam(getTeamAbbreviation(game.awayTeam));
+  const homeTeam = getTeam(getTeamAbbreviation(game.homeTeam));
+  const showScores = (isFinished || isLive) && game.homeScore != null && game.awayScore != null;
+  const pickedThisGame = pickedTeam === game.homeTeamId || pickedTeam === game.awayTeamId;
+
+  let outcome: 'survived' | 'eliminated' | null = null;
+  if (isFinished && pickedThisGame && game.homeScore != null && game.awayScore != null) {
+    if (game.homeScore === game.awayScore) outcome = 'eliminated'; // a tie is a loss, same as StatusBanner's "tied" reason
+    else {
+      const winnerId = game.homeScore > game.awayScore ? game.homeTeamId : game.awayTeamId;
+      outcome = winnerId === pickedTeam ? 'survived' : 'eliminated';
+    }
+  }
+
+  return (
+    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        {isFinished ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontSize: '0.65rem', fontWeight: 700, color: gold, textTransform: 'uppercase' }}>
+            <Trophy style={{ width: 11, height: 11 }} /> Final
+          </span>
+        ) : isLive ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontSize: '0.65rem', fontWeight: 700, color: red, textTransform: 'uppercase' }}>
+            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: red, animation: 'pulse 1.4s ease-in-out infinite' }} /> Live
+          </span>
+        ) : (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: textDim, textTransform: 'uppercase' }}>
+            <Lock style={{ width: 10, height: 10 }} /> Locked
+          </span>
+        )}
+        <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+          {format(new Date(game.kickoffTime), 'EEE, MMM d · h:mm a')}
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {[
+          { fullName: game.awayTeam, teamId: game.awayTeamId, team: awayTeam, score: game.awayScore },
+          { fullName: game.homeTeam, teamId: game.homeTeamId, team: homeTeam, score: game.homeScore },
+        ].map(({ fullName, teamId, team, score }) => {
+          const isSelected = pickedTeam != null && pickedTeam === teamId;
+          return (
+            <div key={fullName} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', padding: '0.5rem', borderRadius: 8, background: isSelected ? 'oklch(46% 0.14 155 / 0.1)' : 'transparent', outline: isSelected ? '1px solid oklch(46% 0.14 155 / 0.3)' : 'none' }}>
+              <TeamLogo team={team} size="md" colorAccent />
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: isSelected ? text : textMid, textAlign: 'center' }}>
+                {team.city}
+              </span>
+              {showScores && (
+                <span style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: text }}>
+                  {score}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {pickedThisGame && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: `1px solid ${border}` }}>
+          <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
+            Your pick: <strong style={{ color: text }}>{getTeam(pickedTeam!).city}</strong>
+          </span>
+          {outcome === 'survived' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.68rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
+              <Check style={{ width: 12, height: 12 }} /> Survived
+            </span>
+          )}
+          {outcome === 'eliminated' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.68rem', fontWeight: 700, color: red, textTransform: 'uppercase' }}>
+              <XIcon style={{ width: 12, height: 12 }} /> Eliminated
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PoolInfo {
   id: string;
@@ -228,11 +322,18 @@ export function SurvivorPicksContent() {
                 )}
 
                 {!weekUnlocked ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-                    <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
-                    <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
-                      This week is locked. {myCurrentWeekPick ? `Your pick: ${myCurrentWeekPick.selectedTeam}.` : 'You did not submit a pick before it locked.'}
-                    </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {!myCurrentWeekPick && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+                        <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
+                        <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
+                          This week is locked. You did not submit a pick before it locked.
+                        </p>
+                      </div>
+                    )}
+                    {currentWeekGames.map(game => (
+                      <LockedSurvivorGameRow key={game.id} game={game} pickedTeam={myCurrentWeekPick?.selectedTeam} />
+                    ))}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

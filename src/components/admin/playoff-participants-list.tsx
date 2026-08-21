@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Users, CheckCircle2, XCircle, Target } from 'lucide-react';
 import { PlayoffParticipantEditDialog } from './playoff-participant-edit-dialog';
 import { debugError } from '@/lib/utils';
@@ -36,9 +36,7 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  useEffect(() => { loadParticipantStatus(); }, [poolId, poolSeason]);
-
-  const loadParticipantStatus = async () => {
+  const loadParticipantStatus = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/admin/playoff/participants-status?poolId=${poolId}&season=${poolSeason}`);
@@ -51,7 +49,9 @@ export function PlayoffParticipantsList({ poolId, poolSeason }: PlayoffParticipa
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [poolId, poolSeason]);
+
+  useEffect(() => { loadParticipantStatus(); }, [loadParticipantStatus]);
 
   const cardStyle = { background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1.25rem' };
 

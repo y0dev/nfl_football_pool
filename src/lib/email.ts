@@ -95,7 +95,7 @@ class EmailService {
   }
 
   // Template for commissioner account creation notification
-  async sendAdminCreationNotification(adminEmail: string, adminName: string, createdBy?: string): Promise<boolean> {
+  async sendAdminCreationNotification(adminEmail: string, adminName: string): Promise<boolean> {
     const subject = 'Welcome to Sunday Huddle — Your Commissioner Account Is Ready';
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const loginUrl = `${baseUrl}/login`;

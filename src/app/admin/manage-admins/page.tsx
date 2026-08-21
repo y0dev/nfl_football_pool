@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import {
-  ArrowLeft, Search, Users, Shield, Eye, EyeOff, Trash2, LogOut,
+  Search, Eye, EyeOff, Trash2,
   RefreshCw, Key, UserX, UserCheck, Crown,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -50,7 +50,7 @@ function ManageAdminsContent() {
   const { superAdmins, isLoading, actions } = useAdminDomain();
 
   const [searchTerm, setSearchTerm]   = useState('');
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selected, setSelected]       = useState<AdminUser | null>(null);
   const [resetOpen, setResetOpen]     = useState(false);

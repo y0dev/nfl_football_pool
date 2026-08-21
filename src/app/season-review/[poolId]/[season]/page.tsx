@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, Award, Target, Users, Calendar, BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { debugError } from '@/lib/utils';
@@ -24,10 +24,35 @@ const purple  = 'oklch(65% 0.12 290)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
+interface SeasonWinnerSummary {
+  winner_name: string;
+  periods_won: number;
+  total_points: number;
+  weeks_won: number;
+  total_correct_picks: number;
+  tie_breaker_used: boolean;
+}
+
+interface QuarterlyWinnerSummary {
+  period_name: string;
+  winner_name: string;
+  period_points: number;
+  tie_breaker_used: boolean;
+}
+
+interface WeeklyWinnerSummary {
+  week: number;
+  winner_name: string;
+  winner_points: number;
+  winner_correct_picks: number;
+  tie_breaker_used: boolean;
+  total_participants: number;
+}
+
 interface SeasonReviewData {
-  seasonWinner: any;
-  quarterlyWinners: any[];
-  weeklyWinners: any[];
+  seasonWinner: SeasonWinnerSummary | null;
+  quarterlyWinners: QuarterlyWinnerSummary[];
+  weeklyWinners: WeeklyWinnerSummary[];
   participantStats: {
     participant_id: string;
     name: string;
@@ -104,11 +129,7 @@ export default function SeasonReviewPage() {
     } catch {}
   };
 
-  useEffect(() => {
-    loadSeasonData();
-  }, [poolId, season]);
-
-  const loadSeasonData = async () => {
+  const loadSeasonData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/season-review?poolId=${poolId}&season=${season}`);
@@ -125,7 +146,11 @@ export default function SeasonReviewPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [poolId, season]);
+
+  useEffect(() => {
+    loadSeasonData();
+  }, [loadSeasonData]);
 
   if (loading) {
     return (

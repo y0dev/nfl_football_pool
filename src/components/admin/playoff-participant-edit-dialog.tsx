@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Save, Target, Trophy, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { debugError, getPlayoffRoundName } from '@/lib/utils';
@@ -21,7 +20,6 @@ const textDim = 'oklch(50% 0.018 255)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
-const labelStyle = { ...bc, fontSize: '0.68rem', fontWeight: 700 as const, color: textDim, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: '0.35rem' };
 const inputStyle = { ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.45rem 0.65rem', borderRadius: 6, boxSizing: 'border-box' as const, fontSize: '0.875rem', width: '6rem' };
 const sectionCard = { background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' };
 
@@ -38,6 +36,28 @@ interface PlayoffParticipantEditDialogProps {
 interface ConfidencePoint {
   team_name: string;
   confidence_points: number;
+}
+
+interface PlayoffTeamLite {
+  team_name: string;
+}
+
+interface ConfidencePointLite {
+  team_name: string;
+  confidence_points: number;
+}
+
+interface PlayoffGameLite {
+  id: string;
+  away_team: string;
+  home_team: string;
+  status?: string;
+}
+
+interface PlayoffPickLite {
+  game_id: string;
+  predicted_winner?: string;
+  confidence_points?: number;
 }
 
 interface RoundPick {
@@ -72,6 +92,11 @@ export function PlayoffParticipantEditDialog({
       setCanDeleteConfidencePoints(true);
       loadParticipantData();
     }
+    // loadParticipantData is a plain function (not useCallback) declared
+    // below and also reads `toast` — omitted here to avoid a function-
+    // identity-changes-every-render loop; this effect stays gated on the
+    // listed dialog-identity params.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, participantId, poolId, poolSeason]);
 
   const loadParticipantData = async () => {
@@ -79,13 +104,13 @@ export function PlayoffParticipantEditDialog({
     try {
       const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${poolSeason}`);
       const teamsData = await teamsResponse.json();
-      const allTeams = teamsData.success && teamsData.teams ? teamsData.teams.map((t: any) => t.team_name) : [];
+      const allTeams = teamsData.success && teamsData.teams ? teamsData.teams.map((t: PlayoffTeamLite) => t.team_name) : [];
 
       const cpResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${poolSeason}&participantId=${participantId}`);
       const cpData = await cpResponse.json();
 
       if (cpData.success && cpData.confidencePoints && cpData.confidencePoints.length > 0) {
-        setConfidencePoints(cpData.confidencePoints.map((cp: any) => ({ team_name: cp.team_name, confidence_points: cp.confidence_points })));
+        setConfidencePoints(cpData.confidencePoints.map((cp: ConfidencePointLite) => ({ team_name: cp.team_name, confidence_points: cp.confidence_points })));
       } else if (allTeams.length > 0) {
         setConfidencePoints(allTeams.map((teamName: string) => ({ team_name: teamName, confidence_points: 0 })));
       } else {
@@ -99,11 +124,11 @@ export function PlayoffParticipantEditDialog({
         if (picksResult.success && picksResult.picks && picksResult.picks.length > 0) {
           const gamesResponse = await fetch(`/api/games/week?week=${round}&seasonType=3&season=${poolSeason}&poolId=${poolId}`);
           const gamesResult = await gamesResponse.json();
-          const gameMap = new Map();
+          const gameMap = new Map<string, PlayoffGameLite>();
           if (gamesResult.success && gamesResult.games) {
-            gamesResult.games.forEach((game: any) => gameMap.set(game.id, game));
+            gamesResult.games.forEach((game: PlayoffGameLite) => gameMap.set(game.id, game));
           }
-          const picks = picksResult.picks.map((pick: any) => {
+          const picks = picksResult.picks.map((pick: PlayoffPickLite) => {
             const game = gameMap.get(pick.game_id);
             return {
               game_id: pick.game_id,
@@ -125,7 +150,7 @@ export function PlayoffParticipantEditDialog({
           const gamesResponse = await fetch(`/api/games/week?week=${round}&seasonType=3&season=${poolSeason}&poolId=${poolId}`);
           const gamesResult = await gamesResponse.json();
           if (gamesResult.success && gamesResult.games && gamesResult.games.length > 0) {
-            const hasStarted = gamesResult.games.some((game: any) => {
+            const hasStarted = gamesResult.games.some((game: PlayoffGameLite) => {
               const status = normalizeGameStatus(game.status);
               return status === 'live' || status === 'finished' || game.status?.toLowerCase() === 'cancelled';
             });
@@ -165,7 +190,7 @@ export function PlayoffParticipantEditDialog({
       }
       const teamsResponse = await fetch(`/api/playoffs/${poolId}/teams?season=${poolSeason}`);
       const teamsData = await teamsResponse.json();
-      const allTeams = teamsData.success && teamsData.teams ? teamsData.teams.map((t: any) => t.team_name) : [];
+      const allTeams = teamsData.success && teamsData.teams ? teamsData.teams.map((t: PlayoffTeamLite) => t.team_name) : [];
       if (validPoints.length !== allTeams.length) {
         toast({ title: 'Error', description: `Must assign confidence points to all ${allTeams.length} playoff teams`, variant: 'destructive' });
         return;
@@ -183,9 +208,9 @@ export function PlayoffParticipantEditDialog({
       } else {
         throw new Error(result.error || 'Failed to update confidence points');
       }
-    } catch (error: any) {
+    } catch (error) {
       debugError('Error saving confidence points:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to save confidence points', variant: 'destructive' });
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to save confidence points', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -206,8 +231,8 @@ export function PlayoffParticipantEditDialog({
       } else {
         throw new Error(result.error || 'Failed to delete confidence points');
       }
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to delete confidence points', variant: 'destructive' });
+    } catch (error) {
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to delete confidence points', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -230,8 +255,8 @@ export function PlayoffParticipantEditDialog({
       } else {
         throw new Error(result.error || 'Failed to delete picks');
       }
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to delete picks', variant: 'destructive' });
+    } catch (error) {
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to delete picks', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }

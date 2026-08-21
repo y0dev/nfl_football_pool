@@ -65,7 +65,6 @@ export function PoolWorkspace({
 
   useEffect(() => {
     if (initialTab) setActivePoolTab(initialTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTab, poolId]);
   const [selectedPoolStats, setSelectedPoolStats] = useState({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
   const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);

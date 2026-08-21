@@ -40,7 +40,7 @@ interface NFLGame {
 }
 
 class NFLAPI {
-  private static async makeRequest(endpoint: string, params?: Record<string, any>) {
+  private static async makeRequest(endpoint: string, params?: Record<string, string>) {
     const url = new URL(`${BASE_URL}${endpoint}`)
     
     if (params) {
@@ -66,7 +66,7 @@ class NFLAPI {
 
   static async getGames(season: number, week?: number): Promise<NFLGame[]> {
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, string> = {
         league: '1', // NFL league ID
         season: season.toString()
       }
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     const gamesToUpsert = apiGames.map(game => NFLAPI.convertGameToDatabaseFormat(game))
     
     const supabase = getSupabaseServiceClient()
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('games')
       .upsert(gamesToUpsert, { onConflict: 'id' })
 
@@ -196,10 +196,10 @@ export async function POST(request: NextRequest) {
       gamesUpdated: gamesToUpsert.length
     })
 
-  } catch (error: any) {
+  } catch (error) {
     debugError('Error updating games:', error)
     return NextResponse.json(
-      { error: error.message },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
@@ -251,10 +251,10 @@ export async function GET(request: NextRequest) {
       games: games || []
     });
 
-  } catch (error: any) {
+  } catch (error) {
     debugError('Error in games GET:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

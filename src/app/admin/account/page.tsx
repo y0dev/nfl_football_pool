@@ -101,7 +101,7 @@ function AccountSettingsContent() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [isOAuthAccount, setIsOAuthAccount] = useState<boolean | null>(null);
+  const [, setIsOAuthAccount] = useState<boolean | null>(null);
 
   // Season Settings (super-admin only, system-wide — folded in here instead
   // of its own /admin/season-settings page to keep the dashboard navbar lean)

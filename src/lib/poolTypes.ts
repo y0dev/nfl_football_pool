@@ -22,7 +22,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'NFL_CONFIDENCE',
     label: 'NFL Confidence Pool',
-    description: 'Pick every game and assign confidence points.',
+    description: 'Pick every game and assign confidence points. Higher confidence picks earn more points.',
     available: true,
   },
   {
@@ -34,7 +34,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'SURVIVOR',
     label: 'Survivor Pool',
-    description: "Pick one team each week. If your team loses, you're eliminated — and you can't use the same team twice.",
+    description: "Pick one team each week. If your team loses, you are eliminated. You can't use the same team twice.",
     available: true,
   },
   {

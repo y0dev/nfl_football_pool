@@ -9,7 +9,6 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import Link from 'next/link';
 
 const bg      = 'oklch(13% 0.025 255)';
-const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';

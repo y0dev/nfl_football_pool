@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useRef, type ComponentType, type CSSProperties } from 'react';
 import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -10,12 +9,10 @@ import {
   Users,
   Trophy,
   Calendar,
-  LogOut,
   Bell,
   RefreshCw,
   Plus,
   X,
-  Settings,
   TrendingUp,
   BarChart3,
   Check,
@@ -188,7 +185,7 @@ function AdminDashboardContent() {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalPools: 0,
     activePools: 0,
@@ -232,6 +229,19 @@ function AdminDashboardContent() {
   const [gamesListLoading, setGamesListLoading] = useState(false);
   const [teamRecordsByAbbr, setTeamRecordsByAbbr] = useState<Record<string, { wins: number; losses: number; ties: number }>>({});
   const gamesToggleSeeded = useRef(false);
+
+  const generateNotifications = useCallback(() => {
+    const n: string[] = [];
+    if (dashboardStats.totalPools === 0)
+      n.push('🚨 No active pools found. Create a pool to get started!');
+    if (dashboardStats.activePools === 0 && dashboardStats.totalPools > 0)
+      n.push('⚠️ All pools are currently inactive.');
+    if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0)
+      n.push('📢 No participants have joined any pools yet. Consider sending invitations.');
+    if (dashboardStats.totalGames === 0)
+      n.push('🏈 No games scheduled for the current week. Check NFL sync.');
+    setNotifications(n);
+  }, [dashboardStats]);
 
   // Seed the games browser to "this week" once real season/week data loads, then
   // leave it alone so manual toggling isn't fought by later re-renders. Must
@@ -328,6 +338,13 @@ function AdminDashboardContent() {
       }
     };
     loadData();
+    // Intentionally scoped to [user, verifyAdminStatus, router]: this is the
+    // one-time-per-user initial load. loadAdmins/loadPools/loadRecentActivity
+    // are stable (useCallback) but their own deps (selectedPoolId, ...) change
+    // on every subsequent poll/refresh — including them here would re-run
+    // this whole block (including the super-admin redirect) on every such
+    // change instead of just once per user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
@@ -337,6 +354,11 @@ function AdminDashboardContent() {
         loadLastGameUpdate();
       }
     }
+    // loadDashboardStats also depends on `user`/`toast`, which aren't part of
+    // this effect's trigger set on purpose — see loadData's effect above for
+    // why `user` identity churn (verifyAdminStatus's setUser) shouldn't
+    // re-trigger this stat fetch independently of currentWeek/currentSeasonType.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWeek, currentSeasonType, isSuperAdmin]);
 
   // Notifications must reflect the DB-fetched dashboardStats, never the zeroed
@@ -347,7 +369,7 @@ function AdminDashboardContent() {
       return;
     }
     generateNotifications();
-  }, [dashboardStats, currentSeasonType]);
+  }, [dashboardStats, currentSeasonType, generateNotifications]);
 
   useEffect(() => {
     const handleOpenCreatePool = () => setCreatePoolDialogOpen(true);
@@ -363,7 +385,7 @@ function AdminDashboardContent() {
     }
   }, [selectedPoolId, pools]);
 
-  const loadDashboardStats = async () => {
+  const loadDashboardStats = useCallback(async () => {
     try {
       if (!user?.email) return;
       const res = await fetch(`/api/admin/dashboard-summary?week=${currentWeek}&seasonType=${currentSeasonType}`, {
@@ -376,9 +398,9 @@ function AdminDashboardContent() {
       debugError('Error loading dashboard stats:', error);
       toast({ title: 'Error', description: 'Failed to load dashboard data', variant: 'destructive' });
     }
-  };
+  }, [user, currentWeek, currentSeasonType, toast]);
 
-  const loadLastGameUpdate = async () => {
+  const loadLastGameUpdate = useCallback(async () => {
     try {
       const response = await fetch('/api/games?action=last-update');
       if (!response.ok) return;
@@ -387,9 +409,9 @@ function AdminDashboardContent() {
     } catch (error) {
       debugError('Error loading last game update:', error);
     }
-  };
+  }, []);
 
-  const loadAdmins = async () => {
+  const loadAdmins = useCallback(async () => {
     try {
       if (!user?.email) return;
       const res = await fetch('/api/admin/list-accounts', {
@@ -402,9 +424,9 @@ function AdminDashboardContent() {
       debugError('Error loading admins:', error);
       toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
     }
-  };
+  }, [user, toast]);
 
-  const loadPools = async () => {
+  const loadPools = useCallback(async () => {
     setPoolsLoading(true);
     try {
       const response = await fetch('/api/admin/all-pools', {
@@ -427,9 +449,9 @@ function AdminDashboardContent() {
     } finally {
       setPoolsLoading(false);
     }
-  };
+  }, [user, selectedPoolId]);
 
-  const loadRecentActivity = async () => {
+  const loadRecentActivity = useCallback(async () => {
     try {
       if (!user?.email) return;
       const res = await fetch('/api/admin/recent-activity', {
@@ -442,20 +464,8 @@ function AdminDashboardContent() {
       debugError('Error loading recent activity:', error);
       setRecentActivity([]);
     }
-  };
+  }, [user]);
 
-  const generateNotifications = () => {
-    const n: string[] = [];
-    if (dashboardStats.totalPools === 0)
-      n.push('🚨 No active pools found. Create a pool to get started!');
-    if (dashboardStats.activePools === 0 && dashboardStats.totalPools > 0)
-      n.push('⚠️ All pools are currently inactive.');
-    if (dashboardStats.totalParticipants === 0 && dashboardStats.totalPools > 0)
-      n.push('📢 No participants have joined any pools yet. Consider sending invitations.');
-    if (dashboardStats.totalGames === 0)
-      n.push('🏈 No games scheduled for the current week. Check NFL sync.');
-    setNotifications(n);
-  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

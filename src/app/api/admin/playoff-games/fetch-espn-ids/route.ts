@@ -1,6 +1,15 @@
 import { debugLog, debugError} from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Minimal shape for the one field this route actually reads off ESPN's
+// scoreboard competitor objects — the rest of the ESPN response is consumed
+// as untyped JSON (response.json() is inherently `any`), same as elsewhere
+// in this file.
+interface EspnCompetitor {
+  homeAway?: string;
+  team?: { displayName?: string };
+}
+
 // POST - Fetch ESPN game IDs for playoff games
 export async function POST(request: NextRequest) {
   try {
@@ -131,8 +140,8 @@ export async function POST(request: NextRequest) {
                 let homeTeam: string | undefined;
                 debugLog(`PLAYOFFS: Competitors: ${competitors}`);
                 if (competitors.length === 2) {
-                  const awayTeamObj = competitors.find((c: any) => c.homeAway === 'away');
-                  const homeTeamObj = competitors.find((c: any) => c.homeAway === 'home');
+                  const awayTeamObj = competitors.find((c: EspnCompetitor) => c.homeAway === 'away');
+                  const homeTeamObj = competitors.find((c: EspnCompetitor) => c.homeAway === 'home');
                   debugLog(`PLAYOFFS: Away Team: ${awayTeamObj?.team?.displayName}, Home Team: ${homeTeamObj?.team?.displayName}`);
                   if (awayTeamObj?.team?.displayName && homeTeamObj?.team?.displayName) {
                     awayTeam = awayTeamObj.team.displayName;

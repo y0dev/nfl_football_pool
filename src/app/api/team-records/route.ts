@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Format the records for matching with games
     // Match by team abbreviation (games store team abbreviations in home_team_id/away_team_id)
-    const formattedRecords = records?.map((record: any) => ({
+    const formattedRecords = records?.map((record) => ({
       team_id: record.team_id,
       team_abbreviation: record.teams?.abbreviation?.toLowerCase(),
       team_name: record.teams?.name?.toLowerCase(),

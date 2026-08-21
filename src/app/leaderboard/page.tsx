@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
-import { debugLog, createPageUrl, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
 import {
   ArrowLeft,
   Trophy,
@@ -24,7 +24,6 @@ import {
   Lock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
 import { Game, LeaderboardEntry } from '@/types/game';
 import { WeeklyWinner, SeasonWinner, PeriodWinner } from '@/types/winners';
 import { Footer } from '@/components/layout/Footer';
@@ -53,7 +52,6 @@ const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
 const amber   = 'oklch(72% 0.16 60)';
 const purple  = 'oklch(65% 0.12 290)';
-const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
@@ -78,22 +76,21 @@ const TABS = [
 function LeaderboardContent() {
   const { user, verifyAdminStatus } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
 
-  const [currentWeek, setCurrentWeek] = useState(1);
-  const [currentSeasonType, setCurrentSeasonType] = useState(2);
+  const [, setCurrentWeek] = useState(1);
+  const [, setCurrentSeasonType] = useState(2);
   const [selectedPool, setSelectedPool] = useState<string>('');
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedSeasonType, setSelectedSeasonType] = useState(2);
   const [selectedPoolSeason, setSelectedPoolSeason] = useState<number>(DEFAULT_POOL_SEASON);
   const [selectedPoolSeasonScope, setSelectedPoolSeasonScope] = useState<number[]>(SEASON_TYPE_OPTIONS.map(o => o.value));
   const [pools, setPools] = useState<Pool[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardWithPicks, setLeaderboardWithPicks] = useState<LeaderboardEntryWithPicks[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isGamesStarted, setIsGamesStarted] = useState(false);
-  const [allGamesFinished, setAllGamesFinished] = useState(false);
+  const [, setIsGamesStarted] = useState(false);
+  const [, setAllGamesFinished] = useState(false);
 
   // Winner data
   const [weeklyWinners, setWeeklyWinners] = useState<WeeklyWinner[]>([]);
@@ -140,7 +137,7 @@ function LeaderboardContent() {
           if (gated) {
             loadTeaserData();
           } else {
-            await loadData(superAdminStatus);
+            await loadData();
           }
         }
       } catch (error) {
@@ -148,14 +145,14 @@ function LeaderboardContent() {
       }
     };
 
-    const loadData = async (superAdminStatus: boolean) => {
+    const loadData = async () => {
       try {
         const weekData = await loadCurrentWeek();
         setCurrentWeek(weekData?.week_number || 1);
         setCurrentSeasonType(weekData?.season_type || 2);
         setSelectedWeek(weekData?.week_number || 1);
         setSelectedSeasonType(weekData?.season_type || 2);
-        await loadPoolsData(superAdminStatus);
+        await loadPoolsData();
       } catch (error) {
         debugError('Error loading data:', error);
       } finally {
@@ -186,6 +183,10 @@ function LeaderboardContent() {
     };
 
     checkAdminStatus();
+    // loadPoolsData isn't in deps on purpose: it also depends on
+    // `selectedPool`, which shouldn't re-trigger this whole admin-status/
+    // gating check — only a genuine user/router change should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, verifyAdminStatus, router]);
 
   // Restrict the leaderboard to the season types the selected pool actually
@@ -214,9 +215,13 @@ function LeaderboardContent() {
       loadGamesData();
       loadWinnerData();
     }
+    // loadLeaderboardData/loadGamesData/loadWinnerData also depend on
+    // `pools`/`selectedPoolSeason`, which shouldn't independently re-trigger
+    // this fetch — only the listed selection/gating changes should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPool, selectedWeek, selectedSeasonType, selectedPoolSeasonScope, isGated]);
 
-  const loadPoolsData = async (superAdminStatus: boolean) => {
+  const loadPoolsData = async () => {
     try {
       if (!user?.email) return;
       const res = await fetch('/api/admin/my-pools', {

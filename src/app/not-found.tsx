@@ -13,11 +13,9 @@ const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
-const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
-const textDim = 'oklch(50% 0.018 255)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;

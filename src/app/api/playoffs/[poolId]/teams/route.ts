@@ -3,19 +3,15 @@ import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { DUMMY_PLAYOFF_TEAMS, isDummyData, debugError} from '@/lib/utils';
 
 // GET - Get playoff teams for a pool and season
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ poolId: string }> }
-) {
+export async function GET(request: NextRequest) {
   if (isDummyData()) {
     return NextResponse.json({
       success: true,
       teams: DUMMY_PLAYOFF_TEAMS
     });
   }
-  
+
   try {
-    const { poolId } = await params;
     const { searchParams } = new URL(request.url);
     const season = searchParams.get('season');
 

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
-  ArrowLeft, Trophy, Users, Plus, LogOut, RefreshCw, Search,
+  Trophy, Users, Plus, RefreshCw, Search,
   ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight, Copy,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -59,7 +59,7 @@ function AdminPoolsContent() {
 
   const [pools, setPools]               = useState<Pool[]>([]);
   const [isLoading, setIsLoading]       = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -73,7 +73,7 @@ function AdminPoolsContent() {
   const [page, setPage] = useState(0);
   const [cloningPoolId, setCloningPoolId] = useState<string | null>(null);
 
-  const loadPools = async () => {
+  const loadPools = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/all-pools', {
         headers: { 'x-admin-email': user?.email ?? '' },
@@ -84,7 +84,7 @@ function AdminPoolsContent() {
     } catch {
       toast({ title: 'Error', description: 'Failed to load pools', variant: 'destructive' });
     }
-  };
+  }, [user, toast]);
 
   useEffect(() => {
     const init = async () => {
@@ -100,6 +100,11 @@ function AdminPoolsContent() {
       setIsLoading(false);
     };
     init();
+    // Intentionally mount-only ([]): loadPools is stable (useCallback) but
+    // depends on `user`, which resolves asynchronously after mount — including
+    // it here would re-run this init flow (and its season-games fetch) every
+    // time `user` identity changes instead of once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleShare = async (poolId: string, poolName: string) => {
@@ -114,8 +119,8 @@ function AdminPoolsContent() {
         await navigator.clipboard.writeText(shareUrl);
         toast({ title: 'Link Copied', description: 'Pool link copied to clipboard.' });
       }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
+    } catch (err) {
+      if (!(err instanceof Error) || err.name !== 'AbortError') {
         await navigator.clipboard.writeText(shareUrl);
         toast({ title: 'Link Copied', description: 'Pool link copied to clipboard.' });
       }

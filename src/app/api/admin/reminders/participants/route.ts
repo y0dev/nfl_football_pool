@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const gameIds = games?.map(g => g.id) || [];
 
     // Fetch all picks for this week across all relevant participants
-    let picksMap = new Map<string, number>();
+    const picksMap = new Map<string, number>();
     if (gameIds.length > 0) {
       const { data: picks } = await supabase
         .from('picks')

@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import {
   RefreshCw, CheckCircle, XCircle, AlertTriangle,
-  Calendar as CalendarIcon, Clock, Trophy,
+  Calendar as CalendarIcon, Trophy,
   Database, Settings, Check, X, CircleDot, Search, Eye,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -142,8 +142,8 @@ function NFLSyncContent() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
+  const [, setIsSuperAdmin] = useState(false);
   const [currentStats, setCurrentStats] = useState({ totalGames: 0, liveGames: 0, completedGames: 0, scheduledGames: 0 });
   const [previewDate, setPreviewDate] = useState(new Date());
   const [showSyncOptions, setShowSyncOptions] = useState(false);

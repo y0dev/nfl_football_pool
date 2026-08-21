@@ -1,16 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Lock, Unlock, Target, RefreshCw } from 'lucide-react';
 import { Game } from '@/types/game';
-import { getShortTeamName, debugError} from '@/lib/utils';
+import { debugError} from '@/lib/utils';
 
 // Design tokens
-const bg      = 'oklch(13% 0.025 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
-const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -53,11 +51,7 @@ export function RecentPicksViewer({
   const [isUnlocking, setIsUnlocking] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadRecentPicks();
-  }, [poolId, participantId, weekNumber, seasonType]);
-
-  const loadRecentPicks = async () => {
+  const loadRecentPicks = useCallback(async () => {
     try {
       setIsLoading(true);
       const { getSupabaseClient } = await import('@/lib/supabase');
@@ -94,7 +88,11 @@ export function RecentPicksViewer({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [poolId, participantId, weekNumber, seasonType, toast]);
+
+  useEffect(() => {
+    loadRecentPicks();
+  }, [loadRecentPicks]);
 
   const handleUnlock = async () => {
     setIsUnlocking(true);

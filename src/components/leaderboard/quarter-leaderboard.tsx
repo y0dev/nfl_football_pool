@@ -86,7 +86,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
       }
     };
     loadPeriods();
-  }, [poolId, season, currentWeek, seasonType]);
+  }, [poolId, season, currentWeek, seasonType, isSingleCombinedPeriod]);
 
   useEffect(() => {
     const load = async () => {
@@ -96,7 +96,7 @@ export function QuarterLeaderboard({ poolId, season, currentWeek, seasonType = 2
         const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${encodeURIComponent(periodName)}&seasonType=${seasonType}`);
         if (!res.ok) throw new Error(`Failed to load quarter leaderboard: ${res.status}`);
         const data = await res.json();
-        const lb = (data?.data?.leaderboard || []) as any[];
+        const lb = (data?.data?.leaderboard || []) as QuarterEntry[];
         setEntries(lb.map(e => ({
           participant_id: e.participant_id,
           name: e.name,

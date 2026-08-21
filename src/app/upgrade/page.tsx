@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Plus, ArrowLeft, Loader2 } from 'lucide-react';
+import { Check, Plus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
@@ -9,7 +9,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { BrandLogo } from '@/components/ui/brand-logo';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { useToast } from '@/hooks/use-toast';

@@ -19,20 +19,7 @@ export function isOffseason(date: Date = new Date()): boolean {
   );
 }
 
-// Rank icon and color utilities for leaderboards
-const getRankIcon = (index: number) => {
-  switch (index) {
-    case 0:
-      return 'trophy-gold';
-    case 1:
-      return 'medal-silver';
-    case 2:
-      return 'award-bronze';
-    default:
-      return `rank-${index + 1}`;
-  }
-};
-
+// Rank color utilities for leaderboards
 // fallow-ignore-next-line unused-export
 export const getRankColor = (index: number) => {
   switch (index) {
@@ -208,7 +195,6 @@ export function createPageUrl(page: string): string {
  */
 
 // NFL Season Configuration
-const CURRENT_NFL_SEASON = 2025;
 export const DEFAULT_SEASON = 2025;
 export const DEFAULT_SEASON_TYPE = 2; // 1=Preseason, 2=Regular Season, 3=Postseason
 
@@ -235,8 +221,6 @@ export function getNFLSeasonYear(): number {
 
 // Pool Configuration
 export const DEFAULT_POOL_SEASON = getNFLSeasonYear();
-const DEFAULT_POOL_IS_ACTIVE = true;
-const DEFAULT_TIE_BREAKER_METHOD = 'confidence_points';
 
 // Preseason is a testing scope only (see PRESEASON_LIMITS in src/lib/plan.ts)
 // — it's deliberately excluded from "Full Season", which covers the real
@@ -282,38 +266,6 @@ export const SEASON_TYPE_OPTIONS = [
   { value: 3, label: 'Playoffs',       weeks: MAX_WEEKS_POSTSEASON },
 ] as const;
 
-// Confidence Points Configuration
-const MIN_CONFIDENCE_POINTS = 1;
-const MAX_CONFIDENCE_POINTS = 16;
-const CONFIDENCE_POINTS_RANGE = Array.from(
-  { length: MAX_CONFIDENCE_POINTS }, 
-  (_, i) => MAX_CONFIDENCE_POINTS - i
-);
-
-// Performance Thresholds
-const PERFORMANCE_THRESHOLDS = {
-  EXCELLENT: 80,
-  GOOD: 60,
-  AVERAGE: 40,
-  POOR: 0
-} as const;
-
-// UI Configuration
-const SCREEN_BREAKPOINTS = {
-  MOBILE: 768,
-  TABLET: 1024,
-  DESKTOP: 1280
-} as const;
-
-// Date/Time Configuration
-const DATE_FORMATS = {
-  SHORT: 'MMM dd',
-  MEDIUM: 'MMM dd, yyyy',
-  LONG: 'EEEE, MMMM dd, yyyy',
-  TIME: 'h:mm a',
-  DATETIME: 'MMM dd, yyyy h:mm a'
-} as const;
-
 // Session Management Configuration
 export const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
@@ -325,59 +277,6 @@ export const DAYS_BEFORE_GAME = 7; // Number of days before game kickoff for var
 // a stored end time, so this is measured from the latest kickoff_time in
 // the week (kickoff + this many hours is always well past a real game's end).
 export const HOURS_AFTER_LAST_GAME_WEEK_OVER = 12;
-
-// API Configuration
-const API_ENDPOINTS = {
-  POOLS: '/api/pools',
-  PICKS: '/api/picks',
-  ADMIN: '/api/admin',
-  LEADERBOARD: '/api/leaderboard',
-  SUPER_ADMIN: '/api/super-admin'
-} as const;
-
-// Error Messages
-const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Network error. Please check your connection.',
-  UNAUTHORIZED: 'You are not authorized to perform this action.',
-  NOT_FOUND: 'The requested resource was not found.',
-  VALIDATION_ERROR: 'Please check your input and try again.',
-  SERVER_ERROR: 'An unexpected error occurred. Please try again later.'
-} as const;
-
-// Success Messages
-const SUCCESS_MESSAGES = {
-  POOL_CREATED: 'Pool created successfully!',
-  POOL_UPDATED: 'Pool updated successfully!',
-  PICKS_SUBMITTED: 'Picks submitted successfully!',
-  USER_ADDED: 'User added to pool successfully!',
-  USER_REMOVED: 'User removed from pool successfully!'
-} as const;
-
-function formatDate(date: string | Date) {
-  const d = new Date(date)
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  
-  const day = days[d.getUTCDay()]
-  const month = months[d.getUTCMonth()]
-  const dateNum = d.getUTCDate()
-  const hours = d.getUTCHours()
-  const minutes = d.getUTCMinutes().toString().padStart(2, '0')
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  const displayHours = hours % 12 || 12
-  
-  return `${day}, ${month} ${dateNum} at ${displayHours}:${minutes} ${ampm}`
-}
-
-function formatTime(date: string | Date) {
-  const d = new Date(date)
-  const hours = d.getUTCHours()
-  const minutes = d.getUTCMinutes().toString().padStart(2, '0')
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  const displayHours = hours % 12 || 12
-  
-  return `${displayHours}:${minutes} ${ampm}`
-}
 
 /**
  * List of all NFL teams (as JSON objects)
@@ -439,14 +338,6 @@ export const getTeam = (abbr: string) =>
 export const TEAM_LIST = [...NFL_TEAMS].sort((a, b) => a.city.localeCompare(b.city));
 
 /**
- * Get NFL team name
- */
-function getNFLTeamName(abbreviation: string): string {
-  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
-  return team?.name || abbreviation;
-}
-
-/**
  * Get team abbreviation
  */
 export function getTeamAbbreviation(fullName: string): string {
@@ -456,22 +347,6 @@ export function getTeamAbbreviation(fullName: string): string {
   }
   // Fallback: generate abbreviation from name
   return fullName.split(' ').map(word => word[0]).join('').toUpperCase();
-}
-
-/**
- * Get team conference
- */
-function getTeamConference(abbreviation: string): string {
-  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
-  return team?.conference || '';
-}
-
-/**
- * Get team division
- */
-function getTeamDivision(abbreviation: string): string {
-  const team = NFL_TEAMS.find(t => t.abbreviation === abbreviation);
-  return team?.conference + ' ' + team?.division || '';
 }
 
 /**
@@ -586,16 +461,6 @@ export function getCurrentWeekLabel(params: { seasonType: number; week: number; 
 }
 
 /**
- * Calculate week number from date (simple date-based calculation)
- * This is a fallback when database functions are not available
- */
-function calculateWeekFromDate(date: Date = new Date()): number {
-  const seasonStart = new Date(date.getFullYear(), 8, 1); // September 1st
-  const weekDiff = Math.floor((date.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, Math.min(18, weekDiff + 1));
-}
-
-/**
  * Get season type from date (simple date-based calculation)
  * This is a fallback when database functions are not available
  */
@@ -618,14 +483,6 @@ export function getWeekPeriodColor(week: number): string {
     case 'Playoffs': return 'bg-red-100 text-red-800';
     default: return 'bg-gray-100 text-gray-800';
   }
-}
-
-function getSeasonTypeFromDate(date: Date = new Date()): number {
-  const month = date.getMonth() + 1; // 0-indexed
-  if (month >= 8 && month <= 9) return 1; // Preseason
-  if (month >= 9 && month <= 12) return 2; // Regular Season
-  if (month >= 1 && month <= 2) return 3; // Postseason
-  return 2; // Default to regular season
 }
 
 /**
@@ -656,16 +513,6 @@ export const debugInfo = (...args: unknown[]) => {
     console.info(...args);
   }
 };
-
-/**
- * Conditional debug logging with a custom flag
- * Usage: debugIf(process.env.NEXT_PUBLIC_DEBUG === 'true', 'Debug message')
- */
-const debugIf = (condition: boolean, ...args: unknown[]) => {
-  if (condition && process.env.NODE_ENV === 'development') {
-    console.log(...args);
-  }
-}; 
 
 /**
  * Dummy-data mode — pools, huddles, participants, games, and leaderboards
@@ -941,7 +788,22 @@ const createDummyLeaderboard = (
   
   return participants.map((participant, participantIndex) => {
     const gamePoints: { [gameId: string]: number } = {};
-    const picks: any[] = [];
+    const picks: Array<{
+      id: string;
+      participant_id: string;
+      participant_name: string;
+      game_id: string;
+      home_team: string;
+      away_team: string;
+      predicted_winner: string;
+      confidence_points: number;
+      week: number;
+      season_type: number;
+      game_status: string;
+      game_winner: string | null;
+      home_score: number;
+      away_score: number;
+    }> = [];
     let totalPoints = 0;
     let correctPicks = 0;
     let totalPicks = 0;

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { debugLog, getRankColor, debugError, debugWarn} from '@/lib/utils';
+import { debugLog, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -69,6 +69,27 @@ interface PeriodInfo {
   name: string;
   weeks: number[];
   totalWeeks: number;
+}
+
+interface PeriodGame {
+  week: number;
+  status?: string;
+}
+
+interface TieBreakerParticipant {
+  participant_id: string;
+  finalPosition: number;
+  name: string;
+  points: number;
+  mondayNightAnswer: number | null;
+  mondayNightDifference: number;
+}
+
+interface TieBreakerInfo {
+  wasUsed: boolean;
+  tieBreakerWeek: number;
+  poolAnswer: number;
+  participantsInvolved: TieBreakerParticipant[];
 }
 
 export default function PeriodLeaderboardPage() {
@@ -136,13 +157,19 @@ export default function PeriodLeaderboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [allWeeksCompleted, setAllWeeksCompleted] = useState(false);
-  const [games, setGames] = useState<any[]>([]);
-  const [tieBreakerInfo, setTieBreakerInfo] = useState<any>(null);
+  const [games, setGames] = useState<PeriodGame[]>([]);
+  const [tieBreakerInfo, setTieBreakerInfo] = useState<TieBreakerInfo | null>(null);
   const [showTieBreakerInfo, setShowTieBreakerInfo] = useState(false);
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'weekly' | 'chart'>('leaderboard');
 
   useEffect(() => {
     loadPeriodData();
+    // loadPeriodData is declared below via a plain function (not useCallback)
+    // and also reads `seasonType` (derived fresh from searchParams each
+    // render) — omitted here to avoid pulling in a function reference whose
+    // identity changes every render, which would turn this into a fetch-on-
+    // every-render effect instead of one gated on the listed route params.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId, season, periodNumber, periodName]);
 
   // Initialize selected participants when leaderboard data loads
@@ -547,7 +574,7 @@ export default function PeriodLeaderboardPage() {
             Period Not Available
           </p>
           <p style={{ ...b, color: textMid, fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-            This pool doesn't have a quarter or playoffs period for that week.
+            This pool doesn&apos;t have a quarter or playoffs period for that week.
           </p>
           <button
             onClick={() => router.push(`/pool/${poolId}/picks`)}
@@ -713,7 +740,7 @@ export default function PeriodLeaderboardPage() {
               </p>
               <p style={{ ...bc, fontWeight: 700, fontSize: '0.75rem', color: textDim, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Participants Involved:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {tieBreakerInfo.participantsInvolved.map((participant: any) => (
+                {tieBreakerInfo.participantsInvolved.map((participant) => (
                   <div key={participant.participant_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: surface, border: `1px solid ${border}`, borderRadius: 8, gap: '1rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <div style={{ width: 32, height: 32, background: 'oklch(65% 0.12 290 / 0.15)', border: `1px solid oklch(65% 0.12 290 / 0.4)`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

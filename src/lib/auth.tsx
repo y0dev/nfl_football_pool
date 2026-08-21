@@ -23,6 +23,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const ADMIN_VERIFY_CACHE_MS = 5 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // In-memory only — resets on every page refresh so it cannot be spoofed
   // from cookie or localStorage. Never persisted to client storage.
   const adminVerifiedAt = useRef<number | null>(null);
-  const ADMIN_VERIFY_CACHE_MS = 5 * 60 * 1000;
 
   // Security check for test accounts in production
   const checkTestAccountSecurity = (user: User | null) => {
@@ -202,7 +203,8 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
               // Consume the cookie — one-time handoff from server to localStorage
               document.cookie = 'nfl-pool-session=;path=/;max-age=0';
               // Strip is_super_admin — it must be verified from DB, never from a cookie
-              const { is_super_admin: _sa, ...safeServerUser } = serverUser;
+              const safeServerUser = { ...serverUser };
+              delete safeServerUser.is_super_admin;
               localStorage.setItem('nfl-pool-user', JSON.stringify(safeServerUser));
               setUser(safeServerUser); // is_super_admin starts undefined; verifyAdminStatus sets it
               setLoading(false);

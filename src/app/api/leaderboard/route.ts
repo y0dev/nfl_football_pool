@@ -192,7 +192,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Create a map of picks by participant and game
-    const picksMap = new Map<string, Map<string, any>>();
+    type PickRow = NonNullable<typeof picks>[number];
+    const picksMap = new Map<string, Map<string, PickRow>>();
     picks?.forEach(pick => {
       if (!picksMap.has(pick.participant_id)) {
         picksMap.set(pick.participant_id, new Map());
@@ -207,7 +208,22 @@ export async function GET(request: NextRequest) {
       let correctPicks = 0;
       let totalPicks = 0;
       const gamePoints: { [gameId: string]: number } = {};
-      const picks: any[] = [];
+      const picks: Array<{
+        id: string | null;
+        participant_id: string;
+        participant_name: string;
+        game_id: string;
+        home_team: string;
+        away_team: string;
+        predicted_winner: string | null;
+        confidence_points: number;
+        week: number;
+        season_type: number;
+        game_status: string | null;
+        game_winner: string | null;
+        home_score: number | null;
+        away_score: number | null;
+      }> = [];
 
       games.forEach(game => {
         const pick = participantPicks.get(game.id);

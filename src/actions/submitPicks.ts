@@ -3,7 +3,7 @@ import { debugLog, debugError } from '@/lib/utils';
 
 interface SubmitPicksResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 

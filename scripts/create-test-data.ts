@@ -47,6 +47,13 @@ interface Pool {
   created_by: string;
   season: number;
   is_active: boolean;
+  require_access_code?: boolean;
+  access_code?: string;
+  pool_type?: 'normal' | 'private';
+  season_scope?: [string];
+  is_private?: boolean;
+  join_password?: string;
+  competition_type?: 'NFL_CONFIDENCE' | 'PICKEM' | 'SURVIVOR';
 }
 
 // Test data configuration
@@ -69,17 +76,24 @@ const TEST_CONFIG = {
     {
       name: 'Test Pool 2025',
       season: 2025,
-      created_by: 'superadmin@test.com'
+      created_by: 'superadmin@test.com',
+      competition_type: 'NFL_CONFIDENCE' as const,
+      is_private: false
     },
     {
       name: 'Test Family Pool',
       season: 2025,
-      created_by: 'superadmin@test.com'
+      created_by: 'superadmin@test.com',
+      competition_type: 'NFL_CONFIDENCE' as const,
+      is_private: true,
+      join_password: 'family123'
     },
     {
       name: 'Work Pool',
       season: 2025,
-      created_by: 'pooladmin@test.com'
+      created_by: 'pooladmin@test.com',
+      competition_type: 'PICKEM' as const,
+      is_private: false
     }
   ],
   participants: [
@@ -202,6 +216,7 @@ async function createTestData() {
         logo_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${poolData.name}`,
         created_by: poolData.created_by,
         season: poolData.season,
+        competition_type: poolData.competition_type,
         is_active: true
       };
       
@@ -306,6 +321,39 @@ async function createTestData() {
     console.log('');
     console.log('💡 Note: All test data uses placeholder emails. In a real application,');
     console.log('   you would want to use real email addresses for notifications.');
+
+    // Delete test data after verification if needed (optional)
+    console.log('🧹 Clearing test pools...');
+    const { data: cleanPools, error: cleanFindError } = await supabase
+      .from('pools')
+      .select('id')
+      .in('name', testPoolNames)
+      .in('created_by', testAdminEmails);
+
+    if (cleanFindError) {
+      console.error('❌ Error finding test pools:', cleanFindError);
+    } else if (cleanPools && cleanPools.length > 0) {
+      const cleanIds = cleanPools.map(p => p.id);
+      const { error: cleanParticipantsError } = await supabase
+        .from('participants')
+        .delete()
+        .in('pool_id', cleanIds);
+      if (cleanParticipantsError) {
+        console.error('❌ Error clearing test participants:', cleanParticipantsError);
+      }
+      const { error: cleanPoolsError } = await supabase
+        .from('pools')
+        .delete()
+        .in('id', cleanIds);
+      if (cleanPoolsError) {
+        console.error('❌ Error clearing test pools:', cleanPoolsError);
+      } else {
+        console.log(`✅ Cleared ${cleanIds.length} test pool(s)`);
+      }
+    } else {
+      console.log('✅ No test pools to clear');
+    }
+    console.log('');
 
   } catch (error) {
     console.error('❌ Fatal error during test data creation:', error);

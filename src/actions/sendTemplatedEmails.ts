@@ -3,7 +3,7 @@ import { processTemplate, TemplateVariables } from '@/lib/template-processor';
 import { EmailTemplate } from '@/lib/email-templates';
 import { loadUsers } from './loadUsers';
 import { getUsersWhoSubmitted } from './checkUserSubmission';
-import { DEFAULT_SEASON, debugError} from '@/lib/utils';
+import { debugError } from '@/lib/utils';
 
 interface SendTemplatedEmailsParams {
   poolId: string;
@@ -59,7 +59,6 @@ export async function sendTemplatedEmails({
       };
     }
     
-    const adminEmail = adminData.email;
     const adminName = adminData.full_name || 'Pool Commissioner'; // Use actual name or fallback
     
     // Get all participants

@@ -2,7 +2,6 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours

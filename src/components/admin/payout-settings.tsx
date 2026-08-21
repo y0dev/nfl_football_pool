@@ -19,7 +19,6 @@ const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
-const amber   = 'oklch(72% 0.16 60)';
 const blue    = 'oklch(58% 0.15 250)';
 const red     = 'oklch(60% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';

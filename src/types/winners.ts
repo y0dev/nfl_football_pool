@@ -66,14 +66,3 @@ export interface PeriodWinner {
     name: string;
   };
 }
-
-interface WinnerStats {
-  totalWeeks: number;
-  totalParticipants: number;
-  averagePointsPerWeek: number;
-  highestWeeklyScore: number;
-  lowestWeeklyScore: number;
-  tieBreakersUsed: number;
-  mostWinsByParticipant: string;
-  mostWinsCount: number;
-}

@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugError } from '@/lib/utils';
 
+// Supabase can't statically type a dynamic (non-literal) column-list string
+// passed to .select() — selectCols below is reassigned between the primary
+// and fallback queries, so its result rows fall back to an untyped error
+// shape. This describes the actual columns both queries can return
+// (join_password/is_private only present in the primary query's shape).
+interface PoolSearchRow {
+  id: string;
+  name: string;
+  season: number;
+  is_active: boolean | null;
+  join_password?: string | null;
+  is_private?: boolean | null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -25,17 +39,18 @@ export async function GET(request: NextRequest) {
     if (isHistoryMode) {
       query = query.eq('is_active', false);
     } else {
-      query = (query as any).or('is_active.eq.true,is_active.is.null');
+      query = query.or('is_active.eq.true,is_active.is.null');
     }
 
     // Exclude private pools from public search (NULL = not private = public)
-    query = (query as any).or('is_private.eq.false,is_private.is.null');
+    query = query.or('is_private.eq.false,is_private.is.null');
 
     if (q) {
       query = query.ilike('name', `%${q}%`);
     }
 
-    let { data: pools, error } = await query;
+    const { data: pools, error } = await query;
+    let poolsResult = pools;
 
     // If join_password/is_private columns don't exist, retry without them
     if (error) {
@@ -52,7 +67,7 @@ export async function GET(request: NextRequest) {
       if (isHistoryMode) {
         retryQuery = retryQuery.eq('is_active', false);
       } else {
-        retryQuery = (retryQuery as any).or('is_active.eq.true,is_active.is.null');
+        retryQuery = retryQuery.or('is_active.eq.true,is_active.is.null');
       }
 
       if (q) {
@@ -64,11 +79,11 @@ export async function GET(request: NextRequest) {
         debugError('Retry error:', retryResult.error.message);
         return NextResponse.json({ pools: [] }, { status: 500 });
       }
-      pools = retryResult.data;
+      poolsResult = retryResult.data;
     }
 
     const poolsWithCounts = await Promise.all(
-      (pools || []).map(async (pool: any) => {
+      ((poolsResult ?? []) as unknown as PoolSearchRow[]).map(async (pool) => {
         const { count } = await supabase
           .from('participants')
           .select('id', { count: 'exact', head: true })

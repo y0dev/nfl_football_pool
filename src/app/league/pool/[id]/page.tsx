@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Trophy, LogOut, ShieldOff } from 'lucide-react';
+import { ArrowLeft, ShieldOff } from 'lucide-react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { Footer } from '@/components/layout/Footer';
@@ -17,14 +17,11 @@ import { debugError } from '@/lib/utils';
 const bg      = 'oklch(13% 0.025 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
-const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
-const liveRed = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
-const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PoolRecord {
   id: string;
@@ -44,7 +41,7 @@ function PoolManageContent() {
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [pool, setPool] = useState<PoolRecord | null>(null);
   const [authorized, setAuthorized] = useState(false);
   const [isSuperAdminViewer, setIsSuperAdminViewer] = useState(false);

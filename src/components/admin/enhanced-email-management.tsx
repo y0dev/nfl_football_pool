@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Mail, Users, Send, Copy, Eye, X, AlertCircle } from 'lucide-react';
+import { Mail, Users, Send, Copy, Eye, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EMAIL_TEMPLATES, EmailTemplate, getTemplatesByCategory } from '@/lib/email-templates';
 import { processTemplate, getDefaultVariables, TemplateVariables } from '@/lib/template-processor';
@@ -15,13 +14,10 @@ import { getUpcomingWeek, loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { DEFAULT_SEASON, debugLog, debugError} from '@/lib/utils';
 
 // Design tokens (matching landing page)
-const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
-const greenHi = 'oklch(59% 0.15 155)';
-const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
@@ -58,13 +54,7 @@ function ParticipantCountWarning({
   const [targetCount, setTargetCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (template) {
-      loadTargetCount();
-    }
-  }, [template, participants, poolId, weekNumber]);
-
-  const loadTargetCount = async () => {
+  const loadTargetCount = useCallback(async () => {
     if (!template) return;
     setIsLoading(true);
     try {
@@ -86,7 +76,13 @@ function ParticipantCountWarning({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [template, participants, poolId]);
+
+  useEffect(() => {
+    if (template) {
+      loadTargetCount();
+    }
+  }, [template, participants, poolId, weekNumber, loadTargetCount]);
 
   const getVariant = () => {
     if (targetCount === null || template?.targetAudience === 'all') return null;
@@ -134,7 +130,7 @@ export function EnhancedEmailManagement({
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -146,6 +142,10 @@ export function EnhancedEmailManagement({
   useEffect(() => {
     loadParticipants();
     loadAdminName();
+    // loadParticipants/loadAdminName are plain functions (not useCallback)
+    // declared below and don't read any other reactive state — kept out of
+    // deps to avoid a function-identity-changes-every-render loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId, weekNumber]);
 
   const loadAdminName = async () => {
@@ -164,6 +164,9 @@ export function EnhancedEmailManagement({
 
   useEffect(() => {
     if (selectedTemplate && participants.length > 0) updatePreview();
+    // updatePreview is a plain function (not useCallback) declared below —
+    // kept out of deps to avoid a function-identity-changes-every-render loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTemplate, participants]);
 
   useEffect(() => {
@@ -171,6 +174,10 @@ export function EnhancedEmailManagement({
       debugLog('Custom fields changed, updating preview...');
       updatePreview();
     }
+    // Same reasoning as above — updatePreview/selectedTemplate/participants
+    // omitted on purpose; this effect is only meant to react to the custom
+    // subject/message fields changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customSubject, customMessage]);
 
   const loadParticipants = async () => {

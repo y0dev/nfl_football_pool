@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, Target, TrendingUp, Users, Calendar, BarChart3, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, Award, Target, Users, Calendar, BarChart3, RefreshCw } from 'lucide-react';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
 const border  = 'oklch(26% 0.03 255)';
-const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
@@ -36,11 +35,35 @@ interface ParticipantStat {
   consistency_score: number;
 }
 
+interface SeasonWinnerSummary {
+  winner_name: string;
+  periods_won: number;
+  total_points: number;
+  weeks_won: number;
+  total_correct_picks: number;
+  tie_breaker_used: boolean;
+}
+
+interface QuarterlyWinnerSummary {
+  period_name: string;
+  winner_name: string;
+  period_points: number;
+}
+
+interface WeeklyWinnerSummary {
+  week: number;
+  winner_name: string;
+  winner_points: number;
+  winner_correct_picks: number;
+  total_participants: number;
+  tie_breaker_used: boolean;
+}
+
 interface SeasonReviewData {
-  seasonWinner: any;
+  seasonWinner: SeasonWinnerSummary | null;
   runnerUp: ParticipantStat | null;
-  quarterlyWinners: any[];
-  weeklyWinners: any[];
+  quarterlyWinners: QuarterlyWinnerSummary[];
+  weeklyWinners: WeeklyWinnerSummary[];
   participantStats: ParticipantStat[];
   seasonStats: {
     total_weeks: number;

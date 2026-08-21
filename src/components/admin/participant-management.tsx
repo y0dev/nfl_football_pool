@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,7 +9,6 @@ import { getPoolParticipants, removeParticipantFromPool, addParticipantToPool, u
 import { AddUserDialog } from './add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
 
-const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
@@ -18,7 +17,6 @@ const greenHi = 'oklch(59% 0.15 155)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
-const amber   = 'oklch(72% 0.16 60)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
@@ -67,7 +65,19 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
-  useEffect(() => { loadParticipants(); }, [poolId]);
+  const loadParticipants = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await getPoolParticipants(poolId);
+      setParticipants(data);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [poolId, toast]);
+
+  useEffect(() => { loadParticipants(); }, [loadParticipants]);
 
   useEffect(() => {
     const filtered = participants.filter(p =>
@@ -80,18 +90,6 @@ export function ParticipantManagement({ poolId, poolName }: ParticipantManagemen
   // Search changes narrow the result set — always land back on page 1
   // rather than potentially showing an out-of-range empty page.
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
-
-  const loadParticipants = async () => {
-    setIsLoading(true);
-    try {
-      const data = await getPoolParticipants(poolId);
-      setParticipants(data);
-    } catch {
-      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleRemoveParticipant = async (participantId: string, participantName: string) => {
     if (!confirm(`Are you sure you want to remove ${participantName} from the pool?`)) return;

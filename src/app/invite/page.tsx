@@ -15,7 +15,6 @@ import { Footer } from '@/components/layout/Footer';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
-const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
@@ -47,7 +46,6 @@ function InviteContent() {
   const searchParams = useSearchParams();
   const poolId = searchParams.get('pool');
   const adminEmail = searchParams.get('admin');
-  const weekParam = searchParams.get('week');
 
   const [pool, setPool] = useState<Pool | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number>(1);

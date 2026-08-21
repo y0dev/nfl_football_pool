@@ -64,7 +64,7 @@ class AdminService {
   private async testConnection() {
     try {
       debugLog('AdminService: Testing database connection...');
-      const { data, error } = await this.supabase
+      const { error } = await this.supabase
         .from('admins')
         .select('count', { count: 'exact', head: true });
       

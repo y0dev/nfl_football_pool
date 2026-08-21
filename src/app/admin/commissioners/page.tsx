@@ -3,8 +3,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import {
-  ArrowLeft, Search, Users, Eye, EyeOff,
-  RefreshCw, Key, UserX, UserCheck, Trash2, LogOut, AlertTriangle, Zap,
+  Search, Users, Eye, EyeOff,
+  RefreshCw, Key, UserX, UserCheck, Trash2, AlertTriangle, Zap,
   ChevronLeft, ChevronRight, Send,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -60,7 +60,7 @@ function CommissionersManagementContent() {
 
   const [searchTerm, setSearchTerm]                   = useState('');
   const [page, setPage]                               = useState(0);
-  const [isLoggingOut, setIsLoggingOut]               = useState(false);
+  const [, setIsLoggingOut]                            = useState(false);
   const [isProcessing, setIsProcessing]               = useState(false);
   const [selected, setSelected]                       = useState<AdminUser | null>(null);
   const [resetOpen, setResetOpen]                     = useState(false);
@@ -652,7 +652,7 @@ function CommissionersManagementContent() {
                   style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${border}`, background: 'oklch(13% 0.025 255)', color: text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 700, fontSize: '1rem' }}
                 >+</button>
                 <span style={{ ...b, fontSize: '0.8rem', color: textDim }}>
-                  pool{planAddonPools === 1 ? '' : 's'} on top of the plan's included limit
+                  pool{planAddonPools === 1 ? '' : 's'} on top of the plan&apos;s included limit
                 </span>
               </div>
               {planSelected === 'free' && planAddonPools > 0 && (
