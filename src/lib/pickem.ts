@@ -163,7 +163,6 @@ export async function computePickemWeekResult(poolId: string, week: number, seas
   const settings = parsePickemTypeSettings(pool.type_settings);
 
   const games = await loadGamesForWeek(pool.season, seasonType, week);
-  const gamesById = new Map(games.map(g => [g.id, g]));
   const isWeekFinal = games.length > 0 && games.every(hasFinalResult);
 
   const supabase = getSupabaseServiceClient();
