@@ -22,7 +22,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'NFL_CONFIDENCE',
     label: 'NFL Confidence Pool',
-    description: 'Rank weekly picks by confidence points.',
+    description: 'Pick every game and assign confidence points.',
     available: true,
   },
   {
@@ -40,8 +40,8 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'PICKEM',
     label: "Pick'em Pool",
-    description: 'Coming soon.',
-    available: false,
+    description: "Pick the winner of every game. Each correct pick is worth one point.",
+    available: false, // backend service layer exists; Picks/Leaderboard/Settings UI not yet built — see session notes
   },
   {
     id: 'MARCH_MADNESS',

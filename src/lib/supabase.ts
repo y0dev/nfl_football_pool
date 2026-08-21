@@ -657,6 +657,82 @@ type Database = {
           determined_at?: string
         }
       }
+      pickem_picks: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          game_id?: string
+          season?: number
+          season_type?: number
+          week?: number
+          selected_team?: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+      }
+      pickem_tiebreakers: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          predicted_total: number
+          submitted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          predicted_total: number
+          submitted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          game_id?: string
+          season?: number
+          season_type?: number
+          week?: number
+          predicted_total?: number
+          submitted_by?: string | null
+          created_at?: string
+        }
+      }
       scores: {
         Row: {
           id: string
