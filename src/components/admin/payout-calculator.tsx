@@ -44,8 +44,16 @@ interface PayoutCalculatorProps {
 
 interface LeaderboardRow { participant_id: string; participant_name: string; total_points: number }
 
-async function fetchWeekLeaderboard(poolId: string, week: number, seasonType: number, season: number): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
+// adminEmail is sent as x-admin-email so this admin-only panel (already
+// behind AdminGuard login) isn't asked to satisfy the *participant*
+// password gate these endpoints also enforce for a private pool — see
+// isAdminForPool in src/lib/pool-access.ts.
+function adminHeaders(adminEmail: string | null | undefined): HeadersInit | undefined {
+  return adminEmail ? { 'x-admin-email': adminEmail } : undefined;
+}
+
+async function fetchWeekLeaderboard(poolId: string, week: number, seasonType: number, season: number, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/leaderboard?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`, { headers: adminHeaders(adminEmail) });
   const data = await res.json();
   if (!data.success) return [];
   return (data.leaderboard as LeaderboardRow[])
@@ -53,8 +61,8 @@ async function fetchWeekLeaderboard(poolId: string, week: number, seasonType: nu
     .sort((a, b2) => b2.score - a.score);
 }
 
-async function fetchSeasonLeaderboard(poolId: string, season: number, currentWeek: number, currentSeasonType: number): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${currentWeek}&currentSeasonType=${currentSeasonType}`);
+async function fetchSeasonLeaderboard(poolId: string, season: number, currentWeek: number, currentSeasonType: number, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${currentWeek}&currentSeasonType=${currentSeasonType}`, { headers: adminHeaders(adminEmail) });
   const data = await res.json();
   if (!data.success) return [];
   return (data.leaderboard as LeaderboardRow[])
@@ -68,8 +76,8 @@ async function fetchSeasonLeaderboard(poolId: string, season: number, currentWee
 // calculatePayouts/computeOverallAllocation below run completely unchanged.
 // Pick'em's "score" here is its correct-pick count — never turned into a
 // fake confidence score, just relabeled through the same generic field.
-async function fetchPickemWeekStandings(poolId: string, week: number, seasonType: number): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/pickem/week?poolId=${poolId}&week=${week}&seasonType=${seasonType}`);
+async function fetchPickemWeekStandings(poolId: string, week: number, seasonType: number, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/pickem/week?poolId=${poolId}&week=${week}&seasonType=${seasonType}`, { headers: adminHeaders(adminEmail) });
   const data = await res.json();
   if (!data.success) return [];
   return (data.result.participants as Array<{ participantId: string; participantName: string; correctCount: number }>)
@@ -77,8 +85,8 @@ async function fetchPickemWeekStandings(poolId: string, week: number, seasonType
     .sort((a, b2) => b2.score - a.score);
 }
 
-async function fetchPickemSeasonStandings(poolId: string): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/pickem/season?poolId=${poolId}`);
+async function fetchPickemSeasonStandings(poolId: string, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/pickem/season?poolId=${poolId}`, { headers: adminHeaders(adminEmail) });
   const data = await res.json();
   if (!data.success) return [];
   return (data.summary.participants as Array<{ participantId: string; participantName: string; seasonCorrectCount: number }>)
@@ -216,15 +224,15 @@ function WeeklyCalculator({
     setIsCalculating(true);
     try {
       const rows = isPickem
-        ? await fetchPickemWeekStandings(poolId, week, seasonType)
-        : await fetchWeekLeaderboard(poolId, week, seasonType, season);
+        ? await fetchPickemWeekStandings(poolId, week, seasonType, requestedBy)
+        : await fetchWeekLeaderboard(poolId, week, seasonType, season, requestedBy);
       setStandings(rows);
       const existing = await getPayoutRecords(poolId, 'weekly', season, week);
       setRecords(Object.fromEntries(existing.map(r => [`${r.place}`, { id: r.id, paid: r.paid }])));
     } finally {
       setIsCalculating(false);
     }
-  }, [poolId, week, seasonType, season, isPickem]);
+  }, [poolId, week, seasonType, season, isPickem, requestedBy]);
 
   const results = useMemo(() => {
     if (!standings) return [];
@@ -330,8 +338,8 @@ function OverallCalculator({
     setIsCalculating(true);
     try {
       const rows = isPickem
-        ? await fetchPickemSeasonStandings(poolId)
-        : await fetchSeasonLeaderboard(poolId, season, SEASON_TYPE_WEEKS[defaultSeasonType] ?? 18, defaultSeasonType);
+        ? await fetchPickemSeasonStandings(poolId, requestedBy)
+        : await fetchSeasonLeaderboard(poolId, season, SEASON_TYPE_WEEKS[defaultSeasonType] ?? 18, defaultSeasonType, requestedBy);
       setStandings(rows);
       const existing = await getPayoutRecords(poolId, 'overall', season);
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
@@ -343,7 +351,7 @@ function OverallCalculator({
     } finally {
       setIsCalculating(false);
     }
-  }, [poolId, season, defaultSeasonType, config.weeklyEnabled, weeksPaid, isPickem]);
+  }, [poolId, season, defaultSeasonType, config.weeklyEnabled, weeksPaid, isPickem, requestedBy]);
 
   const results = useMemo(() => {
     if (!standings) return [];

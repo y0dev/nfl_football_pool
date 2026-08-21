@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 import { debugError } from '@/lib/utils';
 
 // Server-only replacement for Pool Workspace's direct client-side
 // participants/games/picks queries (src/components/pools/pool-workspace.tsx
 // loadStats), which required shipping the Supabase service role key to the
 // browser.
+//
+// Deliberately no checkPoolAccessFromRequest gate here — that's the
+// *participant* password-cookie check for a private pool's public Picks
+// page, not something the commissioner/admin dashboard's own PoolWorkspace
+// (already behind AdminGuard login) should ever be asked to satisfy. Same
+// read-only trust model as its siblings — getActiveParticipantCount,
+// getPoolPayoutConfig, loadPool — none of which re-check auth per call
+// either; the calling page's own guard is the one gate.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: poolId } = await params;
@@ -15,11 +22,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const seasonType = parseInt(searchParams.get('seasonType') ?? '', 10);
     if (isNaN(week) || isNaN(seasonType)) {
       return NextResponse.json({ success: false, error: 'week and seasonType are required' }, { status: 400 });
-    }
-
-    const access = await checkPoolAccessFromRequest(poolId, request);
-    if (!access.allowed) {
-      return NextResponse.json({ success: false, error: 'Pool access required' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

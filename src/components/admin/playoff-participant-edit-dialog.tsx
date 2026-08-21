@@ -23,6 +23,23 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 const inputStyle = { ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.45rem 0.65rem', borderRadius: 6, boxSizing: 'border-box' as const, fontSize: '0.875rem', width: '6rem' };
 const sectionCard = { background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' };
 
+/** No AuthProvider guarantee in every context this dialog is used from —
+ * read the session record directly. Sent as x-admin-email so this
+ * admin-only dialog (already behind AdminGuard login) isn't asked to
+ * satisfy the *participant* password gate the confidence-points GET route
+ * also enforces for a private pool (it's shared with the public playoffs
+ * page) — see isAdminForPool in src/lib/pool-access.ts. */
+function getStoredAdminEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  const storedUser = localStorage.getItem('nfl-pool-user');
+  const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+  return localUser?.email ?? null;
+}
+function adminHeaders(): HeadersInit | undefined {
+  const email = getStoredAdminEmail();
+  return email ? { 'x-admin-email': email } : undefined;
+}
+
 interface PlayoffParticipantEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -106,7 +123,7 @@ export function PlayoffParticipantEditDialog({
       const teamsData = await teamsResponse.json();
       const allTeams = teamsData.success && teamsData.teams ? teamsData.teams.map((t: PlayoffTeamLite) => t.team_name) : [];
 
-      const cpResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${poolSeason}&participantId=${participantId}`);
+      const cpResponse = await fetch(`/api/playoffs/${poolId}/confidence-points?season=${poolSeason}&participantId=${participantId}`, { headers: adminHeaders() });
       const cpData = await cpResponse.json();
 
       if (cpData.success && cpData.confidencePoints && cpData.confidencePoints.length > 0) {
