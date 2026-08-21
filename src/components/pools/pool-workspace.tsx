@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Trophy, Users, TrendingUp, Edit, Calendar, BarChart3, Download, Settings,
@@ -101,10 +101,22 @@ export function PoolWorkspace({
     return () => { cancelled = true; };
   }, [poolId]);
 
+  // Guards against out-of-order responses: this function does several
+  // sequential awaits (workspace-stats, two dynamic imports, a season
+  // leaderboard fetch), so switching pools quickly can start a second call
+  // before the first one's chain finishes — without this, a slow response
+  // for the pool you switched AWAY from could resolve after the new pool's
+  // and silently overwrite the dashboard with the wrong pool's participants/
+  // stats/leaderboard (same class of bug as pool-settings.tsx's load effect).
+  const statsRequestRef = useRef(0);
+
   const loadStats = useCallback(async () => {
+    const requestId = ++statsRequestRef.current;
+    const isStale = () => requestId !== statsRequestRef.current;
     try {
       const statsRes = await fetch(`/api/pools/${poolId}/workspace-stats?week=${currentWeek}&seasonType=${currentSeasonType}`);
       const statsData = await statsRes.json();
+      if (isStale()) return;
       if (!statsRes.ok || !statsData.success) throw new Error(statsData.error || 'Failed to load workspace stats');
 
       setWeekGamesCount(statsData.weekGamesCount);
@@ -112,7 +124,9 @@ export function PoolWorkspace({
       setMissingParticipants(statsData.missingParticipants ?? []);
 
       const { hasWeekPickWindowOpened } = await import('@/actions/loadCurrentWeek');
-      setPickWindowOpened(await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season));
+      const opened = await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season);
+      if (isStale()) return;
+      setPickWindowOpened(opened);
 
       // Season standings compute live from picks+games (the same source the
       // public leaderboard uses) rather than reading `scores` directly —
@@ -126,6 +140,7 @@ export function PoolWorkspace({
       const latestRegular = await getLatestWeekForSeason(season, poolId, 2);
       const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`);
       const seasonData = await seasonRes.json();
+      if (isStale()) return;
 
       if (!seasonRes.ok || !seasonData.success) {
         debugError('Season leaderboard fetch failed:', seasonData.error || seasonRes.statusText);
@@ -145,6 +160,7 @@ export function PoolWorkspace({
         setLeaderboardStatus('ready');
       }
     } catch (error) {
+      if (isStale()) return;
       debugError('Error loading pool workspace stats:', error);
       setLeaderboardStatus('error');
       setPoolLeader(null);
@@ -162,7 +178,9 @@ export function PoolWorkspace({
   }, [poolId, loadStats, competitionType, isSurvivor, isPickem]);
 
   useEffect(() => {
-    getPoolPayoutConfig(poolId).then(setPayoutConfig);
+    let cancelled = false;
+    getPoolPayoutConfig(poolId).then(config => { if (!cancelled) setPayoutConfig(config); });
+    return () => { cancelled = true; };
   }, [poolId]);
 
   const handleCopyPicksLink = async () => {

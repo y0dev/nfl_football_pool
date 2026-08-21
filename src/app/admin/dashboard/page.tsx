@@ -199,6 +199,10 @@ function AdminDashboardContent() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Bumped on pool create/delete so the system-wide ExportData card
+  // refetches its own pool list — poolId="system-wide" never changes, so
+  // its normal effect deps alone would never trigger a refetch.
+  const [poolsRefreshKey, setPoolsRefreshKey] = useState(0);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [createPoolDialogOpen, setCreatePoolDialogOpen] = useState(false);
@@ -485,16 +489,20 @@ function AdminDashboardContent() {
 
   const handlePoolCreated = async () => {
     await Promise.all([loadDashboardStats(), loadPools()]);
+    setPoolsRefreshKey(k => k + 1);
     toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
   // Clearing selectedPoolId alone left the deleted pool sitting in `pools`
   // (and its stale data on screen) until the next full page load, since
   // `pools` is only ever set inside loadPools — refetch it here the same
-  // way handlePoolCreated does.
+  // way handlePoolCreated does. Also bumps poolsRefreshKey so the
+  // system-wide ExportData card (a separate component with its own
+  // independently-fetched pool list) picks up the change too.
   const handlePoolDeleted = async () => {
     setSelectedPoolId('');
     await Promise.all([loadDashboardStats(), loadPools()]);
+    setPoolsRefreshKey(k => k + 1);
   };
 
   const handleLogout = async () => {
@@ -1279,6 +1287,7 @@ function AdminDashboardContent() {
               poolName="All Pools"
               currentWeek={currentWeek}
               currentSeason={new Date().getFullYear()}
+              refreshKey={poolsRefreshKey}
             />
           </div>
         </div>
