@@ -102,6 +102,8 @@ export interface SurvivorCurrentWeekGame {
   awayTeamId: string | null;
   kickoffTime: string;
   status: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
 }
 
 export interface SurvivorPoolState {
@@ -343,6 +345,8 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     awayTeamId: g.away_team_id,
     kickoffTime: g.kickoff_time,
     status: g.status,
+    homeScore: g.home_score,
+    awayScore: g.away_score,
   }));
 
   return {

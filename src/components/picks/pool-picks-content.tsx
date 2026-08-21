@@ -1580,8 +1580,12 @@ export function PoolPicksContent() {
               { label: 'Share', icon: Share2, onClick: handleShare },
               // Purely a view toggle (Game Details panel vs. the picks form)
               // — never claims to "unlock" anything, since no such action
-              // exists; the real lock state is the badge above.
-              { label: showGameDetails ? (effectiveGamesStarted || weekEnded ? 'View Picks' : 'Make Picks') : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) },
+              // exists; the real lock state is the badge above. Once games
+              // are locked/finished, the Game Results tab already shows
+              // each game's score and status, so this redundant summary
+              // panel (and its toggle) is dropped entirely rather than
+              // relabeled — nothing left for "View Picks" to close.
+              ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
               { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
               ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
               ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
@@ -1685,7 +1689,7 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {showGameDetails && games.length > 0 && (
+          {showGameDetails && games.length > 0 && !(effectiveGamesStarted || weekEnded) && (
             <div
               id="game-details-card"
               style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>

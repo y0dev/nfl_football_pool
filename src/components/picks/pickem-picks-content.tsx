@@ -3,26 +3,117 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { CheckCircle2, Lock, Target, Trophy } from 'lucide-react';
+import { CheckCircle2, Lock, Target, Trophy, Check, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
+import { TeamLogo } from '@/components/ui/team-logo';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { isGameLocked } from '@/lib/pickem-settings';
-import { debugError } from '@/lib/utils';
-import type { PickemWeekResult } from '@/lib/pickem';
+import { getTeam, getTeamAbbreviation, debugError } from '@/lib/utils';
+import { normalizeGameStatus } from '@/types/game';
+import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
+const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
 const amber   = 'oklch(72% 0.16 60)';
+const liveRed = 'oklch(62% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
+
+// Locked/finished game row: replaces the pick buttons once a game can no
+// longer be picked. Shows the result itself (teams, logos, score, your pick
+// + correct/incorrect) instead of a separate "Game Details" disclosure —
+// the game and its result already are the detail.
+function LockedPickemGameRow({
+  game,
+  pick,
+}: {
+  game: PickemWeekResult['eligibleGames'][number];
+  pick: PickemGamePick | undefined;
+}) {
+  const normalized = normalizeGameStatus(game.status);
+  const isFinished = normalized === 'finished';
+  const isLive = normalized === 'live';
+  const awayTeam = getTeam(getTeamAbbreviation(game.awayTeam));
+  const homeTeam = getTeam(getTeamAbbreviation(game.homeTeam));
+  const showScores = (isFinished || isLive) && game.homeScore != null && game.awayScore != null;
+
+  return (
+    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        {isFinished ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontSize: '0.65rem', fontWeight: 700, color: amber, textTransform: 'uppercase' }}>
+            <Trophy style={{ width: 11, height: 11 }} /> Final
+          </span>
+        ) : isLive ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', ...bc, fontSize: '0.65rem', fontWeight: 700, color: liveRed, textTransform: 'uppercase' }}>
+            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, animation: 'pulse 1.4s ease-in-out infinite' }} /> Live
+          </span>
+        ) : (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: textDim, textTransform: 'uppercase' }}>
+            <Lock style={{ width: 10, height: 10 }} /> Locked
+          </span>
+        )}
+        <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+          {format(new Date(game.kickoffTime), 'EEE, MMM d · h:mm a')}
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {[
+          { fullName: game.awayTeam, teamId: game.awayTeamId, team: awayTeam, score: game.awayScore },
+          { fullName: game.homeTeam, teamId: game.homeTeamId, team: homeTeam, score: game.homeScore },
+        ].map(({ fullName, teamId, team, score }) => {
+          // pick.selectedTeam is stored as the team id (home_team_id /
+          // away_team_id), same as game.awayTeamId/homeTeamId — never the
+          // full team name, which only comes from game.awayTeam/homeTeam.
+          const isSelected = pick != null && pick.selectedTeam === teamId;
+          return (
+            <div key={fullName} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', padding: '0.5rem', borderRadius: 8, background: isSelected ? 'oklch(46% 0.14 155 / 0.1)' : 'transparent', outline: isSelected ? '1px solid oklch(46% 0.14 155 / 0.3)' : 'none' }}>
+              <TeamLogo team={team} size="md" colorAccent />
+              <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: isSelected ? text : textMid, textAlign: 'center' }}>
+                {team.city}
+              </span>
+              {showScores && (
+                <span style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: isFinished && game.awayScore !== game.homeScore ? (score === Math.max(game.homeScore ?? 0, game.awayScore ?? 0) ? text : textDim) : text }}>
+                  {score}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: `1px solid ${border}` }}>
+        {pick?.selectedTeam ? (
+          <>
+            <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>Your pick: <strong style={{ color: text }}>{getTeam(pick.selectedTeam).city}</strong></span>
+            {pick.result === 'correct' && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.68rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
+                <Check style={{ width: 12, height: 12 }} /> Correct
+              </span>
+            )}
+            {pick.result === 'incorrect' && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.68rem', fontWeight: 700, color: liveRed, textTransform: 'uppercase' }}>
+                <XIcon style={{ width: 12, height: 12 }} /> Missed
+              </span>
+            )}
+          </>
+        ) : (
+          <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>No pick submitted</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface PoolInfo { id: string; name: string; season: number; }
 
@@ -259,6 +350,14 @@ export function PickemPicksContent() {
               {result.eligibleGames.map(game => {
                 const locked = isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                 const pickForGame = myWeek.picks.find(p => p.gameId === game.id);
+
+                // Once a game is locked, its result (teams, score, your pick,
+                // correct/incorrect) is the primary information — no separate
+                // "Game Details" disclosure needed to see the same thing.
+                if (locked) {
+                  return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} />;
+                }
+
                 const selectedTeam = pickForGame?.selectedTeam || null;
                 const isSubmittingThis = submittingGameId === game.id;
                 return (
@@ -267,11 +366,6 @@ export function PickemPicksContent() {
                       <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
                         {format(new Date(game.kickoffTime), 'EEE, MMM d · h:mm a')}
                       </p>
-                      {locked && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: textDim, textTransform: 'uppercase' }}>
-                          <Lock style={{ width: 10, height: 10 }} /> Locked
-                        </span>
-                      )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                       {[
@@ -280,7 +374,7 @@ export function PickemPicksContent() {
                       ].map(({ team, name }) => {
                         if (!team) return null;
                         const picked = selectedTeam === team;
-                        const disabled = locked || (submittingGameId != null);
+                        const disabled = submittingGameId != null;
                         return (
                           <button
                             key={team}
@@ -292,8 +386,7 @@ export function PickemPicksContent() {
                               padding: '0.85rem 0.5rem', borderRadius: 6, minHeight: 44,
                               background: picked ? green : surface,
                               border: `1px solid ${picked ? green : border}`,
-                              color: picked ? text : locked ? textDim : text,
-                              opacity: locked && !picked ? 0.55 : 1,
+                              color: picked ? text : text,
                               cursor: disabled ? 'not-allowed' : 'pointer',
                               ...bc, fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase',
                             }}

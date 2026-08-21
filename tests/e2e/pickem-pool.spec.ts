@@ -688,6 +688,37 @@ test.describe("Pick'em Pool — mobile Picks page", () => {
   });
 });
 
+test.describe("Pick'em Pool — locked game result display", () => {
+  test('a finished game shows the score and pick result instead of pick buttons', async ({ page }) => {
+    const fixture = await setupPickemPool({ participantNames: ['Alice'] });
+    try {
+      const finishedGame = await createGame(fixture, {
+        week: 1, homeTeam: 'Philadelphia Eagles', awayTeam: 'Dallas Cowboys', homeTeamId: 'PHI', awayTeamId: 'DAL',
+        kickoff: daysAgo(3), status: 'finished', homeScore: 20, awayScore: 27,
+      });
+      await insertPick(fixture, fixture.participants.Alice, finishedGame, 'DAL');
+
+      await page.goto(`/pool/${fixture.poolId}/picks?week=1&seasonType=2`);
+      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      await page.selectOption('select', { label: 'Alice' });
+      await page.waitForSelector('text=/Weekly Picks/i', { timeout: 15000 });
+
+      // The result itself is shown — no clickable pick buttons for a
+      // finished game, and no separate "Game Details" disclosure exists on
+      // this page to re-reveal the same information.
+      await expect(page.locator('button:has-text("Dallas Cowboys")')).toHaveCount(0);
+      await expect(page.getByText('Final', { exact: true })).toBeVisible();
+      await expect(page.locator('text=/^27$/')).toBeVisible();
+      await expect(page.locator('text=/^20$/')).toBeVisible();
+      await expect(page.locator('text=/Your pick:\\s*Dallas/i')).toBeVisible();
+      await expect(page.getByText('Correct', { exact: true })).toBeVisible();
+      await expect(page.locator('button:has-text("Game Details")')).toHaveCount(0);
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+});
+
 test.describe("Pick'em Pool — emails", () => {
   test('send-reminders only reaches participants with incomplete picks for the current week', async ({ request }) => {
     const fixture = await setupPickemPool({ participantNames: ['Alice', 'Bob'] });
