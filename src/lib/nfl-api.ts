@@ -34,6 +34,42 @@ export interface NFLGame {
   away_team_record?: TeamRecord;
 }
 
+// Minimal shapes for ESPN's team-record and team-list responses — only the
+// fields getTeamRecord/getAllTeamIds actually read; the full ESPN payloads
+// are far larger and otherwise unused here.
+interface EspnRecordStat {
+  name?: string;
+  value?: number;
+}
+
+interface EspnRecordItem {
+  type?: string;
+  stats?: EspnRecordStat[];
+}
+
+interface EspnTeamRecordResponse {
+  team?: {
+    abbreviation?: string;
+    record?: {
+      items?: EspnRecordItem[];
+    };
+  };
+}
+
+interface EspnTeamRef {
+  id?: string;
+  team?: { id?: string };
+}
+
+interface EspnLeagueTeams {
+  teams?: EspnTeamRef[];
+}
+
+interface EspnTeamsListResponse {
+  sports?: Array<{ leagues?: EspnLeagueTeams[] }>;
+  leagues?: EspnLeagueTeams[] | EspnLeagueTeams;
+}
+
 interface NFLTeam {
   id: string;
   name: string;
@@ -750,7 +786,7 @@ class NFLAPIService {
     road_ties?: number;
   } | null> {
     try {
-      const data = await this.makeRequest(`/teams/${teamId}`) as any;
+      const data = await this.makeRequest(`/teams/${teamId}`) as EspnTeamRecordResponse;
       const team = data?.team;
       // debugInfo('team record', team);
       if (!team || !team.record) {
@@ -759,23 +795,23 @@ class NFLAPIService {
 
       const record = team.record;
       const abbreviation = team.abbreviation || '';
-      
+
       // Parse overall record
-      const totalRecord = record.items?.find((item: any) => item.type === 'total');
-      const homeRecord = record.items?.find((item: any) => item.type === 'home');
-      const roadRecord = record.items?.find((item: any) => item.type === 'road');
+      const totalRecord = record.items?.find((item) => item.type === 'total');
+      const homeRecord = record.items?.find((item) => item.type === 'home');
+      const roadRecord = record.items?.find((item) => item.type === 'road');
 
-      const wins = totalRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value || 0;
-      const losses = totalRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value || 0;
-      const ties = totalRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value || 0;
+      const wins = totalRecord?.stats?.find((stat) => stat.name === 'wins')?.value || 0;
+      const losses = totalRecord?.stats?.find((stat) => stat.name === 'losses')?.value || 0;
+      const ties = totalRecord?.stats?.find((stat) => stat.name === 'ties')?.value || 0;
 
-      const home_wins = homeRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value;
-      const home_losses = homeRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value;
-      const home_ties = homeRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value;
+      const home_wins = homeRecord?.stats?.find((stat) => stat.name === 'wins')?.value;
+      const home_losses = homeRecord?.stats?.find((stat) => stat.name === 'losses')?.value;
+      const home_ties = homeRecord?.stats?.find((stat) => stat.name === 'ties')?.value;
 
-      const road_wins = roadRecord?.stats?.find((stat: any) => stat.name === 'wins')?.value;
-      const road_losses = roadRecord?.stats?.find((stat: any) => stat.name === 'losses')?.value;
-      const road_ties = roadRecord?.stats?.find((stat: any) => stat.name === 'ties')?.value;
+      const road_wins = roadRecord?.stats?.find((stat) => stat.name === 'wins')?.value;
+      const road_losses = roadRecord?.stats?.find((stat) => stat.name === 'losses')?.value;
+      const road_ties = roadRecord?.stats?.find((stat) => stat.name === 'ties')?.value;
 
       return {
         teamId,
@@ -804,18 +840,18 @@ class NFLAPIService {
   // Get all team IDs from standings
   async getAllTeamIds(): Promise<string[]> {
     try {
-      const data = await this.getTeamESPNTeamId() as any;
+      const data = await this.getTeamESPNTeamId() as unknown as EspnTeamsListResponse;
       debugInfo('data', data);
-      
+
       const teamIds: string[] = [];
-      
+
       // Handle different possible structures
       if (data?.sports && Array.isArray(data.sports)) {
-        data.sports.forEach((sport: any) => {
+        data.sports.forEach((sport) => {
           if (sport.leagues && Array.isArray(sport.leagues)) {
-            sport.leagues.forEach((league: any) => {
+            sport.leagues.forEach((league) => {
               if (league.teams && Array.isArray(league.teams)) {
-                league.teams.forEach((team: any) => {
+                league.teams.forEach((team) => {
                   if (team.team?.id) {
                     teamIds.push(team.team.id);
                   } else if (team.id) {
@@ -827,9 +863,9 @@ class NFLAPIService {
           }
         });
       } else if (data?.leagues && Array.isArray(data.leagues)) {
-        data.leagues.forEach((league: any) => {
+        data.leagues.forEach((league) => {
           if (league.teams && Array.isArray(league.teams)) {
-            league.teams.forEach((team: any) => {
+            league.teams.forEach((team) => {
               if (team.team?.id) {
                 teamIds.push(team.team.id);
               } else if (team.id) {
@@ -838,8 +874,8 @@ class NFLAPIService {
             });
           }
         });
-      } else if (data?.leagues?.teams && Array.isArray(data.leagues.teams)) {
-        data.leagues.teams.forEach((team: any) => {
+      } else if (data?.leagues && !Array.isArray(data.leagues) && data.leagues.teams && Array.isArray(data.leagues.teams)) {
+        data.leagues.teams.forEach((team) => {
           if (team.team?.id) {
             teamIds.push(team.team.id);
           } else if (team.id) {

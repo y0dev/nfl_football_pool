@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -64,9 +64,9 @@ function CommissionerDashboardContent() {
   const { toast } = useToast();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
-  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const [currentSeason] = useState(new Date().getFullYear());
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalPools: 0,
     activePools: 0,
@@ -75,18 +75,9 @@ function CommissionerDashboardContent() {
     pendingSubmissions: 0,
     completedSubmissions: 0
   });
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<string[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [poolSelectionOpen, setPoolSelectionOpen] = useState(false);
+  const [, setNotifications] = useState<string[]>([]);
   const [availablePools, setAvailablePools] = useState<Array<{id: string, name: string, season: number, season_scope?: number[], is_active?: boolean}>>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
-  const [importPicksOpen, setImportPicksOpen] = useState(false);
-  const [selectedPoolForImport, setSelectedPoolForImport] = useState<{id: string, name: string} | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [poolSelectionMode, setPoolSelectionMode] = useState<'invite' | 'import'>('invite');
-  const [isDragOver, setIsDragOver] = useState(false);
   const [poolsNeedingPassword, setPoolsNeedingPassword] = useState<{ id: string; name: string }[]>([]);
   const [jumpToSettingsForPoolId, setJumpToSettingsForPoolId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -146,6 +137,14 @@ function CommissionerDashboardContent() {
     };
 
     loadData();
+    // Intentionally scoped to [user, verifyAdminStatus, router]: this is the
+    // one-time-per-user initial load. loadDashboardStats/generateNotifications/
+    // loadRecentActivity/loadGames are stable (useCallback) but their own deps
+    // (currentWeek, currentSeasonType, dashboardStats, ...) change on every
+    // subsequent poll/refresh — including them here would re-run this whole
+    // block (including the super-admin redirect and league/plan fetches) on
+    // every such change instead of just once per user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, verifyAdminStatus, router]);
 
   useEffect(() => {
@@ -189,13 +188,7 @@ function CommissionerDashboardContent() {
     return () => clearInterval(timer);
   }, [games]);
 
-  useEffect(() => {
-    if (currentWeek && currentSeasonType) {
-      loadGames();
-    }
-  }, [currentWeek, currentSeasonType]);
-
-  const loadDashboardStats = async () => {
+  const loadDashboardStats = useCallback(async () => {
     try {
       if (!user?.email) return;
 
@@ -219,9 +212,9 @@ function CommissionerDashboardContent() {
         variant: 'destructive',
       });
     }
-  };
+  }, [user, currentWeek, currentSeasonType, toast]);
 
-  const loadGames = async () => {
+  const loadGames = useCallback(async () => {
     try {
       const gamesData = await loadWeekGames(currentWeek, currentSeasonType, currentSeason);
       setGames(gamesData);
@@ -229,9 +222,9 @@ function CommissionerDashboardContent() {
     } catch (error) {
       debugError('Error loading games for countdown:', error);
     }
-  };
+  }, [currentWeek, currentSeasonType, currentSeason]);
 
-  const loadRecentActivity = async () => {
+  const loadRecentActivity = useCallback(async () => {
     try {
       if (!user?.email) return;
       const res = await fetch('/api/admin/recent-activity', {
@@ -244,7 +237,13 @@ function CommissionerDashboardContent() {
       debugError('Error loading recent activity:', error);
       setRecentActivity([]);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (currentWeek && currentSeasonType) {
+      loadGames();
+    }
+  }, [currentWeek, currentSeasonType, loadGames]);
 
   const handlePoolCreated = async () => {
     await loadDashboardStats();
@@ -255,7 +254,7 @@ function CommissionerDashboardContent() {
     });
   };
 
-  const generateNotifications = () => {
+  const generateNotifications = useCallback(() => {
     const newNotifications: string[] = [];
 
     if (dashboardStats.totalPools === 0) {
@@ -285,24 +284,7 @@ function CommissionerDashboardContent() {
     }
 
     setNotifications(newNotifications);
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await loadDashboardStats();
-      await loadGames();
-      generateNotifications();
-      loadRecentActivity();
-      setLastRefresh(new Date());
-      toast({ title: 'Dashboard Refreshed', description: 'All data has been updated' });
-    } catch (error) {
-      debugError('Error refreshing dashboard:', error);
-      toast({ title: 'Refresh Failed', description: 'Failed to refresh dashboard data', variant: 'destructive' });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+  }, [dashboardStats, currentWeek]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -316,17 +298,6 @@ function CommissionerDashboardContent() {
       debugError('Error logging out:', error);
       setIsLoggingOut(false);
     }
-  };
-
-  // NOTE: this always queried a `seasons` table that doesn't exist in this
-  // schema (confirmed via information_schema — dead code from before a
-  // rename/refactor), so it always fell through to the catch/else branch
-  // and set 'Games Started' regardless of the actual week's timing. Kept
-  // that always-true-in-practice behavior exactly, just without the
-  // pointless failing DB round-trip (which also required a client-side
-  // service-role client).
-  const loadCountdown = async () => {
-    setCountdown('Games Started');
   };
 
   if (isLoading) {

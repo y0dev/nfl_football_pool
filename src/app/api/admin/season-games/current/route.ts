@@ -2,6 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { nflAPI } from '@/lib/nfl-api';
 import { debugLog } from '@/lib/utils';
 
+// Minimal shape for the fields this route actually reads off ESPN's
+// scoreboard response — the rest of that JSON is consumed untyped.
+interface EspnCompetitor {
+  homeAway?: string;
+  score?: string | number;
+  team?: { displayName?: string; abbreviation?: string };
+}
+interface EspnEvent {
+  id?: string;
+  date?: string;
+  competitions?: Array<{
+    competitors?: EspnCompetitor[];
+    status?: { type?: { state?: string } };
+  }>;
+}
+
+// Shape of one parsed schedule entry — lenient (string | null | undefined)
+// on the optional fields since both real ESPN-derived games (which may
+// have undefined team/date fields) and the synthetic Hall of Fame Game
+// placeholder below (which uses explicit nulls) populate this same array.
+interface ParsedGame {
+  id: string | undefined;
+  home_team: string | undefined;
+  away_team: string | undefined;
+  home_team_id: string | null | undefined;
+  away_team_id: string | null | undefined;
+  home_score: number | null;
+  away_score: number | null;
+  winner: string | null | undefined;
+  time: string | null | undefined;
+  date: string | null | undefined;
+  game_day: string;
+  week: number;
+  season: number;
+  season_type: number;
+  game_status: string;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface WeekWindow {
@@ -261,13 +299,13 @@ export async function GET(request: NextRequest) {
     const week: number = data.week?.number ?? 1;
 
     // ── Parse current-week games from ESPN ──────────────────────────────────
-    const events: any[] = data.events ?? [];
-    let games = events.map((event: any) => {
+    const events: EspnEvent[] = data.events ?? [];
+    let games = events.map((event) => {
       const comp = event.competitions?.[0];
       if (!comp) return null;
 
-      const home = comp.competitors?.find((c: any) => c.homeAway === 'home');
-      const away = comp.competitors?.find((c: any) => c.homeAway === 'away');
+      const home = comp.competitors?.find((c) => c.homeAway === 'home');
+      const away = comp.competitors?.find((c) => c.homeAway === 'away');
       if (!home || !away) return null;
 
       const state: string = comp.status?.type?.state ?? 'pre';
@@ -276,23 +314,23 @@ export async function GET(request: NextRequest) {
       const awayScore = away.score !== undefined && away.score !== '' ? Number(away.score) : null;
 
       // Determine game day (Thu/Fri/Sat/Sun/Mon) from event date
-      const eventDate = new Date(event.date);
+      const eventDate = new Date(event.date ?? 0);
       const dayOfWeek = eventDate.getUTCDay(); // 0=Sun … 6=Sat
       const dayLabel = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dayOfWeek];
 
-      return {
+      const parsedGame: ParsedGame = {
         id: event.id,
-        home_team: home.team.displayName,
-        away_team: away.team.displayName,
-        home_team_id: home.team.abbreviation,
-        away_team_id: away.team.abbreviation,
+        home_team: home.team!.displayName,
+        away_team: away.team!.displayName,
+        home_team_id: home.team!.abbreviation,
+        away_team_id: away.team!.abbreviation,
         home_score: homeScore,
         away_score: awayScore,
         winner:
           gameStatus === 'final' && homeScore !== null && awayScore !== null
             ? homeScore > awayScore
-              ? home.team.displayName
-              : away.team.displayName
+              ? home.team!.displayName
+              : away.team!.displayName
             : null,
         time: event.date,
         date: event.date,
@@ -302,7 +340,8 @@ export async function GET(request: NextRequest) {
         season_type: seasonType,
         game_status: gameStatus,
       };
-    }).filter(Boolean);
+      return parsedGame;
+    }).filter((g): g is ParsedGame => g !== null);
 
     // ── Build week schedule ──────────────────────────────────────────────────
     let weekSchedule: WeekWindow[] = [];

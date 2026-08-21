@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const updates = Object.entries(pickUpdates).map(([pickId, update]: [string, any]) => ({
+      const updates = Object.entries(pickUpdates as Record<string, { winner?: string; confidence?: number }>).map(([pickId, update]) => ({
         id: pickId,
         winner: update.winner,
         confidence: update.confidence

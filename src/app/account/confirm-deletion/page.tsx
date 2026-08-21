@@ -29,12 +29,16 @@ function ConfirmDeletionContent() {
   const router = useRouter();
   const token = searchParams.get('token') || '';
 
-  const [pageState, setPageState] = useState<PageState>('loading');
+  // No token means there's nothing to load — decide that up front instead
+  // of rendering 'loading' for a frame and then synchronously flipping to
+  // 'invalid' inside the effect (avoids a setState-in-effect call for a
+  // value already known at initial render).
+  const [pageState, setPageState] = useState<PageState>(() => (token ? 'loading' : 'invalid'));
   const [accountEmail, setAccountEmail] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!token) { setPageState('invalid'); return; }
+    if (!token) return;
 
     Promise.all([
       parseDeleteToken(token),

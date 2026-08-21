@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Despite the route name/path, this always creates a commissioner
     // (dev-only debug tooling — duplicates create-commissioner).
-    const { data: existingAdmin, error: checkError } = await supabase
+    const { data: existingAdmin } = await supabase
       .from('commissioners')
       .select('id')
       .eq('email', email)

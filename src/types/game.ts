@@ -68,23 +68,6 @@ export interface StoredPick extends Pick {
   timestamp: number;
 }
 
-interface GameResult {
-  gameId: string;
-  predictedWinner: string;
-  actualWinner?: string;
-  result: 'win' | 'loss' | 'pending';
-  confidencePoints: number;
-}
-
-interface Participant {
-  id: string;
-  name: string;
-  email?: string;
-  pool_id: string;
-  is_active: boolean;
-  picks?: Map<string, { predicted_winner: string; confidence_points: number }>;
-}
-
 export interface LeaderboardEntry {
   id: string;
   participant_id: string;

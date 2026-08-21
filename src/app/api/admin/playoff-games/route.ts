@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, DUMMY_PLAYOFF_GAMES, isDummyData, debugError} from '@/lib/utils';
 
+// Built up incrementally (fields added conditionally below) rather than
+// constructed all at once, so every field except the ones always set is
+// optional here.
+interface PlayoffGameData {
+  id?: string;
+  season: number;
+  week: number;
+  season_type: number;
+  away_team: string;
+  home_team: string;
+  is_playoff: boolean;
+  status: string;
+  winner: string | null;
+  kickoff_time?: string;
+}
+
 // GET - Get playoff games for a season and round
 export async function GET(request: NextRequest) {
   if (isDummyData()) {
@@ -128,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     for (const game of games) {
       const key = `${game.week}_${game.away_team}_${game.home_team}`;
-      const gameData: any = {
+      const gameData: PlayoffGameData = {
         season: parseInt(season),
         week: parseInt(game.week),
         season_type: 3, // Postseason
@@ -175,9 +191,9 @@ export async function POST(request: NextRequest) {
         const teamsDontMatch = existingGame && hasNewTeams && !teamsMatch && !hasTbdTeams;
         
         // Prepare update data
-        const updateData: any = {
+        const updateData: Partial<PlayoffGameData> & { id: string } = {
           id: game.id,
-          kickoff_time: new Date(gameData.kickoff_time).toISOString(),
+          kickoff_time: new Date(gameData.kickoff_time!).toISOString(),
           status: gameData.status,
           is_playoff: gameData.is_playoff,
           winner: gameData.winner
@@ -210,7 +226,8 @@ export async function POST(request: NextRequest) {
         toUpdate.push({ id: existingMap.get(key)!, ...gameData });
       } else {
         // New game without ID - database will generate one
-        const { id, ...gameDataWithoutId } = gameData;
+        const gameDataWithoutId = { ...gameData };
+        delete gameDataWithoutId.id;
         toInsert.push(gameDataWithoutId);
       }
     }
@@ -219,7 +236,7 @@ export async function POST(request: NextRequest) {
     for (const game of toUpdate) {
       const { id: gameId, ...updateData } = game;
       // For updates, we don't change the ID, just update other fields
-      const updatePayload: any = {};
+      const updatePayload: Partial<PlayoffGameData> = {};
       
       // Only include fields that should be updated
       if (updateData.kickoff_time) updatePayload.kickoff_time = updateData.kickoff_time;

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { ArrowLeft, Mail, Users, Clock, AlertTriangle, CheckCircle, RefreshCw, Send, Filter, Search, BarChart3 } from 'lucide-react';
+import { Mail, Users, Clock, AlertTriangle, CheckCircle, RefreshCw, Send, Filter, Search, BarChart3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadPools } from '@/actions/loadPools';
@@ -90,12 +90,19 @@ function RemindersContent() {
       }
     };
     if (user) checkAdminStatus();
+    // loadData isn't in deps on purpose: it also depends on currentWeek/
+    // currentSeasonType/selectedPool, which shouldn't re-trigger this
+    // admin-status check — only a genuine `user` or `router` change should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]);
 
   useEffect(() => {
     if (currentWeek && currentSeasonType && pools.length > 0) {
       loadParticipants();
     }
+    // loadParticipants also depends on `user`, which shouldn't independently
+    // re-trigger this fetch — only the listed week/season/pool changes should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWeek, currentSeasonType, selectedPool, pools.length]);
 
   const loadData = async () => {

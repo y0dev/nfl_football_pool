@@ -54,47 +54,6 @@ export async function copyMailtoToClipboard(mailtoUrl: string): Promise<boolean>
   }
 }
 
-function createPoolInviteEmail(poolName: string, poolId: string, weekNumber: number, adminEmail?: string): MailtoOptions {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
-  const inviteLink = `${baseUrl}/invite?pool=${poolId}&week=${weekNumber}${adminEmail ? `&admin=${encodeURIComponent(adminEmail)}` : ''}`;
-
-  return {
-    subject: `You're invited to ${poolName} — Week ${weekNumber} NFL Pick'em`,
-    body: `Hey! You've been invited to join ${poolName} on Sunday Huddle.
-
-HOW IT WORKS
-------------
-Each week, pick the winner of every NFL game and assign confidence points (1 to the number of games). If your pick is right, you earn those points. Highest score wins the week.
-
-JOIN HERE
----------
-${inviteLink}
-
-Just click the link, find your name on the roster, and start picking. No account needed — it takes under a minute.
-
-Week ${weekNumber} games are already loaded. Get your picks in before the first kickoff!
-
-See you in the pool,
-Your Commissioner`
-  };
-}
-
-function createReminderEmail(poolName: string, weekNumber: number): MailtoOptions {
-  return {
-    subject: `Reminder: Week ${weekNumber} picks due — ${poolName}`,
-    body: `Hey!
-
-Quick reminder: you haven't submitted your Week ${weekNumber} picks for ${poolName} yet.
-
-Picks lock when the first game kicks off — make sure you're in before then or you'll miss the week entirely.
-
-To submit, open the pool link your commissioner shared and select your winners + confidence points.
-
-Good luck this week,
-Your Commissioner`
-  };
-}
-
 export function createSubmissionSummaryEmail(
   poolName: string,
   weekNumber: number,

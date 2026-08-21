@@ -1,4 +1,4 @@
-import { GuideLayout, textMid, textDim, b, bc, surface, border, gold } from '@/components/how-to/guide-layout';
+import { GuideLayout, textMid, b, bc, surface, border, gold } from '@/components/how-to/guide-layout';
 import { Screenshot } from '@/components/how-to/screenshot';
 import { Callout } from '@/components/how-to/callout';
 import { Step } from '@/components/how-to/step';

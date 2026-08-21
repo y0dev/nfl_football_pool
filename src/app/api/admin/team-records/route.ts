@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Format the records for display
-    const formattedRecords = records?.map((record: any) => ({
+    const formattedRecords = records?.map((record) => ({
       id: record.id,
       team_id: record.team_id,
       season: record.season,

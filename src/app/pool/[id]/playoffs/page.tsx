@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Trophy, CheckCircle2, Calendar, Target, ArrowLeft, RefreshCw, LogOut } from 'lucide-react';
+import { Users, Trophy, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
 import { loadUsers } from '@/actions/loadUsers';
-import { createPageUrl, debugLog, getTeamAbbreviation, debugError} from '@/lib/utils';
+import { debugLog, getTeamAbbreviation, debugError} from '@/lib/utils';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
@@ -76,7 +76,7 @@ function PlayoffsPageContent() {
   const [poolSeason, setPoolSeason] = useState<number>(2025);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('');
-  const [playoffTeams, setPlayoffTeams] = useState<PlayoffTeam[]>([]);
+  const [, setPlayoffTeams] = useState<PlayoffTeam[]>([]);
   const [sortedPlayoffTeams, setSortedPlayoffTeams] = useState<PlayoffTeam[]>([]);
   const [confidencePoints, setConfidencePoints] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -93,6 +93,10 @@ function PlayoffsPageContent() {
 
   useEffect(() => {
     loadData();
+    // loadData is declared below via a plain function (not useCallback) and
+    // reads several other pieces of component state — omitted here so this
+    // effect stays gated on poolId only, matching its existing behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId]);
 
   // Reads localStorage's nfl-pool-user (not supabase.auth.getSession(),
@@ -396,7 +400,6 @@ function PlayoffsPageContent() {
           description: 'Playoff confidence points submitted successfully',
         });
 
-        const submittedParticipantId = selectedParticipantId;
         setSelectedParticipantId('');
         setConfidencePoints({});
         setHasSubmission(false);
@@ -547,7 +550,7 @@ function PlayoffsPageContent() {
 
                   allConfidencePoints.forEach(cp => {
                     if (!participantMap.has(cp.participant_id)) {
-                      const participantName = (cp.participants as any)?.name || 'Unknown';
+                      const participantName = cp.participants?.name || 'Unknown';
                       participantMap.set(cp.participant_id, {
                         id: cp.participant_id,
                         name: participantName

@@ -1,22 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  ArrowLeft,
   Trophy,
   Target,
   TrendingUp,
   Calendar,
   Crown,
   Star,
-  LogOut,
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
-import { getWeekPeriod, getWeekPeriodColor, debugError} from '@/lib/utils';
+import { getWeekPeriod, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 
@@ -78,7 +75,6 @@ interface SeasonWinner {
 
 function SeasonReviewContent() {
   const { user, signOut } = useAuth();
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);

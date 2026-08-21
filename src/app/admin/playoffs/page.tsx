@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,7 +17,6 @@ import {
   Trash2,
   Save,
   X,
-  ArrowLeft,
   RefreshCw,
   AlertCircle,
   CheckCircle,
@@ -99,14 +98,47 @@ function PlayoffManagementContent() {
   const [fetchingGameIds, setFetchingGameIds] = useState(false);
 
   const [resultDialogOpen, setResultDialogOpen] = useState(false);
-  const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
-  const [resultDialogTitle, setResultDialogTitle] = useState('');
-  const [resultDialogDescription, setResultDialogDescription] = useState('');
+  const [resultDialogType] = useState<'success' | 'error'>('success');
+  const [resultDialogTitle] = useState('');
+  const [resultDialogDescription] = useState('');
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingGames, setPendingGames] = useState<PlayoffGame[]>([]);
   const [pendingRound, setPendingRound] = useState<number | null>(null);
   const [fetchingRoundGames, setFetchingRoundGames] = useState<number | null>(null);
+
+  const loadTeams = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admin/playoff-teams?season=${season}`);
+      const data = await response.json();
+      if (data.success) {
+        setTeams(data.teams || []);
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to load playoff teams', variant: 'destructive' });
+      }
+    } catch (error) {
+      debugError('Error loading teams:', error);
+      toast({ title: 'Error', description: 'Failed to load playoff teams', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [season, toast]);
+
+  const loadGames = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/admin/playoff-games?season=${season}`);
+      const data = await response.json();
+      if (data.success) {
+        setGames(data.games || []);
+        debugLog('PLAYOFFS: Games loaded:', data.games);
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to load playoff games', variant: 'destructive' });
+      }
+    } catch (error) {
+      debugError('Error loading games:', error);
+    }
+  }, [season, toast]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -134,7 +166,7 @@ function PlayoffManagementContent() {
       loadTeams();
       loadGames();
     }
-  }, [season, isSuperAdmin, checkingAccess]);
+  }, [season, isSuperAdmin, checkingAccess, loadTeams, loadGames]);
 
   useEffect(() => {
     if (teams.length > 0) {
@@ -143,39 +175,6 @@ function PlayoffManagementContent() {
       setTeamSeeds(seeds);
     }
   }, [teams]);
-
-  const loadTeams = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/admin/playoff-teams?season=${season}`);
-      const data = await response.json();
-      if (data.success) {
-        setTeams(data.teams || []);
-      } else {
-        toast({ title: 'Error', description: data.error || 'Failed to load playoff teams', variant: 'destructive' });
-      }
-    } catch (error) {
-      debugError('Error loading teams:', error);
-      toast({ title: 'Error', description: 'Failed to load playoff teams', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadGames = async () => {
-    try {
-      const response = await fetch(`/api/admin/playoff-games?season=${season}`);
-      const data = await response.json();
-      if (data.success) {
-        setGames(data.games || []);
-        debugLog('PLAYOFFS: Games loaded:', data.games);
-      } else {
-        toast({ title: 'Error', description: data.error || 'Failed to load playoff games', variant: 'destructive' });
-      }
-    } catch (error) {
-      debugError('Error loading games:', error);
-    }
-  };
 
   const fetchGameIdsForGamesWithoutIds = async (gamesWithoutIds: PlayoffGame[]) => {
     debugLog('Fetching game IDs for games without IDs');
@@ -199,7 +198,7 @@ function PlayoffManagementContent() {
           if (data.success && data.games) {
             const updatedGames: PlayoffGame[] = [];
             for (const ourGame of weekGames) {
-              const espnGame = data.games.find((eg: any) =>
+              const espnGame = data.games.find((eg: PlayoffGame) =>
                 (eg.away_team === ourGame.away_team && eg.home_team === ourGame.home_team) ||
                 (eg.away_team === ourGame.home_team && eg.home_team === ourGame.away_team)
               );
@@ -251,7 +250,7 @@ function PlayoffManagementContent() {
       const res = await fetch(`/api/games/week?week=${MAX_WEEKS_REGULAR_SEASON}&seasonType=2`);
       const data = await res.json();
       if (data.success && data.games && data.games.length > 0) {
-        const sorted = data.games.sort((a: any, b: any) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime());
+        const sorted = data.games.sort((a: PlayoffGame, b: PlayoffGame) => new Date(a.kickoff_time ?? 0).getTime() - new Date(b.kickoff_time ?? 0).getTime());
         return sorted[sorted.length - 1].kickoff_time;
       }
       return null;
@@ -459,7 +458,7 @@ function PlayoffManagementContent() {
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to save playoff team', variant: 'destructive' });
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error', description: 'Failed to save playoff team', variant: 'destructive' });
     }
   };
@@ -475,7 +474,7 @@ function PlayoffManagementContent() {
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to delete playoff team', variant: 'destructive' });
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error', description: 'Failed to delete playoff team', variant: 'destructive' });
     }
   };
@@ -519,7 +518,7 @@ function PlayoffManagementContent() {
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to save playoff game', variant: 'destructive' });
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error', description: 'Failed to save playoff game', variant: 'destructive' });
     }
   };
@@ -535,7 +534,7 @@ function PlayoffManagementContent() {
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to delete playoff game', variant: 'destructive' });
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error', description: 'Failed to delete playoff game', variant: 'destructive' });
     }
   };
@@ -1087,7 +1086,7 @@ function PlayoffManagementContent() {
               ].map(({ label, field, type, placeholder }) => (
                 <div key={field}>
                   <label style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>{label}</label>
-                  <Input type={type} value={(editingGame as any)[field] || ''} onChange={(e) => setEditingGame({ ...editingGame, [field]: e.target.value || undefined })} placeholder={placeholder} />
+                  <Input type={type} value={editingGame[field as keyof PlayoffGame] || ''} onChange={(e) => setEditingGame({ ...editingGame, [field]: e.target.value || undefined })} placeholder={placeholder} />
                   {field === 'id' && <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{editingGame.id ? 'Current ID: ' + editingGame.id : 'Leave empty to auto-generate or fetch from ESPN'}</p>}
                 </div>
               ))}

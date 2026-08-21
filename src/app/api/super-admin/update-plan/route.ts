@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     if (error && 'billing_exempt' in updateData &&
         (error.message.includes('billing_exempt') || error.message.includes('schema cache'))) {
       debugError('billing_exempt column missing — retrying plan update without it (run the billing migration)');
-      const { billing_exempt, ...withoutFlag } = updateData;
+      const withoutFlag = { ...updateData };
+      delete withoutFlag.billing_exempt;
       ({ error } = await supabase
         .from('commissioners')
         .update(withoutFlag)

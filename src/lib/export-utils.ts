@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseServiceClient } from './supabase-service';
 import { debugLog, PERIOD_WEEKS, getPeriodWeeks as getSharedPeriodWeeks, debugError, debugWarn } from './utils';
 interface WeeklyExportData {
@@ -288,7 +289,7 @@ export async function exportPeriodData(
       }
       participantWeekPicks.get(pick.participant_id)!.get(week)!.push({
         ...pick,
-        participants: { name: (pick.participants as any).name },
+        participants: { name: (pick.participants as unknown as { name: string }).name },
         game_winner: game.winner,
         game_status: game.status
       });
@@ -378,7 +379,7 @@ export async function exportPeriodData(
 }
 
 // Helper function to get game IDs for specific weeks
-async function getGameIdsForWeeks(supabase: any, weeks: number[], season: number): Promise<string[]> {
+async function getGameIdsForWeeks(supabase: SupabaseClient, weeks: number[], season: number): Promise<string[]> {
   const { data: games, error } = await supabase
     .from('games')
     .select('id')

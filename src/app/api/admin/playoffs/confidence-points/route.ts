@@ -66,7 +66,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const teamNames = new Set(playoffTeams.map(t => t.team_name));
-    const teamsCount = teamNames.size;
 
     // Validate that all teams are included and all confidence points are unique
     const submittedTeamNames = new Set(confidence_points.map(cp => cp.team_name));
@@ -210,7 +209,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if any games have started - use game status as the source of truth
-    const hasStartedGames = playoffGames?.some((game: any) => {
+    const hasStartedGames = playoffGames?.some((game) => {
       const status = normalizeGameStatus(game.status);
       // Game has started if status is live, finished, or cancelled
       if (status === 'live' || status === 'finished' || game.status?.toLowerCase() === 'cancelled') {

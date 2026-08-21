@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, FileSpreadsheet, Calendar, Trophy, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -8,13 +8,11 @@ import { PERIOD_WEEKS, debugError} from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 
 // Design tokens
-const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
-const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
@@ -52,14 +50,14 @@ const seasonInputStyle = {
   appearance: 'auto' as const,
 };
 
-export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = new Date().getFullYear() }: ExportDataProps) {
+export function ExportData({ poolId, currentWeek = 1, currentSeason = new Date().getFullYear() }: ExportDataProps) {
   const [isExportingWeekly, setIsExportingWeekly] = useState(false);
   const [isExportingPeriod, setIsExportingPeriod] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(currentWeek.toString());
   const [selectedSeason, setSelectedSeason] = useState(currentSeason.toString());
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [selectedSeasonType, setSelectedSeasonType] = useState('2');
-  const [pools, setPools] = useState<any[]>([]);
+  const [pools, setPools] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
   const [selectedPoolId, setSelectedPoolId] = useState(poolId);
   const [isLoadingPools, setIsLoadingPools] = useState(false);
   const { toast } = useToast();
@@ -67,11 +65,7 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
 
   const isSystemWide = poolId === 'system-wide';
 
-  useEffect(() => {
-    if (isSystemWide && user?.email) loadPools();
-  }, [isSystemWide, user?.email]);
-
-  const loadPools = async () => {
+  const loadPools = useCallback(async () => {
     setIsLoadingPools(true);
     try {
       const res = await fetch('/api/admin/all-pools', {
@@ -88,7 +82,11 @@ export function ExportData({ poolId, poolName, currentWeek = 1, currentSeason = 
     } finally {
       setIsLoadingPools(false);
     }
-  };
+  }, [user?.email, toast]);
+
+  useEffect(() => {
+    if (isSystemWide && user?.email) loadPools();
+  }, [isSystemWide, user?.email, loadPools]);
 
   const handleExportWeeklyPicks = async () => {
     if (!selectedPoolId || selectedPoolId === 'system-wide') {

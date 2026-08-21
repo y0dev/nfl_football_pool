@@ -107,10 +107,12 @@ export async function updatePool(poolId: string, updates: {
 
   // If the error is about a missing column, retry without the columns that
   // don't exist yet (join_password / is_private require a DB migration).
-  const msg = (error as any)?.message ?? '';
+  const msg = error.message ?? '';
   if (msg.includes('join_password') || msg.includes('is_private') || msg.includes('schema cache')) {
     debugWarn('Retrying updatePool without schema-missing columns:', msg);
-    const { join_password, is_private, ...safeUpdates } = updates;
+    const safeUpdates = { ...updates };
+    delete safeUpdates.join_password;
+    delete safeUpdates.is_private;
     const { data: retryData, error: retryError } = await supabase
       .from('pools')
       .update(safeUpdates)

@@ -138,7 +138,10 @@ async function fetchScoreboardEvents(start: string, end: string): Promise<any[]>
   // full browser UA both get blocked) but passes an honest, unmodified
   // runtime default (Deno/*, curl/*). Don't "fix" this by adding one back.
   const response = await fetch(url, {
-    headers: { 'Accept': 'application/json' },
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    },
   })
   if (!response.ok) {
     throw new Error(`ESPN API request failed: ${response.status} ${response.statusText}`)

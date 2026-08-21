@@ -22,7 +22,21 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
     debugLog('Picks API - Supabase client:', supabase);
-    // Build the select statement based on what's requested
+    // Build the select statement based on what's requested. This string is
+    // reassigned below, so Supabase's query builder can't statically parse
+    // it into a column-selection AST and falls back to an untyped row shape
+    // — PickRow (used only for the post-processing filter further down)
+    // captures the base columns that are always present regardless of the
+    // includeGames/includeParticipants flags.
+    interface PickRow {
+      id: string;
+      participant_id: string;
+      pool_id: string;
+      game_id: string;
+      predicted_winner: string;
+      confidence_points: number;
+      created_at: string;
+    }
     let selectStatement = 'id, participant_id, pool_id, game_id, predicted_winner, confidence_points, created_at';
     debugLog('Picks API - Select statement:', selectStatement);
     if (includeGames) {
@@ -81,7 +95,10 @@ export async function GET(request: NextRequest) {
     }
     debugLog('Picks API - Picks:', picks);
     // If filtering by week/season but not including games, we need to filter the results
-    let filteredPicks = picks;
+    // (cast up front so `filteredPicks` has one consistent type across both branches below —
+    // Supabase's query builder falls back to an untyped error-shaped row since selectStatement
+    // is a dynamically-built string, not a statically-parseable literal)
+    let filteredPicks = picks as unknown as PickRow[] | null;
     if ((week || seasonType) && !includeGames) {
       // Get games for the week/season to filter picks
       let gamesQuery = supabase
@@ -99,7 +116,7 @@ export async function GET(request: NextRequest) {
       debugLog('Picks API - Games:', games);
       if (games) {
         const gameIds = games.map(g => g.id);
-        filteredPicks = picks?.filter((pick: any) => gameIds.includes(pick.game_id)) || [];
+        filteredPicks = filteredPicks?.filter((pick) => gameIds.includes(pick.game_id)) || [];
       }
     }
     debugLog('Picks API - Filtered picks:', filteredPicks);

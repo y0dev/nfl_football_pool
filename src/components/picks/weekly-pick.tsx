@@ -26,13 +26,11 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // Design tokens
-const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
-const gold    = 'oklch(74% 0.16 72)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
 const textDim = 'oklch(50% 0.018 255)';
@@ -79,10 +77,10 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [unlockTime, setUnlockTime] = useState<string>('');
   const [countdownToUnlock, setCountdownToUnlock] = useState<string>('');
   const devForceUnlockedRef = useRef(simulatePicksEnabled());
-  const [devForceUnlocked, setDevForceUnlocked] = useState(devForceUnlockedRef.current);
+  const [, setDevForceUnlocked] = useState(devForceUnlockedRef.current);
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
-  const [playoffConfidencePoints, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
+  const [, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
 
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
@@ -303,7 +301,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
         setPicks(initialPicks);
       }
     }
-  }, [selectedUser, games, poolId, currentWeek, toast]);
+  }, [selectedUser, games, poolId, currentWeek, toast, isPlayoffMode]);
 
   // Check if week is unlocked for picks when games are loaded — the single
   // source of truth for isWeekUnlocked (the loadData effect above no longer
@@ -410,95 +408,6 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
       return () => clearInterval(timer);
     }
   }, [isWeekUnlocked, unlockTime]);
-
-  // Handle pick changes
-  const handlePickChange = (gameId: string, field: 'predicted_winner' | 'confidence_points', value: string | number) => {
-    // For playoff mode, when selecting a winner, automatically set confidence points from playoff_confidence_points
-    if (isPlayoffMode && field === 'predicted_winner' && typeof value === 'string') {
-      const confidencePoints = playoffConfidencePoints[value] || 0;
-      const updatedPicks = picks.map(pick =>
-        pick.game_id === gameId
-          ? { ...pick, predicted_winner: value, confidence_points: confidencePoints }
-          : pick
-      );
-
-      setPicks(updatedPicks);
-      setHasUnsavedChanges(true);
-
-      // Immediately save to localStorage
-      if (selectedUser) {
-        const storedPicks: StoredPick[] = updatedPicks
-          .filter(pick => pick.predicted_winner && pick.predicted_winner.trim() !== '')
-          .map(pick => ({
-            ...pick,
-            timestamp: Date.now()
-          }));
-
-        pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
-        setLastSaved(new Date());
-        debugLog('WeeklyPick: Saved playoff pick with confidence points:', { team: value, points: confidencePoints });
-      }
-      return;
-    }
-
-    // Check if confidence point is already used (regular season only)
-    if (field === 'confidence_points' && typeof value === 'number' && !isPlayoffMode) {
-      const existingPick = picks.find(p => p.confidence_points === value && p.game_id !== gameId);
-      if (existingPick) {
-        // Show confirmation dialog for override
-        if (window.confirm(`Confidence point ${value} is already used by another game. Do you want to override it?`)) {
-          // Remove the confidence point from the other game
-          const updatedPicks = picks.map(pick =>
-            pick.confidence_points === value && pick.game_id !== gameId
-              ? { ...pick, confidence_points: 0 }
-              : pick
-          );
-
-          // Set the new confidence point
-          const finalPicks = updatedPicks.map(pick =>
-            pick.game_id === gameId
-              ? { ...pick, [field]: value }
-              : pick
-          );
-
-          setPicks(finalPicks);
-          setHasUnsavedChanges(true);
-
-          // Immediately save to localStorage
-          if (selectedUser) {
-            const storedPicks: StoredPick[] = finalPicks.map(pick => ({
-              ...pick,
-              timestamp: Date.now()
-            }));
-
-            pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
-            setLastSaved(new Date());
-          }
-        }
-        return;
-      }
-    }
-
-    const updatedPicks = picks.map(pick =>
-      pick.game_id === gameId
-        ? { ...pick, [field]: value }
-        : pick
-    );
-
-    setPicks(updatedPicks);
-    setHasUnsavedChanges(true);
-
-    // Immediately save to localStorage
-    if (selectedUser) {
-      const storedPicks: StoredPick[] = updatedPicks.map(pick => ({
-        ...pick,
-        timestamp: Date.now()
-      }));
-
-      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
-      setLastSaved(new Date());
-    }
-  };
 
   // Validate picks — every requirement below is derived from games.length
   // (and which games actually have a pick), never a hardcoded count, so
@@ -751,6 +660,11 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     if (picks.some(p => p.predicted_winner)) return; // don't clobber real/existing picks
     simulatedFillDoneRef.current = selectedUser.id;
     fillPicks(true);
+    // fillPicks is a plain function (not useCallback) that also closes over
+    // poolId/currentWeek — omitted here so this dev-only simulate-fill effect
+    // stays gated on selectedUser/games/picks only, matching its guard logic
+    // above (one fill per selected user).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser, games, picks]);
 
   if (!selectedUser) {

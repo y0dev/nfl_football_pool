@@ -16,7 +16,6 @@ const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
-const textDim = 'oklch(50% 0.018 255)';
 const errRed  = 'oklch(62% 0.22 25)';
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
@@ -28,12 +27,15 @@ function ConfirmEmailChangeContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
 
-  const [pageState, setPageState] = useState<PageState>('loading');
+  // No token means there's nothing to load — decide that up front instead
+  // of rendering 'loading' for a frame and then synchronously flipping to
+  // 'invalid' inside the effect.
+  const [pageState, setPageState] = useState<PageState>(() => (token ? 'loading' : 'invalid'));
   const [newEmail, setNewEmail] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!token) { setPageState('invalid'); return; }
+    if (!token) return;
     getEmailChangeDetails(token).then(details => {
       if (!details) { setPageState('invalid'); return; }
       setNewEmail(details.newEmail);

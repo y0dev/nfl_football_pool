@@ -9,7 +9,6 @@ import { AlertCircle, Mail } from 'lucide-react';
 import Link from 'next/link';
 
 const bg      = 'oklch(13% 0.025 255)';
-const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
@@ -74,7 +73,7 @@ function ForgotPasswordContent() {
               Reset Link Sent
             </h1>
             <p style={{ ...b, fontSize: '0.875rem', color: textMid, lineHeight: 1.6, marginBottom: '1.75rem' }}>
-              If <strong style={{ color: text }}>{email}</strong> has an account, you'll receive a reset link shortly. It expires in 1 hour.
+              If <strong style={{ color: text }}>{email}</strong> has an account, you&apos;ll receive a reset link shortly. It expires in 1 hour.
             </p>
             <Link
               href="/login"
@@ -93,7 +92,7 @@ function ForgotPasswordContent() {
                 Forgot Password
               </h1>
               <p style={{ ...b, fontSize: '0.875rem', color: textMid, marginTop: '0.5rem' }}>
-                Enter your email and we'll send a reset link
+                Enter your email and we&apos;ll send a reset link
               </p>
             </div>
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  ArrowLeft, Calendar, RefreshCw, LogOut, ChevronDown, ChevronRight,
+  Calendar, RefreshCw, ChevronDown, ChevronRight,
   Download, Trash2, Lock, Unlock, CheckCircle2, AlertTriangle, Loader2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -21,7 +21,6 @@ import { debugLog } from '@/lib/utils';
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
-const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
@@ -217,7 +216,7 @@ function SeasonGamesContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [, setIsLoggingOut] = useState(false);
   const [genProgress, setGenProgress]   = useState({ current: 0, total: 0 });
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [importResult, setImportResult] = useState<{ gamesImported: number } | null>(null);
@@ -386,7 +385,7 @@ function SeasonGamesContent() {
       if (!data.success) throw new Error(data.error ?? 'Lock failed');
       setLockedWeeks(prev => {
         const next = new Set(prev);
-        lock ? next.add(week) : next.delete(week);
+        if (lock) next.add(week); else next.delete(week);
         return next;
       });
       toast({ title: lock ? 'Week Locked' : 'Week Unlocked', description: `Week ${week} is now ${lock ? 'locked' : 'unlocked'}` });
@@ -519,7 +518,7 @@ function SeasonGamesContent() {
                   key={w.week}
                   weekData={w}
                   isExpanded={expandedPreview.has(w.week)}
-                  onToggle={() => setExpandedPreview(prev => { const n = new Set(prev); n.has(w.week) ? n.delete(w.week) : n.add(w.week); return n; })}
+                  onToggle={() => setExpandedPreview(prev => { const n = new Set(prev); if (n.has(w.week)) n.delete(w.week); else n.add(w.week); return n; })}
                   locked={false}
                   onLock={() => {}}
                   isExisting={false}
@@ -580,7 +579,7 @@ function SeasonGamesContent() {
                   key={w.week}
                   weekData={w}
                   isExpanded={expandedExisting.has(w.week)}
-                  onToggle={() => setExpandedExisting(prev => { const n = new Set(prev); n.has(w.week) ? n.delete(w.week) : n.add(w.week); return n; })}
+                  onToggle={() => setExpandedExisting(prev => { const n = new Set(prev); if (n.has(w.week)) n.delete(w.week); else n.add(w.week); return n; })}
                   locked={lockedWeeks.has(w.week)}
                   onLock={(lock) => handleLockWeek(w.week, lock)}
                   isExisting={true}

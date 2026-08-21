@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -242,7 +242,7 @@ export function PoolPicksContent() {
     return !!hasSubmitted[userId]?.submitted;
   };
 
-  const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
+  const getWeekTitle = useCallback(() => getWeekTitleUtil(currentWeek, currentSeasonType), [currentWeek, currentSeasonType]);
 
   // The real, persisted/derived source of truth for this week's state —
   // deliberately separate from `showGameDetails`, which is only a view
@@ -288,7 +288,7 @@ export function PoolPicksContent() {
   useEffect(() => {
     if (!poolName) return;
     document.title = `${poolName} - ${getWeekTitle()} | Sunday Huddle`;
-  }, [poolName, currentWeek, currentSeasonType]);
+  }, [poolName, currentWeek, currentSeasonType, getWeekTitle]);
 
   const checkPlayoffConfidencePointsSubmission = async (season?: number): Promise<boolean> => {
     if (!poolId) return false;
@@ -849,10 +849,19 @@ export function PoolPicksContent() {
             if (recordsResponse.ok) {
               const recordsResult = await recordsResponse.json();
               if (recordsResult.success && recordsResult.records) {
-                const recordsMapById = new Map<string, any>();
-                const recordsMapByAbbr = new Map<string, any>();
+                interface TeamRecordLite {
+                  wins: number; losses: number; ties: number;
+                  home_wins?: number; home_losses?: number; home_ties?: number;
+                  road_wins?: number; road_losses?: number; road_ties?: number;
+                }
+                interface TeamRecordApiRow extends TeamRecordLite {
+                  team_id?: string;
+                  team_abbreviation?: string;
+                }
+                const recordsMapById = new Map<string, TeamRecordLite>();
+                const recordsMapByAbbr = new Map<string, TeamRecordLite>();
 
-                recordsResult.records.forEach((record: any) => {
+                recordsResult.records.forEach((record: TeamRecordApiRow) => {
                   const recordData = {
                     wins: record.wins || 0, losses: record.losses || 0, ties: record.ties || 0,
                     home_wins: record.home_wins, home_losses: record.home_losses, home_ties: record.home_ties,
@@ -1763,7 +1772,7 @@ export function PoolPicksContent() {
                     onChange={(e) => setDevSimInProgress(e.target.checked)}
                     style={{ accentColor: 'oklch(72% 0.16 60)', width: 14, height: 14 }}
                   />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows "Games Started" banner, locks picks)</span>
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows &quot;Games Started&quot; banner, locks picks)</span>
                 </label>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input
@@ -1772,7 +1781,7 @@ export function PoolPicksContent() {
                     onChange={(e) => setDevSimFinished(e.target.checked)}
                     style={{ accentColor: 'oklch(46% 0.14 155)', width: 14, height: 14 }}
                   />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with "Force show picks form")</span>
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with &quot;Force show picks form&quot;)</span>
                 </label>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input

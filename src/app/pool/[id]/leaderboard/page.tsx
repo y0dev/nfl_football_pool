@@ -148,7 +148,6 @@ function PoolLeaderboardContent() {
       }
     };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId]);
 
   const navigateToWeek = (week: number, seasonType: number) => {

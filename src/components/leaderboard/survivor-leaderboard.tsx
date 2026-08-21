@@ -146,7 +146,7 @@ export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
 export function SurvivorLeaderboard() {
   const params = useParams();
   const poolId = params.id as string;
-  const { pool, state, isLoading } = useSurvivorLeaderboardData(poolId);
+  const { pool, isLoading } = useSurvivorLeaderboardData(poolId);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 

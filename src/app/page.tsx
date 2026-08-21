@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Users, Trophy, Calendar, Plus } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { loadWeekGames } from '@/actions/loadWeekGames';
-import { createPageUrl, getWeekTitle as getWeekTitleUtil, getPlayoffRoundName, isOffseason, debugLog, debugError} from '@/lib/utils';
+import { getPlayoffRoundName, debugLog, debugError} from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
-import { BrandLogo } from '@/components/ui/brand-logo';
 import { AppNav } from '@/components/layout/AppNav';
 import { normalizeGameStatus } from '@/types/game';
 
@@ -48,7 +46,7 @@ function LandingPage() {
   const { user, signOut, verifyAdminStatus } = useAuth();
   const router = useRouter();
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(false);
+  const [, setIsCheckingAdmin] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentWeek, setCurrentWeek] = useState(1);
   const [currentSeasonType, setCurrentSeasonType] = useState(2);
@@ -78,6 +76,10 @@ function LandingPage() {
       }
     };
     checkAdminStatus();
+    // verifyAdminStatus isn't in deps on purpose: it also depends on
+    // isTestAccountBlocked, which shouldn't independently re-trigger this
+    // check — only a genuine `user` change should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {

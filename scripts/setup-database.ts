@@ -17,8 +17,7 @@ import {
   teamsTable,
   updatedGamesTable,
   paymentsTable,
-  rlsPolicies,
-  getSupabaseClient
+  rlsPolicies
 } from '../src/lib/supabase';
 
 // Load environment variables from .env.local

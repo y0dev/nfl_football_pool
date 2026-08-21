@@ -247,7 +247,7 @@ function LoginContent() {
         {/* Bottom CTA */}
         <div style={{ borderTop: `1px solid ${border}`, paddingTop: '1.5rem' }}>
           <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginBottom: '0.6rem' }}>
-            Don't have an account yet?
+            Don&apos;t have an account yet?
           </p>
           <Link
             href={createPageUrl('register')}
@@ -515,7 +515,7 @@ function LoginContent() {
                     />
                   </div>
                   <p style={{ ...b, fontSize: '0.8rem', color: textDim, lineHeight: 1.5, margin: 0 }}>
-                    We'll send a one-time sign-in link to your email. No password needed.
+                    We&apos;ll send a one-time sign-in link to your email. No password needed.
                   </p>
                   <button
                     onClick={onSendMagicLink}

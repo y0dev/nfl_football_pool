@@ -172,8 +172,7 @@ export async function POST(request: NextRequest) {
       debugLog('Sending email notification...');
       const emailSent = await emailService.sendAdminCreationNotification(
         newAdmin.email,
-        newAdmin.full_name || 'Unknown',
-        'System' // For now, we'll use 'System' as the creator
+        newAdmin.full_name || 'Unknown'
       );
       
       if (!emailSent) {

@@ -11,7 +11,6 @@ import { getMondayNightGameInfo } from '@/lib/monday-night-utils';
 // Design tokens
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
-const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -33,10 +32,8 @@ interface MondayNightScoreInputProps {
 }
 
 export function MondayNightScoreInput({
-  poolId: _poolId,
   weekNumber,
   seasonType,
-  participantId: _participantId,
   initialScore,
   onScoreChange,
   isRequired = false,

@@ -96,7 +96,7 @@ class PickStorage {
       const data: StoredPicksData = JSON.parse(stored);
       const remaining = data.expiresAt - Date.now();
       return Math.max(0, remaining);
-    } catch (error) {
+    } catch {
       return 0;
     }
   }
@@ -116,7 +116,7 @@ class PickStorage {
              data.week === week &&
              Date.now() <= data.expiresAt &&
              data.picks.length > 0;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

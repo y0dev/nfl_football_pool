@@ -762,10 +762,7 @@ async function applyTopThreeTieBreakerLogicForPeriod(
 
     // Check if we need to apply Monday night tie-breaker for top 3
     const topThree = entries.slice(0, 3);
-    const fourthPlace = entries[3];
-    // debugLog('Top three:', topThree);
-    // debugLog('Fourth place:', fourthPlace);
-    
+
     // Check for ties within the top 3 and ties for 3rd place with any participants below
     const topThreeScores = topThree.map(entry => entry.total_points);
     const hasTopThreeTies = new Set(topThreeScores).size < topThreeScores.length;

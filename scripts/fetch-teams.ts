@@ -338,7 +338,7 @@ async function fetchAndInsertTeams() {
     let currentSeason = 2024; // Default fallback
     try {
       currentSeason = await nflAPI.getCurrentSeason();
-    } catch (error) {
+    } catch {
       console.log('⚠️  Could not fetch current season from API, using 2024 as default');
     }
     console.log(`📅 Current season: ${currentSeason}`);
@@ -416,7 +416,7 @@ async function fetchAndInsertTeams() {
       
       console.log(`📦 Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(teamsToInsert.length / batchSize)}...`);
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('teams')
         .insert(batch)
         .select('id, name');

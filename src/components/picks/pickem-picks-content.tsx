@@ -16,7 +16,6 @@ const surface = 'oklch(17% 0.028 255)';
 const card    = 'oklch(20% 0.03 255)';
 const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
-const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
 const amber   = 'oklch(72% 0.16 60)';
 const text    = 'oklch(95% 0.006 255)';
@@ -132,6 +131,11 @@ export function PickemPicksContent() {
 
   useEffect(() => {
     if (myWeek) setTiebreakerInput(myWeek.tiebreakerPrediction != null ? String(myWeek.tiebreakerPrediction) : '');
+    // Deliberately depending on the two primitive fields instead of `myWeek`
+    // itself — `myWeek` is a fresh object from .find() every render, so
+    // tracking the object would reset the tiebreaker input on every render
+    // instead of only when the participant or their prediction changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myWeek?.participantId, myWeek?.tiebreakerPrediction]);
 
   const handlePick = async (gameId: string, team: string) => {

@@ -34,22 +34,6 @@ export function getMondayNightGame(games: Game[]): Game | null {
 }
 
 /**
- * Gets the final game of the week (latest kickoff time)
- * This is useful when there might be multiple Monday night games
- */
-function getFinalGameOfWeek(games: Game[]): Game | null {
-  if (games.length === 0) {
-    return null;
-  }
-  
-  return games.reduce((latest, current) => {
-    const latestTime = new Date(latest.kickoff_time);
-    const currentTime = new Date(current.kickoff_time);
-    return currentTime > latestTime ? current : latest;
-  });
-}
-
-/**
  * Gets the Monday night game info for display
  * Returns null if no Monday night game is found
  */
@@ -63,7 +47,6 @@ export function getMondayNightGameInfo(games: Game[]): {
     return null;
   }
   
-  const kickoffTime = new Date(mondayNightGame.kickoff_time);
   const displayText = `${mondayNightGame.away_team} @ ${mondayNightGame.home_team}`;
   
   return {

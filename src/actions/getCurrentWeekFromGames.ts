@@ -193,57 +193,6 @@ export async function getCurrentWeekFromGames() {
 }
 
 /**
- * Gets the upcoming week based on the closest upcoming game kickoff time
- * This is the week that should be unlocked for making picks
- * @returns The upcoming week number and season type
- */
-async function getUpcomingWeekFromGames() {
-  try {
-    const supabase = getSupabaseClient();
-    const now = new Date();
-
-    // Get all future games ordered by kickoff time
-    const { data: games, error } = await supabase
-      .from('games')
-      .select('week, season, kickoff_time, season_type')
-      .gte('kickoff_time', now.toISOString())
-      .order('kickoff_time');
-
-    if (error || !games || games.length === 0) {
-      // Fallback to current week
-      const currentWeekData = await getCurrentWeekFromGames();
-      return currentWeekData;
-    }
-
-    // Find the game with the closest upcoming kickoff time
-    let closestGame = games[0];
-    let minTimeDiff = Infinity;
-
-    for (const game of games) {
-      const kickoffTime = new Date(game.kickoff_time);
-      const timeDiff = kickoffTime.getTime() - now.getTime();
-
-      // Only consider future games (positive time difference)
-      if (timeDiff > 0 && timeDiff < minTimeDiff) {
-        minTimeDiff = timeDiff;
-        closestGame = game;
-      }
-    }
-
-    // Return the week and season type of the closest upcoming game
-    return {
-      week: closestGame.week,
-      seasonType: closestGame.season_type
-    };
-  } catch (error) {
-    debugError('Error getting upcoming week from games:', error);
-    // Fallback to current week
-    const currentWeekData = await getCurrentWeekFromGames();
-    return currentWeekData;
-  }
-}
-
-/**
  * Gets the week that should be unlocked for picks based on the closest upcoming game
  * Avoids weeks where all games are finished
  * @returns The week number and season type for picks

@@ -3,49 +3,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugLog, debugError } from '@/lib/utils';
 
-async function checkUserSubmission(participantId: string, poolId: string, week: number, seasonType: number = 2) {
-  try {
-    const supabase = getSupabaseServiceClient();
-    
-    // First get the games for this week and season type
-    const { data: games, error: gamesError } = await supabase
-      .from('games')
-      .select('id')
-      .eq('week', week)
-      .eq('season_type', seasonType);
-
-    if (gamesError) {
-      debugError('Error getting games for week:', gamesError);
-      return false;
-    }
-
-    if (!games || games.length === 0) {
-      return false;
-    }
-
-    const gameIds = games.map(game => game.id);
-
-    // Then check if user has picks for these games
-    const { data: picks, error } = await supabase
-      .from('picks')
-      .select('id')
-      .eq('participant_id', participantId)
-      .eq('pool_id', poolId)
-      .in('game_id', gameIds)
-      .limit(1);
-
-    if (error) {
-      debugError('Error checking user submission:', error);
-      return false;
-    }
-
-    return picks && picks.length > 0;
-  } catch (error) {
-    debugError('Error checking user submission:', error);
-    return false;
-  }
-}
-
 export async function getUsersWhoSubmitted(poolId: string, week: number, seasonType: number = 2, season?: number) {
   try {
 
@@ -129,7 +86,7 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
 
     // Only return participants who have picks for ALL valid games
     const submittedParticipantIds = Array.from(participantPicksMap.entries())
-      .filter(([_, gameIdsSet]) => gameIdsSet.size === gameIds.length)
+      .filter(([, gameIdsSet]) => gameIdsSet.size === gameIds.length)
       .map(([participantId]) => participantId);
     
     debugLog('getUsersWhoSubmitted - result:', {
@@ -146,42 +103,5 @@ export async function getUsersWhoSubmitted(poolId: string, week: number, seasonT
   } catch (error) {
     debugError('Error getting users who submitted:', error);
     return [];
-  }
-}
-
-async function isUserInPool(userEmail: string, poolId: string) {
-  try {
-    // Validate inputs
-    if (!userEmail || !poolId) {
-      debugLog('Invalid inputs provided to isUserInPool');
-      return false;
-    }
-
-    // Validate poolId is a valid UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(poolId)) {
-      debugError('Invalid poolId format (not a UUID):', poolId);
-      return false;
-    }
-
-    const supabase = getSupabaseServiceClient();
-    
-    const { data: participant, error } = await supabase
-      .from('participants')
-      .select('id')
-      .eq('pool_id', poolId)
-      .eq('email', userEmail.trim().toLowerCase())
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) {
-      debugError('Error checking if user is in pool:', error);
-      return false;
-    }
-
-    return !!participant;
-  } catch (error) {
-    debugError('Error checking if user is in pool:', error);
-    return false;
   }
 }

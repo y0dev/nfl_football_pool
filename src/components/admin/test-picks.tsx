@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, ExternalLink, Share2, Users } from 'lucide-react';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { debugLog } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 const card    = 'oklch(20% 0.03 255)';

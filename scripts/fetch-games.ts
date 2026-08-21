@@ -350,7 +350,7 @@ async function main() {
   let currentSeason = 2024; // Default fallback
   try {
     currentSeason = await nflAPI.getCurrentSeason();
-  } catch (error) {
+  } catch {
     debugError('Could not fetch current season from API, using 2024 as default');
   }
   debugInfo(`Current season: ${currentSeason}`);
@@ -493,7 +493,7 @@ async function main() {
     
     debugInfo(`📦 Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(gamesToInsert.length / batchSize)}...`);
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('games')
       .insert(batch)
       .select('id');

@@ -3,10 +3,26 @@ import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import * as XLSX from 'xlsx';
 import { debugError } from '@/lib/utils';
 
+type ExcelCell = string | number | boolean | undefined;
+type ExcelRow = ExcelCell[];
+
+interface GamePick {
+  gameId: string;
+  awayTeam: string;
+  homeTeam: string;
+  predictedWinner: string;
+  confidencePoints: number;
+}
+
+interface ParsedParticipant {
+  participantName: string;
+  participantEmail?: string;
+  gamePicks: GamePick[];
+  tieBreaker?: number;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseServiceClient();
-    
     // Check if this is a file upload or data submission
     const contentType = request.headers.get('content-type');
     
@@ -85,7 +101,7 @@ async function handleFileUpload(request: NextRequest) {
     }
 
     // Parse the data
-    const parsedData = parseExcelData(jsonData as any[][], games);
+    const parsedData = parseExcelData(jsonData as ExcelRow[]);
 
     return NextResponse.json({
       success: true,
@@ -261,22 +277,22 @@ async function handleDataSubmission(request: NextRequest) {
   }
 }
 
-function parseExcelData(jsonData: any[][], games: any[]) {
+function parseExcelData(jsonData: ExcelRow[]): ParsedParticipant[] {
   const headers = jsonData[0];
   const dataRows = jsonData.slice(1);
-  
+
   // Find column indices
-  const nameIndex = headers.findIndex((h: string) => 
+  const nameIndex = headers.findIndex((h) =>
     h && h.toString().toLowerCase().includes('name')
   );
-  
-  const emailIndex = headers.findIndex((h: string) => 
+
+  const emailIndex = headers.findIndex((h) =>
     h && h.toString().toLowerCase().includes('email')
   );
 
   // Find game columns (look for team names in headers)
   const gameColumns: Array<{ index: number; homeTeam: string; awayTeam: string }> = [];
-  
+
   headers.forEach((header, index) => {
     if (header && typeof header === 'string') {
       const headerStr = header.toString();
@@ -284,7 +300,7 @@ function parseExcelData(jsonData: any[][], games: any[]) {
         // This is a game column like "Arizona Cardinals @"
         const awayTeam = headerStr.replace(' @', '').trim();
         const homeTeam = headers[index + 1]?.toString().trim();
-        
+
         if (homeTeam && !homeTeam.includes('@')) {
           gameColumns.push({ index, homeTeam, awayTeam });
         }
@@ -293,21 +309,21 @@ function parseExcelData(jsonData: any[][], games: any[]) {
   });
 
   // Parse data rows
-  const participants: any[] = [];
-  
-  dataRows.forEach((row, rowIndex) => {
+  const participants: ParsedParticipant[] = [];
+
+  dataRows.forEach((row) => {
     if (row.length === 0 || !row[nameIndex]) return;
-    
+
     const participantName = row[nameIndex]?.toString().trim();
     const participantEmail = emailIndex >= 0 ? row[emailIndex]?.toString().trim() : undefined;
-    
+
     if (!participantName) return;
-    
-    const gamePicks: any[] = [];
+
+    const gamePicks: GamePick[] = [];
     
     gameColumns.forEach(({ index, homeTeam, awayTeam }) => {
       const predictedWinner = row[index]?.toString().trim();
-      const confidencePoints = parseInt(row[index + 1]) || 0;
+      const confidencePoints = parseInt(String(row[index + 1] ?? ''), 10) || 0;
       
       if (predictedWinner && confidencePoints > 0) {
         gamePicks.push({
