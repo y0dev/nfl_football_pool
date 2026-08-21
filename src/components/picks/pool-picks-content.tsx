@@ -1564,7 +1564,7 @@ export function PoolPicksContent() {
                 </span>
               );
             })()}
-            {lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
+            {process.env.NODE_ENV === 'development' && lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
 
           {weekState === 'locked' && !effectiveGamesStarted && (
