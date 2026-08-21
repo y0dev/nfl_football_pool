@@ -254,7 +254,7 @@ test.describe("Pick'em Pool — completeness (\"Please make a pick for all games
       await createGame(fixture, { week: 1, homeTeam: 'Home B', awayTeam: 'Away B', homeTeamId: 'HB', awayTeamId: 'BB', kickoff: daysFromNow(3), status: 'scheduled' });
 
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId: g1, selectedTeam: 'HA' });
-      let result = await computePickemWeekResult(fixture.poolId, 1, 2);
+      const result = await computePickemWeekResult(fixture.poolId, 1, 2);
       expect(result.participants[0].isComplete).toBe(false);
       expect(result.eligibleGames).toHaveLength(2); // never a hardcoded count
     } finally {

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "seed": "tsx scripts/seed.ts",
     "setup-db": "tsx scripts/setup-database.ts",
     "migrate-commissioners": "tsx scripts/migrate-commissioners.ts",
