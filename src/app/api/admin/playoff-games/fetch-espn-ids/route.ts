@@ -109,13 +109,9 @@ export async function POST(request: NextRequest) {
 
     for (const dateStr of dates) {
       try {
-        const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dateStr}`;
+        const url = `https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dateStr}`;
         debugLog(`Fetching ESPN data for date ${dateStr}:`, url);
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        });
+        const response = await fetch(url);
 
         // Timeout before next request to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
