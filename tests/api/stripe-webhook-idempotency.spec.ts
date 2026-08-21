@@ -17,7 +17,11 @@ loadEnv({ path: '.env.local' });
 // https://stripe.com/docs/webhooks/test
 //
 // Creates a real, throwaway commissioner (checkout/webhook look up a real
-// admin row) and deletes it afterward. Skips if Stripe isn't configured.
+// admin row) and hard-deletes it (and its payments row) afterward, rather
+// than going through the production /api/admin/delete-account route — that
+// route only soft-archives (is_active: false), which would leave a
+// permanently-deactivated row behind on every run. Skips if Stripe isn't
+// configured.
 // ─────────────────────────────────────────────────────────────
 
 const TEST_PASSWORD = 'e2e-webhook-test-pw-123';
@@ -40,10 +44,20 @@ async function createTestCommissioner(request: APIRequestContext) {
   return { id: body.admin.id as string, email, supabase };
 }
 
-async function deleteTestCommissioner(request: APIRequestContext, adminId: string) {
-  await request.post('/api/admin/delete-account', {
-    data: { adminId, password: TEST_PASSWORD },
-  });
+async function deleteTestCommissioner(supabase: SupabaseClient, adminId: string) {
+  // /api/admin/delete-account is a soft archive (is_active: false,
+  // password_hash scrambled) by design — real users' pool history must
+  // survive them deleting their own account. That's the wrong cleanup for
+  // a disposable test fixture: it leaves a permanently-deactivated row
+  // behind on every single test run instead of actually removing it.
+  // Hard-delete the commissioner row and its Supabase Auth user directly
+  // instead — same pattern as tests/e2e/stripe-payment.spec.ts.
+  await supabase.from('commissioners').delete().eq('id', adminId);
+  try {
+    await supabase.auth.admin.deleteUser(adminId);
+  } catch {
+    // Non-fatal: auth user may not exist for bcrypt-only accounts
+  }
 }
 
 function buildCheckoutCompletedEvent(adminId: string, sessionId: string) {
@@ -108,7 +122,8 @@ test.describe('Stripe webhook — idempotency', () => {
       expect(afterSecond.data?.addon_pools).toBe(1); // not 2 — the redelivery must be a no-op
       expect(await paymentRowCount(admin.supabase, sessionId)).toBe(1); // still exactly one payment row
     } finally {
-      await deleteTestCommissioner(request, admin.id);
+      await admin.supabase.from('payments').delete().eq('stripe_session_id', sessionId);
+      await deleteTestCommissioner(admin.supabase, admin.id);
     }
   });
 });

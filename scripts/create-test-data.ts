@@ -321,37 +321,47 @@ async function createTestData() {
     console.log('');
     console.log('💡 Note: All test data uses placeholder emails. In a real application,');
     console.log('   you would want to use real email addresses for notifications.');
+    console.log('');
 
-    // Delete test data after verification if needed (optional)
-    console.log('🧹 Clearing test pools...');
-    const { data: cleanPools, error: cleanFindError } = await supabase
-      .from('pools')
-      .select('id')
-      .in('name', testPoolNames)
-      .in('created_by', testAdminEmails);
-
-    if (cleanFindError) {
-      console.error('❌ Error finding test pools:', cleanFindError);
-    } else if (cleanPools && cleanPools.length > 0) {
-      const cleanIds = cleanPools.map(p => p.id);
-      const { error: cleanParticipantsError } = await supabase
+    // Step 6: Tear down — this script only exists to seed and verify test
+    // data; leaving live pools and enabled test admin accounts sitting in
+    // the database after every run isn't wanted. Delete the pools (and
+    // their participants) created above, and deactivate the admin/
+    // commissioner accounts used to create them rather than deleting those
+    // outright, so a stale login attempt fails cleanly instead of the next
+    // run silently recreating orphaned history.
+    console.log('🧹 Cleaning up test data...');
+    if (pools.length > 0) {
+      const poolIds = pools.map(p => p.id);
+      const { error: cleanupParticipantsError } = await supabase
         .from('participants')
         .delete()
-        .in('pool_id', cleanIds);
-      if (cleanParticipantsError) {
-        console.error('❌ Error clearing test participants:', cleanParticipantsError);
+        .in('pool_id', poolIds);
+      if (cleanupParticipantsError) {
+        console.error('❌ Error deleting test participants:', cleanupParticipantsError);
       }
-      const { error: cleanPoolsError } = await supabase
+      const { error: cleanupPoolsError } = await supabase
         .from('pools')
         .delete()
-        .in('id', cleanIds);
-      if (cleanPoolsError) {
-        console.error('❌ Error clearing test pools:', cleanPoolsError);
+        .in('id', poolIds);
+      if (cleanupPoolsError) {
+        console.error('❌ Error deleting test pools:', cleanupPoolsError);
       } else {
-        console.log(`✅ Cleared ${cleanIds.length} test pool(s)`);
+        console.log(`✅ Deleted ${poolIds.length} test pool(s)`);
       }
-    } else {
-      console.log('✅ No test pools to clear');
+    }
+
+    for (const admin of adminUsers) {
+      const table = admin.is_super_admin ? 'admins' : 'commissioners';
+      const { error: deactivateError } = await supabase
+        .from(table)
+        .update({ is_active: false })
+        .eq('email', admin.email);
+      if (deactivateError) {
+        console.error(`❌ Error deactivating ${admin.email}:`, deactivateError);
+      } else {
+        console.log(`✅ Deactivated test admin: ${admin.email}`);
+      }
     }
     console.log('');
 
