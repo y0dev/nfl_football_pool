@@ -16,6 +16,10 @@ export async function updatePool(poolId: string, updates: {
   tie_breaker_question?: string;
   tie_breaker_answer?: number;
   season_scope?: number[];
+  /** Per-competition-type config (e.g. Survivor's no-pick/tie/end-of-season
+   * rules — see src/lib/survivor.ts's SurvivorTypeSettings). Never touches
+   * competition_type itself, which is immutable after pool creation. */
+  type_settings?: Record<string, unknown>;
 }) {
   const supabase = getSupabaseServiceClient();
 

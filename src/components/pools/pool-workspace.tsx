@@ -14,6 +14,8 @@ import { PoolSettings } from '@/components/admin/pool-settings';
 import { PayoutSettings } from '@/components/admin/payout-settings';
 import { PayoutCalculator } from '@/components/admin/payout-calculator';
 import { ExportData } from '@/components/admin/export-data';
+import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
+import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
 import { getPoolPayoutConfig } from '@/actions/poolPayouts';
 import { computeTotalPool, formatCurrency, PayoutConfig } from '@/lib/payouts';
@@ -81,6 +83,24 @@ export function PoolWorkspace({
   // participants flagged as delinquent) for a week that's simply too early.
   const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig | null>(null);
+  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const isSurvivor = competitionType === 'SURVIVOR';
+  const isPickem = competitionType === 'PICKEM';
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/pools/${poolId}`);
+        const data = await res.json();
+        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+      } catch (error) {
+        debugError('Error loading pool competition type:', error);
+        if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [poolId]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -135,8 +155,12 @@ export function PoolWorkspace({
 
   useEffect(() => {
     setActivePoolTab('overview');
-    loadStats();
-  }, [poolId, loadStats]);
+    // loadStats() pulls from picks/scores/leaderboard endpoints that are
+    // Confidence-shaped and never populated for a Survivor or Pick'em pool
+    // — wait until competitionType actually resolves so this doesn't fire
+    // once for every pool before that fetch completes.
+    if (competitionType && !isSurvivor && !isPickem) loadStats();
+  }, [poolId, loadStats, competitionType, isSurvivor, isPickem]);
 
   useEffect(() => {
     getPoolPayoutConfig(poolId).then(setPayoutConfig);
@@ -147,6 +171,111 @@ export function PoolWorkspace({
     await navigator.clipboard.writeText(url);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const [sendingSurvivorReminders, setSendingSurvivorReminders] = useState(false);
+  const [survivorReminderResult, setSurvivorReminderResult] = useState<string | null>(null);
+  const handleSendSurvivorReminders = async () => {
+    // This component has no AuthProvider guarantee in every context it's
+    // rendered from — read the session record directly, same pattern
+    // survivor-picks-content.tsx uses for the same reason.
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setSendingSurvivorReminders(true);
+    setSurvivorReminderResult(null);
+    try {
+      const res = await fetch('/api/survivor/send-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setSurvivorReminderResult(data.success ? data.message : (data.error ?? 'Failed to send reminders.'));
+    } catch (error) {
+      debugError('Error sending Survivor reminders:', error);
+      setSurvivorReminderResult('Failed to send reminders.');
+    } finally {
+      setSendingSurvivorReminders(false);
+      setTimeout(() => setSurvivorReminderResult(null), 5000);
+    }
+  };
+
+  const [notifyingSurvivorResults, setNotifyingSurvivorResults] = useState(false);
+  const handleNotifySurvivorResults = async () => {
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setNotifyingSurvivorResults(true);
+    setSurvivorReminderResult(null);
+    try {
+      // No week/seasonType — the route defaults to the most recently
+      // resolved week, which is what "announce results" always means here.
+      const res = await fetch('/api/survivor/notify-week-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setSurvivorReminderResult(data.success ? data.message : (data.error ?? 'Failed to send result emails.'));
+    } catch (error) {
+      debugError('Error sending Survivor result emails:', error);
+      setSurvivorReminderResult('Failed to send result emails.');
+    } finally {
+      setNotifyingSurvivorResults(false);
+      setTimeout(() => setSurvivorReminderResult(null), 5000);
+    }
+  };
+
+  const [sendingPickemReminders, setSendingPickemReminders] = useState(false);
+  const [pickemReminderResult, setPickemReminderResult] = useState<string | null>(null);
+  const handleSendPickemReminders = async () => {
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setSendingPickemReminders(true);
+    setPickemReminderResult(null);
+    try {
+      const res = await fetch('/api/pickem/send-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setPickemReminderResult(data.success ? data.message : (data.error ?? 'Failed to send reminders.'));
+    } catch (error) {
+      debugError("Error sending Pick'em reminders:", error);
+      setPickemReminderResult('Failed to send reminders.');
+    } finally {
+      setSendingPickemReminders(false);
+      setTimeout(() => setPickemReminderResult(null), 5000);
+    }
+  };
+
+  const [notifyingPickemResults, setNotifyingPickemResults] = useState(false);
+  const handleNotifyPickemResults = async () => {
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+    const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+    if (!localUser?.email) return;
+    setNotifyingPickemResults(true);
+    setPickemReminderResult(null);
+    try {
+      // No week/seasonType — the route defaults to the most recently
+      // resolved week, same convention as /api/survivor/notify-week-results.
+      const res = await fetch('/api/pickem/notify-week-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ poolId }),
+      });
+      const data = await res.json();
+      setPickemReminderResult(data.success ? data.message : (data.error ?? 'Failed to send result emails.'));
+    } catch (error) {
+      debugError("Error sending Pick'em result emails:", error);
+      setPickemReminderResult('Failed to send result emails.');
+    } finally {
+      setNotifyingPickemResults(false);
+      setTimeout(() => setPickemReminderResult(null), 5000);
+    }
   };
 
   const poolStats = [
@@ -195,7 +324,7 @@ export function PoolWorkspace({
                     ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase',
                   }}
                 >
-                  <Target style={{ width: 11, height: 11 }} /> Make Picks
+                  <Target style={{ width: 11, height: 11 }} /> {isSurvivor ? 'Make Survivor Pick' : isPickem ? "Make Pick'em Picks" : 'Make Confidence Picks'}
                 </button>
                 <button
                   onClick={handleCopyPicksLink}
@@ -252,6 +381,17 @@ export function PoolWorkspace({
         ] as const)
           .filter(t => t.id !== 'playoffs' || hasPlayoffs)
           .filter(t => t.id !== 'season-review' || hasRegularSeason)
+          // Survivor has no Q1-Q4/season-champion concept (Season Review),
+          // no playoff-confidence-points bracket (Playoffs), and no
+          // confidence-point picks to override (Override Picks) — its
+          // Leaderboard tab already covers everything a commissioner needs
+          // (active/eliminated/winner), so nothing is added in their place.
+          .filter(t => !isSurvivor || !['override-picks', 'season-review', 'playoffs'].includes(t.id))
+          // Pick'em has no confidence-point picks to override, no Q1-Q4
+          // periods, and no playoff-confidence-points bracket either — same
+          // reasoning as Survivor above, its own Leaderboard tab (weekly +
+          // season score) covers what a commissioner needs.
+          .filter(t => !isPickem || !['override-picks', 'season-review', 'playoffs'].includes(t.id))
           .map(({ id, label, icon: Icon }) => {
           const active = activePoolTab === id;
           return (
@@ -278,6 +418,52 @@ export function PoolWorkspace({
       {/* Overview tab */}
       {activePoolTab === 'overview' && (
         <>
+          {isSurvivor && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase' }}>Survivor Pool</p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={handleSendSurvivorReminders} disabled={sendingSurvivorReminders} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: amber, border: `1px solid ${amber}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: sendingSurvivorReminders ? 'not-allowed' : 'pointer' }}>
+                    {sendingSurvivorReminders ? 'Sending…' : 'Send Pick Reminders'}
+                  </button>
+                  <button onClick={handleNotifySurvivorResults} disabled={notifyingSurvivorResults} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: 'oklch(59% 0.18 230)', border: `1px solid oklch(59% 0.18 230)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: notifyingSurvivorResults ? 'not-allowed' : 'pointer' }}>
+                    {notifyingSurvivorResults ? 'Sending…' : 'Notify Week Results'}
+                  </button>
+                  <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Full Standings →
+                  </button>
+                </div>
+              </div>
+              {survivorReminderResult && (
+                <p style={{ ...b, fontSize: '0.75rem', color: textMid, marginBottom: '0.75rem' }}>{survivorReminderResult}</p>
+              )}
+              <SurvivorStandingsPanel poolId={poolId} />
+            </div>
+          )}
+
+          {isPickem && (
+            <div style={{ background: card, border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.56rem', letterSpacing: '0.22em', color: greenHi, textTransform: 'uppercase' }}>Pick&apos;em Pool</p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={handleSendPickemReminders} disabled={sendingPickemReminders} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: amber, border: `1px solid ${amber}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: sendingPickemReminders ? 'not-allowed' : 'pointer' }}>
+                    {sendingPickemReminders ? 'Sending…' : 'Send Pick Reminders'}
+                  </button>
+                  <button onClick={handleNotifyPickemResults} disabled={notifyingPickemResults} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: 'oklch(59% 0.18 230)', border: `1px solid oklch(59% 0.18 230)`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: notifyingPickemResults ? 'not-allowed' : 'pointer' }}>
+                    {notifyingPickemResults ? 'Sending…' : 'Notify Week Results'}
+                  </button>
+                  <button onClick={() => setActivePoolTab('leaderboard')} style={{ padding: '0.3rem 0.65rem', background: 'transparent', color: greenHi, border: `1px solid ${greenHi}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Full Standings →
+                  </button>
+                </div>
+              </div>
+              {pickemReminderResult && (
+                <p style={{ ...b, fontSize: '0.75rem', color: textMid, marginBottom: '0.75rem' }}>{pickemReminderResult}</p>
+              )}
+              <PickemStandingsPanel poolId={poolId} />
+            </div>
+          )}
+
           {poolLeader && (
             <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderLeft: `4px solid ${gold}`, borderRadius: 10, padding: '1.1rem 1.5rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'oklch(74% 0.16 72 / 0.18)', border: `1px solid oklch(74% 0.16 72 / 0.45)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -371,7 +557,25 @@ export function PoolWorkspace({
       )}
 
       {/* Leaderboard tab */}
-      {activePoolTab === 'leaderboard' && (
+      {activePoolTab === 'leaderboard' && isSurvivor && (
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+            <Trophy style={{ width: 16, height: 16, color: gold }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Survivor Standings</p>
+          </div>
+          <SurvivorStandingsPanel poolId={poolId} />
+        </div>
+      )}
+      {activePoolTab === 'leaderboard' && isPickem && (
+        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+            <Trophy style={{ width: 16, height: 16, color: gold }} />
+            <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Pick&apos;em Standings</p>
+          </div>
+          <PickemStandingsPanel poolId={poolId} />
+        </div>
+      )}
+      {activePoolTab === 'leaderboard' && !isSurvivor && !isPickem && (
         <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
             <Trophy style={{ width: 16, height: 16, color: gold }} />
@@ -447,6 +651,7 @@ export function PoolWorkspace({
           seasonScope={seasonScope ?? [2]}
           defaultSeasonType={currentSeasonType}
           defaultWeek={currentWeek}
+          isPickem={isPickem}
         />
       )}
 

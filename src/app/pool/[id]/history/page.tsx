@@ -11,6 +11,8 @@ import Link from 'next/link';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
+import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
+import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 import { Game } from '@/types/game';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -49,6 +51,11 @@ function PoolHistoryContent() {
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // Survivor has no per-week point standings — this whole page's Confidence
+  // components (Leaderboard/SeasonLeaderboard, week nav) don't apply, so a
+  // closed Survivor pool gets SurvivorStandingsPanel instead. Same router
+  // pattern as /picks and /leaderboard's competition_type branch.
+  const [competitionType, setCompetitionType] = useState<string>('NFL_CONFIDENCE');
 
   const router = useRouter();
   const getWeekTitle = () => getWeekTitleUtil(currentWeek, currentSeasonType);
@@ -131,6 +138,7 @@ function PoolHistoryContent() {
         if (!data.success || !data.pool) { notFound(); return; }
 
         const pool = data.pool;
+        setCompetitionType(pool.competition_type ?? 'NFL_CONFIDENCE');
 
         // Active pools use the picks page
         if (pool.is_active) {
@@ -141,6 +149,31 @@ function PoolHistoryContent() {
         const season = pool.season || DEFAULT_POOL_SEASON;
         setPoolName(pool.name);
         setPoolSeason(season);
+
+        // Check admin status via localStorage's nfl-pool-user (not
+        // supabase.auth.getSession(), which only ever resolves for
+        // Google-OAuth sign-ins — password-based commissioner logins never
+        // touch Supabase Auth at all, see loginUser.ts). Needed for both
+        // pool types, so it runs before the Survivor early-return below.
+        try {
+          const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+          const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+          if (localUser?.id) {
+            const adminRes = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
+            const adminData = await adminRes.json();
+            if (adminData.success && adminData.isAdmin) {
+              setIsAdmin(true);
+              setIsSuperAdmin(!!adminData.isSuperAdmin);
+            }
+          }
+        } catch {}
+
+        // Survivor and Pick'em have no per-week Confidence standings to
+        // load — the games/week-winner fetches below are Confidence-only.
+        if (pool.competition_type === 'SURVIVOR' || pool.competition_type === 'PICKEM') {
+          setIsLoading(false);
+          return;
+        }
 
         // With no explicit ?week=, default to this pool's actual latest
         // week with real data instead of always week 1 — every pool
@@ -161,23 +194,6 @@ function PoolHistoryContent() {
         }
         setCurrentWeek(week);
         setCurrentSeasonType(seasonType);
-
-        // Check admin status via localStorage's nfl-pool-user (not
-        // supabase.auth.getSession(), which only ever resolves for
-        // Google-OAuth sign-ins — password-based commissioner logins never
-        // touch Supabase Auth at all, see loginUser.ts).
-        try {
-          const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
-          const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
-          if (localUser?.id) {
-            const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
-            const data = await res.json();
-            if (data.success && data.isAdmin) {
-              setIsAdmin(true);
-              setIsSuperAdmin(!!data.isSuperAdmin);
-            }
-          }
-        } catch {}
 
         await loadGames(week, seasonType, season);
         await loadWeekWinner(week, seasonType, season);
@@ -266,7 +282,88 @@ function PoolHistoryContent() {
     textTransform: 'uppercase', cursor: 'pointer', background: 'transparent', color: textMid,
   };
 
-  // ── MAIN ───────────────────────────────────────────────────────────────────────
+  // ── SURVIVOR (closed pool) ────────────────────────────────────────────────────
+  // No per-week point standings to show — just the same final Active/
+  // Eliminated/Winner breakdown the live Survivor leaderboard uses, with a
+  // closed-season banner instead of week navigation.
+  if (competitionType === 'SURVIVOR') {
+    return (
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
+
+        <div style={{ background: `oklch(72% 0.16 60 / 0.12)`, borderBottom: `1px solid oklch(72% 0.16 60 / 0.35)`, padding: '0.65rem 0' }}>
+          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Lock style={{ width: 13, height: 13, color: amber, flexShrink: 0 }} />
+            <span style={{ ...b, fontSize: '0.8rem', color: amber }}>
+              {poolName} — Season {poolSeason} is complete. You are viewing final results.
+            </span>
+          </div>
+        </div>
+
+        <section style={{ background: bg, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0 1.5rem' }}>
+          <div className="lp-inner">
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+              Survivor Standings
+            </p>
+            <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: text, textTransform: 'uppercase' }}>
+              {poolName} <span style={{ color: gold }}>Final Results</span>
+            </h1>
+          </div>
+        </section>
+
+        <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${greenHi}, transparent)` }} />
+
+        <section style={{ background: bg, padding: '2rem 0 3rem' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <SurvivorStandingsPanel poolId={poolId} />
+          </div>
+        </section>
+
+        <Footer pageName="Season History" />
+      </div>
+    );
+  }
+
+  // ── PICK'EM (closed pool) ─────────────────────────────────────────────────────
+  if (competitionType === 'PICKEM') {
+    return (
+      <div style={{ minHeight: '100vh', background: bg }}>
+        <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
+
+        <div style={{ background: `oklch(72% 0.16 60 / 0.12)`, borderBottom: `1px solid oklch(72% 0.16 60 / 0.35)`, padding: '0.65rem 0' }}>
+          <div className="lp-inner" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Lock style={{ width: 13, height: 13, color: amber, flexShrink: 0 }} />
+            <span style={{ ...b, fontSize: '0.8rem', color: amber }}>
+              {poolName} — Season {poolSeason} is complete. You are viewing final results.
+            </span>
+          </div>
+        </div>
+
+        <section style={{ background: bg, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0 1.5rem' }}>
+          <div className="lp-inner">
+            <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+              Pick&apos;em Standings
+            </p>
+            <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: text, textTransform: 'uppercase' }}>
+              {poolName} <span style={{ color: gold }}>Final Results</span>
+            </h1>
+          </div>
+        </section>
+
+        <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${greenHi}, transparent)` }} />
+
+        <section style={{ background: bg, padding: '2rem 0 3rem' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <PickemStandingsPanel poolId={poolId} />
+          </div>
+        </section>
+
+        <Footer pageName="Season History" />
+      </div>
+    );
+  }
+
+  // ── MAIN (Confidence) ─────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: bg }}>
 

@@ -22,7 +22,7 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'NFL_CONFIDENCE',
     label: 'NFL Confidence Pool',
-    description: 'Rank weekly picks by confidence points.',
+    description: 'Pick every game and assign confidence points.',
     available: true,
   },
   {
@@ -34,14 +34,14 @@ export const POOL_TYPES: PoolTypeDef[] = [
   {
     id: 'SURVIVOR',
     label: 'Survivor Pool',
-    description: 'Coming soon.',
-    available: false,
+    description: "Pick one team each week. If your team loses, you're eliminated — and you can't use the same team twice.",
+    available: true,
   },
   {
     id: 'PICKEM',
     label: "Pick'em Pool",
-    description: 'Coming soon.',
-    available: false,
+    description: "Pick the winner of every game. Each correct pick is worth one point.",
+    available: true,
   },
   {
     id: 'MARCH_MADNESS',

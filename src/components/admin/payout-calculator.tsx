@@ -36,6 +36,11 @@ interface PayoutCalculatorProps {
   seasonScope: number[];
   defaultSeasonType: number;
   defaultWeek: number;
+  /** Pick'em pools compute standings from src/lib/pickem.ts instead of the
+   * Confidence leaderboard endpoints — see fetchPickemWeekStandings/
+   * fetchPickemSeasonStandings above. Everything past the fetch (the actual
+   * payout math) is identical either way. */
+  isPickem?: boolean;
 }
 
 interface LeaderboardRow { participant_id: string; participant_name: string; total_points: number }
@@ -58,7 +63,31 @@ async function fetchSeasonLeaderboard(poolId: string, season: number, currentWee
     .sort((a, b2) => b2.score - a.score);
 }
 
-export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonType, defaultWeek }: PayoutCalculatorProps) {
+// Pick'em adapter — maps computePickemWeekResult/computePickemSeasonSummary
+// (src/lib/pickem.ts, the one authoritative Pick'em service) into the same
+// generic StandingEntry[] shape the Confidence adapters above produce, so
+// calculatePayouts/computeOverallAllocation below run completely unchanged.
+// Pick'em's "score" here is its correct-pick count — never turned into a
+// fake confidence score, just relabeled through the same generic field.
+async function fetchPickemWeekStandings(poolId: string, week: number, seasonType: number): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/pickem/week?poolId=${poolId}&week=${week}&seasonType=${seasonType}`);
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.result.participants as Array<{ participantId: string; participantName: string; correctCount: number }>)
+    .map(p => ({ participantId: p.participantId, participantName: p.participantName, score: p.correctCount }))
+    .sort((a, b2) => b2.score - a.score);
+}
+
+async function fetchPickemSeasonStandings(poolId: string): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/pickem/season?poolId=${poolId}`);
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.summary.participants as Array<{ participantId: string; participantName: string; seasonCorrectCount: number }>)
+    .map(p => ({ participantId: p.participantId, participantName: p.participantName, score: p.seasonCorrectCount }))
+    .sort((a, b2) => b2.score - a.score);
+}
+
+export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonType, defaultWeek, isPickem }: PayoutCalculatorProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -109,7 +138,7 @@ export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonTyp
         <WeeklyCalculator
           poolId={poolId} season={season} config={config} totalPool={totalPool}
           availableSeasonTypes={availableSeasonTypes} defaultSeasonType={defaultSeasonType} defaultWeek={defaultWeek}
-          requestedBy={user?.email ?? ''} toast={toast}
+          requestedBy={user?.email ?? ''} toast={toast} isPickem={isPickem}
         />
       )}
 
@@ -117,7 +146,7 @@ export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonTyp
         <OverallCalculator
           poolId={poolId} season={season} config={config} totalPool={totalPool}
           defaultSeasonType={defaultSeasonType}
-          requestedBy={user?.email ?? ''} toast={toast}
+          requestedBy={user?.email ?? ''} toast={toast} isPickem={isPickem}
         />
       )}
 
@@ -170,11 +199,11 @@ function ResultsTable({
 }
 
 function WeeklyCalculator({
-  poolId, season, config, totalPool, availableSeasonTypes, defaultSeasonType, defaultWeek, requestedBy, toast,
+  poolId, season, config, totalPool, availableSeasonTypes, defaultSeasonType, defaultWeek, requestedBy, toast, isPickem,
 }: {
   poolId: string; season: number; config: PayoutConfig; totalPool: number;
   availableSeasonTypes: number[]; defaultSeasonType: number; defaultWeek: number;
-  requestedBy: string; toast: ReturnType<typeof useToast>['toast'];
+  requestedBy: string; toast: ReturnType<typeof useToast>['toast']; isPickem?: boolean;
 }) {
   const [seasonType, setSeasonType] = useState(availableSeasonTypes.includes(defaultSeasonType) ? defaultSeasonType : availableSeasonTypes[0]);
   const [week, setWeek] = useState(defaultWeek || 1);
@@ -187,14 +216,16 @@ function WeeklyCalculator({
   const runCalculation = useCallback(async () => {
     setIsCalculating(true);
     try {
-      const rows = await fetchWeekLeaderboard(poolId, week, seasonType, season);
+      const rows = isPickem
+        ? await fetchPickemWeekStandings(poolId, week, seasonType)
+        : await fetchWeekLeaderboard(poolId, week, seasonType, season);
       setStandings(rows);
       const existing = await getPayoutRecords(poolId, 'weekly', season, week);
       setRecords(Object.fromEntries(existing.map(r => [`${r.place}`, { id: r.id, paid: r.paid }])));
     } finally {
       setIsCalculating(false);
     }
-  }, [poolId, week, seasonType, season]);
+  }, [poolId, week, seasonType, season, isPickem]);
 
   const results = useMemo(() => {
     if (!standings) return [];
@@ -283,10 +314,10 @@ function WeeklyCalculator({
 }
 
 function OverallCalculator({
-  poolId, season, config, totalPool, defaultSeasonType, requestedBy, toast,
+  poolId, season, config, totalPool, defaultSeasonType, requestedBy, toast, isPickem,
 }: {
   poolId: string; season: number; config: PayoutConfig; totalPool: number; defaultSeasonType: number;
-  requestedBy: string; toast: ReturnType<typeof useToast>['toast'];
+  requestedBy: string; toast: ReturnType<typeof useToast>['toast']; isPickem?: boolean;
 }) {
   const [standings, setStandings] = useState<StandingEntry[] | null>(null);
   const [records, setRecords] = useState<Record<string, { id: string; paid: boolean }>>({});
@@ -299,7 +330,9 @@ function OverallCalculator({
   const runCalculation = useCallback(async () => {
     setIsCalculating(true);
     try {
-      const rows = await fetchSeasonLeaderboard(poolId, season, SEASON_TYPE_WEEKS[defaultSeasonType] ?? 18, defaultSeasonType);
+      const rows = isPickem
+        ? await fetchPickemSeasonStandings(poolId)
+        : await fetchSeasonLeaderboard(poolId, season, SEASON_TYPE_WEEKS[defaultSeasonType] ?? 18, defaultSeasonType);
       setStandings(rows);
       const existing = await getPayoutRecords(poolId, 'overall', season);
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
@@ -311,7 +344,7 @@ function OverallCalculator({
     } finally {
       setIsCalculating(false);
     }
-  }, [poolId, season, defaultSeasonType, config.weeklyEnabled, weeksPaid]);
+  }, [poolId, season, defaultSeasonType, config.weeklyEnabled, weeksPaid, isPickem]);
 
   const results = useMemo(() => {
     if (!standings) return [];

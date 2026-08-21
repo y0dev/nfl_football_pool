@@ -57,10 +57,17 @@ export default {
     }
 
     try {
+      // Confidence-only: this function reads picks/scores/tie_breakers,
+      // which Survivor and Pick'em pools never populate (they each have
+      // their own authoritative service — src/lib/survivor.ts and
+      // src/lib/pickem.ts — computed live, not via this cron). Without this
+      // filter every active Survivor/Pick'em pool would silently get a
+      // bogus "weekly winner" computed from empty Confidence tables.
       const { data: pools, error: poolsError } = await supabase
         .from('pools')
         .select('id, name, season, pool_type, tie_breaker_question, tie_breaker_answer')
         .eq('is_active', true)
+        .in('competition_type', ['NFL_CONFIDENCE', 'NCAA_CONFIDENCE'])
 
       if (poolsError) throw poolsError
 

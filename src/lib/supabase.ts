@@ -593,6 +593,146 @@ type Database = {
           created_at?: string
         }
       }
+      survivor_picks: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          game_id?: string
+          season?: number
+          season_type?: number
+          week?: number
+          selected_team?: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+      }
+      survivor_winners: {
+        Row: {
+          id: string
+          pool_id: string
+          season: number
+          winner_participant_ids: string[]
+          resolution: string
+          determined_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          season: number
+          winner_participant_ids: string[]
+          resolution: string
+          determined_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          season?: number
+          winner_participant_ids?: string[]
+          resolution?: string
+          determined_at?: string
+        }
+      }
+      pickem_picks: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          selected_team: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          game_id?: string
+          season?: number
+          season_type?: number
+          week?: number
+          selected_team?: string
+          submitted_by?: string | null
+          created_at?: string
+        }
+      }
+      pickem_tiebreakers: {
+        Row: {
+          id: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          predicted_total: number
+          submitted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          pool_id: string
+          game_id: string
+          season: number
+          season_type: number
+          week: number
+          predicted_total: number
+          submitted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          pool_id?: string
+          game_id?: string
+          season?: number
+          season_type?: number
+          week?: number
+          predicted_total?: number
+          submitted_by?: string | null
+          created_at?: string
+        }
+      }
       scores: {
         Row: {
           id: string
