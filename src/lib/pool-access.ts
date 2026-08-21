@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { getSupabaseServiceClient } from './supabase-service';
+import { findAccountByEmail } from './accounts';
 
 // Private-pool password protection. `pools.is_private` gates *discoverability*
 // (search results) and the legacy `pools.join_password` only ever gated the
@@ -176,11 +177,36 @@ export async function checkPoolAccess(poolId: string, cookieValue: string | unde
   return evaluatePoolAccess(pool, cookieValue);
 }
 
+/** True if the given email is either an active super admin, or an active
+ * commissioner who owns this pool — lets the trusted commissioner/admin
+ * dashboard (already behind its own AdminGuard login) bypass the private-
+ * pool password gate below, which exists for anonymous participant-facing
+ * traffic (the Picks page and friends), not the pool's own operator. */
+async function isAdminForPool(poolId: string, adminEmail: string): Promise<boolean> {
+  const account = await findAccountByEmail(adminEmail, { activeOnly: true });
+  if (!account) return false;
+  if (account.role === 'super_admin') return true;
+  const supabase = getSupabaseServiceClient();
+  const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+  return !!pool && pool.created_by === adminEmail;
+}
+
 /** Same as checkPoolAccess, reading the pool-specific cookie straight off a
  * Route Handler's NextRequest — the shared check every private-pool-data
  * API route uses as defense-in-depth behind the proxy.ts page gate (a
- * direct API call bypasses page middleware navigation but not this). */
+ * direct API call bypasses page middleware navigation but not this).
+ *
+ * Also accepts the standard x-admin-email header (see requireSuperAdmin in
+ * src/lib/accounts.ts for the same pattern elsewhere) as an alternative to
+ * the password cookie: the commissioner/admin dashboard reads this same
+ * pool data for a private pool without ever having gone through the
+ * participant password flow, and shouldn't be asked to. */
 export async function checkPoolAccessFromRequest(poolId: string, request: NextRequest): Promise<PoolAccessResult> {
+  const adminEmail = request.headers.get('x-admin-email');
+  if (adminEmail && await isAdminForPool(poolId, adminEmail)) {
+    const pool = await loadPoolAccessRow(poolId);
+    if (pool) return { allowed: true, pool };
+  }
   return checkPoolAccess(poolId, request.cookies.get(poolAccessCookieName(poolId))?.value);
 }
 

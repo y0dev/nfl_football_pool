@@ -55,6 +55,21 @@ interface PoolWorkspaceProps {
   initialTab?: PoolTab;
 }
 
+/** This component has no AuthProvider guarantee in every context it's
+ * rendered from — read the session record directly, same pattern the
+ * Survivor/Pick'em reminder handlers below already use, rather than a
+ * React auth context that doesn't exist here. Used to send x-admin-email
+ * on requests to private-pool-gated endpoints so the commissioner/admin
+ * dashboard (already behind its own AdminGuard login) isn't asked to
+ * satisfy the *participant* password gate too — see isAdminForPool in
+ * src/lib/pool-access.ts. */
+function getStoredAdminEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  const storedUser = localStorage.getItem('nfl-pool-user');
+  const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+  return localUser?.email ?? null;
+}
+
 export function PoolWorkspace({
   poolId, poolName, season, seasonScope, currentWeek, currentSeasonType,
   showExportTab = true, isActive, onPoolDeleted, initialTab,
@@ -90,9 +105,17 @@ export function PoolWorkspace({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/pools/${poolId}`);
+        const adminEmail = getStoredAdminEmail();
+        const res = await fetch(`/api/pools/${poolId}`, {
+          headers: adminEmail ? { 'x-admin-email': adminEmail } : undefined,
+        });
         const data = await res.json();
-        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+        // data.pool is only absent on a genuine failure (private pool
+        // access denied, not found, etc.) — silently defaulting to
+        // NFL_CONFIDENCE here previously masked that failure entirely
+        // instead of surfacing it the way loadStats() below does.
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
+        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? 'NFL_CONFIDENCE');
       } catch (error) {
         debugError('Error loading pool competition type:', error);
         if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
@@ -138,7 +161,10 @@ export function PoolWorkspace({
       // has moved into playoffs).
       const { getLatestWeekForSeason } = await import('@/actions/loadCurrentWeek');
       const latestRegular = await getLatestWeekForSeason(season, poolId, 2);
-      const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`);
+      const adminEmail = getStoredAdminEmail();
+      const seasonRes = await fetch(`/api/leaderboard/season?poolId=${poolId}&season=${season}&currentWeek=${latestRegular.week}&currentSeasonType=2`, {
+        headers: adminEmail ? { 'x-admin-email': adminEmail } : undefined,
+      });
       const seasonData = await seasonRes.json();
       if (isStale()) return;
 
@@ -162,6 +188,14 @@ export function PoolWorkspace({
     } catch (error) {
       if (isStale()) return;
       debugError('Error loading pool workspace stats:', error);
+      // Reset everything this function owns, not just the leaderboard —
+      // otherwise a failed fetch for THIS pool leaves the previous pool's
+      // participants/missing-picks/stats sitting on screen looking like
+      // they belong to the one just switched to.
+      setWeekGamesCount(0);
+      setSelectedPoolStats({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
+      setMissingParticipants([]);
+      setPickWindowOpened(null);
       setLeaderboardStatus('error');
       setPoolLeader(null);
       setLeaderboardEntries([]);

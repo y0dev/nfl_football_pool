@@ -24,6 +24,22 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 interface PoolInfo { id: string; name: string; season: number; }
 
+/** This hook has no AuthProvider guarantee in every context it's used from
+ * (the standalone standings page is participant-facing) — read the session
+ * record directly rather than a React auth context that doesn't exist here.
+ * Sent as x-admin-email so the embedded admin-panel use of this hook isn't
+ * asked to satisfy the *participant* password gate on a private pool it
+ * already has commissioner/admin access to (see isAdminForPool in
+ * src/lib/pool-access.ts) — harmless no-op for the public standings page,
+ * where no stored session (or a non-admin one) just falls through to the
+ * normal cookie check. */
+function getStoredAdminEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  const storedUser = localStorage.getItem('nfl-pool-user');
+  const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+  return localUser?.email ?? null;
+}
+
 /** Fetches and holds Survivor pool state — shared by both the standalone
  * standings page and the embedded panel used inside pool management's
  * Leaderboard tab, so there's exactly one fetch/loading implementation. */
@@ -34,9 +50,11 @@ function useSurvivorLeaderboardData(poolId: string) {
 
   const loadData = useCallback(async () => {
     try {
+      const adminEmail = getStoredAdminEmail();
+      const adminHeaders = adminEmail ? { 'x-admin-email': adminEmail } : undefined;
       const [poolRes, stateRes] = await Promise.all([
-        fetch(`/api/pools/${poolId}`),
-        fetch(`/api/survivor/state?poolId=${poolId}`),
+        fetch(`/api/pools/${poolId}`, { headers: adminHeaders }),
+        fetch(`/api/survivor/state?poolId=${poolId}`, { headers: adminHeaders }),
       ]);
       const poolData = await poolRes.json();
       const stateData = await stateRes.json();
