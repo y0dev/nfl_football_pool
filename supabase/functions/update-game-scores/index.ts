@@ -8,7 +8,7 @@ import { tryAcquireLock, releaseLock } from '../_shared/cron-lock.ts'
 
 const JOB_NAME = 'update-game-scores'
 
-const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl'
+const ESPN_BASE = 'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl'
 
 // Structured, single-line, secret-free logs — every field here is either an
 // id, a count, or a duration, never a key/token/credential.
@@ -138,10 +138,7 @@ async function fetchScoreboardEvents(start: string, end: string): Promise<any[]>
   // full browser UA both get blocked) but passes an honest, unmodified
   // runtime default (Deno/*, curl/*). Don't "fix" this by adding one back.
   const response = await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    },
+    headers: { 'Accept': 'application/json' },
   })
   if (!response.ok) {
     throw new Error(`ESPN API request failed: ${response.status} ${response.statusText}`)
