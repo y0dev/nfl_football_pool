@@ -206,7 +206,7 @@ class NFLAPIService {
   private readonly TARGET_TZ = 'America/Chicago';
 
   constructor() {
-    this.baseUrl = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
+    this.baseUrl = 'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl';
     debugInfo("ESPN API Base URL:", this.baseUrl);
   }
 
