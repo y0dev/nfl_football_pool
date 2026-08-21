@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, FileSpreadsheet, Calendar, Trophy, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +27,10 @@ interface ExportDataProps {
   poolName: string;
   currentWeek?: number;
   currentSeason?: number;
+  /** Bump this (e.g. a counter incremented on pool create/delete) to refetch
+   * the system-wide pool list — it otherwise only loads once on mount, since
+   * poolId stays the literal "system-wide" and never changes on its own. */
+  refreshKey?: number;
 }
 
 const labelStyle = {
@@ -50,7 +54,7 @@ const seasonInputStyle = {
   appearance: 'auto' as const,
 };
 
-export function ExportData({ poolId, currentWeek = 1, currentSeason = new Date().getFullYear() }: ExportDataProps) {
+export function ExportData({ poolId, currentWeek = 1, currentSeason = new Date().getFullYear(), refreshKey }: ExportDataProps) {
   const [isExportingWeekly, setIsExportingWeekly] = useState(false);
   const [isExportingPeriod, setIsExportingPeriod] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(currentWeek.toString());
@@ -65,7 +69,14 @@ export function ExportData({ poolId, currentWeek = 1, currentSeason = new Date()
 
   const isSystemWide = poolId === 'system-wide';
 
+  // Guards against out-of-order responses when refreshKey bumps in quick
+  // succession (e.g. creating then immediately deleting a pool) — without
+  // it, a slow earlier response could resolve after a newer one and
+  // silently overwrite the refreshed list with the stale one.
+  const poolsRequestRef = useRef(0);
+
   const loadPools = useCallback(async () => {
+    const requestId = ++poolsRequestRef.current;
     setIsLoadingPools(true);
     try {
       const res = await fetch('/api/admin/all-pools', {
@@ -73,20 +84,26 @@ export function ExportData({ poolId, currentWeek = 1, currentSeason = new Date()
       });
       if (!res.ok) throw new Error('Failed to load pools');
       const data = await res.json();
+      if (requestId !== poolsRequestRef.current) return;
       const poolsData = data.pools || [];
       setPools(poolsData);
       if (poolsData.length > 0) setSelectedPoolId(poolsData[0].id);
     } catch (error) {
+      if (requestId !== poolsRequestRef.current) return;
       debugError('Error loading pools:', error);
       toast({ title: 'Error', description: 'Failed to load pools', variant: 'destructive' });
     } finally {
-      setIsLoadingPools(false);
+      if (requestId === poolsRequestRef.current) setIsLoadingPools(false);
     }
   }, [user?.email, toast]);
 
   useEffect(() => {
     if (isSystemWide && user?.email) loadPools();
-  }, [isSystemWide, user?.email, loadPools]);
+    // refreshKey isn't read inside loadPools — it's purely a trigger so the
+    // parent can force a refetch (e.g. after creating/deleting a pool)
+    // without poolId ever changing, since it's always the literal
+    // "system-wide" for this card.
+  }, [isSystemWide, user?.email, loadPools, refreshKey]);
 
   const handleExportWeeklyPicks = async () => {
     if (!selectedPoolId || selectedPoolId === 'system-wide') {
