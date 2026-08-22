@@ -334,9 +334,13 @@ function LeaderboardRouter() {
       try {
         const res = await fetch(`/api/pools/${poolId}`);
         const data = await res.json();
-        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
+        // No silent Confidence fallback — a genuine fetch failure (private
+        // pool access denied, pool not found) should surface as "unable to
+        // load," never render whichever pool-type UI happens to be default.
+        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? null);
       } catch {
-        if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
+        if (!cancelled) setCompetitionType(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -345,10 +349,23 @@ function LeaderboardRouter() {
     return () => { cancelled = true; };
   }, [poolId]);
 
-  if (loading || !competitionType) return leaderboardLoadingFallback;
+  if (loading) return leaderboardLoadingFallback;
   if (competitionType === 'SURVIVOR') return <SurvivorLeaderboard />;
   if (competitionType === 'PICKEM') return <PickemLeaderboard />;
-  return <PoolLeaderboardContent />;
+  if (competitionType === 'NFL_CONFIDENCE') return <PoolLeaderboardContent />;
+
+  // Every explicitly-handled type is listed above — reaching here means
+  // either the fetch failed (competitionType null) or the pool is a type
+  // with no Leaderboard UI built yet (NCAA_CONFIDENCE, MARCH_MADNESS).
+  return (
+    <div style={{ minHeight: '100vh', background: 'oklch(13% 0.025 255)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>
+          {competitionType ? "This pool's type isn't supported yet." : "Couldn't load this pool. Try again."}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function PoolLeaderboardPage() {

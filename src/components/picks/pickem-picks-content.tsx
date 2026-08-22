@@ -9,7 +9,7 @@ import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { isGameLocked } from '@/lib/pickem-settings';
-import { getTeam, getTeamAbbreviation, debugError } from '@/lib/utils';
+import { getTeam, getTeamAbbreviation, debugError, showDebugPanel } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
 
@@ -445,6 +445,47 @@ export function PickemPicksContent() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {showDebugPanel() && (
+        <section style={{ background: bg, padding: '0 0 2rem' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
+              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.6rem' }}>
+                <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {week} | <strong>Season Type:</strong> {seasonType} | <strong>Games:</strong> {result?.eligibleGames.length ?? 0}</p>
+                <p><strong>Selected Participant:</strong> {myWeek ? `${myWeek.participantName} (${myWeek.participantId})` : 'None'} | <strong>Complete:</strong> {myWeek ? (myWeek.isComplete ? 'Yes' : 'No') : 'N/A'} | <strong>Pick&apos;em Score:</strong> {myWeek ? `${myWeek.correctCount}/${result?.eligibleGames.length ?? 0}` : 'N/A'}</p>
+              </div>
+              {myWeek && result && result.eligibleGames.length > 0 && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
+                        {['Game', 'Selected Team', 'Locked?', 'Result'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.eligibleGames.map(game => {
+                        const pick = myWeek.picks.find(p => p.gameId === game.id);
+                        const locked = isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
+                        return (
+                          <tr key={game.id} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game.awayTeam} @ {game.homeTeam}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.selectedTeam || 'None'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{locked ? 'Yes' : 'No'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.result ?? 'pending'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       )}

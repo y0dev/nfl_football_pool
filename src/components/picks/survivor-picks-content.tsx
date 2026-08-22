@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
-import { getTeam, getTeamAbbreviation, debugError } from '@/lib/utils';
+import { getTeam, getTeamAbbreviation, debugError, showDebugPanel } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
 
@@ -381,6 +381,49 @@ export function SurvivorPicksContent() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {showDebugPanel() && (
+        <section style={{ background: bg, padding: '0 0 2rem' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
+              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.6rem' }}>
+                <p><strong>Pool ID:</strong> {poolId} | <strong>Current Week:</strong> {state?.currentWeek ? `${state.currentWeek.week} (season_type ${state.currentWeek.seasonType})` : 'Season complete'} | <strong>Week Unlocked:</strong> {weekUnlocked ? 'Yes' : 'No'}</p>
+                <p><strong>Selected Participant:</strong> {myState ? `${myState.participantName} (${myState.participantId})` : 'None'} | <strong>Status:</strong> {myState?.status ?? 'N/A'}</p>
+                <p><strong>Used Teams:</strong> {myState && myUsedTeams.size > 0 ? [...myUsedTeams].join(', ') : 'None'}</p>
+              </div>
+              {myState && myState.picks.length > 0 && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
+                        {['Week', 'Selected Team', 'Game', 'Locked?', 'Result'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myState.picks.map(pick => {
+                        const isCurrentWeek = state?.currentWeek?.week === pick.week && state?.currentWeek?.seasonType === pick.seasonType;
+                        const game = isCurrentWeek ? currentWeekGames.find(g => g.id === pick.gameId) : undefined;
+                        return (
+                          <tr key={`${pick.seasonType}-${pick.week}`} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.week}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.selectedTeam}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game ? `${game.awayTeam} @ ${game.homeTeam}` : `Week ${pick.week}`}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{isCurrentWeek && weekUnlocked ? 'No' : 'Yes'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.result}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       )}
