@@ -142,12 +142,16 @@ export function PickemPicksContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
-  const [submittingGameId, setSubmittingGameId] = useState<string | null>(null);
   const [tiebreakerInput, setTiebreakerInput] = useState('');
   const [submittingTiebreaker, setSubmittingTiebreaker] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  // Local-only draft state, mirroring Confidence's WeeklyPick — picks are
+  // selected here first and only written to the DB when "Submit Picks" is
+  // pressed, instead of the previous per-click auto-save-per-game model.
+  const [draftPicks, setDraftPicks] = useState<Record<string, string>>({});
+  const [submittingAll, setSubmittingAll] = useState(false);
 
   // Resolve which week to show: explicit ?week=/?seasonType= params, else
   // the same "what's the NFL's current/upcoming week" logic every other
@@ -337,29 +341,76 @@ export function PickemPicksContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myWeek?.participantId, myWeek?.tiebreakerPrediction]);
 
-  const handlePick = async (gameId: string, team: string) => {
+  // Seeds the local draft from this participant's already-saved picks
+  // whenever the selected participant changes (or data first loads) — not
+  // on every refetch, so a mid-review "Submit Picks" refetch doesn't stomp
+  // picks the user just changed but hasn't resubmitted yet. Same dependency
+  // pattern as the tiebreaker-input effect above.
+  useEffect(() => {
+    if (!myWeek) { setDraftPicks({}); return; }
+    const seeded: Record<string, string> = {};
+    for (const pick of myWeek.picks) {
+      if (pick.selectedTeam) seeded[pick.gameId] = pick.selectedTeam;
+    }
+    setDraftPicks(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myWeek?.participantId]);
+
+  const handleSelectTeam = (gameId: string, team: string) => {
     if (!selectedParticipantId) {
       toast({ title: 'Select yourself first', description: 'Choose your name before picking a team.', variant: 'destructive' });
       return;
     }
-    setSubmittingGameId(gameId);
+    setDraftPicks(prev => ({ ...prev, [gameId]: team }));
+  };
+
+  // Every currently-editable (not yet locked) game a participant must pick
+  // this week — locked games are excluded since they're neither shown as a
+  // pickable control nor part of what gets submitted, same as Confidence's
+  // week-wide submit only ever covering games that are still open.
+  const editableGames = (result?.eligibleGames ?? []).filter(
+    game => !isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now)
+  );
+  const allEditablePicked = editableGames.length > 0 && editableGames.every(g => !!draftPicks[g.id]);
+
+  // Single "Submit Picks" action, matching Confidence's WeeklyPick model —
+  // picks are only written to the DB here, not on every team click. Each
+  // pick still POSTs individually (Pick'em's own /api/pickem/submit route is
+  // deliberately per-game, since games lock independently — see that
+  // route's header comment), but from the user's perspective there is one
+  // button, one validate → submit → save → refetch → success flow.
+  const handleSubmitPicks = async () => {
+    if (!selectedParticipantId) {
+      toast({ title: 'Select yourself first', description: 'Choose your name before submitting picks.', variant: 'destructive' });
+      return;
+    }
+    if (!allEditablePicked) {
+      toast({ title: 'Incomplete Picks', description: 'Please make a pick for all games before submitting.', variant: 'destructive' });
+      return;
+    }
+    setSubmittingAll(true);
     try {
-      const res = await fetch('/api/pickem/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId, selectedTeam: team }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await loadData();
+      const responses = await Promise.all(
+        editableGames.map(game =>
+          fetch('/api/pickem/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: game.id, selectedTeam: draftPicks[game.id] }),
+          }).then(res => res.json())
+        )
+      );
+      const failed = responses.find(r => !r.success);
+      if (failed) {
+        toast({ title: 'Some Picks Rejected', description: failed.error ?? 'One or more picks could not be saved.', variant: 'destructive' });
       } else {
-        toast({ title: 'Pick Rejected', description: data.error, variant: 'destructive' });
+        toast({ title: 'Picks Submitted', description: 'Your picks have been saved.' });
       }
+      await loadData();
     } catch (error) {
-      debugError("Error submitting Pick'em pick:", error);
-      toast({ title: 'Error', description: 'Failed to submit pick. Please try again.', variant: 'destructive' });
+      debugError("Error submitting Pick'em picks:", error);
+      toast({ title: 'Error', description: 'Failed to submit picks. Please try again.', variant: 'destructive' });
     } finally {
-      setSubmittingGameId(null);
+      setSubmittingAll(false);
     }
   };
 
@@ -545,7 +596,7 @@ export function PickemPicksContent() {
       {myWeek && result && (
         <section style={{ background: bg, padding: '2rem 0' }}>
           <div className="lp-inner" style={{ maxWidth: 640 }}>
-            {!myWeek.isComplete && (
+            {!allEditablePicked && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: `${amber}14`, border: `1px solid ${amber}44`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
                 <Target style={{ width: 18, height: 18, color: amber, flexShrink: 0 }} />
                 <p style={{ ...b, fontSize: '0.85rem', color: amber }}>Please make a pick for all games.</p>
@@ -568,8 +619,11 @@ export function PickemPicksContent() {
                   return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} />;
                 }
 
-                const selectedTeam = pickForGame?.selectedTeam || null;
-                const isSubmittingThis = submittingGameId === game.id;
+                // Draft state (not the last-saved pick) drives what's shown
+                // as selected — the user should see their in-progress choice
+                // immediately, without waiting on a round trip, matching
+                // Confidence's WeeklyPick local-state-until-Submit model.
+                const selectedTeam = draftPicks[game.id] ?? null;
                 // Same team-logo + city/mascot presentation as Confidence's
                 // GameCard and Pick'em's own LockedPickemGameRow — the open
                 // (pickable) state shouldn't look like a visually unrelated
@@ -588,14 +642,14 @@ export function PickemPicksContent() {
                       ].map(({ team, fullName }) => {
                         if (!team) return null;
                         const picked = selectedTeam === team;
-                        const disabled = submittingGameId != null;
+                        const disabled = submittingAll;
                         const teamInfo = getTeam(getTeamAbbreviation(fullName));
                         return (
                           <button
                             key={team}
                             type="button"
                             disabled={disabled}
-                            onClick={() => handlePick(game.id, team)}
+                            onClick={() => handleSelectTeam(game.id, team)}
                             style={{
                               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem',
                               padding: '0.75rem 0.5rem', borderRadius: 8,
@@ -610,7 +664,7 @@ export function PickemPicksContent() {
                             </span>
                             {picked && (
                               <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
-                                <CheckCircle2 style={{ width: 11, height: 11 }} /> {isSubmittingThis ? 'Saving…' : 'Selected'}
+                                <CheckCircle2 style={{ width: 11, height: 11 }} /> Selected
                               </span>
                             )}
                           </button>
@@ -621,6 +675,24 @@ export function PickemPicksContent() {
                 );
               })}
             </div>
+
+            {editableGames.length > 0 && (
+              <button
+                type="button"
+                onClick={handleSubmitPicks}
+                disabled={submittingAll || !allEditablePicked}
+                style={{
+                  width: '100%', padding: '0.85rem 1rem', marginBottom: tiebreakerGame ? '1.5rem' : 0,
+                  background: submittingAll || !allEditablePicked ? border : green,
+                  color: submittingAll || !allEditablePicked ? textDim : text,
+                  border: 'none', borderRadius: 8,
+                  cursor: submittingAll || !allEditablePicked ? 'not-allowed' : 'pointer',
+                  ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                }}
+              >
+                {submittingAll ? 'Submitting…' : 'Submit Picks'}
+              </button>
+            )}
 
             {tiebreakerGame && (
               <div style={{ background: card, border: `1px solid ${gold}44`, borderRadius: 8, padding: '1.25rem' }}>

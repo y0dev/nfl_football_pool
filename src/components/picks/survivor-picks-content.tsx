@@ -146,7 +146,10 @@ export function SurvivorPicksContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  // Local-only draft selection, mirroring Confidence's WeeklyPick and
+  // Pick'em's own draftPicks — selecting a team no longer submits
+  // immediately; a separate "Submit Pick" action writes it to the DB.
+  const [draftPick, setDraftPick] = useState<{ gameId: string; team: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
@@ -271,22 +274,38 @@ export function SurvivorPicksContent() {
   const myUsedTeams = new Set(myState?.usedTeams ?? []);
   const myCurrentWeekPick = myState?.picks.find(p => state?.currentWeek && p.week === state.currentWeek.week && p.seasonType === state.currentWeek.seasonType);
 
-  const handleSubmit = async (gameId: string, team: string) => {
+  // Seeds the local draft from this participant's already-saved current-week
+  // pick whenever the selected participant changes — not on every refetch,
+  // same pattern as Pick'em's draftPicks-seeding effect.
+  useEffect(() => {
+    if (myCurrentWeekPick) setDraftPick({ gameId: myCurrentWeekPick.gameId, team: myCurrentWeekPick.selectedTeam });
+    else setDraftPick(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myState?.participantId]);
+
+  const handleSelectTeam = (gameId: string, team: string) => {
     if (!selectedParticipantId) {
       toast({ title: 'Select yourself first', description: 'Choose your name before picking a team.', variant: 'destructive' });
       return;
     }
+    setDraftPick({ gameId, team });
+  };
+
+  // Single "Submit Pick" action, matching Confidence's WeeklyPick /
+  // Pick'em's Submit Picks model — the pick is only written to the DB here,
+  // not on every team click.
+  const handleSubmitPick = async () => {
+    if (!selectedParticipantId || !draftPick) return;
     setSubmitting(true);
-    setSelectedTeam(team);
     try {
       const res = await fetch('/api/survivor/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId, selectedTeam: team }),
+        body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: draftPick.gameId, selectedTeam: draftPick.team }),
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Pick Submitted', description: `You picked ${team} for Week ${state?.currentWeek?.week}.` });
+        toast({ title: 'Pick Submitted', description: `You picked ${draftPick.team} for Week ${state?.currentWeek?.week}.` });
         await loadData();
       } else {
         toast({ title: 'Pick Rejected', description: data.error, variant: 'destructive' });
@@ -296,7 +315,6 @@ export function SurvivorPicksContent() {
       toast({ title: 'Error', description: 'Failed to submit pick. Please try again.', variant: 'destructive' });
     } finally {
       setSubmitting(false);
-      setSelectedTeam(null);
     }
   };
 
@@ -521,16 +539,21 @@ export function SurvivorPicksContent() {
                             { team: game.homeTeamId, fullName: game.homeTeam },
                           ].map(({ team, fullName }) => {
                             if (!team) return null;
-                            const used = myUsedTeams.has(team) && myCurrentWeekPick?.selectedTeam !== team;
-                            const picked = myCurrentWeekPick?.selectedTeam === team;
-                            const isSubmittingThis = submitting && selectedTeam === team;
+                            // Draft state (not the last-saved pick) drives what's
+                            // shown as selected/used — a currently-drafted team
+                            // shouldn't show as "used" just because it matches
+                            // the not-yet-overwritten saved pick, same
+                            // immediate-feedback model as Pick'em's draftPicks.
+                            const isDraftedHere = draftPick?.gameId === game.id && draftPick?.team === team;
+                            const used = myUsedTeams.has(team) && !isDraftedHere;
+                            const picked = isDraftedHere;
                             const teamInfo = getTeam(getTeamAbbreviation(fullName));
                             return (
                               <button
                                 key={team}
                                 type="button"
                                 disabled={used || submitting}
-                                onClick={() => handleSubmit(game.id, team)}
+                                onClick={() => handleSelectTeam(game.id, team)}
                                 style={{
                                   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem',
                                   padding: '0.75rem 0.5rem', borderRadius: 8,
@@ -546,7 +569,7 @@ export function SurvivorPicksContent() {
                                 </span>
                                 {picked && (
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
-                                    <CheckCircle2 style={{ width: 11, height: 11 }} /> {isSubmittingThis ? 'Saving…' : 'Selected'}
+                                    <CheckCircle2 style={{ width: 11, height: 11 }} /> Selected
                                   </span>
                                 )}
                                 {used && (
@@ -558,6 +581,22 @@ export function SurvivorPicksContent() {
                         </div>
                       </div>
                     ))}
+
+                    <button
+                      type="button"
+                      onClick={handleSubmitPick}
+                      disabled={submitting || !draftPick}
+                      style={{
+                        width: '100%', padding: '0.85rem 1rem',
+                        background: submitting || !draftPick ? border : green,
+                        color: submitting || !draftPick ? textDim : text,
+                        border: 'none', borderRadius: 8,
+                        cursor: submitting || !draftPick ? 'not-allowed' : 'pointer',
+                        ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                      }}
+                    >
+                      {submitting ? 'Submitting…' : 'Submit Pick'}
+                    </button>
                   </div>
                 )}
               </div>
