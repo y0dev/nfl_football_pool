@@ -222,6 +222,17 @@ export function getNFLSeasonYear(): number {
 // Pool Configuration
 export const DEFAULT_POOL_SEASON = getNFLSeasonYear();
 
+/**
+ * How far past the current NFL season a `season` value can be before it's
+ * almost certainly test/bogus data rather than a real future season —
+ * pools/games are never legitimately created more than one season ahead.
+ * Used to flag suspicious entries in admin views (game inventory, pool
+ * lists) instead of silently trusting an arbitrary season number.
+ */
+export function isSuspiciousFutureSeason(season: number): boolean {
+  return season >= getNFLSeasonYear() + 2;
+}
+
 // Preseason is a testing scope only (see PRESEASON_LIMITS in src/lib/plan.ts)
 // — it's deliberately excluded from "Full Season", which covers the real
 // competition: regular season through the playoffs.

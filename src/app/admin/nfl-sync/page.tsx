@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { debugLog, debugError, DEFAULT_POOL_SEASON } from '@/lib/utils';
+import { debugLog, debugError, DEFAULT_POOL_SEASON, isSuspiciousFutureSeason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { ESPN_SCOREBOARD_BASE_URL, getWeekRangeContaining, getDayContaining, type ESPNScoreboardEvent } from '@/lib/espn-scoreboard';
@@ -550,9 +550,23 @@ function NFLSyncContent() {
                     const bySeasonType: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
                     for (const r of gameCounts) if (r.season === season) bySeasonType[r.seasonType] = r.count;
                     const total = bySeasonType[1] + bySeasonType[2] + bySeasonType[3];
+                    // Real seasons are never created more than one year
+                    // ahead — a season this far out is almost certainly
+                    // leftover test/bogus data, not a genuine future season.
+                    const suspicious = isSuspiciousFutureSeason(season);
                     return (
-                      <tr key={season}>
-                        <td style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{season}</td>
+                      <tr key={season} style={suspicious ? { background: 'oklch(62% 0.22 25 / 0.06)' } : undefined}>
+                        <td style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: suspicious ? liveRed : text, padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}`, borderLeft: suspicious ? `3px solid ${liveRed}` : undefined }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                            {suspicious && <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0 }} />}
+                            {season}
+                          </span>
+                          {suspicious && (
+                            <div style={{ ...b, fontWeight: 400, fontSize: '0.68rem', color: liveRed, marginTop: '0.15rem' }}>
+                              More than 1 year ahead — likely test data
+                            </div>
+                          )}
+                        </td>
                         <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[1]}</td>
                         <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[2]}</td>
                         <td style={{ ...b, fontSize: '0.85rem', color: textMid, textAlign: 'right', padding: '0.75rem 1.25rem', borderBottom: `1px solid ${border}` }}>{bySeasonType[3]}</td>
