@@ -148,7 +148,6 @@ export function PoolPicksContent() {
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
   const [devSimSubmitted, setDevSimSubmitted] = useState(false);
-  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
   const [activeResultsTab, setActiveResultsTab] = useState<'leaderboard' | 'results'>('leaderboard');
 
   // This component only ever mounts for NFL_CONFIDENCE pools — the router in
@@ -162,8 +161,11 @@ export function PoolPicksContent() {
 
   // Debug-panel-only override: treat the selected user as submitted without
   // touching the database, so the locked/submitted view can be screenshotted.
+  // forceWeekUnlocked doubles as the already-submitted bypass — there's no
+  // separate "unlock to make picks" toggle, since forcing the week unlocked
+  // already means every gate on picking should lift.
   const isSubmittedForUser = (userId: string) => {
-    if (showDebugPanel() && devUnlockToMakePicks && selectedUser?.id === userId) return false;
+    if (showDebugPanel() && forceWeekUnlocked && selectedUser?.id === userId) return false;
     if (showDebugPanel() && devSimSubmitted && selectedUser?.id === userId) return true;
     return !!hasSubmitted[userId]?.submitted;
   };
@@ -1607,7 +1609,6 @@ export function PoolPicksContent() {
             devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
             devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
             devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
-            devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
           />
 
           {showResultsTabs && (

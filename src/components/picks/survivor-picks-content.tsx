@@ -168,7 +168,6 @@ export function SurvivorPicksContent() {
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
   const [devSimSubmitted, setDevSimSubmitted] = useState(false);
-  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
 
   // This component only ever mounts for SURVIVOR pools — the router in
   // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
@@ -181,20 +180,16 @@ export function SurvivorPicksContent() {
   // computed server-side by computeSurvivorPoolState (src/lib/survivor.ts)
   // from the actual survivor_picks table and refetched by loadData() on
   // every load and after every submit, so it can't go stale across a
-  // reload or a participant switch. Unlike Confidence/Pick'em, Survivor has
-  // no "one submission then admin must unlock" rule — submitSurvivorPick
-  // (src/lib/survivor.ts) deliberately deletes-then-reinserts to support
-  // changing an unlocked week's pick freely, and explicitly documents the
-  // decision not to add Survivor-specific unlock behavior. So this is
-  // informational only here (drives the debug panel's "Has Submitted" field
-  // and an in-form "you already have a pick" notice) — it never disables
-  // the pick buttons or the Submit button; the real, only gate on changing
-  // a pick is weekUnlocked below, exactly as it already was. devSimSubmitted
-  // /devUnlockToMakePicks are debug-panel-only overrides for this same
-  // informational value, matching Confidence's pattern, never touching the
-  // database.
+  // reload or a participant switch. This is the UI-level one-pick lock: once
+  // a participant has a saved pick for the current week, the pick buttons
+  // are replaced with a locked row (same as Pick'em). Note submitSurvivorPick
+  // (src/lib/survivor.ts) itself still allows a delete-then-reinsert change
+  // server-side up until the week actually locks — that path stays available
+  // for admin tooling / direct API use, only the normal picking UI is gated
+  // here. forceWeekUnlocked doubles as the bypass, same as Confidence/Pick'em
+  // — there's no separate "unlock to make picks" toggle.
   const isParticipantSubmitted = (participantId: string) => {
-    if (showDebugPanel() && devUnlockToMakePicks && participantId === selectedParticipantId) return false;
+    if (showDebugPanel() && forceWeekUnlocked && participantId === selectedParticipantId) return false;
     if (showDebugPanel() && devSimSubmitted && participantId === selectedParticipantId) return true;
     if (!state?.currentWeek) return false;
     const cw = state.currentWeek;
@@ -474,14 +469,15 @@ export function SurvivorPicksContent() {
   // games, same real data gamesForLock/gamesStartedNow above already use.
   const weekEnded = currentWeekGames.length > 0 && currentWeekGames.every(g => normalizeGameStatus(g.status) === 'finished');
   const weekHasPicks = activeWithPick > 0;
-  // Same "auto-show once everyone eligible has picked" gate as Confidence's
-  // showResultsTabs: season complete, OR the dev-only force override, OR
-  // this week's games have started and every ACTIVE participant's real (DB)
-  // pick is in. devForceLeaderboard is a separate dev-only override, never
-  // required for correct production behavior.
+  // Auto-show once every ACTIVE participant's real (DB) pick is in: season
+  // complete, OR the dev-only force override, OR everyone eligible has
+  // picked — not gated on games having started, so standings appear the
+  // moment the last active participant picks, even pre-kickoff.
+  // devForceLeaderboard is a separate dev-only override, never required for
+  // correct production behavior.
   const showResultsSection = heroWeekState === 'season_complete'
     || (showDebugPanel() && devForceLeaderboard)
-    || (effectiveGamesStarted && !weekEnded && statsActive > 0 && activeWithPick >= statsActive);
+    || (statsActive > 0 && activeWithPick >= statsActive);
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
@@ -588,7 +584,6 @@ export function SurvivorPicksContent() {
               devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
               devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
               devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
-              devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
             >
               <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', marginTop: '0.6rem', marginBottom: '0.4rem' }}>
                 <strong>Used Teams:</strong> {myState && myUsedTeams.size > 0 ? [...myUsedTeams].join(', ') : 'None'}
@@ -690,17 +685,15 @@ export function SurvivorPicksContent() {
                   Select one team for Week {state.currentWeek.week}. You can only use each team once during the pool.
                 </p>
 
-                {/* Informational only, not a lock — unlike Confidence/Pick'em,
-                    Survivor has no "one submission then admin unlock" rule
-                    (see submitSurvivorPick in src/lib/survivor.ts, which
-                    deliberately supports changing an unlocked week's pick
-                    freely). The real, only gate on changing a pick is
-                    weekUnlocked below. */}
+                {/* Real lock: once this participant has a saved pick for the
+                    current week, the pick buttons below are replaced with a
+                    locked row (same as Pick'em's one-submission lock) — this
+                    banner explains why. */}
                 {isParticipantSubmitted(selectedParticipantId) && weekUnlocked && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
-                    <CheckCircle2 style={{ width: 18, height: 18, color: greenHi, flexShrink: 0 }} />
+                    <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
                     <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
-                      You already have a pick in for this week{devSimSubmitted ? ' (simulated)' : ''} — you can change it any time before the week locks.
+                      Your pick is submitted for this week{devSimSubmitted ? ' (simulated)' : ''}. Contact your commissioner if you need it changed.
                     </p>
                   </div>
                 )}
@@ -730,9 +723,13 @@ export function SurvivorPicksContent() {
                   </div>
                 )}
 
-                {!weekUnlocked ? (
+                {/* Locked when the week itself has locked (kickoff), OR this
+                    participant already has a saved pick for the week — the
+                    real, DB-backed one-submission lock, same reuse-the-locked
+                    -row pattern as Pick'em's LockedPickemGameRow. */}
+                {!weekUnlocked || isParticipantSubmitted(selectedParticipantId) ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {!myCurrentWeekPick && (
+                    {!weekUnlocked && !myCurrentWeekPick && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
                         <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
                         <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>

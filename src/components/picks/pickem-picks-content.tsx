@@ -165,7 +165,6 @@ export function PickemPicksContent() {
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
   const [devSimSubmitted, setDevSimSubmitted] = useState(false);
-  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
 
   // This component only ever mounts for PICKEM pools — the router in
   // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
@@ -174,15 +173,17 @@ export function PickemPicksContent() {
   const poolType = 'PICKEM';
 
   // Debug-panel-only override: treat the selected participant as submitted
-  // (or force them back open) without touching the database, matching
-  // Confidence's isSubmittedForUser exactly. Real production state comes
-  // from result.participants[].isComplete, computed server-side in
-  // computePickemWeekResult (src/lib/pickem.ts) from actual saved picks —
-  // refetched by loadData() on every poolId/week/seasonType change and
-  // after every submit/unlock, so it can't go stale across a reload or a
-  // participant switch.
+  // (or force them back open) without touching the database. Real
+  // production state comes from result.participants[].isComplete, computed
+  // server-side in computePickemWeekResult (src/lib/pickem.ts) from actual
+  // saved picks — refetched by loadData() on every poolId/week/seasonType
+  // change and after every submit/unlock, so it can't go stale across a
+  // reload or a participant switch. forceWeekUnlocked doubles as the
+  // already-submitted bypass — there's no separate "unlock to make picks"
+  // toggle, since forcing the week unlocked already means every gate on
+  // picking (kickoff lock and the submitted lock alike) should lift.
   const isParticipantSubmitted = (participantId: string) => {
-    if (showDebugPanel() && devUnlockToMakePicks && participantId === selectedParticipantId) return false;
+    if (showDebugPanel() && forceWeekUnlocked && participantId === selectedParticipantId) return false;
     if (showDebugPanel() && devSimSubmitted && participantId === selectedParticipantId) return true;
     const participant = result?.participants.find(p => p.participantId === participantId);
     return !!participant?.isComplete;
@@ -633,14 +634,15 @@ export function PickemPicksContent() {
   // Real DB-backed "has anyone picked this week" — same shape as
   // Confidence's anyPicksSubmitted check (some(entry => picks > 0)).
   const weekHasPicks = (result?.participants ?? []).some(p => p.picks.some(pk => !!pk.selectedTeam));
-  // Same "auto-show once everyone has submitted" gate as Confidence's
-  // showResultsTabs: real week-ended, OR the dev-only force override, OR
-  // games have started and every participant's real (DB) picks are complete.
-  // devForceLeaderboard is a separate dev-only override, never required for
-  // correct production behavior.
+  // Auto-show once everyone has submitted: real week-ended, OR the dev-only
+  // force override, OR every participant's real (DB) picks are complete —
+  // not gated on games having started, so the standings appear the moment
+  // the last participant submits, even pre-kickoff. devForceLeaderboard is
+  // a separate dev-only override, never required for correct production
+  // behavior.
   const showResultsSection = weekEnded
     || (showDebugPanel() && devForceLeaderboard)
-    || (effectiveGamesStarted && !weekEnded && statsTotal > 0 && statsComplete >= statsTotal);
+    || (statsTotal > 0 && statsComplete >= statsTotal);
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
@@ -747,7 +749,6 @@ export function PickemPicksContent() {
               devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
               devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
               devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
-              devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
             >
               {myWeek && result && result.eligibleGames.length > 0 && (
                 <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
@@ -889,10 +890,16 @@ export function PickemPicksContent() {
                 const locked = !forceWeekUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                 const pickForGame = myWeek.picks.find(p => p.gameId === game.id);
 
-                // Once a game is locked, its result (teams, score, your pick,
-                // correct/incorrect) is the primary information — no separate
-                // "Game Details" disclosure needed to see the same thing.
-                if (locked) {
+                // Once a game is locked, OR this participant has already
+                // submitted a complete set of picks for the week, its result
+                // (teams, score, your pick, correct/incorrect) is the primary
+                // information — no live pick buttons left to show, and no
+                // separate "Game Details" disclosure needed to see the same
+                // thing. This is the real, DB-backed one-submission lock:
+                // once submitted, every still-open game row shows this way
+                // instead of a clickable pick, matching Confidence's locked/
+                // submitted view.
+                if (locked || isParticipantSubmitted(selectedParticipantId)) {
                   return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} />;
                 }
 
@@ -970,9 +977,13 @@ export function PickemPicksContent() {
                 <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                   Predict total combined score
                 </label>
-                {!forceWeekUnlocked && isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now) ? (
+                {(!forceWeekUnlocked && isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now)) || isParticipantSubmitted(selectedParticipantId) ? (
                   <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
-                    {myWeek.tiebreakerPrediction != null ? `Your prediction: ${myWeek.tiebreakerPrediction}` : 'This game has started — no prediction was submitted.'}
+                    {myWeek.tiebreakerPrediction != null
+                      ? `Your prediction: ${myWeek.tiebreakerPrediction}`
+                      : isParticipantSubmitted(selectedParticipantId)
+                        ? 'Your picks are submitted — no separate tiebreaker prediction was made.'
+                        : 'This game has started — no prediction was submitted.'}
                   </p>
                 ) : (
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -996,8 +1007,7 @@ export function PickemPicksContent() {
                 )}
               </div>
             )}
-              
-              
+
             {editableGames.length > 0 && !isParticipantSubmitted(selectedParticipantId) && (
               <button
                 type="button"

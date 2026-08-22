@@ -4,12 +4,13 @@ import { showDebugPanel } from '@/lib/utils';
 // Shared #debug-panel / #debug-panel-controls / #debug-panel-picks —
 // originally Confidence-only (src/components/picks/pool-picks-content.tsx),
 // extracted so Pick'em and Survivor render the exact same structure, ids,
-// and seven dev toggles instead of a separate/simplified panel per pool
-// type. Confidence's own render call is a pure extraction — same fields,
-// same JSX, same ids, same 7 checkboxes. Renders nothing outside
-// development (showDebugPanel() gates NODE_ENV + NEXT_PUBLIC_SHOW_DEBUG_PANEL),
-// so none of this — including devUnlockToMakePicks — is ever reachable in
-// production regardless of caller state.
+// and six dev toggles instead of a separate/simplified panel per pool type.
+// Confidence's own render call is a pure extraction — same fields, same
+// JSX, same ids, same 6 checkboxes. forceWeekUnlocked also doubles as the
+// bypass for the "already submitted" lock — there's no separate toggle for
+// that. Renders nothing outside development (showDebugPanel() gates
+// NODE_ENV + NEXT_PUBLIC_SHOW_DEBUG_PANEL), so none of this is ever
+// reachable in production regardless of caller state.
 
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
@@ -41,8 +42,6 @@ export interface DebugPanelProps {
   onDevForceLeaderboardChange: (v: boolean) => void;
   devSimSubmitted: boolean;
   onDevSimSubmittedChange: (v: boolean) => void;
-  devUnlockToMakePicks: boolean;
-  onDevUnlockToMakePicksChange: (v: boolean) => void;
 
   /** Extra, pool-type-specific debug content (e.g. Pick'em's/Survivor's
    * per-game table) — rendered after #debug-panel-picks, inside the same
@@ -62,7 +61,6 @@ export function DebugPanel(props: DebugPanelProps) {
     devSimFinished, onDevSimFinishedChange,
     devForceLeaderboard, onDevForceLeaderboardChange,
     devSimSubmitted, onDevSimSubmittedChange,
-    devUnlockToMakePicks, onDevUnlockToMakePicksChange,
     children,
   } = props;
 
@@ -130,15 +128,6 @@ export function DebugPanel(props: DebugPanelProps) {
             style={{ accentColor: 'oklch(65% 0.12 290)', width: 14, height: 14 }}
           />
           <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate picks submitted for the selected user (shows the locked/submitted view — nothing is written to the database)</span>
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={devUnlockToMakePicks}
-            onChange={(e) => onDevUnlockToMakePicksChange(e.target.checked)}
-            style={{ accentColor: 'oklch(62% 0.22 25)', width: 14, height: 14 }}
-          />
-          <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Unlock to make picks — bypass the &quot;already submitted&quot; lock for the selected user (dev only, nothing is written to the database)</span>
         </label>
       </div>
       <div id="debug-panel-picks" style={{ background: `oklch(46% 0.14 155 / 0.08)`, margin: '1rem 0', border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
