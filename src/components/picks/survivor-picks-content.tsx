@@ -12,6 +12,7 @@ import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle,
 import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
 import { PoolPicksHero, computeHeroWeekState, computeHeroUnlockTime, type HeroWeekState } from '@/components/picks/pool-picks-hero';
+import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
 import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -332,6 +333,7 @@ export function SurvivorPicksContent() {
         upcomingWeek: null,
       });
   const heroUnlockTime = computeHeroUnlockTime(heroWeekState, gamesForLock, DAYS_BEFORE_GAME);
+  const gameStatusStats = computeGameStatusStats(gamesForLock);
   const heroWeekTitle = state?.currentWeek ? getWeekTitle(state.currentWeek.week, state.currentWeek.seasonType) : 'Season';
   const heroTitleAccent = state?.currentWeek ? 'Picks' : 'Complete';
 
@@ -369,12 +371,24 @@ export function SurvivorPicksContent() {
         actions={[
           { label: 'Share', icon: Share2, onClick: handleShare },
           { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
-          { label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) },
+          // Once the season is complete, results-section shows automatically
+          // (matches Confidence's showResultsTabs auto-show once nothing
+          // remains to pick) — nothing left to toggle.
+          ...(heroWeekState !== 'season_complete' ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
         learnMoreHref="/how-to/make-picks"
         learnMoreText="Survivor picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {(gameStatusStats || gamesStartedNow) && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {gameStatusStats && <GameStatusCard stats={gameStatusStats} />}
+            {gamesStartedNow && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
+          </div>
+        </section>
+      )}
 
       {showStats && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
@@ -413,8 +427,8 @@ export function SurvivorPicksContent() {
         </section>
       )}
 
-      {showResults && (
-        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+      {(showResults || heroWeekState === 'season_complete') && (
+        <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner" style={{ maxWidth: 640 }}>
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
@@ -553,7 +567,7 @@ export function SurvivorPicksContent() {
       )}
 
       {showDebugPanel() && (
-        <section style={{ background: bg, padding: '0 0 2rem' }}>
+        <section id="debug-panel" style={{ background: bg, padding: '0 0 2rem' }}>
           <div className="lp-inner" style={{ maxWidth: 640 }}>
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>

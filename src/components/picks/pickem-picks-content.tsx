@@ -13,6 +13,7 @@ import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle,
 import { normalizeGameStatus } from '@/types/game';
 import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
+import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
 import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -419,6 +420,7 @@ export function PickemPicksContent() {
     upcomingWeek,
   });
   const heroUnlockTime = computeHeroUnlockTime(heroWeekState, gamesForLock, DAYS_BEFORE_GAME);
+  const gameStatusStats = computeGameStatusStats(gamesForLock);
 
   const statsTotal = result?.participants.length ?? 0;
   const statsComplete = result?.participants.filter(p => p.isComplete).length ?? 0;
@@ -454,12 +456,24 @@ export function PickemPicksContent() {
         actions={[
           { label: 'Share', icon: Share2, onClick: handleShare },
           { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
-          ...(weekEnded ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
+          // Once the week has ended, results-section shows automatically
+          // (matches Confidence's showResultsTabs) — nothing left to toggle.
+          // Before then, this is a manual peek at in-progress standings.
+          ...(!weekEnded ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
         learnMoreHref="/how-to/make-picks"
         learnMoreText="Pick'em picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {(gameStatusStats || gamesStartedNow) && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {gameStatusStats && <GameStatusCard stats={gameStatusStats} />}
+            {gamesStartedNow && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
+          </div>
+        </section>
+      )}
 
       {showStats && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
@@ -496,8 +510,8 @@ export function PickemPicksContent() {
         </section>
       )}
 
-      {showResults && weekEnded && (
-        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+      {(showResults || weekEnded) && (
+        <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner" style={{ maxWidth: 640 }}>
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
@@ -656,7 +670,7 @@ export function PickemPicksContent() {
       )}
 
       {showDebugPanel() && (
-        <section style={{ background: bg, padding: '0 0 2rem' }}>
+        <section id="debug-panel" style={{ background: bg, padding: '0 0 2rem' }}>
           <div className="lp-inner" style={{ maxWidth: 640 }}>
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>

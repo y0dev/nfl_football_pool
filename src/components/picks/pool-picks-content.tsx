@@ -22,6 +22,7 @@ import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, 
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
+import { GameStatusCard, GamesStartedCard } from '@/components/picks/game-status-cards';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -1507,21 +1508,7 @@ export function PoolPicksContent() {
           {(() => {
             const stats = getGameStatusStats();
             if (!stats) return null;
-            return (
-              <div id="game-status-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
-                {[
-                  { label: 'Total', value: stats.total, color: 'oklch(58% 0.15 250)' },
-                  { label: 'Upcoming', value: stats.upcoming, color: greenHi },
-                  { label: 'In Progress', value: stats.inProgress, color: amber },
-                  { label: 'Finished', value: stats.finished, color: textMid },
-                ].map(({ label, value, color }) => (
-                  <div key={label} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem', textAlign: 'center' }}>
-                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.5rem', color, lineHeight: 1 }}>{value}</div>
-                    <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            );
+            return <GameStatusCard stats={stats} />;
           })()}
 
           {countdown && countdown !== 'Games Started' && !(participantCount > 0 && submittedCount >= participantCount) && (
@@ -1537,17 +1524,7 @@ export function PoolPicksContent() {
           )}
 
           {(countdown === 'Games Started' || effectiveGamesStarted) && (
-            <div id="games-started-card" style={{ background: `oklch(62% 0.22 25 / 0.1)`, border: `1px solid oklch(62% 0.22 25 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-                <AlertTriangle style={{ width: 18, height: 18, color: liveRed, flexShrink: 0 }} />
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ ...bc, fontWeight: 800, fontSize: '1.05rem', color: liveRed }}>
-                    {devSimInProgress ? '[DEV] Simulating In-Progress' : 'Games Have Started!'}
-                  </div>
-                  <div style={{ ...b, fontSize: '0.78rem', color: textMid }}>All picks are now locked</div>
-                </div>
-              </div>
-            </div>
+            <GamesStartedCard label={devSimInProgress ? '[DEV] Simulating In-Progress' : 'Games Have Started!'} />
           )}
 
           {showGameDetails && games.length > 0 && !(effectiveGamesStarted || weekEnded) && (
