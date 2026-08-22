@@ -19,6 +19,7 @@ import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboar
 import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
 import { getPoolPayoutConfig } from '@/actions/poolPayouts';
 import { computeTotalPool, formatCurrency, PayoutConfig } from '@/lib/payouts';
+import type { CompetitionType } from '@/lib/poolTypes';
 
 // Design tokens (matches app-wide dark theme)
 const surface = 'oklch(17% 0.028 255)';
@@ -101,7 +102,7 @@ export function PoolWorkspace({
   // participants flagged as delinquent) for a week that's simply too early.
   const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig | null>(null);
-  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType | null>(null);
   // Distinct from competitionType === null (still loading) — a genuine
   // failure to fetch it (private pool access denied, not found, network
   // error) must never silently render whichever pool-type UI happens to be
@@ -123,7 +124,11 @@ export function PoolWorkspace({
         // data.pool is only absent on a genuine failure (private pool
         // access denied, not found, etc.)
         if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
-        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? null);
+        // Cast, not re-validated: the DB's pools_competition_type_check
+        // constraint (see src/lib/poolTypes.ts) is the actual guarantee —
+        // this is a type annotation for callers in this file, not a second
+        // runtime check.
+        if (!cancelled) setCompetitionType((data.pool?.competition_type as CompetitionType | undefined) ?? null);
       } catch (error) {
         debugError('Error loading pool competition type:', error);
         if (!cancelled) { setCompetitionType(null); setCompetitionTypeError(true); }

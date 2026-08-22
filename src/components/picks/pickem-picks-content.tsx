@@ -556,21 +556,26 @@ export function PickemPicksContent() {
 
                 const selectedTeam = pickForGame?.selectedTeam || null;
                 const isSubmittingThis = submittingGameId === game.id;
+                // Same team-logo + city/mascot presentation as Confidence's
+                // GameCard and Pick'em's own LockedPickemGameRow — the open
+                // (pickable) state shouldn't look like a visually unrelated
+                // plain-text button row.
                 return (
-                  <div key={game.id} style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+                  <div key={game.id} style={{ background: card, border: `1px solid ${selectedTeam ? 'oklch(46% 0.14 155 / 0.4)' : border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                       <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
                         {format(new Date(game.kickoffTime), 'EEE, MMM d · h:mm a')}
                       </p>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {[
-                        { team: game.awayTeamId, name: game.awayTeam },
-                        { team: game.homeTeamId, name: game.homeTeam },
-                      ].map(({ team, name }) => {
+                        { team: game.awayTeamId, fullName: game.awayTeam },
+                        { team: game.homeTeamId, fullName: game.homeTeam },
+                      ].map(({ team, fullName }) => {
                         if (!team) return null;
                         const picked = selectedTeam === team;
                         const disabled = submittingGameId != null;
+                        const teamInfo = getTeam(getTeamAbbreviation(fullName));
                         return (
                           <button
                             key={team}
@@ -578,17 +583,22 @@ export function PickemPicksContent() {
                             disabled={disabled}
                             onClick={() => handlePick(game.id, team)}
                             style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                              padding: '0.85rem 0.5rem', borderRadius: 6, minHeight: 44,
-                              background: picked ? green : surface,
-                              border: `1px solid ${picked ? green : border}`,
-                              color: picked ? text : text,
+                              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem',
+                              padding: '0.75rem 0.5rem', borderRadius: 8,
+                              background: picked ? 'oklch(46% 0.14 155 / 0.1)' : 'transparent',
+                              border: `1px solid ${picked ? 'oklch(46% 0.14 155 / 0.3)' : border}`,
                               cursor: disabled ? 'not-allowed' : 'pointer',
-                              ...bc, fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase',
                             }}
                           >
-                            {picked && <CheckCircle2 style={{ width: 14, height: 14 }} />}
-                            {isSubmittingThis ? 'Saving…' : name}
+                            <TeamLogo team={teamInfo} size="md" colorAccent />
+                            <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: picked ? text : textMid, textAlign: 'center' }}>
+                              {teamInfo.city}
+                            </span>
+                            {picked && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
+                                <CheckCircle2 style={{ width: 11, height: 11 }} /> {isSubmittingThis ? 'Saving…' : 'Selected'}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

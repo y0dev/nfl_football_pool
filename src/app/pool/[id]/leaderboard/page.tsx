@@ -17,6 +17,7 @@ import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { getLatestWeekForSeason } from '@/actions/loadCurrentWeek';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
+import type { CompetitionType } from '@/lib/poolTypes';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const bg      = 'oklch(13% 0.025 255)';
@@ -325,7 +326,7 @@ const leaderboardLoadingFallback = (
 function LeaderboardRouter() {
   const params = useParams();
   const poolId = params.id as string;
-  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -338,7 +339,7 @@ function LeaderboardRouter() {
         // No silent Confidence fallback — a genuine fetch failure (private
         // pool access denied, pool not found) should surface as "unable to
         // load," never render whichever pool-type UI happens to be default.
-        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? null);
+        if (!cancelled) setCompetitionType((data.pool?.competition_type as CompetitionType | undefined) ?? null);
       } catch {
         if (!cancelled) setCompetitionType(null);
       } finally {

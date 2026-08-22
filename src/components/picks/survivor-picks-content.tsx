@@ -497,15 +497,20 @@ export function SurvivorPicksContent() {
                         <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginBottom: '0.6rem' }}>
                           {format(new Date(game.kickoffTime), 'EEE, MMM d · h:mm a')}
                         </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {/* Same team-logo + city presentation as Confidence's GameCard
+                              and this page's own LockedSurvivorGameRow — the open
+                              (pickable) state shouldn't look like a visually unrelated
+                              plain-text button row. */}
                           {[
-                            { team: game.awayTeamId, name: game.awayTeam },
-                            { team: game.homeTeamId, name: game.homeTeam },
-                          ].map(({ team, name }) => {
+                            { team: game.awayTeamId, fullName: game.awayTeam },
+                            { team: game.homeTeamId, fullName: game.homeTeam },
+                          ].map(({ team, fullName }) => {
                             if (!team) return null;
                             const used = myUsedTeams.has(team) && myCurrentWeekPick?.selectedTeam !== team;
                             const picked = myCurrentWeekPick?.selectedTeam === team;
                             const isSubmittingThis = submitting && selectedTeam === team;
+                            const teamInfo = getTeam(getTeamAbbreviation(fullName));
                             return (
                               <button
                                 key={team}
@@ -513,19 +518,26 @@ export function SurvivorPicksContent() {
                                 disabled={used || submitting}
                                 onClick={() => handleSubmit(game.id, team)}
                                 style={{
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                                  padding: '0.75rem 0.5rem', borderRadius: 6,
-                                  background: picked ? green : used ? 'transparent' : surface,
-                                  border: `1px solid ${picked ? green : used ? border : border}`,
-                                  color: picked ? text : used ? textDim : text,
+                                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem',
+                                  padding: '0.75rem 0.5rem', borderRadius: 8,
+                                  background: picked ? 'oklch(46% 0.14 155 / 0.1)' : 'transparent',
+                                  border: `1px solid ${picked ? 'oklch(46% 0.14 155 / 0.3)' : border}`,
                                   opacity: used ? 0.5 : 1,
                                   cursor: used || submitting ? 'not-allowed' : 'pointer',
-                                  ...bc, fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase',
                                 }}
                               >
-                                {picked && <CheckCircle2 style={{ width: 14, height: 14 }} />}
-                                {isSubmittingThis ? 'Saving…' : name}
-                                {used && <span style={{ ...b, fontSize: '0.65rem', fontWeight: 400, textTransform: 'none', marginLeft: '0.25rem' }}>(used)</span>}
+                                <TeamLogo team={teamInfo} size="md" colorAccent />
+                                <span style={{ ...bc, fontWeight: 700, fontSize: '0.82rem', color: picked ? text : used ? textDim : textMid, textAlign: 'center' }}>
+                                  {teamInfo.city}
+                                </span>
+                                {picked && (
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', ...bc, fontSize: '0.62rem', fontWeight: 700, color: greenHi, textTransform: 'uppercase' }}>
+                                    <CheckCircle2 style={{ width: 11, height: 11 }} /> {isSubmittingThis ? 'Saving…' : 'Selected'}
+                                  </span>
+                                )}
+                                {used && (
+                                  <span style={{ ...bc, fontSize: '0.6rem', fontWeight: 700, color: textDim, textTransform: 'uppercase' }}>Used</span>
+                                )}
                               </button>
                             );
                           })}

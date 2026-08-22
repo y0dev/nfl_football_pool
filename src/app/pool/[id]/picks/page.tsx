@@ -7,6 +7,7 @@ import { PoolPicksContent } from '@/components/picks/pool-picks-content';
 import { SurvivorPicksContent } from '@/components/picks/survivor-picks-content';
 import { PickemPicksContent } from '@/components/picks/pickem-picks-content';
 import { debugError } from '@/lib/utils';
+import type { CompetitionType } from '@/lib/poolTypes';
 
 const bg = 'oklch(13% 0.025 255)';
 
@@ -30,7 +31,7 @@ function LoadingScreen() {
 function PicksRouter() {
   const params = useParams();
   const poolId = params.id as string;
-  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +41,7 @@ function PicksRouter() {
         const res = await fetch(`/api/pools/${poolId}`);
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
-        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? null);
+        if (!cancelled) setCompetitionType((data.pool?.competition_type as CompetitionType | undefined) ?? null);
       } catch (error) {
         debugError('Error loading pool competition type:', error);
         // No silent Confidence fallback — a genuine fetch failure (private
