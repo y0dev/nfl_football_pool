@@ -493,6 +493,15 @@ function AdminDashboardContent() {
     toast({ title: 'Pool Created', description: 'New pool has been created successfully' });
   };
 
+  // Same refetch as handlePoolCreated/handlePoolDeleted, without touching
+  // selectedPoolId — a Settings save (rename, season/season_scope change,
+  // active toggle) otherwise leaves `pools`/selectedPool showing pre-save
+  // values everywhere outside the Settings tab itself.
+  const handlePoolUpdated = async () => {
+    await Promise.all([loadDashboardStats(), loadPools()]);
+    setPoolsRefreshKey(k => k + 1);
+  };
+
   // Clearing selectedPoolId alone left the deleted pool sitting in `pools`
   // (and its stale data on screen) until the next full page load, since
   // `pools` is only ever set inside loadPools — refetch it here the same
@@ -1106,6 +1115,7 @@ function AdminDashboardContent() {
               showExportTab={false}
               isActive={selectedPool.is_active}
               onPoolDeleted={handlePoolDeleted}
+              onPoolUpdated={handlePoolUpdated}
             />
           ) : !poolsLoading ? (
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '2.5rem', textAlign: 'center' }}>

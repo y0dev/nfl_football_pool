@@ -254,6 +254,14 @@ function CommissionerDashboardContent() {
     });
   };
 
+  // Same refetch as handlePoolCreated, without touching selectedPoolId —
+  // a Settings save (rename, season/season_scope change, active toggle)
+  // otherwise leaves availablePools/selectedPool showing pre-save values
+  // everywhere outside the Settings tab itself.
+  const handlePoolUpdated = async () => {
+    await loadDashboardStats();
+  };
+
   // Clearing selectedPoolId alone left the deleted pool sitting in
   // availablePools (and its stale data on screen) until the next full page
   // load, since availablePools is only ever set inside loadDashboardStats —
@@ -632,6 +640,7 @@ function CommissionerDashboardContent() {
                 currentSeasonType={currentSeasonType}
                 isActive={selectedPool.is_active}
                 onPoolDeleted={handlePoolDeleted}
+                onPoolUpdated={handlePoolUpdated}
                 initialTab={jumpToSettingsForPoolId === selectedPoolId ? 'settings' : undefined}
               />
             </div>

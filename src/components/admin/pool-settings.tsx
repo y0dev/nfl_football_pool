@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -53,6 +53,11 @@ interface PoolSettingsProps {
   poolId: string;
   poolName: string;
   onPoolDeleted?: () => void;
+  /** Called after a successful settings save — lets the parent (PoolWorkspace,
+   * and through it the dashboard's own pool list) refetch, so a renamed
+   * pool / changed season / changed season_scope doesn't keep showing the
+   * pre-save values everywhere outside this Settings tab. */
+  onPoolUpdated?: () => void;
   /** Rendered directly after General Settings, before Close Season/Transfer/
    * Danger Zone — e.g. Payout Configuration, which belongs with the pool's
    * regular settings rather than after its irreversible/destructive ones. */
@@ -105,7 +110,7 @@ function RuleToggle({ label, description, value, options, onChange, last }: {
   );
 }
 
-export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: PoolSettingsProps) {
+export function PoolSettings({ poolId, poolName, onPoolDeleted, onPoolUpdated, children }: PoolSettingsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -131,6 +136,10 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
   const [pickemSettings, setPickemSettings] = useState<PickemTypeSettings>(DEFAULT_PICKEM_TYPE_SETTINGS);
   const { toast } = useToast();
   const { user } = useAuth();
+  // Set inside the load effect below — lets onSubmit re-run the same fetch
+  // after a successful save without duplicating it or restructuring the
+  // effect into a useCallback (which would also need to fire on mount).
+  const loadPoolDataRef = useRef<() => Promise<void>>(async () => {});
 
   // Settings for a pool from a season that's already ended are locked —
   // they describe how that season was actually run, so changing them after
@@ -190,6 +199,7 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
         if (!cancelled) setIsLoading(false);
       }
     };
+    loadPoolDataRef.current = loadPoolData;
     loadPoolData();
     return () => { cancelled = true; };
   }, [poolId, form, toast]);
@@ -210,6 +220,13 @@ export function PoolSettings({ poolId, poolName, onPoolDeleted, children }: Pool
         ...(competitionType === 'PICKEM' ? { type_settings: pickemSettings as unknown as Record<string, unknown> } : {}),
       });
       toast({ title: 'Success', description: 'Pool settings updated successfully' });
+      // Refetch this tab's own view of the pool (confirms what actually
+      // persisted) and let the parent (PoolWorkspace, and through it the
+      // dashboard's pool list) refetch too — otherwise a renamed pool /
+      // changed season / changed season_scope keeps showing pre-save values
+      // everywhere outside this Settings tab until a full page reload.
+      await loadPoolDataRef.current();
+      onPoolUpdated?.();
     } catch (error) {
       debugError('Failed to update pool settings:', error);
       const message = error instanceof Error ? error.message : 'Failed to update pool settings';
