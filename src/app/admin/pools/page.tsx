@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Trophy, Users, Plus, RefreshCw, Search,
-  ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight, Copy,
+  ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, Share2, ArrowLeftRight, Copy, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { POOL_TYPES } from '@/lib/poolTypes';
+import { isSuspiciousFutureSeason } from '@/lib/utils';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -412,7 +413,14 @@ function AdminPoolsContent() {
                                 <Users style={{ width: 12, height: 12, color: textDim }} />
                                 {participantCount} participant{participantCount !== 1 ? 's' : ''}
                               </span>
-                              <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{pool.season} Season</span>
+                              {isSuspiciousFutureSeason(pool.season) ? (
+                                <span title="More than 1 year ahead of the current season — likely test data" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', ...b, fontSize: '0.78rem', color: liveRed }}>
+                                  <AlertTriangle style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                  {pool.season} Season
+                                </span>
+                              ) : (
+                                <span style={{ ...b, fontSize: '0.78rem', color: textDim }}>{pool.season} Season</span>
+                              )}
                               <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>by {pool.created_by}</span>
                               <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
                                 Created {new Date(pool.created_at).toLocaleDateString()}
