@@ -502,7 +502,7 @@ export function PickemPicksContent() {
           fetch('/api/pickem/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: game.id, selectedTeam: draftPicks[game.id] }),
+            body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: game.id, selectedTeam: draftPicks[game.id], devForceUnlock: forceWeekUnlocked }),
           }).then(res => res.json())
         )
       );

@@ -388,7 +388,7 @@ export function SurvivorPicksContent() {
       const res = await fetch('/api/survivor/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: draftPick.gameId, selectedTeam: draftPick.team }),
+        body: JSON.stringify({ participantId: selectedParticipantId, poolId, gameId: draftPick.gameId, selectedTeam: draftPick.team, devForceUnlock: forceWeekUnlocked }),
       });
       const data = await res.json();
       if (data.success) {
@@ -676,7 +676,12 @@ export function SurvivorPicksContent() {
             </div>
             <StatusBanner myState={myState} />
 
-            {myState.status === 'ACTIVE' && state?.currentWeek && (
+            {/* forceWeekUnlocked also bypasses the ACTIVE-only gate here
+                (dev only) — an eliminated participant otherwise can't reach
+                the picking UI at all, which would make it impossible to
+                dev-test submitting for a locked/finished game once
+                noPickRule has already auto-eliminated them for it. */}
+            {(myState.status === 'ACTIVE' || (showDebugPanel() && forceWeekUnlocked)) && state?.currentWeek && (
               <div style={{ marginTop: '1.5rem' }}>
                 <h2 style={{ ...bc, fontWeight: 800, fontSize: '1.1rem', color: text, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                   Choose Your Team

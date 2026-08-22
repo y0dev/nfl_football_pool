@@ -13,6 +13,7 @@
 
 import { getSupabaseServiceClient } from './supabase-service';
 import { normalizeGameStatus } from '@/types/game';
+import { showDebugPanel } from './utils';
 import {
   parsePickemTypeSettings,
   isGameLocked,
@@ -397,6 +398,12 @@ export async function submitPickemPick(params: {
   gameId: string;
   selectedTeam: string;
   submittedBy?: string;
+  /** Dev-only: bypass the week-too-early / game-locked checks below, for
+   * testing against a locked or finished game. Real gate is showDebugPanel()
+   * (NODE_ENV + NEXT_PUBLIC_SHOW_DEBUG_PANEL), checked server-side here —
+   * the caller passing true is not enough by itself, so this can never do
+   * anything in production regardless of what a client sends. */
+  devForceUnlock?: boolean;
 }): Promise<SubmitPickemPickResult> {
   const supabase = getSupabaseServiceClient();
 
@@ -439,10 +446,11 @@ export async function submitPickemPick(params: {
   if (weekGamesError) return { success: false, error: 'Failed to verify week status.' };
 
   const now = new Date();
-  if (isWeekTooEarly(weekGames ?? [], now)) {
+  const devUnlocked = showDebugPanel() && !!params.devForceUnlock;
+  if (!devUnlocked && isWeekTooEarly(weekGames ?? [], now)) {
     return { success: false, error: 'This week is not open for picks yet.' };
   }
-  if (isGameLocked(game, now)) {
+  if (!devUnlocked && isGameLocked(game, now)) {
     return { success: false, error: 'This game has already started — picks can no longer be submitted or changed for it.' };
   }
 

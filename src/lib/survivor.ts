@@ -24,7 +24,7 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { normalizeGameStatus } from '@/types/game';
 import { computeWeekUnlockStatus } from './week-unlock-status';
-import { debugError } from './utils';
+import { debugError, showDebugPanel } from './utils';
 import {
   parseSurvivorTypeSettings,
   type SurvivorTypeSettings,
@@ -379,6 +379,12 @@ export async function submitSurvivorPick(params: {
   gameId: string;
   selectedTeam: string;
   submittedBy?: string;
+  /** Dev-only: bypass the week-lock check below, for testing against a
+   * locked or finished game. Real gate is showDebugPanel() (NODE_ENV +
+   * NEXT_PUBLIC_SHOW_DEBUG_PANEL), checked server-side here — the caller
+   * passing true is not enough by itself, so this can never do anything in
+   * production regardless of what a client sends. */
+  devForceUnlock?: boolean;
 }): Promise<SubmitSurvivorPickResult> {
   const supabase = getSupabaseServiceClient();
 
@@ -409,11 +415,18 @@ export async function submitSurvivorPick(params: {
     return { success: false, error: 'Selected team is not playing in this game.' };
   }
 
+  // Dev-only: bypasses both the eliminated/winner lockout below and the
+  // week-lock check further down — a developer testing "what if this
+  // participant had picked X for this already-decided game" needs both,
+  // since by the time a week is locked without a pick, noPickRule=eliminate
+  // has typically already eliminated the participant for real.
+  const devUnlocked = showDebugPanel() && !!params.devForceUnlock;
+
   // Status check: cannot pick once eliminated (or once a winner has been
   // determined and the pool is closed).
   const state = await computeSurvivorPoolState(params.poolId);
   const participantState = state.participants.find(p => p.participantId === params.participantId);
-  if (participantState && participantState.status !== 'ACTIVE') {
+  if (!devUnlocked && participantState && participantState.status !== 'ACTIVE') {
     return { success: false, error: `You are ${participantState.status === 'WINNER' ? 'the winner of' : 'eliminated from'} this Survivor pool and cannot make further picks.` };
   }
 
@@ -427,7 +440,7 @@ export async function submitSurvivorPick(params: {
     .eq('season_type', game.season_type)
     .eq('week', game.week);
   if (weekGamesError) return { success: false, error: 'Failed to verify week status.' };
-  const unlocked = computeWeekUnlockStatus(weekGames ?? [], game.week, game.season_type, null);
+  const unlocked = devUnlocked || computeWeekUnlockStatus(weekGames ?? [], game.week, game.season_type, null);
   if (!unlocked) {
     return { success: false, error: 'This week is locked — picks can no longer be submitted or changed.' };
   }
