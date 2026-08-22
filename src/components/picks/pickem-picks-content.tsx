@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { CheckCircle2, Lock, Target, Trophy, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
+import { userSessionManager } from '@/lib/user-session';
 import { isGameLocked } from '@/lib/pickem-settings';
 import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle, getMaxWeeksForSeason, DAYS_BEFORE_GAME } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
@@ -142,6 +143,7 @@ export function PickemPicksContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
+  const restoredSessionRef = useRef(false);
   const [tiebreakerInput, setTiebreakerInput] = useState('');
   const [submittingTiebreaker, setSubmittingTiebreaker] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -188,6 +190,36 @@ export function PickemPicksContent() {
       .then(u => setUpcomingWeek({ week: u.week, seasonType: u.seasonType || 2 }))
       .catch(error => debugError('Error resolving upcoming week for Pick’em WeekNav:', error));
   }, []);
+
+  // Restores "who was I" for this pool from the same session store
+  // Confidence's Picks page already uses (userSessionManager), so returning
+  // within 24h doesn't require re-selecting a name every time — Pick'em
+  // previously had no equivalent at all, always starting blank.
+  useEffect(() => {
+    if (!poolId || !result || restoredSessionRef.current) return;
+    restoredSessionRef.current = true;
+    try {
+      userSessionManager.cleanupExpiredSessions();
+      const poolSession = userSessionManager.getAllSessions().find(s => s.poolId === poolId);
+      if (poolSession && result.participants.some(p => p.participantId === poolSession.userId)) {
+        setSelectedParticipantId(poolSession.userId);
+      }
+    } catch (error) {
+      debugError('Error restoring Pick’em participant session:', error);
+    }
+  }, [poolId, result]);
+
+  const handleSelectParticipant = (id: string) => {
+    setSelectedParticipantId(id);
+    const participant = result?.participants.find(p => p.participantId === id);
+    if (participant && typeof window !== 'undefined') {
+      try {
+        userSessionManager.createSession(id, participant.participantName, poolId, '');
+      } catch (error) {
+        debugError('Error saving Pick’em participant session:', error);
+      }
+    }
+  };
 
   const loadData = useCallback(async () => {
     if (week == null || seasonType == null) return;
@@ -582,7 +614,7 @@ export function PickemPicksContent() {
           </label>
           <select
             value={selectedParticipantId}
-            onChange={(e) => setSelectedParticipantId(e.target.value)}
+            onChange={(e) => handleSelectParticipant(e.target.value)}
             style={{ width: '100%', padding: '0.65rem 0.85rem', background: card, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.95rem' }}
           >
             <option value="">Select your name…</option>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
+import { userSessionManager } from '@/lib/user-session';
 import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle, DAYS_BEFORE_GAME } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
@@ -146,6 +147,7 @@ export function SurvivorPicksContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
+  const restoredSessionRef = useRef(false);
   // Local-only draft selection, mirroring Confidence's WeeklyPick and
   // Pick'em's own draftPicks — selecting a team no longer submits
   // immediately; a separate "Submit Pick" action writes it to the DB.
@@ -187,6 +189,36 @@ export function SurvivorPicksContent() {
   useEffect(() => {
     if (poolId) loadData();
   }, [poolId, loadData]);
+
+  // Restores "who was I" for this pool from the same session store
+  // Confidence's Picks page already uses (userSessionManager), so returning
+  // within 24h doesn't require re-selecting a name every time — Survivor
+  // previously had no equivalent at all, always starting blank.
+  useEffect(() => {
+    if (!poolId || !state || restoredSessionRef.current) return;
+    restoredSessionRef.current = true;
+    try {
+      userSessionManager.cleanupExpiredSessions();
+      const poolSession = userSessionManager.getAllSessions().find(s => s.poolId === poolId);
+      if (poolSession && state.participants.some(p => p.participantId === poolSession.userId)) {
+        setSelectedParticipantId(poolSession.userId);
+      }
+    } catch (error) {
+      debugError('Error restoring Survivor participant session:', error);
+    }
+  }, [poolId, state]);
+
+  const handleSelectParticipant = (id: string) => {
+    setSelectedParticipantId(id);
+    const participant = state?.participants.find(p => p.participantId === id);
+    if (participant && typeof window !== 'undefined') {
+      try {
+        userSessionManager.createSession(id, participant.participantName, poolId, '');
+      } catch (error) {
+        debugError('Error saving Survivor participant session:', error);
+      }
+    }
+  };
 
   // This route has no AuthProvider (participant-facing, like the
   // Confidence Picks page it sits alongside) — resolve admin/super-admin
@@ -466,7 +498,7 @@ export function SurvivorPicksContent() {
           </label>
           <select
             value={selectedParticipantId}
-            onChange={(e) => setSelectedParticipantId(e.target.value)}
+            onChange={(e) => handleSelectParticipant(e.target.value)}
             style={{ width: '100%', padding: '0.65rem 0.85rem', background: card, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.95rem' }}
           >
             <option value="">Select your name…</option>
