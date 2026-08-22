@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { computePickemWeekResult } from '@/lib/pickem';
+import { computeSurvivorPoolState } from '@/lib/survivor';
 import { debugError } from '@/lib/utils';
 
+// "Has this participant submitted?" means a different query per
+// competition_type (Confidence's `picks` table / Pick'em's per-game
+// completeness / Survivor's per-week pick) — computed via each type's own
+// authoritative service, per this codebase's single-source-of-truth rule,
+// never by assuming every pool is Confidence-shaped like this route
+// originally did.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -42,37 +50,66 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, participants: [] });
     }
 
-    // Fetch games for the week
-    const { data: games } = await supabase
-      .from('games')
-      .select('id')
-      .eq('week', week)
-      .eq('season_type', seasonType);
-
-    const gameIds = games?.map(g => g.id) || [];
-
-    // Fetch all picks for this week across all relevant participants
-    const picksMap = new Map<string, number>();
-    if (gameIds.length > 0) {
-      const { data: picks } = await supabase
-        .from('picks')
-        .select('participant_id, game_id')
-        .in('participant_id', participantsData.map(p => p.id))
-        .in('game_id', gameIds);
-
-      picks?.forEach(pick => {
-        picksMap.set(pick.participant_id, (picksMap.get(pick.participant_id) || 0) + 1);
-      });
-    }
-
-    // Fetch pool names
+    // Fetch pool names + competition_type
     const uniquePoolIds = [...new Set(participantsData.map(p => p.pool_id))];
     const { data: poolsData } = await supabase
       .from('pools')
-      .select('id, name')
+      .select('id, name, competition_type')
       .in('id', uniquePoolIds);
 
     const poolNameMap = new Map(poolsData?.map(p => [p.id, p.name]) || []);
+    const poolTypeMap = new Map(poolsData?.map(p => [p.id, p.competition_type]) || []);
+
+    const confidencePoolIds = uniquePoolIds.filter(id => poolTypeMap.get(id) === 'NFL_CONFIDENCE' || poolTypeMap.get(id) === 'NCAA_CONFIDENCE');
+    const pickemPoolIds = uniquePoolIds.filter(id => poolTypeMap.get(id) === 'PICKEM');
+    const survivorPoolIds = uniquePoolIds.filter(id => poolTypeMap.get(id) === 'SURVIVOR');
+
+    const submittedIds = new Set<string>();
+
+    // Confidence — one bulk query across every Confidence pool, same as before.
+    if (confidencePoolIds.length > 0) {
+      const { data: games } = await supabase
+        .from('games')
+        .select('id')
+        .eq('week', week)
+        .eq('season_type', seasonType);
+      const gameIds = games?.map(g => g.id) || [];
+      if (gameIds.length > 0) {
+        const confidenceParticipantIds = participantsData.filter(p => confidencePoolIds.includes(p.pool_id)).map(p => p.id);
+        const { data: picks } = await supabase
+          .from('picks')
+          .select('participant_id, game_id')
+          .in('participant_id', confidenceParticipantIds)
+          .in('game_id', gameIds);
+        picks?.forEach(pick => submittedIds.add(pick.participant_id));
+      }
+    }
+
+    // Pick'em — computePickemWeekResult per pool (its own authoritative
+    // "isComplete" already accounts for every eligible game this week).
+    for (const id of pickemPoolIds) {
+      try {
+        const result = await computePickemWeekResult(id, week, seasonType);
+        result.participants.filter(p => p.isComplete).forEach(p => submittedIds.add(p.participantId));
+      } catch (error) {
+        debugError(`Reminders participants: Pick'em week result failed for pool ${id}:`, error);
+      }
+    }
+
+    // Survivor — an eliminated/winner participant can't submit anything
+    // further, so they're treated as "not needing a reminder" rather than
+    // perpetually "not submitted."
+    for (const id of survivorPoolIds) {
+      try {
+        const state = await computeSurvivorPoolState(id);
+        state.participants.forEach(p => {
+          const stillNeedsPick = p.status === 'ACTIVE' && !p.picks.some(pick => pick.week === week && pick.seasonType === seasonType);
+          if (!stillNeedsPick) submittedIds.add(p.participantId);
+        });
+      } catch (error) {
+        debugError(`Reminders participants: Survivor state failed for pool ${id}:`, error);
+      }
+    }
 
     // Build result
     const participants = participantsData.map(p => ({
@@ -83,7 +120,7 @@ export async function GET(request: NextRequest) {
       pool_name: poolNameMap.get(p.pool_id) || 'Unknown Pool',
       is_active: p.is_active,
       created_at: p.created_at,
-      has_submitted: gameIds.length > 0 && (picksMap.get(p.id) || 0) >= gameIds.length,
+      has_submitted: submittedIds.has(p.id),
       last_reminder_sent: null,
     }));
 

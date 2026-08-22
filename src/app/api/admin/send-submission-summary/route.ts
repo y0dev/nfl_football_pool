@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Get pool information
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('id, name, created_by')
+      .select('id, name, created_by, competition_type')
       .eq('id', poolId)
       .single();
 
@@ -48,6 +48,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Pool not found' },
         { status: 404 }
+      );
+    }
+
+    // Confidence-only: submission status here is computed from the `picks`
+    // table, which Pick'em (pickem_picks) and Survivor (survivor_picks)
+    // never populate. Explicit refusal rather than silently emailing a
+    // summary that would show every participant as "pending."
+    if (pool.competition_type !== 'NFL_CONFIDENCE' && pool.competition_type !== 'NCAA_CONFIDENCE') {
+      return NextResponse.json(
+        { success: false, error: 'Submission summaries are only available for Confidence pools' },
+        { status: 400 }
       );
     }
 

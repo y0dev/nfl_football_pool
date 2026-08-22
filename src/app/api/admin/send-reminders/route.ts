@@ -4,6 +4,7 @@ import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 import { getAdminPlansByEmails, planAllowsReminders, REMINDERS_PLAN_MESSAGE } from '@/lib/plan';
 import { findAccountByEmail } from '@/lib/accounts';
+import { computePickemWeekResult } from '@/lib/pickem';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     const { data: allParticipants, error: participantsError } = await supabase
       .from('participants')
-      .select('id, name, email, pool_id, pools!inner(name, created_by, huddles(name))')
+      .select('id, name, email, pool_id, pools!inner(name, created_by, huddles(name), competition_type)')
       .in('id', participantIds)
       .eq('is_active', true);
 
@@ -87,23 +88,70 @@ export async function POST(request: NextRequest) {
         })
       : `Week ${week} kickoff`;
 
+    // Pick'em's reminder names how many games are still unpicked — compute
+    // once per distinct Pick'em pool among the selected participants
+    // (computePickemWeekResult is the one authoritative source, never
+    // re-derived from `picks`, which Pick'em doesn't use at all).
+    const pickemPoolIds = [...new Set(
+      participants
+        .filter(p => (p.pools as unknown as { competition_type: string }).competition_type === 'PICKEM')
+        .map(p => p.pool_id)
+    )];
+    const pickemGamesRemainingByParticipant = new Map<string, number>();
+    for (const id of pickemPoolIds) {
+      try {
+        const result = await computePickemWeekResult(id, week, seasonType);
+        for (const p of result.participants) {
+          pickemGamesRemainingByParticipant.set(p.participantId, p.picks.filter(pick => pick.selectedTeam === '').length);
+        }
+      } catch (error) {
+        debugError(`Send reminders: Pick'em week result failed for pool ${id}:`, error);
+      }
+    }
+
     const results = await Promise.all(
       participants.map(async (participant) => {
-        const poolInfo = participant.pools as unknown as { name: string; huddles: { name: string } | null };
+        const poolInfo = participant.pools as unknown as { name: string; huddles: { name: string } | null; competition_type: string };
         const poolName = poolInfo.name;
         const huddleName = poolInfo.huddles?.name;
         const poolLink = `${baseUrl}`;
 
         try {
-          const sent = await emailService.sendPickReminder(
-            participant.email,
-            participant.name,
-            poolName,
-            week,
-            poolLink,
-            deadline,
-            huddleName
-          );
+          // Backend-authoritative template selection — never left to the
+          // caller/UI to decide. Confidence and any not-yet-built type
+          // (NCAA_CONFIDENCE, MARCH_MADNESS) fall through to the original
+          // Confidence-flavored reminder, which is correct for Confidence
+          // and the only reasonable behavior for a type with no reminder
+          // template of its own yet.
+          const sent = poolInfo.competition_type === 'PICKEM'
+            ? await emailService.sendPickemPickReminder(
+                participant.email,
+                participant.name,
+                poolName,
+                week,
+                poolLink,
+                pickemGamesRemainingByParticipant.get(participant.id) ?? 0,
+                huddleName
+              )
+            : poolInfo.competition_type === 'SURVIVOR'
+            ? await emailService.sendSurvivorPickReminder(
+                participant.email,
+                participant.name,
+                poolName,
+                week,
+                poolLink,
+                deadline,
+                huddleName
+              )
+            : await emailService.sendPickReminder(
+                participant.email,
+                participant.name,
+                poolName,
+                week,
+                poolLink,
+                deadline,
+                huddleName
+              );
 
           if (sent) {
             await supabase.from('reminder_logs').insert({
