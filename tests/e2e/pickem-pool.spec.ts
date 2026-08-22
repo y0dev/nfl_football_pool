@@ -699,6 +699,15 @@ test.describe("Pick'em Pool — locked game result display", () => {
       await insertPick(fixture, fixture.participants.Alice, finishedGame, 'DAL');
 
       await page.goto(`/pool/${fixture.poolId}/picks?week=1&seasonType=2`);
+      // Alice is the only participant and has already completed her picks,
+      // so standings auto-show and hide the picker as soon as data loads
+      // (matching Confidence's showResultsTabs) — "Force show picks form" is
+      // the dev-only escape hatch for reviewing the picker/locked-row
+      // display in that state. Wait for the debug panel itself (always
+      // present regardless of showResultsSection) rather than "Who's
+      // picking?", which may already be hidden by the time data loads.
+      await page.waitForSelector('#debug-panel-controls', { timeout: 15000 });
+      await page.locator('label:has-text("Force show picks form (ignore")').locator('input[type="checkbox"]').check();
       await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
       await page.selectOption('select', { label: 'Alice' });
       await page.waitForSelector('text=/Weekly Picks/i', { timeout: 15000 });
@@ -720,8 +729,8 @@ test.describe("Pick'em Pool — locked game result display", () => {
 });
 
 test.describe("Pick'em Pool — full picks flow (UI)", () => {
-  test('select, pick, submit; already-submitted participant cannot pick again; leaderboard auto-shows once everyone has picked', async ({ page }) => {
-    const fixture = await setupPickemPool({ participantNames: ['Alice', 'Bob'] });
+  test('select, pick, submit; already-submitted participant cannot pick again; leaderboard auto-shows and the picker disappears once everyone has picked', async ({ page }) => {
+    const fixture = await setupPickemPool({ participantNames: ['Alice', 'Bob', 'Carol'] });
     try {
       await createGame(fixture, {
         week: 1, homeTeam: 'Kansas City Chiefs', awayTeam: 'Buffalo Bills', homeTeamId: 'KC', awayTeamId: 'BUF',
@@ -738,15 +747,13 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
       await page.locator('button:has-text("Submit Picks")').click();
       await expect(page.getByText("Pick'em Standings", { exact: true })).toHaveCount(0);
 
-      // Not everyone has picked yet — standings stay hidden. Bob picks and submits.
+      // Bob picks and submits — Carol hasn't yet, so standings stay hidden
+      // and the picker is still reachable.
       await page.selectOption('select', { label: 'Bob' });
       await page.waitForSelector('button:has-text("Buffalo")', { timeout: 15000 });
       await page.locator('button:has-text("Buffalo")').click();
       await page.locator('button:has-text("Submit Picks")').click();
-
-      // Everyone has now submitted (even though the game hasn't started) —
-      // standings should auto-show, matching Confidence's showResultsTabs.
-      await expect(page.getByText("Pick'em Standings", { exact: true })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText("Pick'em Standings", { exact: true })).toHaveCount(0);
 
       // Re-selecting Alice must show the locked/submitted view, not pick
       // buttons — a participant who already submitted cannot pick again.
@@ -754,6 +761,24 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
       await expect(page.getByText('Picks Submitted', { exact: true })).toBeVisible({ timeout: 15000 });
       await expect(page.locator('button:has-text("Kansas City"), button:has-text("Buffalo")')).toHaveCount(0);
       await expect(page.locator('button:has-text("Submit Picks")')).toHaveCount(0);
+
+      // Carol picks and submits — everyone has now submitted (even though
+      // the game hasn't started). Switch away from Alice's locked view first
+      // — the selector only reappears once no one is selected.
+      await page.locator('button:has-text("Not you? Switch")').click();
+      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      await page.selectOption('select', { label: 'Carol' });
+      await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
+      await page.locator('button:has-text("Kansas City")').click();
+      await page.locator('button:has-text("Submit Picks")').click();
+
+      // Standings auto-show, matching Confidence's showResultsTabs — and,
+      // also matching Confidence, the entire picker/picks-form section
+      // (including "Who's picking?") disappears since there's nothing left
+      // to pick for anyone.
+      await expect(page.getByText("Pick'em Standings", { exact: true })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText("Who's picking?", { exact: false })).toHaveCount(0);
+      await expect(page.locator('select')).toHaveCount(0);
     } finally {
       await cleanup(fixture);
     }

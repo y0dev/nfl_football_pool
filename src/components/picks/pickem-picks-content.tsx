@@ -796,13 +796,20 @@ export function PickemPicksContent() {
         </section>
       )}
 
-      {/* Same structure as Confidence: the participant picker and the picks
-          form are mutually exclusive, not stacked — selecting a name
-          replaces "Who's picking?" with the picks form, exactly like
-          pool-picks-content.tsx's `selectedUser ? (...) : (<PickUserSelection/>)`.
-          selectedParticipantId (not myWeek) is what decides which one shows,
-          so a still-resolving myWeek doesn't briefly flash the picker. */}
-      {!selectedParticipantId || !myWeek || !result ? (
+      {/* Same structure as Confidence: once showResultsSection is true
+          (matches Confidence's showResultsTabs), the entire picker/picks-form
+          section — including "Who's picking?" — disappears, same as
+          pool-picks-content.tsx's `{!showResultsTabs && (...)}` wrapper.
+          There's nothing left to pick once everyone has submitted, so it
+          shouldn't keep prompting for a name. forcePicks (dev only) bypasses
+          this the same way it does in Confidence — for reviewing a
+          participant's own locked/finished picks after standings would
+          otherwise take over. Inside that, the participant picker and the
+          picks form are mutually exclusive, not stacked — selecting a name
+          replaces "Who's picking?" with the picks form. selectedParticipantId
+          (not myWeek) is what decides which one shows, so a still-resolving
+          myWeek doesn't briefly flash the picker. */}
+      {(!showResultsSection || (showDebugPanel() && forcePicks)) && (!selectedParticipantId || !myWeek || !result ? (
         <section style={{ background: surface, padding: '2rem 0' }}>
           <div className="lp-inner">
             <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
@@ -1027,7 +1034,7 @@ export function PickemPicksContent() {
             )}
           </div>
         </section>
-      )}
+      ))}
 
     </div>
   );

@@ -635,11 +635,18 @@ export function SurvivorPicksContent() {
         </section>
       )}
 
-      {/* Same structure as Confidence: the participant picker and the picks
-          form are mutually exclusive, not stacked — selecting a name
-          replaces "Who's picking?" with the picks form, exactly like
-          pool-picks-content.tsx's `selectedUser ? (...) : (<PickUserSelection/>)`. */}
-      {!selectedParticipantId || !myState ? (
+      {/* Same structure as Confidence: once showResultsSection is true
+          (matches Confidence's showResultsTabs), the entire picker/picks-form
+          section — including "Who's picking?" — disappears, same as
+          pool-picks-content.tsx's `{!showResultsTabs && (...)}` wrapper.
+          There's nothing left to pick once everyone eligible has picked, so
+          it shouldn't keep prompting for a name. forcePicks (dev only)
+          bypasses this the same way it does in Confidence — for reviewing a
+          participant's own locked/finished pick after standings would
+          otherwise take over. Inside that, the participant picker and the
+          picks form are mutually exclusive, not stacked — selecting a name
+          replaces "Who's picking?" with the picks form. */}
+      {(!showResultsSection || (showDebugPanel() && forcePicks)) && (!selectedParticipantId || !myState ? (
         <section style={{ background: surface, padding: '2rem 0' }}>
           <div className="lp-inner">
             <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
@@ -827,7 +834,7 @@ export function SurvivorPicksContent() {
             )}
           </div>
         </section>
-      )}
+      ))}
     </div>
   );
 }
