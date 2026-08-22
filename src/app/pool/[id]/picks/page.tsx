@@ -7,6 +7,7 @@ import { PoolPicksContent } from '@/components/picks/pool-picks-content';
 import { SurvivorPicksContent } from '@/components/picks/survivor-picks-content';
 import { PickemPicksContent } from '@/components/picks/pickem-picks-content';
 import { debugError } from '@/lib/utils';
+import type { CompetitionType } from '@/lib/poolTypes';
 
 const bg = 'oklch(13% 0.025 255)';
 
@@ -30,7 +31,7 @@ function LoadingScreen() {
 function PicksRouter() {
   const params = useParams();
   const poolId = params.id as string;
-  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,10 +40,14 @@ function PicksRouter() {
       try {
         const res = await fetch(`/api/pools/${poolId}`);
         const data = await res.json();
-        if (!cancelled) setCompetitionType(data?.pool?.competition_type ?? 'NFL_CONFIDENCE');
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
+        if (!cancelled) setCompetitionType((data.pool?.competition_type as CompetitionType | undefined) ?? null);
       } catch (error) {
         debugError('Error loading pool competition type:', error);
-        if (!cancelled) setCompetitionType('NFL_CONFIDENCE'); // fail open to the existing Confidence experience
+        // No silent Confidence fallback — a genuine fetch failure (private
+        // pool access denied, pool not found) should surface as "unable to
+        // load," never render whichever pool-type UI happens to be default.
+        if (!cancelled) setCompetitionType(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -51,7 +56,7 @@ function PicksRouter() {
     return () => { cancelled = true; };
   }, [poolId]);
 
-  if (loading || !competitionType) return <LoadingScreen />;
+  if (loading) return <LoadingScreen />;
 
   if (competitionType === 'SURVIVOR') {
     return (
@@ -71,11 +76,27 @@ function PicksRouter() {
     );
   }
 
+  if (competitionType === 'NFL_CONFIDENCE') {
+    return (
+      <>
+        <PoolPicksContent />
+        <Footer pageName="Pick Selection" />
+      </>
+    );
+  }
+
+  // Every explicitly-handled type is listed above — reaching here means
+  // either the fetch failed (competitionType null) or the pool is a type
+  // with no Picks UI built yet (NCAA_CONFIDENCE, MARCH_MADNESS). Never fall
+  // through to the Confidence experience by default.
   return (
-    <>
-      <PoolPicksContent />
-      <Footer pageName="Pick Selection" />
-    </>
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ background: 'oklch(20% 0.03 255)', border: '1px solid oklch(26% 0.03 255)', borderRadius: 10, padding: '2rem', width: '100%', maxWidth: 400, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-barlow)', color: 'oklch(72% 0.015 255)', fontSize: '0.9rem' }}>
+          {competitionType ? "This pool's type isn't supported yet." : "Couldn't load this pool. Try again."}
+        </p>
+      </div>
+    </div>
   );
 }
 

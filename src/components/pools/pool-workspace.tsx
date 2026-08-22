@@ -19,6 +19,7 @@ import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboar
 import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
 import { getPoolPayoutConfig } from '@/actions/poolPayouts';
 import { computeTotalPool, formatCurrency, PayoutConfig } from '@/lib/payouts';
+import type { CompetitionType } from '@/lib/poolTypes';
 
 // Design tokens (matches app-wide dark theme)
 const surface = 'oklch(17% 0.028 255)';
@@ -49,6 +50,10 @@ interface PoolWorkspaceProps {
   /** Shows an Active/Inactive status pill next to Picks Page when provided (used by the system-wide admin view). */
   isActive?: boolean;
   onPoolDeleted?: () => void;
+  /** Called after a Settings save persists — lets the dashboard refetch its
+   * pool list (name/season/season_scope/isActive props all come from
+   * there), while this component also refreshes its own internal stats. */
+  onPoolUpdated?: () => void;
   /** Jump straight to a tab (e.g. 'settings' from the dashboard's "needs a
    * password" warning) instead of the default Overview. Re-applies whenever
    * this or poolId changes, without forcing a remount. */
@@ -72,7 +77,7 @@ function getStoredAdminEmail(): string | null {
 
 export function PoolWorkspace({
   poolId, poolName, season, seasonScope, currentWeek, currentSeasonType,
-  showExportTab = true, isActive, onPoolDeleted, initialTab,
+  showExportTab = true, isActive, onPoolDeleted, onPoolUpdated, initialTab,
 }: PoolWorkspaceProps) {
   const router = useRouter();
 
@@ -97,12 +102,18 @@ export function PoolWorkspace({
   // participants flagged as delinquent) for a week that's simply too early.
   const [pickWindowOpened, setPickWindowOpened] = useState<boolean | null>(null);
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig | null>(null);
-  const [competitionType, setCompetitionType] = useState<string | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType | null>(null);
+  // Distinct from competitionType === null (still loading) — a genuine
+  // failure to fetch it (private pool access denied, not found, network
+  // error) must never silently render whichever pool-type UI happens to be
+  // the tab bar's default, so this gets its own explicit error state below.
+  const [competitionTypeError, setCompetitionTypeError] = useState(false);
   const isSurvivor = competitionType === 'SURVIVOR';
   const isPickem = competitionType === 'PICKEM';
 
   useEffect(() => {
     let cancelled = false;
+    setCompetitionTypeError(false);
     (async () => {
       try {
         const adminEmail = getStoredAdminEmail();
@@ -111,14 +122,16 @@ export function PoolWorkspace({
         });
         const data = await res.json();
         // data.pool is only absent on a genuine failure (private pool
-        // access denied, not found, etc.) — silently defaulting to
-        // NFL_CONFIDENCE here previously masked that failure entirely
-        // instead of surfacing it the way loadStats() below does.
+        // access denied, not found, etc.)
         if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load pool');
-        if (!cancelled) setCompetitionType(data.pool?.competition_type ?? 'NFL_CONFIDENCE');
+        // Cast, not re-validated: the DB's pools_competition_type_check
+        // constraint (see src/lib/poolTypes.ts) is the actual guarantee —
+        // this is a type annotation for callers in this file, not a second
+        // runtime check.
+        if (!cancelled) setCompetitionType((data.pool?.competition_type as CompetitionType | undefined) ?? null);
       } catch (error) {
         debugError('Error loading pool competition type:', error);
-        if (!cancelled) setCompetitionType('NFL_CONFIDENCE');
+        if (!cancelled) { setCompetitionType(null); setCompetitionTypeError(true); }
       }
     })();
     return () => { cancelled = true; };
@@ -137,6 +150,10 @@ export function PoolWorkspace({
     const requestId = ++statsRequestRef.current;
     const isStale = () => requestId !== statsRequestRef.current;
     try {
+      // workspace-stats is competition_type-aware server-side (Confidence
+      // picks / Pick'em pickem_picks / Survivor survivor_picks) — the
+      // participant/completed/pending counts it returns are correct for
+      // every pool type, not just Confidence.
       const statsRes = await fetch(`/api/pools/${poolId}/workspace-stats?week=${currentWeek}&seasonType=${currentSeasonType}`);
       const statsData = await statsRes.json();
       if (isStale()) return;
@@ -150,6 +167,18 @@ export function PoolWorkspace({
       const opened = await hasWeekPickWindowOpened(currentWeek, currentSeasonType, season);
       if (isStale()) return;
       setPickWindowOpened(opened);
+
+      // The season standings shown here (poolLeader / leaderboardEntries)
+      // are Confidence-only — computed from the `picks` table's confidence
+      // points via /api/leaderboard/season. Pick'em/Survivor have their own
+      // season standings (PickemStandingsPanel / SurvivorStandingsPanel,
+      // rendered separately above) and no use for this fetch at all.
+      if (competitionType !== 'NFL_CONFIDENCE') {
+        setLeaderboardStatus('ready');
+        setPoolLeader(null);
+        setLeaderboardEntries([]);
+        return;
+      }
 
       // Season standings compute live from picks+games (the same source the
       // public leaderboard uses) rather than reading `scores` directly —
@@ -200,16 +229,15 @@ export function PoolWorkspace({
       setPoolLeader(null);
       setLeaderboardEntries([]);
     }
-  }, [poolId, season, currentWeek, currentSeasonType]);
+  }, [poolId, season, currentWeek, currentSeasonType, competitionType]);
 
   useEffect(() => {
     setActivePoolTab('overview');
-    // loadStats() pulls from picks/scores/leaderboard endpoints that are
-    // Confidence-shaped and never populated for a Survivor or Pick'em pool
-    // — wait until competitionType actually resolves so this doesn't fire
-    // once for every pool before that fetch completes.
-    if (competitionType && !isSurvivor && !isPickem) loadStats();
-  }, [poolId, loadStats, competitionType, isSurvivor, isPickem]);
+    // Wait until competitionType actually resolves so this doesn't fire
+    // once for every pool before that fetch completes (loadStats itself
+    // now branches correctly on it for every supported type).
+    if (competitionType) loadStats();
+  }, [poolId, loadStats, competitionType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,6 +366,28 @@ export function PoolWorkspace({
 
   const hasPlayoffs = seasonScope?.includes(3) ?? false;
   const hasRegularSeason = seasonScope?.includes(2) ?? true;
+
+  if (competitionTypeError) {
+    return (
+      <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${amber}`, borderRadius: 10, padding: '2rem', textAlign: 'center' }}>
+        <AlertTriangle style={{ width: 24, height: 24, color: amber, margin: '0 auto 0.75rem' }} />
+        <p style={{ ...bc, fontWeight: 700, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Couldn&apos;t Load This Pool</p>
+        <p style={{ ...b, fontSize: '0.8rem', color: textDim, marginTop: '0.35rem' }}>Try refreshing, or check that you still have access.</p>
+      </div>
+    );
+  }
+
+  // Still resolving competition_type — every tab below branches on
+  // isSurvivor/isPickem, so rendering early would show Confidence-shaped
+  // content (the "else" case) for a brief moment on every pool, regardless
+  // of its real type.
+  if (competitionType === null) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+        <div className="animate-spin rounded-full h-10 w-10" style={{ borderWidth: '3px', borderStyle: 'solid', borderColor: border, borderTopColor: green }} />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -713,7 +763,12 @@ export function PoolWorkspace({
 
       {/* Settings tab */}
       {activePoolTab === 'settings' && (
-        <PoolSettings poolId={poolId} poolName={poolName} onPoolDeleted={onPoolDeleted}>
+        <PoolSettings
+          poolId={poolId}
+          poolName={poolName}
+          onPoolDeleted={onPoolDeleted}
+          onPoolUpdated={() => { loadStats(); onPoolUpdated?.(); }}
+        >
           <PayoutSettings poolId={poolId} isLocked={season < getNFLSeasonYear()} poolSeason={season} />
         </PoolSettings>
       )}

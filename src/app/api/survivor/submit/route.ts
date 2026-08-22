@@ -13,15 +13,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { participantId, poolId, gameId, selectedTeam, submittedBy } = body as {
-      participantId?: string; poolId?: string; gameId?: string; selectedTeam?: string; submittedBy?: string;
+    const { participantId, poolId, gameId, selectedTeam, submittedBy, devForceUnlock } = body as {
+      participantId?: string; poolId?: string; gameId?: string; selectedTeam?: string; submittedBy?: string; devForceUnlock?: boolean;
     };
 
     if (!participantId || !poolId || !gameId || !selectedTeam) {
       return NextResponse.json({ success: false, error: 'participantId, poolId, gameId, and selectedTeam are all required.' }, { status: 400 });
     }
 
-    const result = await submitSurvivorPick({ participantId, poolId, gameId, selectedTeam, submittedBy });
+    const result = await submitSurvivorPick({ participantId, poolId, gameId, selectedTeam, submittedBy, devForceUnlock });
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }

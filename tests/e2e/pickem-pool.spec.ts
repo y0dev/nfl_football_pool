@@ -680,7 +680,7 @@ test.describe("Pick'em Pool — mobile Picks page", () => {
       // ld+json"> blob, which legitimately mentions "confidence points" as
       // site-wide marketing copy unrelated to this specific page's content.
       const bodyText = (await page.evaluate(() => document.body.innerText)).toUpperCase();
-      expect(bodyText).toContain('PICK THE WINNER OF EVERY GAME');
+      expect(bodyText).toContain('PICK THE WINNER OF EACH GAME');
       expect(bodyText).not.toContain('CONFIDENCE POINT');
     } finally {
       await cleanup(fixture);
@@ -713,6 +713,47 @@ test.describe("Pick'em Pool — locked game result display", () => {
       await expect(page.locator('text=/Your pick:\\s*Dallas/i')).toBeVisible();
       await expect(page.getByText('Correct', { exact: true })).toBeVisible();
       await expect(page.locator('button:has-text("Game Details")')).toHaveCount(0);
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+});
+
+test.describe("Pick'em Pool — full picks flow (UI)", () => {
+  test('select, pick, submit; already-submitted participant cannot pick again; leaderboard auto-shows once everyone has picked', async ({ page }) => {
+    const fixture = await setupPickemPool({ participantNames: ['Alice', 'Bob'] });
+    try {
+      await createGame(fixture, {
+        week: 1, homeTeam: 'Kansas City Chiefs', awayTeam: 'Buffalo Bills', homeTeamId: 'KC', awayTeamId: 'BUF',
+        kickoff: daysFromNow(3), status: 'scheduled',
+      });
+
+      await page.goto(`/pool/${fixture.poolId}/picks?week=1&seasonType=2`);
+      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+
+      // Alice picks and submits.
+      await page.selectOption('select', { label: 'Alice' });
+      await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
+      await page.locator('button:has-text("Kansas City")').click();
+      await page.locator('button:has-text("Submit Picks")').click();
+      await expect(page.getByText("Pick'em Standings", { exact: true })).toHaveCount(0);
+
+      // Not everyone has picked yet — standings stay hidden. Bob picks and submits.
+      await page.selectOption('select', { label: 'Bob' });
+      await page.waitForSelector('button:has-text("Buffalo")', { timeout: 15000 });
+      await page.locator('button:has-text("Buffalo")').click();
+      await page.locator('button:has-text("Submit Picks")').click();
+
+      // Everyone has now submitted (even though the game hasn't started) —
+      // standings should auto-show, matching Confidence's showResultsTabs.
+      await expect(page.getByText("Pick'em Standings", { exact: true })).toBeVisible({ timeout: 15000 });
+
+      // Re-selecting Alice must show the locked/submitted view, not pick
+      // buttons — a participant who already submitted cannot pick again.
+      await page.selectOption('select', { label: 'Alice' });
+      await expect(page.getByText('Picks Submitted', { exact: true })).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('button:has-text("Kansas City"), button:has-text("Buffalo")')).toHaveCount(0);
+      await expect(page.locator('button:has-text("Submit Picks")')).toHaveCount(0);
     } finally {
       await cleanup(fixture);
     }
