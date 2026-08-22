@@ -154,6 +154,11 @@ export function PickemPicksContent() {
   // pressed, instead of the previous per-click auto-save-per-game model.
   const [draftPicks, setDraftPicks] = useState<Record<string, string>>({});
   const [submittingAll, setSubmittingAll] = useState(false);
+  // Dev-only override, same pattern as Confidence's forceWeekUnlocked — the
+  // checkbox that flips this only ever renders inside showDebugPanel()'s
+  // #debug-panel-controls, so this can't affect production regardless of
+  // its default.
+  const [forceGamesUnlocked, setForceGamesUnlocked] = useState(false);
 
   // Resolve which week to show: explicit ?week=/?seasonType= params, else
   // the same "what's the NFL's current/upcoming week" logic every other
@@ -416,7 +421,7 @@ export function PickemPicksContent() {
   // pickable control nor part of what gets submitted, same as Confidence's
   // week-wide submit only ever covering games that are still open.
   const editableGames = (result?.eligibleGames ?? []).filter(
-    game => !isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now)
+    game => forceGamesUnlocked || !isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now)
   );
   const allEditablePicked = editableGames.length > 0 && editableGames.every(g => !!draftPicks[g.id]);
 
@@ -684,7 +689,7 @@ export function PickemPicksContent() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: tiebreakerGame ? '2rem' : 0 }}>
               {result.eligibleGames.map(game => {
-                const locked = isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
+                const locked = !forceGamesUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                 const pickForGame = myWeek.picks.find(p => p.gameId === game.id);
 
                 // Once a game is locked, its result (teams, score, your pick,
@@ -786,7 +791,7 @@ export function PickemPicksContent() {
                 <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                   Predict total combined score
                 </label>
-                {isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now) ? (
+                {!forceGamesUnlocked && isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now) ? (
                   <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
                     {myWeek.tiebreakerPrediction != null ? `Your prediction: ${myWeek.tiebreakerPrediction}` : 'This game has started — no prediction was submitted.'}
                   </p>
@@ -825,6 +830,17 @@ export function PickemPicksContent() {
                 <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {week} | <strong>Season Type:</strong> {seasonType} | <strong>Games:</strong> {result?.eligibleGames.length ?? 0}</p>
                 <p><strong>Selected Participant:</strong> {myWeek ? `${myWeek.participantName} (${myWeek.participantId})` : 'None'} | <strong>Complete:</strong> {myWeek ? (myWeek.isComplete ? 'Yes' : 'No') : 'N/A'} | <strong>Pick&apos;em Score:</strong> {myWeek ? `${myWeek.correctCount}/${result?.eligibleGames.length ?? 0}` : 'N/A'}</p>
               </div>
+              <div id="debug-panel-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={forceGamesUnlocked}
+                    onChange={(e) => setForceGamesUnlocked(e.target.checked)}
+                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force all games unlocked (ignore kickoff gate)</span>
+                </label>
+              </div>
               {myWeek && result && result.eligibleGames.length > 0 && (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
@@ -838,7 +854,7 @@ export function PickemPicksContent() {
                     <tbody>
                       {result.eligibleGames.map(game => {
                         const pick = myWeek.picks.find(p => p.gameId === game.id);
-                        const locked = isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
+                        const locked = !forceGamesUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                         return (
                           <tr key={game.id} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
                             <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game.awayTeam} @ {game.homeTeam}</td>

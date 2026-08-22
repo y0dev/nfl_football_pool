@@ -156,6 +156,11 @@ export function SurvivorPicksContent() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  // Dev-only override, same pattern as Confidence's forceWeekUnlocked — the
+  // checkbox that flips this only ever renders inside showDebugPanel()'s
+  // #debug-panel-controls, so this can't affect production regardless of
+  // its default.
+  const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -309,14 +314,14 @@ export function SurvivorPicksContent() {
 
   const myState = state?.participants.find(p => p.participantId === selectedParticipantId) ?? null;
   const currentWeekGames: SurvivorCurrentWeekGame[] = state?.currentWeekGames ?? [];
-  const weekUnlocked = currentWeekGames.length > 0 && state?.currentWeek
+  const weekUnlocked = forceWeekUnlocked || (currentWeekGames.length > 0 && state?.currentWeek
     ? computeWeekUnlockStatus(
         currentWeekGames.map(g => ({ kickoff_time: g.kickoffTime, status: g.status ?? undefined })),
         state.currentWeek.week,
         state.currentWeek.seasonType,
         null
       )
-    : false;
+    : false);
 
   const myUsedTeams = new Set(myState?.usedTeams ?? []);
   const myCurrentWeekPick = myState?.picks.find(p => state?.currentWeek && p.week === state.currentWeek.week && p.seasonType === state.currentWeek.seasonType);
@@ -687,6 +692,17 @@ export function SurvivorPicksContent() {
                 <p><strong>Pool ID:</strong> {poolId} | <strong>Current Week:</strong> {state?.currentWeek ? `${state.currentWeek.week} (season_type ${state.currentWeek.seasonType})` : 'Season complete'} | <strong>Week Unlocked:</strong> {weekUnlocked ? 'Yes' : 'No'}</p>
                 <p><strong>Selected Participant:</strong> {myState ? `${myState.participantName} (${myState.participantId})` : 'None'} | <strong>Status:</strong> {myState?.status ?? 'N/A'}</p>
                 <p><strong>Used Teams:</strong> {myState && myUsedTeams.size > 0 ? [...myUsedTeams].join(', ') : 'None'}</p>
+              </div>
+              <div id="debug-panel-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={forceWeekUnlocked}
+                    onChange={(e) => setForceWeekUnlocked(e.target.checked)}
+                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
+                  />
+                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force week unlocked (ignore kickoff gate)</span>
+                </label>
               </div>
               {myState && myState.picks.length > 0 && (
                 <div style={{ overflowX: 'auto' }}>
