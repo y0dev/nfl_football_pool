@@ -3,15 +3,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { CheckCircle2, Lock, Target, Trophy, Check, X as XIcon } from 'lucide-react';
+import { CheckCircle2, Lock, Target, Trophy, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
 import { isGameLocked } from '@/lib/pickem-settings';
-import { getTeam, getTeamAbbreviation, debugError, showDebugPanel } from '@/lib/utils';
+import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle, getMaxWeeksForSeason, DAYS_BEFORE_GAME } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
+import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
+import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -115,7 +117,12 @@ function LockedPickemGameRow({
   );
 }
 
-interface PoolInfo { id: string; name: string; season: number; }
+interface PoolInfo {
+  id: string; name: string; season: number;
+  isActive: boolean; seasonScope: number[]; isPrivate: boolean; isTestMode: boolean;
+}
+
+const seasonTypeNames: Record<number, string> = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
 
 export function PickemPicksContent() {
   const params = useParams();
@@ -127,14 +134,19 @@ export function PickemPicksContent() {
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const [seasonType, setSeasonType] = useState<number | null>(null);
+  const [upcomingWeek, setUpcomingWeek] = useState<{ week: number; seasonType: number }>({ week: 1, seasonType: 2 });
   const [result, setResult] = useState<PickemWeekResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
   const [submittingGameId, setSubmittingGameId] = useState<string | null>(null);
   const [tiebreakerInput, setTiebreakerInput] = useState('');
   const [submittingTiebreaker, setSubmittingTiebreaker] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   // Resolve which week to show: explicit ?week=/?seasonType= params, else
   // the same "what's the NFL's current/upcoming week" logic every other
@@ -146,33 +158,53 @@ export function PickemPicksContent() {
       if (weekParam && seasonTypeParam) {
         setWeek(parseInt(weekParam, 10));
         setSeasonType(parseInt(seasonTypeParam, 10));
-        return;
-      }
-      try {
-        const upcoming = await getUpcomingWeek();
-        setWeek(upcoming.week);
-        setSeasonType(upcoming.seasonType || 2);
-      } catch (error) {
-        debugError('Error resolving current week for Pick’em:', error);
-        setWeek(1);
-        setSeasonType(2);
+      } else {
+        try {
+          const upcoming = await getUpcomingWeek();
+          setWeek(upcoming.week);
+          setSeasonType(upcoming.seasonType || 2);
+        } catch (error) {
+          debugError('Error resolving current week for Pick’em:', error);
+          setWeek(1);
+          setSeasonType(2);
+        }
       }
     };
     resolveWeek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Independent of the ?week=/?seasonType= params above — WeekNav needs to
+  // know what's actually current/upcoming (to highlight it and label it)
+  // regardless of which week the user has navigated to, same distinction
+  // pool-picks-content.tsx's own `upcomingWeek` state makes.
+  useEffect(() => {
+    getUpcomingWeek()
+      .then(u => setUpcomingWeek({ week: u.week, seasonType: u.seasonType || 2 }))
+      .catch(error => debugError('Error resolving upcoming week for Pick’em WeekNav:', error));
+  }, []);
+
   const loadData = useCallback(async () => {
     if (week == null || seasonType == null) return;
     try {
       const [poolRes, resultRes] = await Promise.all([
-        fetch(`/api/pools/${poolId}`),
+        fetch(`/api/pools/${poolId}?week=${week}&seasonType=${seasonType}`),
         fetch(`/api/pickem/week?poolId=${poolId}&week=${week}&seasonType=${seasonType}`),
       ]);
       const poolData = await poolRes.json();
       const resultData = await resultRes.json();
-      if (poolData?.pool) setPool({ id: poolData.pool.id, name: poolData.pool.name, season: poolData.pool.season });
-      if (resultData?.success) setResult(resultData.result);
+      if (poolData?.pool) {
+        setPool({
+          id: poolData.pool.id,
+          name: poolData.pool.name,
+          season: poolData.pool.season,
+          isActive: !!poolData.pool.is_active,
+          seasonScope: Array.isArray(poolData.pool.season_scope) && poolData.pool.season_scope.length > 0 ? poolData.pool.season_scope : [2],
+          isPrivate: !!poolData.pool.is_private,
+          isTestMode: !!poolData.pool.is_test_mode,
+        });
+      }
+      if (resultData?.success) { setResult(resultData.result); setLastUpdated(new Date()); }
       else toast({ title: 'Error', description: resultData?.error ?? "Failed to load Pick'em pool.", variant: 'destructive' });
     } catch (error) {
       debugError("Error loading Pick'em picks data:", error);
@@ -187,24 +219,99 @@ export function PickemPicksContent() {
   // No AuthProvider on this route (participant-facing, like the Survivor and
   // Confidence Picks pages it sits alongside) — resolve admin status the
   // same way those do: read localStorage directly, verify server-side.
+  // isPoolAdmin (this browser's commissioner also owns THIS pool, not just
+  // any pool) mirrors pool-picks-content.tsx's own check — needed so
+  // handleShare only ever includes the password for the pool's actual
+  // owner, same privacy guarantee Confidence already has.
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
         const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
-        const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        const localUser: { id?: string; email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
         if (!localUser?.id) return;
         const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
         const data = await res.json();
         if (data.success && data.isAdmin) {
           setIsAdmin(true);
           setIsSuperAdmin(!!data.isSuperAdmin);
+          if (poolId && localUser.email) {
+            const { getSupabaseClient } = await import('@/lib/supabase');
+            const supabase = getSupabaseClient();
+            const { data: poolRow } = await supabase.from('pools').select('created_by').eq('id', poolId).single();
+            if (poolRow && poolRow.created_by === localUser.email) setIsPoolAdmin(true);
+          }
         }
       } catch (error) {
         debugError('Error checking admin status:', error);
       }
     };
     checkAdminStatus();
-  }, []);
+  }, [poolId]);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    let text = `Join me in making picks for ${pool?.name ?? 'this pool'} — Week ${week}!`;
+    if (pool?.isPrivate && isPoolAdmin) {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (localUser?.email) {
+          const { revealPoolPasswordForCommissioner } = await import('@/actions/poolPassword');
+          const result = await revealPoolPasswordForCommissioner(poolId, localUser.email);
+          if (result.success) text += `\n\nPassword: ${result.password}`;
+        }
+      } catch (e) {
+        debugError('Error including pool password in share message:', e);
+      }
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${pool?.name ?? "Pick'em"} - Week ${week} Picks`, text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast({ title: 'Link Copied', description: text.includes('Password:') ? 'Pool link and password copied to clipboard' : 'Pool link copied to clipboard' });
+      }
+    } catch (e) {
+      debugError('Error sharing:', e);
+    }
+  };
+
+  // No playoff-confidence-points gate (Confidence-only concept) — otherwise
+  // the same bounds-checking + full-page navigation pattern as
+  // pool-picks-content.tsx's navigateToWeek, so a week jump always reflects
+  // real server state on load rather than a client-side transition.
+  const navigateToWeek = (targetWeek: number, targetSeasonType: number) => {
+    const scopeSorted = [...(pool?.seasonScope ?? [2])].sort((a, b) => a - b);
+    const minScope = scopeSorted[0] ?? 2;
+    const maxScope = scopeSorted[scopeSorted.length - 1] ?? 2;
+    const maxWeeks = getMaxWeeksForSeason(targetSeasonType);
+    let w = targetWeek;
+    let st = targetSeasonType;
+    if (w < 1) {
+      if (st <= minScope) return;
+      const prevScope = scopeSorted.filter(s => s < st).pop();
+      if (!prevScope) return;
+      st = prevScope;
+      w = getMaxWeeksForSeason(prevScope);
+    } else if (w > maxWeeks) {
+      if (st >= maxScope) return;
+      const nextScope = scopeSorted.find(s => s > st);
+      if (!nextScope) return;
+      st = nextScope;
+      w = 1;
+    }
+    window.location.href = `/pool/${poolId}/picks?week=${w}&seasonType=${st}`;
+  };
+
+  const navigateToCurrentWeek = async () => {
+    try {
+      const upcoming = await getUpcomingWeek();
+      window.location.href = `/pool/${poolId}/picks?week=${upcoming.week}&seasonType=${upcoming.seasonType || 2}`;
+    } catch (error) {
+      debugError('Error getting current week:', error);
+      window.location.href = `/pool/${poolId}/picks?week=1&seasonType=2`;
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -294,25 +401,114 @@ export function PickemPicksContent() {
 
   const tiebreakerGame = result?.tiebreakerGame;
 
+  // Same lock-state source of truth as Confidence's hero (computeHeroWeekState
+  // / computeWeekUnlockStatus under it) — never a separate calculation. Pick'em
+  // games are per-game-locking but the week as a whole is "unlocked" exactly
+  // when Confidence's would be: before any of this week's games have started.
+  const gamesForLock = (result?.eligibleGames ?? []).map(g => ({ kickoff_time: g.kickoffTime, status: g.status }));
+  const gamesStartedNow = gamesForLock.some(g => new Date(g.kickoff_time) <= now || (g.status != null && normalizeGameStatus(g.status) !== 'scheduled'));
+  const isPoolClosed = pool ? !pool.isActive : false;
+  const weekEnded = result?.isWeekFinal ?? false;
+  const heroWeekState = computeHeroWeekState({
+    isPoolClosed,
+    weekEnded,
+    poolSeasonScope: pool?.seasonScope ?? [2],
+    currentSeasonType: seasonType ?? 2,
+    currentWeek: week ?? 1,
+    games: gamesForLock,
+    upcomingWeek,
+  });
+  const heroUnlockTime = computeHeroUnlockTime(heroWeekState, gamesForLock, DAYS_BEFORE_GAME);
+
+  const statsTotal = result?.participants.length ?? 0;
+  const statsComplete = result?.participants.filter(p => p.isComplete).length ?? 0;
+  const statsPending = statsTotal - statsComplete;
+  const statsCompletionRate = statsTotal > 0 ? Math.round((statsComplete / statsTotal) * 100) : 0;
+
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
 
-      <section style={{ background: bg, padding: 'clamp(2rem, 5vw, 3rem) 0 1.5rem' }}>
-        <div className="lp-inner">
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
-            Pick&apos;em Pool
-          </p>
-          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 1, color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-            {pool?.name ?? 'Loading…'}
-          </h1>
-          <p style={{ ...b, fontSize: '0.9rem', color: textMid }}>
-            Week {week} — Pick the winner of every game.
-          </p>
-        </div>
-      </section>
-
+      <PoolPicksHero
+        poolName={pool?.name ?? 'Loading…'}
+        isTestMode={pool?.isTestMode}
+        weekTitle={getWeekTitle(week ?? 1, seasonType ?? 2)}
+        weekNav={
+          <WeekNav
+            currentWeek={week ?? 1} currentSeasonType={seasonType ?? 2} upcomingWeek={upcomingWeek}
+            seasonScope={pool?.seasonScope ?? [2]}
+            onPrev={() => navigateToWeek((week ?? 1) - 1, seasonType ?? 2)}
+            onCurrent={navigateToCurrentWeek}
+            onNext={() => navigateToWeek((week ?? 1) + 1, seasonType ?? 2)}
+            onJumpToWeek={(w, st) => navigateToWeek(w, st)}
+          />
+        }
+        itemCountLabel={`${result?.eligibleGames.length ?? 0} games`}
+        seasonTypeName={seasonTypeNames[seasonType ?? 2] || 'Regular'}
+        weekState={heroWeekState}
+        gamesStarted={gamesStartedNow}
+        unlockTime={heroUnlockTime}
+        unlockFallbackMessage="Picks aren't unlocked yet — they open a few days before the first game's kickoff."
+        lastUpdated={lastUpdated}
+        subtitle="Pick the winner of each game."
+        actions={[
+          { label: 'Share', icon: Share2, onClick: handleShare },
+          { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
+          ...(weekEnded ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
+        ]}
+        learnMoreHref="/how-to/make-picks"
+        learnMoreText="Pick'em picks"
+      />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {showStats && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Users style={{ width: 15, height: 15, color: green }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pool Statistics</span>
+              </div>
+              <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                {[
+                  { label: 'Total Participants', value: statsTotal, color: green },
+                  { label: 'Complete', value: statsComplete, color: 'oklch(58% 0.15 250)' },
+                  { label: 'Pending', value: statsPending, color: amber },
+                  { label: 'Completion', value: `${statsCompletionRate}%`, color: gold },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ textAlign: 'center' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '0 1.25rem 1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...b, fontSize: '0.75rem', color: textDim, marginBottom: '0.4rem' }}>
+                  <span>Submission Progress</span>
+                  <span style={{ color: textMid }}>{statsComplete} of {statsTotal}</span>
+                </div>
+                <div style={{ height: 6, background: 'oklch(26% 0.03 255)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: `linear-gradient(90deg, ${green}, oklch(58% 0.15 250))`, borderRadius: 3, width: `${statsTotal > 0 ? (statsComplete / statsTotal) * 100 : 0}%`, transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showResults && weekEnded && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                <Trophy style={{ width: 16, height: 16, color: gold }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Pick&apos;em Standings</p>
+              </div>
+              <PickemStandingsPanel poolId={poolId} />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section style={{ background: surface, padding: '2rem 0' }}>
         <div className="lp-inner" style={{ maxWidth: 640 }}>

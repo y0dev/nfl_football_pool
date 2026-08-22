@@ -680,7 +680,7 @@ test.describe("Pick'em Pool — mobile Picks page", () => {
       // ld+json"> blob, which legitimately mentions "confidence points" as
       // site-wide marketing copy unrelated to this specific page's content.
       const bodyText = (await page.evaluate(() => document.body.innerText)).toUpperCase();
-      expect(bodyText).toContain('PICK THE WINNER OF EVERY GAME');
+      expect(bodyText).toContain('PICK THE WINNER OF EACH GAME');
       expect(bodyText).not.toContain('CONFIDENCE POINT');
     } finally {
       await cleanup(fixture);

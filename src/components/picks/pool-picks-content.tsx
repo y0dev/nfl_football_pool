@@ -5,24 +5,23 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { GameCard } from '@/components/picks/game-card';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, LogOut, RefreshCw, Crown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, RefreshCw, Crown, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
-import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
 import { loadWeekGames } from '@/actions/loadWeekGames';
 import { Game, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { userSessionManager } from '@/lib/user-session';
-import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPlayoffRoundName, SEASON_TYPE_OPTIONS, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
+import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
+import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -96,89 +95,6 @@ function PicksNav({
   // isValidUuid checks elsewhere in this file); a plain participant sees
   // Sign In/Create Account instead, same as everywhere else in the app.
   return <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={onLogout} poolId={poolId} />;
-}
-
-function WeekNav({
-  currentWeek,
-  currentSeasonType,
-  upcomingWeek,
-  seasonScope,
-  onPrev,
-  onCurrent,
-  onNext,
-  onJumpToWeek,
-}: {
-  currentWeek: number;
-  currentSeasonType: number;
-  upcomingWeek: { week: number; seasonType: number };
-  seasonScope: number[];
-  onPrev: () => void;
-  onCurrent: () => void;
-  onNext: () => void;
-  onJumpToWeek: (week: number, seasonType: number) => void;
-}) {
-  const isCurrentWeek = currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType;
-  const scopeSorted = [...seasonScope].sort((a, b) => a - b);
-  const minScope = scopeSorted[0] ?? 2;
-  const maxScope = scopeSorted[scopeSorted.length - 1] ?? 2;
-  const prevDisabled = currentSeasonType <= minScope && currentWeek <= 1;
-  const nextDisabled = currentSeasonType >= maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
-  const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
-  // When a pool spans more than one season type (e.g. regular season +
-  // playoffs), group weeks under a section header per season type instead
-  // of listing every week in one flat, unlabeled list.
-  const weekGroups = scopeSorted.map((seasonType) => ({
-    seasonType,
-    label: SEASON_TYPE_OPTIONS.find((o) => o.value === seasonType)?.label ?? '',
-    weeks: Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => i + 1),
-  }));
-  return (
-    <div className="week-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-      <button className='week-nav-prev' onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>
-        <ChevronLeft style={{ width: 13, height: 13 }} /> Prev
-      </button>
-      <button className='week-nav-current' onClick={onCurrent} style={{ ...btnBase, background: isCurrentWeek ? green : 'transparent', color: isCurrentWeek ? text : textMid, borderColor: isCurrentWeek ? green : border }}>
-        <Calendar style={{ width: 12, height: 12 }} /> Current
-      </button>
-      <button className='week-nav-next' onClick={onNext} disabled={nextDisabled} style={{ ...btnBase, background: 'transparent', color: nextDisabled ? textDim : textMid, opacity: nextDisabled ? 0.4 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}>
-        Next <ChevronRight style={{ width: 13, height: 13 }} />
-      </button>
-      <Select
-        value={`${currentSeasonType}-${currentWeek}`}
-        onValueChange={(v) => {
-          const [seasonType, week] = v.split('-').map(Number);
-          onJumpToWeek(week, seasonType);
-        }}
-      >
-        <SelectTrigger aria-label="Jump to week" className="week-nav-select-trigger">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {weekGroups.map((group) => (
-            <SelectGroup key={group.seasonType}>
-              <SelectLabel>{group.label}</SelectLabel>
-              {group.weeks.map((week) => {
-                const isCurrent = week === upcomingWeek.week && group.seasonType === upcomingWeek.seasonType;
-                const itemLabel = group.seasonType === 3 ? getPlayoffRoundName(week) : `Week ${week}`;
-                return (
-                  <SelectItem key={`${group.seasonType}-${week}`} value={`${group.seasonType}-${week}`}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span>{itemLabel}</span>
-                      {isCurrent && (
-                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.05em', color: greenHi, textTransform: 'uppercase' }}>
-                          (Current Week)
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectGroup>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 export function PoolPicksContent() {
@@ -255,35 +171,19 @@ export function PoolPicksContent() {
   // game-data-driven weekEnded state, to answer "what's actually going on
   // with this week" for display. Pure/sync — no extra network requests,
   // since games/upcomingWeek/weekEnded/isPoolClosed are already loaded.
-  const weekState = useMemo((): 'pool_inactive' | 'season_complete' | 'ended' | 'locked' | 'unlocked' => {
-    if (isPoolClosed) return 'pool_inactive';
-    if (weekEnded) {
-      const scopeSorted = [...poolSeasonScope].sort((a, b) => a - b);
-      const maxScope = scopeSorted[scopeSorted.length - 1] ?? currentSeasonType;
-      const isFinalWeekOfPool = currentSeasonType === maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
-      return isFinalWeekOfPool ? 'season_complete' : 'ended';
-    }
-    if (games.length === 0) return 'locked';
-    return computeWeekUnlockStatus(games, currentWeek, currentSeasonType, upcomingWeek) ? 'unlocked' : 'locked';
-  }, [isPoolClosed, weekEnded, poolSeasonScope, currentSeasonType, currentWeek, games, upcomingWeek]);
+  const weekState = useMemo(
+    () => computeHeroWeekState({ isPoolClosed, weekEnded, poolSeasonScope, currentSeasonType, currentWeek, games, upcomingWeek }),
+    [isPoolClosed, weekEnded, poolSeasonScope, currentSeasonType, currentWeek, games, upcomingWeek]
+  );
 
   // When locked, when it unlocks — derived from the same real kickoff data,
   // not hardcoded. Only meaningful (and only computed) while weekState is
   // actually 'locked'; games not started yet this early can't be relied on
   // for anything else, so this only needs the earliest kickoff.
-  const unlockTime = useMemo(() => {
-    if (weekState !== 'locked' || games.length === 0) return null;
-    const earliestKickoff = games.reduce(
-      (earliest, g) => Math.min(earliest, new Date(g.kickoff_time).getTime()),
-      Infinity
-    );
-    if (!Number.isFinite(earliestKickoff)) return null;
-    const unlocksAt = new Date(earliestKickoff - DAYS_BEFORE_GAME * 24 * 60 * 60 * 1000);
-    // Already past the unlock threshold but still computed as locked (e.g.
-    // a game already started/finished) — no future date to show.
-    if (unlocksAt.getTime() <= Date.now()) return null;
-    return unlocksAt;
-  }, [weekState, games]);
+  const unlockTime = useMemo(
+    () => computeHeroUnlockTime(weekState, games, DAYS_BEFORE_GAME),
+    [weekState, games]
+  );
 
   useEffect(() => {
     if (!poolName) return;
@@ -1524,83 +1424,44 @@ export function PoolPicksContent() {
     <div style={{ minHeight: '100vh', background: bg }}>
       <PicksNav isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} poolId={poolId} onLogout={handleLogout} />
 
-      <section
-        id="hero"
-        style={{ background: bg, backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 59px, oklch(100% 0 0 / 0.022) 59px, oklch(100% 0 0 / 0.022) 60px)`, padding: 'clamp(1.5rem, 3vw, 2.5rem) 0' }}>
-        <div className="lp-inner">
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: greenHi, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ display: 'inline-block', width: 18, height: 2, background: greenHi, borderRadius: 1 }} />
-            {poolName}
-            {isTestMode && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.08em', padding: '0.1rem 0.4rem', borderRadius: 4, background: `oklch(72% 0.16 60 / 0.2)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.4)`, textTransform: 'uppercase' }}>Test Mode</span>}
-          </p>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: text, textTransform: 'uppercase' }}>
-              {getWeekTitle()} <span style={{ color: gold }}>Picks</span>
-            </h1>
-            <WeekNav
-              currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
-              seasonScope={poolSeasonScope}
-              onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
-              onCurrent={navigateToCurrentWeek}
-              onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
-              onJumpToWeek={(week, seasonType) => navigateToWeek(week, seasonType)}
-            />
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{games.length} games</span>
-            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}` }}>{seasonTypeNames[seasonTypeParam ? parseInt(seasonTypeParam) : 2] || 'Regular'}</span>
-            {(() => {
-              const badge = {
-                pool_inactive:   { text: 'Pool Inactive',    icon: LogOut,   color: textDim },
-                season_complete: { text: 'Season Complete',  icon: Trophy,   color: gold },
-                ended:           { text: 'Week Ended',       icon: Calendar, color: textMid },
-                locked:          { text: 'Locked',           icon: Lock,     color: amber },
-                unlocked:        { text: 'Unlocked',         icon: Unlock,   color: greenHi },
-              }[weekState];
-              const BadgeIcon = badge.icon;
-              return (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 4, textTransform: 'uppercase', background: 'oklch(26% 0.03 255)', color: badge.color, border: `1px solid ${border}` }}>
-                  <BadgeIcon style={{ width: 11, height: 11 }} /> {badge.text}
-                </span>
-              );
-            })()}
-            {process.env.NODE_ENV === 'development' && lastUpdated && <span style={{ ...b, fontSize: '0.68rem', color: textDim }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
-          </div>
-
-          {weekState === 'locked' && !effectiveGamesStarted && (
-            <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.4rem' }}>
-              {unlockTime
-                ? `Picks unlock ${unlockTime.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`
-                : `Picks aren't unlocked yet — they open ${DAYS_BEFORE_GAME} days before the first game's kickoff.`}
-            </p>
-          )}
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.85rem' }}>
-            {[
-              { label: 'Share', icon: Share2, onClick: handleShare },
-              // Purely a view toggle (Game Details panel vs. the picks form)
-              // — never claims to "unlock" anything, since no such action
-              // exists; the real lock state is the badge above. Once games
-              // are locked/finished, the Game Results tab already shows
-              // each game's score and status, so this redundant summary
-              // panel (and its toggle) is dropped entirely rather than
-              // relabeled — nothing left for "View Picks" to close.
-              ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
-              { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
-              ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
-              ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
-            ].map(({ label, icon: Icon, onClick }) => (
-              <button key={label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.7rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                <Icon style={{ width: 12, height: 12 }} /> {label}
-              </button>
-            ))}
-          </div>
-
-          <a href="/how-to/make-picks" target="_blank" rel="noopener noreferrer" style={{ ...b, fontSize: '0.75rem', color: textDim, textDecoration: 'none', display: 'inline-block', marginTop: '0.6rem' }}>
-            Not sure how picks work? <span style={{ textDecoration: 'underline' }}>Learn how →</span>
-          </a>
-        </div>
-      </section>
+      <PoolPicksHero
+        poolName={poolName}
+        isTestMode={isTestMode}
+        weekTitle={getWeekTitle()}
+        weekNav={
+          <WeekNav
+            currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
+            seasonScope={poolSeasonScope}
+            onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
+            onCurrent={navigateToCurrentWeek}
+            onNext={() => navigateToWeek(currentWeek + 1, currentSeasonType)}
+            onJumpToWeek={(week, seasonType) => navigateToWeek(week, seasonType)}
+          />
+        }
+        itemCountLabel={`${games.length} games`}
+        seasonTypeName={seasonTypeNames[seasonTypeParam ? parseInt(seasonTypeParam) : 2] || 'Regular'}
+        weekState={weekState}
+        gamesStarted={effectiveGamesStarted}
+        unlockTime={unlockTime}
+        unlockFallbackMessage={`Picks aren't unlocked yet — they open ${DAYS_BEFORE_GAME} days before the first game's kickoff.`}
+        lastUpdated={lastUpdated}
+        actions={[
+          { label: 'Share', icon: Share2, onClick: handleShare },
+          // Purely a view toggle (Game Details panel vs. the picks form)
+          // — never claims to "unlock" anything, since no such action
+          // exists; the real lock state is the badge above. Once games
+          // are locked/finished, the Game Results tab already shows
+          // each game's score and status, so this redundant summary
+          // panel (and its toggle) is dropped entirely rather than
+          // relabeled — nothing left for "View Picks" to close.
+          ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
+          { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
+          ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
+          ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),
+        ]}
+        learnMoreHref="/how-to/make-picks"
+        learnMoreText="picks"
+      />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
       <section
@@ -1664,7 +1525,7 @@ export function PoolPicksContent() {
           })()}
 
           {countdown && countdown !== 'Games Started' && !(participantCount > 0 && submittedCount >= participantCount) && (
-            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.3)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+            <div id="countdown-card" style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.3)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                 <Clock style={{ width: 18, height: 18, color: 'oklch(68% 0.12 250)', flexShrink: 0 }} />
                 <div style={{ textAlign: 'center' }}>
@@ -1676,7 +1537,7 @@ export function PoolPicksContent() {
           )}
 
           {(countdown === 'Games Started' || effectiveGamesStarted) && (
-            <div style={{ background: `oklch(62% 0.22 25 / 0.1)`, border: `1px solid oklch(62% 0.22 25 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+            <div id="games-started-card" style={{ background: `oklch(62% 0.22 25 / 0.1)`, border: `1px solid oklch(62% 0.22 25 / 0.35)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                 <AlertTriangle style={{ width: 18, height: 18, color: liveRed, flexShrink: 0 }} />
                 <div style={{ textAlign: 'center' }}>
@@ -1710,7 +1571,7 @@ export function PoolPicksContent() {
                   const isUpcoming = !isLocked && !isFinished && timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
 
                   return (
-                    <div key={game.id} style={{ background: surface, border: `1px solid ${isFinished ? 'oklch(46% 0.14 155 / 0.2)' : isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <div id={`game-${game.id}`} key={game.id} style={{ background: surface, border: `1px solid ${isFinished ? 'oklch(46% 0.14 155 / 0.2)' : isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
                           <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim }}>Game {index + 1}</span>
@@ -1742,7 +1603,7 @@ export function PoolPicksContent() {
           )}
 
           {showDebugPanel() && (
-            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
+            <div id="debug-panel" style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
               <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'} | <strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'} | <strong>Games:</strong> {games.length}</p>
@@ -1810,7 +1671,7 @@ export function PoolPicksContent() {
           )}
 
           {showDebugPanel() && (
-            <div style={{ background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
+            <div id="debug-panel-picks" style={{ background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
               <p style={{ ...b, fontSize: '0.78rem', color: greenHi }}>
                 <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}, Week ended: {weekEnded ? 'Yes' : 'No'}
               </p>

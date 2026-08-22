@@ -3,14 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Check, X as XIcon } from 'lucide-react';
+import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
-import { getTeam, getTeamAbbreviation, debugError, showDebugPanel } from '@/lib/utils';
+import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle, DAYS_BEFORE_GAME } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
+import { PoolPicksHero, computeHeroWeekState, computeHeroUnlockTime, type HeroWeekState } from '@/components/picks/pool-picks-hero';
+import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -122,7 +124,13 @@ interface PoolInfo {
   id: string;
   name: string;
   season: number;
+  isActive: boolean;
+  seasonScope: number[];
+  isPrivate: boolean;
+  isTestMode: boolean;
 }
+
+const seasonTypeNames: Record<number, string> = { 1: 'Preseason', 2: 'Regular', 3: 'Postseason' };
 
 export function SurvivorPicksContent() {
   const params = useParams();
@@ -135,9 +143,13 @@ export function SurvivorPicksContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isPoolAdmin, setIsPoolAdmin] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -147,8 +159,18 @@ export function SurvivorPicksContent() {
       ]);
       const poolData = await poolRes.json();
       const stateData = await stateRes.json();
-      if (poolData?.pool) setPool({ id: poolData.pool.id, name: poolData.pool.name, season: poolData.pool.season });
-      if (stateData?.success) setState(stateData.state);
+      if (poolData?.pool) {
+        setPool({
+          id: poolData.pool.id,
+          name: poolData.pool.name,
+          season: poolData.pool.season,
+          isActive: !!poolData.pool.is_active,
+          seasonScope: Array.isArray(poolData.pool.season_scope) && poolData.pool.season_scope.length > 0 ? poolData.pool.season_scope : [2],
+          isPrivate: !!poolData.pool.is_private,
+          isTestMode: !!poolData.pool.is_test_mode,
+        });
+      }
+      if (stateData?.success) { setState(stateData.state); setLastUpdated(new Date()); }
       else toast({ title: 'Error', description: stateData?.error ?? 'Failed to load Survivor pool.', variant: 'destructive' });
     } catch (error) {
       debugError('Error loading Survivor picks data:', error);
@@ -166,25 +188,34 @@ export function SurvivorPicksContent() {
   // Confidence Picks page it sits alongside) — resolve admin/super-admin
   // status the same way pool-picks-content.tsx does: read the localStorage
   // session record directly and verify it server-side, rather than reading
-  // a React auth context that doesn't exist here.
+  // a React auth context that doesn't exist here. isPoolAdmin (this
+  // browser's commissioner also owns THIS pool) mirrors Confidence's own
+  // check — needed so handleShare only ever includes the password for the
+  // pool's actual owner.
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
         const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
-        const localUser: { id?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        const localUser: { id?: string; email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
         if (!localUser?.id) return;
         const res = await fetch(`/api/admin/verify-status?adminId=${localUser.id}`);
         const data = await res.json();
         if (data.success && data.isAdmin) {
           setIsAdmin(true);
           setIsSuperAdmin(!!data.isSuperAdmin);
+          if (poolId && localUser.email) {
+            const { getSupabaseClient } = await import('@/lib/supabase');
+            const supabase = getSupabaseClient();
+            const { data: poolRow } = await supabase.from('pools').select('created_by').eq('id', poolId).single();
+            if (poolRow && poolRow.created_by === localUser.email) setIsPoolAdmin(true);
+          }
         }
       } catch (error) {
         debugError('Error checking admin status:', error);
       }
     };
     checkAdminStatus();
-  }, []);
+  }, [poolId]);
 
   const handleLogout = async () => {
     try {
@@ -194,6 +225,34 @@ export function SurvivorPicksContent() {
       router.push('/admin/login');
     } catch (error) {
       debugError('Error logging out:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    let text = `Join me in the Survivor pool for ${pool?.name ?? 'this pool'}!`;
+    if (pool?.isPrivate && isPoolAdmin) {
+      try {
+        const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+        const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+        if (localUser?.email) {
+          const { revealPoolPasswordForCommissioner } = await import('@/actions/poolPassword');
+          const result = await revealPoolPasswordForCommissioner(poolId, localUser.email);
+          if (result.success) text += `\n\nPassword: ${result.password}`;
+        }
+      } catch (e) {
+        debugError('Error including pool password in share message:', e);
+      }
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${pool?.name ?? 'Survivor'} Picks`, text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast({ title: 'Link Copied', description: text.includes('Password:') ? 'Pool link and password copied to clipboard' : 'Pool link copied to clipboard' });
+      }
+    } catch (e) {
+      debugError('Error sharing:', e);
     }
   };
 
@@ -248,29 +307,125 @@ export function SurvivorPicksContent() {
     );
   }
 
+  // Same lock-state source of truth as Confidence's hero (computeHeroWeekState
+  // / computeWeekUnlockStatus under it), applied to Survivor's one actionable
+  // week — never a separate calculation. Unlike Confidence/Pick'em, Survivor
+  // has no per-week "ended" state to show (computeSurvivorPoolState already
+  // advances currentWeek past a resolved week, or clears it entirely once
+  // the season is over), so season_complete is detected directly from
+  // state.currentWeek being null rather than routed through the weekEnded
+  // branch computeHeroWeekState uses for the other two types.
+  const isPoolClosed = pool ? !pool.isActive : false;
+  const gamesForLock = currentWeekGames.map(g => ({ kickoff_time: g.kickoffTime, status: g.status }));
+  const gamesStartedNow = gamesForLock.some(g => new Date(g.kickoff_time) <= new Date() || (g.status != null && normalizeGameStatus(g.status) !== 'scheduled'));
+  const heroWeekState: HeroWeekState = isPoolClosed
+    ? 'pool_inactive'
+    : !state?.currentWeek
+    ? 'season_complete'
+    : computeHeroWeekState({
+        isPoolClosed: false,
+        weekEnded: false,
+        poolSeasonScope: pool?.seasonScope ?? [2],
+        currentSeasonType: state.currentWeek.seasonType,
+        currentWeek: state.currentWeek.week,
+        games: gamesForLock,
+        upcomingWeek: null,
+      });
+  const heroUnlockTime = computeHeroUnlockTime(heroWeekState, gamesForLock, DAYS_BEFORE_GAME);
+  const heroWeekTitle = state?.currentWeek ? getWeekTitle(state.currentWeek.week, state.currentWeek.seasonType) : 'Season';
+  const heroTitleAccent = state?.currentWeek ? 'Picks' : 'Complete';
+
+  const statsTotal = state?.participants.length ?? 0;
+  const statsActive = state?.activeCount ?? 0;
+  const statsEliminated = state?.eliminatedCount ?? 0;
+  const activeWithPick = state?.currentWeek
+    ? state.participants.filter(p => p.status === 'ACTIVE' && p.picks.some(pick => pick.week === state.currentWeek!.week && pick.seasonType === state.currentWeek!.seasonType)).length
+    : 0;
+
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
 
-      <section style={{ background: bg, padding: 'clamp(2rem, 5vw, 3rem) 0 1.5rem' }}>
-        <div className="lp-inner">
-          <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.6rem' }}>
-            Survivor Pool
-          </p>
-          <h1 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', lineHeight: 1, color: text, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-            {pool?.name ?? 'Loading…'}
-          </h1>
-          {state?.currentWeek ? (
-            <p style={{ ...b, fontSize: '0.9rem', color: textMid }}>
-              Week {state.currentWeek.week} — {weekUnlocked ? 'picks are open' : 'picks are locked'}
-            </p>
-          ) : (
-            <p style={{ ...b, fontSize: '0.9rem', color: textMid }}>The season is complete.</p>
-          )}
-        </div>
-      </section>
-
+      <PoolPicksHero
+        poolName={pool?.name ?? 'Loading…'}
+        isTestMode={pool?.isTestMode}
+        weekTitle={heroWeekTitle}
+        titleAccent={heroTitleAccent}
+        // No WeekNav: Survivor has exactly one actionable week at a time —
+        // computeSurvivorPoolState (src/lib/survivor.ts) always resolves
+        // "the next unresolved week" server-side, with no per-week query
+        // param anywhere in /api/survivor/state. Browsing past/future weeks
+        // isn't a real capability here the way it is for Confidence/Pick'em
+        // (past weeks are Leaderboard's job; a future week can't be picked
+        // yet), so there is no equivalent control to adapt.
+        itemCountLabel={`${currentWeekGames.length} games`}
+        seasonTypeName={seasonTypeNames[state?.currentWeek?.seasonType ?? Math.max(...(pool?.seasonScope ?? [2]))] || 'Regular'}
+        weekState={heroWeekState}
+        gamesStarted={gamesStartedNow}
+        unlockTime={heroUnlockTime}
+        unlockFallbackMessage="Picks aren't unlocked yet — they open a few days before the first game's kickoff."
+        lastUpdated={lastUpdated}
+        subtitle="Choose one team to survive this week."
+        actions={[
+          { label: 'Share', icon: Share2, onClick: handleShare },
+          { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
+          { label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) },
+        ]}
+        learnMoreHref="/how-to/make-picks"
+        learnMoreText="Survivor picks"
+      />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
+
+      {showStats && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Users style={{ width: 15, height: 15, color: greenHi }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pool Statistics</span>
+              </div>
+              <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                {[
+                  { label: 'Total Participants', value: statsTotal, color: greenHi },
+                  { label: 'Active', value: statsActive, color: 'oklch(58% 0.15 250)' },
+                  { label: 'Eliminated', value: statsEliminated, color: red },
+                  { label: 'Your Pick', value: myCurrentWeekPick ? 'Made' : myState?.status === 'ACTIVE' ? 'Not Made' : 'N/A', color: gold },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ textAlign: 'center' }}>
+                    <div style={{ ...bc, fontWeight: 900, fontSize: '1.75rem', color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.25rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              {state?.currentWeek && (
+                <div style={{ padding: '0 1.25rem 1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...b, fontSize: '0.75rem', color: textDim, marginBottom: '0.4rem' }}>
+                    <span>Active Participants Who Have Picked</span>
+                    <span style={{ color: textMid }}>{activeWithPick} of {statsActive}</span>
+                  </div>
+                  <div style={{ height: 6, background: 'oklch(26% 0.03 255)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: `linear-gradient(90deg, ${green}, oklch(58% 0.15 250))`, borderRadius: 3, width: `${statsActive > 0 ? (activeWithPick / statsActive) * 100 : 0}%`, transition: 'width 0.3s ease' }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showResults && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner" style={{ maxWidth: 640 }}>
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                <Trophy style={{ width: 16, height: 16, color: gold }} />
+                <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Survivor Standings</p>
+              </div>
+              <SurvivorStandingsPanel poolId={poolId} />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section style={{ background: surface, padding: '2rem 0' }}>
         <div className="lp-inner" style={{ maxWidth: 640 }}>

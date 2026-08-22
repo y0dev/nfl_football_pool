@@ -748,7 +748,10 @@ test.describe('Survivor Pool — locked game result display', () => {
       await expect(page.getByText('Survived', { exact: true })).toBeVisible();
       // The still-upcoming game in the same week communicates it's locked
       // (kickoff already inside the week's lock window) without a score yet.
-      await expect(page.getByText('Locked', { exact: true })).toBeVisible();
+      // .last() — the hero's own week-state badge also reads "Locked" here
+      // (a game in this week has already started), so two matches are
+      // expected; this asserts on the per-game one specifically.
+      await expect(page.getByText('Locked', { exact: true }).last()).toBeVisible();
     } finally {
       await cleanup(fixture);
     }
