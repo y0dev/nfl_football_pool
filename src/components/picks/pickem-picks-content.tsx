@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { CheckCircle2, Lock, Target, Trophy, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
+import { CheckCircle2, Lock, Unlock, Target, Trophy, Clock, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
@@ -15,6 +15,7 @@ import { normalizeGameStatus } from '@/types/game';
 import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
 import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
+import { DebugPanel } from '@/components/picks/debug-panel';
 import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -154,11 +155,38 @@ export function PickemPicksContent() {
   // pressed, instead of the previous per-click auto-save-per-game model.
   const [draftPicks, setDraftPicks] = useState<Record<string, string>>({});
   const [submittingAll, setSubmittingAll] = useState(false);
-  // Dev-only override, same pattern as Confidence's forceWeekUnlocked — the
-  // checkbox that flips this only ever renders inside showDebugPanel()'s
-  // #debug-panel-controls, so this can't affect production regardless of
-  // its default.
-  const [forceGamesUnlocked, setForceGamesUnlocked] = useState(false);
+  // Dev-only overrides, same pattern/names as Confidence's own seven —
+  // every checkbox that flips these only ever renders inside
+  // showDebugPanel()'s #debug-panel-controls (shared/debug-panel.tsx), so
+  // none of this can affect production regardless of its default.
+  const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
+  const [forcePicks, setForcePicks] = useState(false);
+  const [devSimInProgress, setDevSimInProgress] = useState(false);
+  const [devSimFinished, setDevSimFinished] = useState(false);
+  const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
+  const [devSimSubmitted, setDevSimSubmitted] = useState(false);
+  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
+
+  // This component only ever mounts for PICKEM pools — the router in
+  // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
+  // SurvivorPicksContent for the other competition types before this ever
+  // renders — so this is a true constant, not a stub.
+  const poolType = 'PICKEM';
+
+  // Debug-panel-only override: treat the selected participant as submitted
+  // (or force them back open) without touching the database, matching
+  // Confidence's isSubmittedForUser exactly. Real production state comes
+  // from result.participants[].isComplete, computed server-side in
+  // computePickemWeekResult (src/lib/pickem.ts) from actual saved picks —
+  // refetched by loadData() on every poolId/week/seasonType change and
+  // after every submit/unlock, so it can't go stale across a reload or a
+  // participant switch.
+  const isParticipantSubmitted = (participantId: string) => {
+    if (showDebugPanel() && devUnlockToMakePicks && participantId === selectedParticipantId) return false;
+    if (showDebugPanel() && devSimSubmitted && participantId === selectedParticipantId) return true;
+    const participant = result?.participants.find(p => p.participantId === participantId);
+    return !!participant?.isComplete;
+  };
 
   // Resolve which week to show: explicit ?week=/?seasonType= params, else
   // the same "what's the NFL's current/upcoming week" logic every other
@@ -416,12 +444,34 @@ export function PickemPicksContent() {
     setDraftPicks(prev => ({ ...prev, [gameId]: team }));
   };
 
+  // Same devSimInProgress/devSimFinished score-simulation as Confidence's
+  // own devDisplayGames — cosmetic only (real result.eligibleGames, and
+  // therefore the real week/game status this pool actually has, is never
+  // touched), scoped to rendering + this-week's editability, same as
+  // Confidence scopes its devDisplayGames to WeeklyPick's games prop only.
+  const liveScores:  [number, number][] = [[7,3],[14,14],[21,10],[0,7],[17,21],[28,24],[3,10],[35,14]];
+  const finalScores: [number, number][] = [[24,17],[31,28],[14,21],[38,35],[17,10],[21,7],[27,24],[13,10]];
+  const devDisplayGames = (() => {
+    const base = result?.eligibleGames ?? [];
+    if (process.env.NODE_ENV !== 'development') return base;
+    if (devSimFinished) {
+      return base.map((g, i) => {
+        const [hs, as_] = finalScores[i % finalScores.length];
+        return { ...g, status: 'final', homeScore: hs, awayScore: as_ };
+      });
+    }
+    if (devSimInProgress) {
+      return base.map((g, i) => (i % 2 === 0 ? { ...g, status: 'in_progress', homeScore: liveScores[i % liveScores.length][0], awayScore: liveScores[i % liveScores.length][1] } : g));
+    }
+    return base;
+  })();
+
   // Every currently-editable (not yet locked) game a participant must pick
   // this week — locked games are excluded since they're neither shown as a
   // pickable control nor part of what gets submitted, same as Confidence's
   // week-wide submit only ever covering games that are still open.
-  const editableGames = (result?.eligibleGames ?? []).filter(
-    game => forceGamesUnlocked || !isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now)
+  const editableGames = devDisplayGames.filter(
+    game => forceWeekUnlocked || !isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now)
   );
   const allEditablePicked = editableGames.length > 0 && editableGames.every(g => !!draftPicks[g.id]);
 
@@ -434,6 +484,10 @@ export function PickemPicksContent() {
   const handleSubmitPicks = async () => {
     if (!selectedParticipantId) {
       toast({ title: 'Select yourself first', description: 'Choose your name before submitting picks.', variant: 'destructive' });
+      return;
+    }
+    if (isParticipantSubmitted(selectedParticipantId)) {
+      toast({ title: 'Already Submitted', description: 'You have already submitted your picks for this week. Ask an admin to unlock them to make changes.', variant: 'destructive' });
       return;
     }
     if (!allEditablePicked) {
@@ -473,6 +527,38 @@ export function PickemPicksContent() {
       toast({ title: 'Error', description: 'Failed to submit picks. Please try again.', variant: 'destructive' });
     } finally {
       setSubmittingAll(false);
+    }
+  };
+
+  // Same server-verified unlock as Confidence's unlockParticipantPicks —
+  // reuses /api/pools/[id]/unlock-picks, which checks pool ownership /
+  // super-admin from the DB itself (not client-held state) and deletes the
+  // participant's picks rows for the given games, same table Confidence's
+  // own picks live in.
+  const handleUnlockParticipant = async (participantId: string) => {
+    if (!isPoolAdmin && !isSuperAdmin) {
+      toast({ title: 'Permission Denied', description: 'Only pool commissioners or admins can unlock picks', variant: 'destructive' });
+      return;
+    }
+    try {
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+      const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+      if (!localUser?.email) {
+        toast({ title: 'Error', description: 'Could not verify your account', variant: 'destructive' });
+        return;
+      }
+      const res = await fetch(`/api/pools/${poolId}/unlock-picks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ participantId, gameIds: (result?.eligibleGames ?? []).map(g => g.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to unlock picks');
+      toast({ title: 'Picks Unlocked', description: 'Participant can now make new picks' });
+      await loadData();
+    } catch (error) {
+      debugError("Error unlocking Pick'em picks:", error);
+      toast({ title: 'Error', description: 'Failed to unlock picks. Please try again.', variant: 'destructive' });
     }
   };
 
@@ -540,6 +626,22 @@ export function PickemPicksContent() {
   const statsPending = statsTotal - statsComplete;
   const statsCompletionRate = statsTotal > 0 ? Math.round((statsComplete / statsTotal) * 100) : 0;
 
+  // Same devSimInProgress-only override as Confidence's effectiveGamesStarted
+  // — real gamesStartedNow (from actual kickoff times) stays untouched;
+  // this only widens what counts as "started" for banner/gating display.
+  const effectiveGamesStarted = gamesStartedNow || (process.env.NODE_ENV === 'development' && devSimInProgress);
+  // Real DB-backed "has anyone picked this week" — same shape as
+  // Confidence's anyPicksSubmitted check (some(entry => picks > 0)).
+  const weekHasPicks = (result?.participants ?? []).some(p => p.picks.some(pk => !!pk.selectedTeam));
+  // Same "auto-show once everyone has submitted" gate as Confidence's
+  // showResultsTabs: real week-ended, OR the dev-only force override, OR
+  // games have started and every participant's real (DB) picks are complete.
+  // devForceLeaderboard is a separate dev-only override, never required for
+  // correct production behavior.
+  const showResultsSection = weekEnded
+    || (showDebugPanel() && devForceLeaderboard)
+    || (effectiveGamesStarted && !weekEnded && statsTotal > 0 && statsComplete >= statsTotal);
+
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
@@ -561,7 +663,7 @@ export function PickemPicksContent() {
         itemCountLabel={`${result?.eligibleGames.length ?? 0} games`}
         seasonTypeName={seasonTypeNames[seasonType ?? 2] || 'Regular'}
         weekState={heroWeekState}
-        gamesStarted={gamesStartedNow}
+        gamesStarted={effectiveGamesStarted}
         unlockTime={heroUnlockTime}
         unlockFallbackMessage="Picks aren't unlocked yet — they open a few days before the first game's kickoff."
         lastUpdated={lastUpdated}
@@ -569,21 +671,21 @@ export function PickemPicksContent() {
         actions={[
           { label: 'Share', icon: Share2, onClick: handleShare },
           { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
-          // Once the week has ended, results-section shows automatically
-          // (matches Confidence's showResultsTabs) — nothing left to toggle.
-          // Before then, this is a manual peek at in-progress standings.
-          ...(!weekEnded ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
+          // Once results-section auto-shows (week ended, or everyone has
+          // submitted — matches Confidence's showResultsTabs), nothing left
+          // to toggle. Before then, this is a manual peek at in-progress standings.
+          ...(!showResultsSection ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
         learnMoreHref="/how-to/make-picks"
         learnMoreText="Pick'em picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      {(gameStatusStats || gamesStartedNow) && (
+      {(gameStatusStats || effectiveGamesStarted) && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {gameStatusStats && <GameStatusCard stats={gameStatusStats} />}
-            {gamesStartedNow && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
+            {effectiveGamesStarted && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
           </div>
         </section>
       )}
@@ -623,7 +725,63 @@ export function PickemPicksContent() {
         </section>
       )}
 
-      {(showResults || weekEnded) && (
+      {showDebugPanel() && (
+        <section style={{ background: bg, margin: '1rem 0', padding: '0 0 2rem' }}>
+          <div className="lp-inner">
+            <DebugPanel
+              poolType={poolType}
+              poolId={poolId}
+              currentWeek={week}
+              currentSeasonType={seasonType}
+              gamesCount={result?.eligibleGames.length ?? 0}
+              gamesStarted={effectiveGamesStarted}
+              weekEnded={weekEnded}
+              selectedUserLabel={myWeek ? `${myWeek.participantName} (${myWeek.participantId})` : null}
+              hasSubmittedSelected={selectedParticipantId ? isParticipantSubmitted(selectedParticipantId) : null}
+              simulatedSubmitted={devSimSubmitted}
+              showLeaderboard={showResultsSection}
+              weekHasPicks={weekHasPicks}
+              forceWeekUnlocked={forceWeekUnlocked} onForceWeekUnlockedChange={setForceWeekUnlocked}
+              forcePicks={forcePicks} onForcePicksChange={setForcePicks}
+              devSimInProgress={devSimInProgress} onDevSimInProgressChange={setDevSimInProgress}
+              devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
+              devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
+              devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
+              devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
+            >
+              {myWeek && result && result.eligibleGames.length > 0 && (
+                <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
+                        {['Game', 'Selected Team', 'Locked?', 'Result'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.eligibleGames.map(game => {
+                        const pick = myWeek.picks.find(p => p.gameId === game.id);
+                        const locked = !forceWeekUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
+                        return (
+                          <tr key={game.id} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game.awayTeam} @ {game.homeTeam}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.selectedTeam || 'None'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{locked ? 'Yes' : 'No'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.result ?? 'pending'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DebugPanel>
+          </div>
+        </section>
+      )}
+
+      {(showResults || showResultsSection) && (
         <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
@@ -676,7 +834,46 @@ export function PickemPicksContent() {
                 Not you? Switch
               </button>
             </div>
-            {!allEditablePicked && (
+
+            {/* Production requirement: once this participant has real,
+                complete DB-stored picks for this week, they can no longer
+                submit again — same source of truth as Confidence's
+                isSubmittedForUser (result.participants[].isComplete, not
+                client-only state), unbypassable by switching participants,
+                switching weeks, or reloading. Individual finished/started
+                games still render their real result via LockedPickemGameRow
+                either way — this only locks the still-open games from
+                further edits, it doesn't hide anything already reviewable. */}
+            {isParticipantSubmitted(selectedParticipantId) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
+                <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', color: textMid, textTransform: 'uppercase' }}>Picks Submitted</p>
+                  <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>Your picks are locked for this week. Only admins can unlock your picks to make changes.</p>
+                </div>
+                {(isPoolAdmin || isSuperAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => handleUnlockParticipant(selectedParticipantId)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    <Unlock style={{ width: 13, height: 13 }} /> Unlock Picks
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!isParticipantSubmitted(selectedParticipantId) && effectiveGamesStarted && !weekEnded && statsTotal > 0 && statsComplete < statsTotal && !forcePicks && (
+              <div style={{ background: `${amber}14`, border: `1px solid ${amber}44`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <Clock style={{ width: 15, height: 15, color: amber, flexShrink: 0 }} />
+                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Waiting for All Submissions</span>
+                </div>
+                <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>{statsComplete} of {statsTotal} participants have submitted picks — standings will show automatically once everyone has.</p>
+              </div>
+            )}
+
+            {!allEditablePicked && !isParticipantSubmitted(selectedParticipantId) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: `${amber}14`, border: `1px solid ${amber}44`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
                 <Target style={{ width: 18, height: 18, color: amber, flexShrink: 0 }} />
                 <p style={{ ...b, fontSize: '0.85rem', color: amber }}>Please make a pick for all games.</p>
@@ -688,8 +885,8 @@ export function PickemPicksContent() {
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: tiebreakerGame ? '2rem' : 0 }}>
-              {result.eligibleGames.map(game => {
-                const locked = !forceGamesUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
+              {devDisplayGames.map(game => {
+                const locked = !forceWeekUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                 const pickForGame = myWeek.picks.find(p => p.gameId === game.id);
 
                 // Once a game is locked, its result (teams, score, your pick,
@@ -722,7 +919,7 @@ export function PickemPicksContent() {
                       ].map(({ team, fullName }) => {
                         if (!team) return null;
                         const picked = selectedTeam === team;
-                        const disabled = submittingAll;
+                        const disabled = submittingAll || isParticipantSubmitted(selectedParticipantId);
                         const teamInfo = getTeam(getTeamAbbreviation(fullName));
                         return (
                           <button
@@ -756,26 +953,8 @@ export function PickemPicksContent() {
               })}
             </div>
 
-            {editableGames.length > 0 && (
-              <button
-                type="button"
-                onClick={handleSubmitPicks}
-                disabled={submittingAll || !allEditablePicked}
-                style={{
-                  width: '100%', padding: '0.85rem 1rem', marginBottom: tiebreakerGame ? '1.5rem' : 0,
-                  background: submittingAll || !allEditablePicked ? border : green,
-                  color: submittingAll || !allEditablePicked ? textDim : text,
-                  border: 'none', borderRadius: 8,
-                  cursor: submittingAll || !allEditablePicked ? 'not-allowed' : 'pointer',
-                  ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-                }}
-              >
-                {submittingAll ? 'Submitting…' : 'Submit Picks'}
-              </button>
-            )}
-
             {tiebreakerGame && (
-              <div style={{ background: card, border: `1px solid ${gold}44`, borderRadius: 8, padding: '1.25rem' }}>
+              <div style={{ background: card, border: `1px solid ${gold}44`, borderRadius: 8, margin: '1rem 0', padding: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <Trophy style={{ width: 15, height: 15, color: gold }} />
                   <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: gold, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -791,7 +970,7 @@ export function PickemPicksContent() {
                 <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                   Predict total combined score
                 </label>
-                {!forceGamesUnlocked && isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now) ? (
+                {!forceWeekUnlocked && isGameLocked({ kickoff_time: tiebreakerGame.kickoffTime, status: null }, now) ? (
                   <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
                     {myWeek.tiebreakerPrediction != null ? `Your prediction: ${myWeek.tiebreakerPrediction}` : 'This game has started — no prediction was submitted.'}
                   </p>
@@ -817,61 +996,29 @@ export function PickemPicksContent() {
                 )}
               </div>
             )}
+              
+              
+            {editableGames.length > 0 && !isParticipantSubmitted(selectedParticipantId) && (
+              <button
+                type="button"
+                onClick={handleSubmitPicks}
+                disabled={submittingAll || !allEditablePicked}
+                style={{
+                  width: '100%', padding: '0.85rem 1rem', marginBottom: tiebreakerGame ? '1.5rem' : 0,
+                  background: submittingAll || !allEditablePicked ? border : green,
+                  color: submittingAll || !allEditablePicked ? textDim : text,
+                  border: 'none', borderRadius: 8,
+                  cursor: submittingAll || !allEditablePicked ? 'not-allowed' : 'pointer',
+                  ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                }}
+              >
+                {submittingAll ? 'Submitting…' : 'Submit Picks'}
+              </button>
+            )}
           </div>
         </section>
       )}
 
-      {showDebugPanel() && (
-        <section id="debug-panel" style={{ background: bg, padding: '0 0 2rem' }}>
-          <div className="lp-inner">
-            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
-              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.6rem' }}>
-                <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {week} | <strong>Season Type:</strong> {seasonType} | <strong>Games:</strong> {result?.eligibleGames.length ?? 0}</p>
-                <p><strong>Selected Participant:</strong> {myWeek ? `${myWeek.participantName} (${myWeek.participantId})` : 'None'} | <strong>Complete:</strong> {myWeek ? (myWeek.isComplete ? 'Yes' : 'No') : 'N/A'} | <strong>Pick&apos;em Score:</strong> {myWeek ? `${myWeek.correctCount}/${result?.eligibleGames.length ?? 0}` : 'N/A'}</p>
-              </div>
-              <div id="debug-panel-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={forceGamesUnlocked}
-                    onChange={(e) => setForceGamesUnlocked(e.target.checked)}
-                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force all games unlocked (ignore kickoff gate)</span>
-                </label>
-              </div>
-              {myWeek && result && result.eligibleGames.length > 0 && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
-                        {['Game', 'Selected Team', 'Locked?', 'Result'].map(h => (
-                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.eligibleGames.map(game => {
-                        const pick = myWeek.picks.find(p => p.gameId === game.id);
-                        const locked = !forceGamesUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
-                        return (
-                          <tr key={game.id} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game.awayTeam} @ {game.homeTeam}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.selectedTeam || 'None'}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{locked ? 'Yes' : 'No'}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick?.result ?? 'pending'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -23,6 +23,7 @@ import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
 import { GameStatusCard, GamesStartedCard } from '@/components/picks/game-status-cards';
+import { DebugPanel } from '@/components/picks/debug-panel';
 
 // Design tokens
 const bg      = 'oklch(13% 0.025 255)';
@@ -147,7 +148,14 @@ export function PoolPicksContent() {
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
   const [devSimSubmitted, setDevSimSubmitted] = useState(false);
+  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
   const [activeResultsTab, setActiveResultsTab] = useState<'leaderboard' | 'results'>('leaderboard');
+
+  // This component only ever mounts for NFL_CONFIDENCE pools — the router in
+  // src/app/pool/[id]/picks/page.tsx branches to SurvivorPicksContent /
+  // PickemPicksContent for the other competition types before this ever
+  // renders — so this is a true constant, not a stub.
+  const poolType = 'NFL_CONFIDENCE';
 
   const { toast } = useToast();
   const router = useRouter();
@@ -155,6 +163,7 @@ export function PoolPicksContent() {
   // Debug-panel-only override: treat the selected user as submitted without
   // touching the database, so the locked/submitted view can be screenshotted.
   const isSubmittedForUser = (userId: string) => {
+    if (showDebugPanel() && devUnlockToMakePicks && selectedUser?.id === userId) return false;
     if (showDebugPanel() && devSimSubmitted && selectedUser?.id === userId) return true;
     return !!hasSubmitted[userId]?.submitted;
   };
@@ -1579,81 +1588,27 @@ export function PoolPicksContent() {
             </div>
           )}
 
-          {showDebugPanel() && (
-            <div id="debug-panel" style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
-              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <p><strong>Games Started:</strong> {gamesStarted ? 'Yes' : 'No'} | <strong>Week Ended:</strong> {weekEnded ? 'Yes' : 'No'} | <strong>Games:</strong> {games.length}</p>
-                <p><strong>Selected User:</strong> {selectedUser ? `${selectedUser.name} (${selectedUser.id})` : 'None'} | <strong>Has Submitted:</strong> {selectedUser ? (isSubmittedForUser(selectedUser.id) ? 'Yes' : 'No') : 'N/A'}{devSimSubmitted ? ' (simulated)' : ''}</p>
-                <p><strong>Leaderboard:</strong> {showLeaderboard ? 'Shown' : 'Hidden'} | <strong>Week Has Picks:</strong> {weekHasPicks ? 'Yes' : 'No'}</p>
-                <p><strong>Pool ID:</strong> {poolId} | <strong>Week:</strong> {currentWeek} | <strong>Season Type:</strong> {currentSeasonType}</p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={forceWeekUnlocked}
-                    onChange={(e) => setForceWeekUnlocked(e.target.checked)}
-                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force week unlocked (ignore kickoff gate)</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={forcePicks}
-                    onChange={(e) => setForcePicks(e.target.checked)}
-                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show picks form (ignore games started / week ended)</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={devSimInProgress}
-                    onChange={(e) => setDevSimInProgress(e.target.checked)}
-                    style={{ accentColor: 'oklch(72% 0.16 60)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate in-progress (shows &quot;Games Started&quot; banner, locks picks)</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={devSimFinished}
-                    onChange={(e) => setDevSimFinished(e.target.checked)}
-                    style={{ accentColor: 'oklch(46% 0.14 155)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate finished — varied scores, home wins (pair with &quot;Force show picks form&quot;)</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={devForceLeaderboard}
-                    onChange={(e) => setDevForceLeaderboard(e.target.checked)}
-                    style={{ accentColor: 'oklch(74% 0.16 72)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force show week leaderboard</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={devSimSubmitted}
-                    onChange={(e) => setDevSimSubmitted(e.target.checked)}
-                    style={{ accentColor: 'oklch(65% 0.12 290)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Simulate picks submitted for the selected user (shows the locked/submitted view — nothing is written to the database)</span>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {showDebugPanel() && (
-            <div id="debug-panel-picks" style={{ background: `oklch(46% 0.14 155 / 0.08)`, border: `1px solid oklch(46% 0.14 155 / 0.25)`, borderRadius: 6, padding: '0.75rem 1rem' }}>
-              <p style={{ ...b, fontSize: '0.78rem', color: greenHi }}>
-                <strong>Main picks section reached!</strong> Games started: {gamesStarted ? 'Yes' : 'No'}, Week ended: {weekEnded ? 'Yes' : 'No'}
-              </p>
-            </div>
-          )}
+          <DebugPanel
+            poolType={poolType}
+            poolId={poolId}
+            currentWeek={currentWeek}
+            currentSeasonType={currentSeasonType}
+            gamesCount={games.length}
+            gamesStarted={gamesStarted}
+            weekEnded={weekEnded}
+            selectedUserLabel={selectedUser ? `${selectedUser.name} (${selectedUser.id})` : null}
+            hasSubmittedSelected={selectedUser ? isSubmittedForUser(selectedUser.id) : null}
+            simulatedSubmitted={devSimSubmitted}
+            showLeaderboard={showLeaderboard}
+            weekHasPicks={weekHasPicks}
+            forceWeekUnlocked={forceWeekUnlocked} onForceWeekUnlockedChange={setForceWeekUnlocked}
+            forcePicks={forcePicks} onForcePicksChange={setForcePicks}
+            devSimInProgress={devSimInProgress} onDevSimInProgressChange={setDevSimInProgress}
+            devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
+            devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
+            devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
+            devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
+          />
 
           {showResultsTabs && (
             <div

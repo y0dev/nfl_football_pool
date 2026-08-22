@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
+import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Clock, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
@@ -14,6 +14,7 @@ import { normalizeGameStatus } from '@/types/game';
 import type { SurvivorPoolState, SurvivorCurrentWeekGame } from '@/lib/survivor';
 import { PoolPicksHero, computeHeroWeekState, computeHeroUnlockTime, type HeroWeekState } from '@/components/picks/pool-picks-hero';
 import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
+import { DebugPanel } from '@/components/picks/debug-panel';
 import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -23,6 +24,7 @@ const border  = 'oklch(26% 0.03 255)';
 const green   = 'oklch(46% 0.14 155)';
 const greenHi = 'oklch(59% 0.15 155)';
 const gold    = 'oklch(74% 0.16 72)';
+const amber   = 'oklch(72% 0.16 60)';
 const red     = 'oklch(62% 0.22 25)';
 const text    = 'oklch(95% 0.006 255)';
 const textMid = 'oklch(72% 0.015 255)';
@@ -156,11 +158,49 @@ export function SurvivorPicksContent() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  // Dev-only override, same pattern as Confidence's forceWeekUnlocked — the
-  // checkbox that flips this only ever renders inside showDebugPanel()'s
-  // #debug-panel-controls, so this can't affect production regardless of
-  // its default.
+  // Dev-only overrides, same pattern/names as Confidence's own seven — every
+  // checkbox that flips these only ever renders inside showDebugPanel()'s
+  // #debug-panel-controls (shared/debug-panel.tsx), so none of this can
+  // affect production regardless of its default.
   const [forceWeekUnlocked, setForceWeekUnlocked] = useState(false);
+  const [forcePicks, setForcePicks] = useState(false);
+  const [devSimInProgress, setDevSimInProgress] = useState(false);
+  const [devSimFinished, setDevSimFinished] = useState(false);
+  const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
+  const [devSimSubmitted, setDevSimSubmitted] = useState(false);
+  const [devUnlockToMakePicks, setDevUnlockToMakePicks] = useState(false);
+
+  // This component only ever mounts for SURVIVOR pools — the router in
+  // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
+  // PickemPicksContent for the other competition types before this ever
+  // renders — so this is a true constant, not a stub.
+  const poolType = 'SURVIVOR';
+
+  // Real production state is whether this participant has a saved pick for
+  // the pool's current week — sourced from state.participants[].picks,
+  // computed server-side by computeSurvivorPoolState (src/lib/survivor.ts)
+  // from the actual survivor_picks table and refetched by loadData() on
+  // every load and after every submit, so it can't go stale across a
+  // reload or a participant switch. Unlike Confidence/Pick'em, Survivor has
+  // no "one submission then admin must unlock" rule — submitSurvivorPick
+  // (src/lib/survivor.ts) deliberately deletes-then-reinserts to support
+  // changing an unlocked week's pick freely, and explicitly documents the
+  // decision not to add Survivor-specific unlock behavior. So this is
+  // informational only here (drives the debug panel's "Has Submitted" field
+  // and an in-form "you already have a pick" notice) — it never disables
+  // the pick buttons or the Submit button; the real, only gate on changing
+  // a pick is weekUnlocked below, exactly as it already was. devSimSubmitted
+  // /devUnlockToMakePicks are debug-panel-only overrides for this same
+  // informational value, matching Confidence's pattern, never touching the
+  // database.
+  const isParticipantSubmitted = (participantId: string) => {
+    if (showDebugPanel() && devUnlockToMakePicks && participantId === selectedParticipantId) return false;
+    if (showDebugPanel() && devSimSubmitted && participantId === selectedParticipantId) return true;
+    if (!state?.currentWeek) return false;
+    const cw = state.currentWeek;
+    const participant = state.participants.find(p => p.participantId === participantId);
+    return !!participant?.picks.some(pk => pk.week === cw.week && pk.seasonType === cw.seasonType);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -424,6 +464,25 @@ export function SurvivorPicksContent() {
     ? state.participants.filter(p => p.status === 'ACTIVE' && p.picks.some(pick => pick.week === state.currentWeek!.week && pick.seasonType === state.currentWeek!.seasonType)).length
     : 0;
 
+  // Same devSimInProgress-only override as Confidence's effectiveGamesStarted
+  // — real gamesStartedNow (from actual kickoff times) stays untouched; this
+  // only widens what counts as "started" for banner/gating display.
+  const effectiveGamesStarted = gamesStartedNow || (process.env.NODE_ENV === 'development' && devSimInProgress);
+  // Survivor has no per-week "ended" flag the way Confidence/Pick'em do —
+  // computeSurvivorPoolState just advances currentWeek past a resolved week
+  // — so this is derived directly from the currently-displayed week's own
+  // games, same real data gamesForLock/gamesStartedNow above already use.
+  const weekEnded = currentWeekGames.length > 0 && currentWeekGames.every(g => normalizeGameStatus(g.status) === 'finished');
+  const weekHasPicks = activeWithPick > 0;
+  // Same "auto-show once everyone eligible has picked" gate as Confidence's
+  // showResultsTabs: season complete, OR the dev-only force override, OR
+  // this week's games have started and every ACTIVE participant's real (DB)
+  // pick is in. devForceLeaderboard is a separate dev-only override, never
+  // required for correct production behavior.
+  const showResultsSection = heroWeekState === 'season_complete'
+    || (showDebugPanel() && devForceLeaderboard)
+    || (effectiveGamesStarted && !weekEnded && statsActive > 0 && activeWithPick >= statsActive);
+
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
       <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={handleLogout} poolId={poolId} />
@@ -443,7 +502,7 @@ export function SurvivorPicksContent() {
         itemCountLabel={`${currentWeekGames.length} games`}
         seasonTypeName={seasonTypeNames[state?.currentWeek?.seasonType ?? Math.max(...(pool?.seasonScope ?? [2]))] || 'Regular'}
         weekState={heroWeekState}
-        gamesStarted={gamesStartedNow}
+        gamesStarted={effectiveGamesStarted}
         unlockTime={heroUnlockTime}
         unlockFallbackMessage="Picks aren't unlocked yet — they open a few days before the first game's kickoff."
         lastUpdated={lastUpdated}
@@ -451,21 +510,21 @@ export function SurvivorPicksContent() {
         actions={[
           { label: 'Share', icon: Share2, onClick: handleShare },
           { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
-          // Once the season is complete, results-section shows automatically
-          // (matches Confidence's showResultsTabs auto-show once nothing
-          // remains to pick) — nothing left to toggle.
-          ...(heroWeekState !== 'season_complete' ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
+          // Once results-section auto-shows (season complete, or everyone
+          // eligible has picked — matches Confidence's showResultsTabs),
+          // nothing left to toggle.
+          ...(!showResultsSection ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
         learnMoreHref="/how-to/make-picks"
         learnMoreText="Survivor picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
 
-      {(gameStatusStats || gamesStartedNow) && (
+      {(gameStatusStats || effectiveGamesStarted) && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {gameStatusStats && <GameStatusCard stats={gameStatusStats} />}
-            {gamesStartedNow && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
+            {effectiveGamesStarted && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
           </div>
         </section>
       )}
@@ -507,7 +566,67 @@ export function SurvivorPicksContent() {
         </section>
       )}
 
-      {(showResults || heroWeekState === 'season_complete') && (
+      {showDebugPanel() && (
+        <section style={{ background: bg, margin: '1rem 0', padding: '0 0 2rem' }}>
+          <div className="lp-inner">
+            <DebugPanel
+              poolType={poolType}
+              poolId={poolId}
+              currentWeek={state?.currentWeek?.week ?? null}
+              currentSeasonType={state?.currentWeek?.seasonType ?? null}
+              gamesCount={currentWeekGames.length}
+              gamesStarted={effectiveGamesStarted}
+              weekEnded={weekEnded}
+              selectedUserLabel={myState ? `${myState.participantName} (${myState.participantId})` : null}
+              hasSubmittedSelected={selectedParticipantId ? isParticipantSubmitted(selectedParticipantId) : null}
+              simulatedSubmitted={devSimSubmitted}
+              showLeaderboard={showResultsSection}
+              weekHasPicks={weekHasPicks}
+              forceWeekUnlocked={forceWeekUnlocked} onForceWeekUnlockedChange={setForceWeekUnlocked}
+              forcePicks={forcePicks} onForcePicksChange={setForcePicks}
+              devSimInProgress={devSimInProgress} onDevSimInProgressChange={setDevSimInProgress}
+              devSimFinished={devSimFinished} onDevSimFinishedChange={setDevSimFinished}
+              devForceLeaderboard={devForceLeaderboard} onDevForceLeaderboardChange={setDevForceLeaderboard}
+              devSimSubmitted={devSimSubmitted} onDevSimSubmittedChange={setDevSimSubmitted}
+              devUnlockToMakePicks={devUnlockToMakePicks} onDevUnlockToMakePicksChange={setDevUnlockToMakePicks}
+            >
+              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', marginTop: '0.6rem', marginBottom: '0.4rem' }}>
+                <strong>Used Teams:</strong> {myState && myUsedTeams.size > 0 ? [...myUsedTeams].join(', ') : 'None'}
+              </div>
+              {myState && myState.picks.length > 0 && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
+                        {['Week', 'Selected Team', 'Game', 'Locked?', 'Result'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myState.picks.map(pick => {
+                        const isCurrentWeek = state?.currentWeek?.week === pick.week && state?.currentWeek?.seasonType === pick.seasonType;
+                        const game = isCurrentWeek ? currentWeekGames.find(g => g.id === pick.gameId) : undefined;
+                        return (
+                          <tr key={`${pick.seasonType}-${pick.week}`} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.week}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.selectedTeam}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game ? `${game.awayTeam} @ ${game.homeTeam}` : `Week ${pick.week}`}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{isCurrentWeek && weekUnlocked ? 'No' : 'Yes'}</td>
+                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.result}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DebugPanel>
+          </div>
+        </section>
+      )}
+
+      {(showResults || showResultsSection) && (
         <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
@@ -570,6 +689,31 @@ export function SurvivorPicksContent() {
                 <p style={{ ...b, fontSize: '0.85rem', color: textMid, marginBottom: '1.25rem' }}>
                   Select one team for Week {state.currentWeek.week}. You can only use each team once during the pool.
                 </p>
+
+                {/* Informational only, not a lock — unlike Confidence/Pick'em,
+                    Survivor has no "one submission then admin unlock" rule
+                    (see submitSurvivorPick in src/lib/survivor.ts, which
+                    deliberately supports changing an unlocked week's pick
+                    freely). The real, only gate on changing a pick is
+                    weekUnlocked below. */}
+                {isParticipantSubmitted(selectedParticipantId) && weekUnlocked && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
+                    <CheckCircle2 style={{ width: 18, height: 18, color: greenHi, flexShrink: 0 }} />
+                    <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                      You already have a pick in for this week{devSimSubmitted ? ' (simulated)' : ''} — you can change it any time before the week locks.
+                    </p>
+                  </div>
+                )}
+
+                {effectiveGamesStarted && !weekEnded && statsActive > 0 && activeWithPick < statsActive && !forcePicks && (
+                  <div style={{ background: `${amber}14`, border: `1px solid ${amber}44`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      <Clock style={{ width: 15, height: 15, color: amber, flexShrink: 0 }} />
+                      <span style={{ ...bc, fontWeight: 800, fontSize: '0.82rem', color: amber, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Waiting for All Submissions</span>
+                    </div>
+                    <p style={{ ...b, fontSize: '0.78rem', color: textMid }}>{activeWithPick} of {statsActive} active participants have submitted picks — standings will show automatically once everyone has.</p>
+                  </div>
+                )}
 
                 {myUsedTeams.size > 0 && (
                   <div style={{ marginBottom: '1.25rem' }}>
@@ -679,60 +823,6 @@ export function SurvivorPicksContent() {
                 )}
               </div>
             )}
-          </div>
-        </section>
-      )}
-
-      {showDebugPanel() && (
-        <section id="debug-panel" style={{ background: bg, padding: '0 0 2rem' }}>
-          <div className="lp-inner">
-            <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
-              <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
-              <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.6rem' }}>
-                <p><strong>Pool ID:</strong> {poolId} | <strong>Current Week:</strong> {state?.currentWeek ? `${state.currentWeek.week} (season_type ${state.currentWeek.seasonType})` : 'Season complete'} | <strong>Week Unlocked:</strong> {weekUnlocked ? 'Yes' : 'No'}</p>
-                <p><strong>Selected Participant:</strong> {myState ? `${myState.participantName} (${myState.participantId})` : 'None'} | <strong>Status:</strong> {myState?.status ?? 'N/A'}</p>
-                <p><strong>Used Teams:</strong> {myState && myUsedTeams.size > 0 ? [...myUsedTeams].join(', ') : 'None'}</p>
-              </div>
-              <div id="debug-panel-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', borderTop: `1px solid oklch(58% 0.15 250 / 0.2)`, paddingTop: '0.75rem' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={forceWeekUnlocked}
-                    onChange={(e) => setForceWeekUnlocked(e.target.checked)}
-                    style={{ accentColor: 'oklch(58% 0.15 250)', width: 14, height: 14 }}
-                  />
-                  <span style={{ ...b, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)' }}>Force week unlocked (ignore kickoff gate)</span>
-                </label>
-              </div>
-              {myState && myState.picks.length > 0 && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', ...b, fontSize: '0.68rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.25)` }}>
-                        {['Week', 'Selected Team', 'Game', 'Locked?', 'Result'].map(h => (
-                          <th key={h} style={{ textAlign: 'left', padding: '0.3rem 0.5rem', color: 'oklch(68% 0.12 250)', fontWeight: 700 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {myState.picks.map(pick => {
-                        const isCurrentWeek = state?.currentWeek?.week === pick.week && state?.currentWeek?.seasonType === pick.seasonType;
-                        const game = isCurrentWeek ? currentWeekGames.find(g => g.id === pick.gameId) : undefined;
-                        return (
-                          <tr key={`${pick.seasonType}-${pick.week}`} style={{ borderBottom: `1px solid oklch(58% 0.15 250 / 0.15)` }}>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.week}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.selectedTeam}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{game ? `${game.awayTeam} @ ${game.homeTeam}` : `Week ${pick.week}`}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{isCurrentWeek && weekUnlocked ? 'No' : 'Yes'}</td>
-                            <td style={{ padding: '0.3rem 0.5rem', color: 'oklch(65% 0.1 250)' }}>{pick.result}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
           </div>
         </section>
       )}
