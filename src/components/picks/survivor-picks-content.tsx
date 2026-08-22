@@ -220,6 +220,21 @@ export function SurvivorPicksContent() {
     }
   };
 
+  // Manual "not you?" escape hatch, matching Confidence's
+  // handleUserChangeRequested — clears both the in-memory selection and the
+  // persisted session so a shared device can hand off to the next
+  // participant without waiting for a submission.
+  const handleChangeParticipant = () => {
+    if (selectedParticipantId) {
+      try {
+        userSessionManager.removeSession(selectedParticipantId, poolId);
+      } catch (error) {
+        debugError('Error clearing Survivor participant session:', error);
+      }
+    }
+    setSelectedParticipantId('');
+  };
+
   // This route has no AuthProvider (participant-facing, like the
   // Confidence Picks page it sits alongside) — resolve admin/super-admin
   // status the same way pool-picks-content.tsx does: read the localStorage
@@ -338,6 +353,16 @@ export function SurvivorPicksContent() {
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Pick Submitted', description: `You picked ${draftPick.team} for Week ${state?.currentWeek?.week}.` });
+        // Matches Confidence's handlePicksSubmitted: clear the selected
+        // participant (in-memory) AND the persisted session on success, so
+        // "Who's picking?" reappears immediately for the next person on a
+        // shared device — no page reload, and no stale auto-restore next visit.
+        try {
+          userSessionManager.removeSession(selectedParticipantId, poolId);
+        } catch (error) {
+          debugError('Error clearing Survivor participant session after submit:', error);
+        }
+        setSelectedParticipantId('');
         await loadData();
       } else {
         toast({ title: 'Pick Rejected', description: data.error, variant: 'destructive' });
@@ -433,7 +458,7 @@ export function SurvivorPicksContent() {
 
       {(gameStatusStats || gamesStartedNow) && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
-          <div className="lp-inner" style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {gameStatusStats && <GameStatusCard stats={gameStatusStats} />}
             {gamesStartedNow && <GamesStartedCard sublabel="Locked games can no longer be changed" />}
           </div>
@@ -442,7 +467,7 @@ export function SurvivorPicksContent() {
 
       {showStats && (
         <section style={{ background: bg, padding: '1.5rem 0 0' }}>
-          <div className="lp-inner" style={{ maxWidth: 640 }}>
+          <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Users style={{ width: 15, height: 15, color: greenHi }} />
@@ -479,7 +504,7 @@ export function SurvivorPicksContent() {
 
       {(showResults || heroWeekState === 'season_complete') && (
         <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
-          <div className="lp-inner" style={{ maxWidth: 640 }}>
+          <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
                 <Trophy style={{ width: 16, height: 16, color: gold }} />
@@ -491,29 +516,45 @@ export function SurvivorPicksContent() {
         </section>
       )}
 
-      <section style={{ background: surface, padding: '2rem 0' }}>
-        <div className="lp-inner" style={{ maxWidth: 640 }}>
-          <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
-            Who&apos;s picking?
-          </label>
-          <select
-            value={selectedParticipantId}
-            onChange={(e) => handleSelectParticipant(e.target.value)}
-            style={{ width: '100%', padding: '0.65rem 0.85rem', background: card, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.95rem' }}
-          >
-            <option value="">Select your name…</option>
-            {state?.participants.map(p => (
-              <option key={p.participantId} value={p.participantId}>
-                {p.participantName}{p.status !== 'ACTIVE' ? ` (${p.status === 'WINNER' ? 'Winner' : 'Eliminated'})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
-
-      {myState && (
+      {/* Same structure as Confidence: the participant picker and the picks
+          form are mutually exclusive, not stacked — selecting a name
+          replaces "Who's picking?" with the picks form, exactly like
+          pool-picks-content.tsx's `selectedUser ? (...) : (<PickUserSelection/>)`. */}
+      {!selectedParticipantId || !myState ? (
+        <section style={{ background: surface, padding: '2rem 0' }}>
+          <div className="lp-inner">
+            <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
+              Who&apos;s picking?
+            </label>
+            <select
+              value={selectedParticipantId}
+              onChange={(e) => handleSelectParticipant(e.target.value)}
+              style={{ width: '100%', padding: '0.65rem 0.85rem', background: card, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.95rem' }}
+            >
+              <option value="">Select your name…</option>
+              {state?.participants.map(p => (
+                <option key={p.participantId} value={p.participantId}>
+                  {p.participantName}{p.status !== 'ACTIVE' ? ` (${p.status === 'WINNER' ? 'Winner' : 'Eliminated'})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+      ) : (
         <section style={{ background: bg, padding: '2rem 0' }}>
-          <div className="lp-inner" style={{ maxWidth: 640 }}>
+          <div className="lp-inner">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
+                Picking as <strong style={{ color: text }}>{myState.participantName}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={handleChangeParticipant}
+                style={{ background: 'transparent', border: 'none', color: textDim, ...b, fontSize: '0.78rem', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+              >
+                Not you? Switch
+              </button>
+            </div>
             <StatusBanner myState={myState} />
 
             {myState.status === 'ACTIVE' && state?.currentWeek && (
@@ -639,7 +680,7 @@ export function SurvivorPicksContent() {
 
       {showDebugPanel() && (
         <section id="debug-panel" style={{ background: bg, padding: '0 0 2rem' }}>
-          <div className="lp-inner" style={{ maxWidth: 640 }}>
+          <div className="lp-inner">
             <div style={{ background: `oklch(58% 0.15 250 / 0.08)`, border: `1px solid oklch(58% 0.15 250 / 0.25)`, borderRadius: 8, padding: '1rem 1.25rem' }}>
               <div style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', color: 'oklch(68% 0.12 250)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Debug Info</div>
               <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.1 250)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.6rem' }}>
