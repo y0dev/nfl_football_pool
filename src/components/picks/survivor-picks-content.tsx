@@ -511,7 +511,7 @@ export function SurvivorPicksContent() {
           // nothing left to toggle.
           ...(!showResultsSection ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
-        learnMoreHref="/how-to/make-picks"
+        learnMoreHref="/how-to/survivor-picks"
         learnMoreText="Survivor picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
