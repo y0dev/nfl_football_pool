@@ -678,7 +678,7 @@ export function PickemPicksContent() {
           // to toggle. Before then, this is a manual peek at in-progress standings.
           ...(!showResultsSection ? [{ label: showResults ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
-        learnMoreHref="/how-to/make-picks"
+        learnMoreHref="/how-to/pickem-picks"
         learnMoreText="Pick'em picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />

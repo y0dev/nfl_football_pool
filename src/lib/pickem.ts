@@ -111,7 +111,7 @@ export interface PickemSeasonParticipant {
    * season-level tiebreaker signal (see computePickemSeasonSummary's
    * header comment for why this exists). Null if no tiebreaker data. */
   tiebreakerTotalDeviation: number | null;
-  weeklyResults: Array<{ week: number; seasonType: number; correctCount: number; eligibleGameCount: number; isWeekFinal: boolean }>;
+  weeklyResults: Array<{ week: number; seasonType: number; correctCount: number; eligibleGameCount: number; isWeekFinal: boolean; tiebreakerPrediction: number | null; tiebreakerDeviation: number | null }>;
 }
 
 export interface PickemSeasonSummary {
@@ -332,7 +332,7 @@ export async function computePickemSeasonSummary(poolId: string, now: Date = new
         t.deviationSum += pw.tiebreakerDeviation;
         t.deviationCount += 1;
       }
-      t.weeklyResults.push({ week, seasonType, correctCount: pw.correctCount, eligibleGameCount: weekResult.eligibleGames.length, isWeekFinal: weekResult.isWeekFinal });
+      t.weeklyResults.push({ week, seasonType, correctCount: pw.correctCount, eligibleGameCount: weekResult.eligibleGames.length, isWeekFinal: weekResult.isWeekFinal, tiebreakerPrediction: pw.tiebreakerPrediction, tiebreakerDeviation: pw.tiebreakerDeviation });
     }
   }
 

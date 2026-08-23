@@ -37,6 +37,16 @@ export const HOW_TO_GUIDES: HowToGuide[] = [
     summary: 'Learn how participants make weekly picks.',
   },
   {
+    slug: 'pickem-picks',
+    title: "How Pick'em Works",
+    summary: "Learn the rules for a Pick'em pool: no confidence points, one point per correct pick, and how ties break.",
+  },
+  {
+    slug: 'survivor-picks',
+    title: 'How Survivor Works',
+    summary: 'Learn the rules for a Survivor pool: one team a week, never reused, and what happens once you’re out.',
+  },
+  {
     slug: 'leaderboard',
     title: 'View the Leaderboard',
     summary: 'Learn how to track standings and results.',

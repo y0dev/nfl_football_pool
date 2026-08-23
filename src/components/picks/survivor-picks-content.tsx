@@ -511,7 +511,7 @@ export function SurvivorPicksContent() {
           // nothing left to toggle.
           ...(!showResultsSection ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
-        learnMoreHref="/how-to/make-picks"
+        learnMoreHref="/how-to/survivor-picks"
         learnMoreText="Survivor picks"
       />
       <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${green}, transparent)` }} />
@@ -862,8 +862,8 @@ function StatusBanner({ myState }: { myState: NonNullable<SurvivorPoolState['par
             {myState.eliminatedReason === 'no_pick'
               ? "You didn't submit a pick before that week locked."
               : myState.eliminatedReason === 'tie'
-                ? `Your pick (${myState.eliminatedTeam}) tied.`
-                : `Your pick (${myState.eliminatedTeam}) lost.`}
+                ? `Your pick (${myState.eliminatedTeamName ?? myState.eliminatedTeam}) tied.`
+                : `Your pick (${myState.eliminatedTeamName ?? myState.eliminatedTeam}) lost.`}
           </p>
         </div>
       </div>
