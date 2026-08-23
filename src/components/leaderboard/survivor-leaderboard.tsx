@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import { Trophy, Skull, ShieldCheck } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { debugError } from '@/lib/utils';
-import type { SurvivorPoolState } from '@/lib/survivor';
+import { debugError, getTeamAbbreviation } from '@/lib/utils';
+import type { SurvivorPoolState, SurvivorParticipantState } from '@/lib/survivor';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -72,15 +72,53 @@ function useSurvivorLeaderboardData(poolId: string) {
   return { pool, state, isLoading };
 }
 
+/** Cumulative margin of victory across every game a participant has won —
+ * the exact same figure finalizeSurvivorSeason()'s pickByMarginTiebreaker
+ * uses to break a real end-of-season tie (src/lib/survivor.ts). Reused here
+ * so the standings' own ordering never invents a second, different notion
+ * of "who's ahead" among still-active participants. */
+function cumulativeMargin(p: SurvivorParticipantState): number {
+  return p.picks.reduce((sum, pick) => sum + (pick.result === 'win' ? pick.margin : 0), 0);
+}
+
+/** One badge per pick, oldest first — the same per-game color-coded badge
+ * pattern Confidence's own Leaderboard uses for its per-game columns,
+ * adapted to Survivor's one-pick-per-week shape (team + win/loss/pending)
+ * instead of Confidence's team + confidence-points. */
+function PickHistory({ picks }: { picks: SurvivorParticipantState['picks'] }) {
+  if (picks.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.5rem' }}>
+      {picks.map(pick => {
+        const color = pick.result === 'win' ? greenHi : pick.result === 'pending' ? textDim : red;
+        return (
+          <span
+            key={`${pick.seasonType}-${pick.week}`}
+            title={`Week ${pick.week}: ${pick.selectedTeamName} (${pick.result})`}
+            style={{
+              ...bc, fontSize: '0.62rem', fontWeight: 700, padding: '0.15rem 0.4rem', borderRadius: 3,
+              background: `${color}1e`, color, border: `1px solid ${color}44`,
+            }}
+          >
+            W{pick.week} {getTeamAbbreviation(pick.selectedTeamName)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Content-only Survivor standings — no page chrome (nav/hero/footer), so
  * it can be embedded directly inside a tab panel (pool management's
  * Leaderboard tab) as well as wrapped into a full page below. ACTIVE
- * participants sort first (most weeks survived), then ELIMINATED sorted by
- * most-recent elimination first — whoever's still alive should be
- * immediately obvious at a glance. This is also where a commissioner gets
- * elimination visibility (week, team, result) — no separate "Eliminations"
- * view exists, since it would just show the same data computeSurvivorPoolState()
- * already provides here. */
+ * participants sort first (most weeks survived, then — only when the pool's
+ * own end-of-season rule is margin_tiebreaker — cumulative win margin, the
+ * same figure that rule would actually use to separate them), then
+ * ELIMINATED sorted by most-recent elimination first — whoever's still
+ * alive should be immediately obvious at a glance. This is also where a
+ * commissioner gets elimination visibility (week, team, result) — no
+ * separate "Eliminations" view exists, since it would just show the same
+ * data computeSurvivorPoolState() already provides here. */
 export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
   const { state, isLoading } = useSurvivorLeaderboardData(poolId);
 
@@ -93,8 +131,12 @@ export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
   }
 
   const winners = state?.participants.filter(p => p.status === 'WINNER') ?? [];
+  const marginTiebreak = state?.settings.endOfSeasonRule === 'margin_tiebreaker';
   const active = (state?.participants.filter(p => p.status === 'ACTIVE') ?? [])
-    .sort((a, b2) => b2.picks.length - a.picks.length);
+    .sort((a, b2) => {
+      if (b2.picks.length !== a.picks.length) return b2.picks.length - a.picks.length;
+      return marginTiebreak ? cumulativeMargin(b2) - cumulativeMargin(a) : 0;
+    });
   const eliminated = (state?.participants.filter(p => p.status === 'ELIMINATED') ?? [])
     .sort((a, b2) => (b2.eliminatedWeek ?? 0) - (a.eliminatedWeek ?? 0));
 
@@ -124,9 +166,15 @@ export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
           {active.map(p => (
-            <div key={p.participantId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
-              <span style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{p.participantName}</span>
-              <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>{p.picks.length} pick{p.picks.length === 1 ? '' : 's'} made</span>
+            <div key={p.participantId} style={{ background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${greenHi}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{p.participantName}</span>
+                <span style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                  {p.picks.length} pick{p.picks.length === 1 ? '' : 's'} made
+                  {marginTiebreak && ` · +${cumulativeMargin(p)} margin`}
+                </span>
+              </div>
+              <PickHistory picks={p.picks} />
             </div>
           ))}
         </div>
@@ -148,8 +196,9 @@ export function SurvivorStandingsPanel({ poolId }: { poolId: string }) {
                 <p style={{ ...b, fontSize: '0.74rem', color: textDim, marginTop: '0.15rem' }}>
                   {p.eliminatedReason === 'no_pick'
                     ? 'Did not submit a pick'
-                    : `Pick: ${p.eliminatedTeam} — ${p.eliminatedReason === 'tie' ? 'tied' : 'lost'}`}
+                    : `Pick: ${p.eliminatedTeamName ?? p.eliminatedTeam} — ${p.eliminatedReason === 'tie' ? 'tied' : 'lost'}`}
                 </p>
+                <PickHistory picks={p.picks} />
               </div>
             ))}
           </div>

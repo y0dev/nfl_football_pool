@@ -82,12 +82,12 @@ export async function POST(request: NextRequest) {
           const sent = p.eliminatedWeek === week && p.eliminatedSeasonType === seasonType
             ? await emailService.sendSurvivorWeekResult(email, p.participantName, pool.name, week, poolLink, {
                 alive: false,
-                selectedTeam: p.eliminatedTeam ?? pick.selectedTeam,
+                selectedTeam: p.eliminatedTeamName ?? pick.selectedTeamName,
                 reason: p.eliminatedReason ?? (pick.result === 'tie' ? 'tie' : 'loss'),
               })
             : await emailService.sendSurvivorWeekResult(email, p.participantName, pool.name, week, poolLink, {
                 alive: true,
-                selectedTeam: pick.selectedTeam,
+                selectedTeam: pick.selectedTeamName,
               });
           return { success: sent };
         } catch (error) {

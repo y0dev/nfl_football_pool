@@ -72,6 +72,12 @@ export interface SurvivorPickResult {
   seasonType: number;
   gameId: string;
   selectedTeam: string;
+  /** Human-readable team name (games.home_team / away_team text column),
+   * resolved from selectedTeam (a VARCHAR games.home_team_id/away_team_id
+   * value, not a display name) — so callers never need their own team-id
+   * lookup just to show what a participant actually picked. Falls back to
+   * the raw id in the unexpected case the pick's game can't be found. */
+  selectedTeamName: string;
   /** 'pending' when the game has no final score yet — see hasFinalResult(). */
   result: 'win' | 'loss' | 'tie' | 'pending';
   /** Picked-team score minus opponent score. 0 for pending/tie. Used only
@@ -88,6 +94,8 @@ export interface SurvivorParticipantState {
   eliminatedWeek?: number;
   eliminatedSeasonType?: number;
   eliminatedTeam?: string;
+  /** Human-readable name for eliminatedTeam — see SurvivorPickResult.selectedTeamName. */
+  eliminatedTeamName?: string;
   eliminatedGameId?: string;
   eliminatedReason?: SurvivorEliminationReason;
 }
@@ -229,6 +237,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     let eliminatedWeek: number | undefined;
     let eliminatedSeasonType: number | undefined;
     let eliminatedTeam: string | undefined;
+    let eliminatedTeamName: string | undefined;
     let eliminatedGameId: string | undefined;
     let eliminatedReason: SurvivorEliminationReason | undefined;
 
@@ -262,11 +271,18 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
 
       usedTeams.push(pick.selected_team);
       const game = gamesById.get(pick.game_id);
+      // games.home_team_id/away_team_id are opaque ids (VARCHAR, not a
+      // display name) — resolve to the game's own home_team/away_team text
+      // columns so every consumer of SurvivorPickResult gets a real team
+      // name for free, never a raw id to display or re-resolve itself.
+      const selectedTeamName = game
+        ? (pick.selected_team === game.home_team_id ? game.home_team : pick.selected_team === game.away_team_id ? game.away_team : pick.selected_team)
+        : pick.selected_team;
       if (!game || !hasFinalResult(game)) {
         // Game hasn't finished (or was postponed/cancelled and has no
         // score yet) — do not evaluate this pick yet. Participant stays
         // ACTIVE; this pick is 'pending'.
-        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, result: 'pending', margin: 0 });
+        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, selectedTeamName, result: 'pending', margin: 0 });
         continue;
       }
 
@@ -276,17 +292,18 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
       const margin = pickedScore - oppScore;
 
       if (pickedScore > oppScore) {
-        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, result: 'win', margin });
+        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, selectedTeamName, result: 'win', margin });
         continue; // survives, evaluate next week
       }
 
       if (pickedScore === oppScore) {
-        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, result: 'tie', margin: 0 });
+        resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, selectedTeamName, result: 'tie', margin: 0 });
         if (settings.tieRule === 'eliminate') {
           status = 'ELIMINATED';
           eliminatedWeek = week;
           eliminatedSeasonType = seasonType;
           eliminatedTeam = pick.selected_team;
+          eliminatedTeamName = selectedTeamName;
           eliminatedGameId = pick.game_id;
           eliminatedReason = 'tie';
         }
@@ -294,11 +311,12 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
       }
 
       // Loss.
-      resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, result: 'loss', margin });
+      resolvedPicks.push({ week, seasonType, gameId: pick.game_id, selectedTeam: pick.selected_team, selectedTeamName, result: 'loss', margin });
       status = 'ELIMINATED';
       eliminatedWeek = week;
       eliminatedSeasonType = seasonType;
       eliminatedTeam = pick.selected_team;
+      eliminatedTeamName = selectedTeamName;
       eliminatedGameId = pick.game_id;
       eliminatedReason = 'loss';
     }
@@ -312,6 +330,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
       eliminatedWeek,
       eliminatedSeasonType,
       eliminatedTeam,
+      eliminatedTeamName,
       eliminatedGameId,
       eliminatedReason,
     };

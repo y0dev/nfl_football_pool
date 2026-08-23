@@ -89,7 +89,22 @@ export function PickemStandingsPanel({ poolId }: { poolId: string }) {
   const currentWeekEntry = (week: number, seasonType: number, p: PickemSeasonSummary['participants'][number]) =>
     p.weeklyResults.find(w => w.week === week && w.seasonType === seasonType);
 
-  const ranked = [...(summary?.participants ?? [])].sort((a, b2) => b2.seasonCorrectCount - a.seasonCorrectCount);
+  // Ranked by total correct picks; ties broken the same way
+  // computePickemSeasonSummary itself resolves the season winner — summed
+  // tiebreaker deviation (|predicted - actual| combined score, lower wins)
+  // — never a separately-invented ranking rule. Only applied when the pool
+  // has tiebreakers enabled, matching that function's own gate.
+  const tiebreakersOn = summary?.settings.tiebreakerEnabled ?? true;
+  const ranked = [...(summary?.participants ?? [])].sort((a, b2) => {
+    if (b2.seasonCorrectCount !== a.seasonCorrectCount) return b2.seasonCorrectCount - a.seasonCorrectCount;
+    if (!tiebreakersOn) return 0;
+    const ad = a.tiebreakerTotalDeviation;
+    const bd = b2.tiebreakerTotalDeviation;
+    if (ad != null && bd != null) return ad - bd;
+    if (ad != null) return -1;
+    if (bd != null) return 1;
+    return 0;
+  });
 
   return (
     <div>
@@ -109,9 +124,12 @@ export function PickemStandingsPanel({ poolId }: { poolId: string }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.75rem', padding: '0 1rem 0.35rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: tiebreakersOn ? '1fr auto auto auto' : '1fr auto auto', gap: '0.75rem', padding: '0 1rem 0.35rem' }}>
           <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase' }}>Participant</span>
           <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right' }}>This Week</span>
+          {tiebreakersOn && (
+            <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right' }}>Tiebreak</span>
+          )}
           <span style={{ ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', textAlign: 'right' }}>Season</span>
         </div>
         {ranked.length === 0 ? (
@@ -120,11 +138,23 @@ export function PickemStandingsPanel({ poolId }: { poolId: string }) {
           const thisWeek = summary?.currentWeek ? currentWeekEntry(summary.currentWeek.week, summary.currentWeek.seasonType, p) : undefined;
           const isWinner = summary?.seasonWinnerParticipantIds.includes(p.participantId);
           return (
-            <div key={p.participantId} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.75rem', alignItems: 'center', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${isWinner ? gold : green}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
+            <div key={p.participantId} style={{ display: 'grid', gridTemplateColumns: tiebreakersOn ? '1fr auto auto auto' : '1fr auto auto', gap: '0.75rem', alignItems: 'center', background: 'oklch(17% 0.028 255)', border: `1px solid ${border}`, borderLeft: `3px solid ${isWinner ? gold : green}`, borderRadius: 8, padding: '0.75rem 1rem' }}>
               <span style={{ ...b, fontWeight: 600, fontSize: '0.875rem', color: text }}>{p.participantName}</span>
               <span style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', color: textMid, textAlign: 'right' }}>
                 {thisWeek ? `${thisWeek.correctCount}/${thisWeek.eligibleGameCount}` : '—'}
               </span>
+              {tiebreakersOn && (
+                <span
+                  title={thisWeek?.tiebreakerPrediction != null ? `Predicted combined score: ${thisWeek.tiebreakerPrediction}` : 'No tiebreaker prediction submitted'}
+                  style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: textDim, textAlign: 'right' }}
+                >
+                  {thisWeek?.tiebreakerDeviation != null
+                    ? `±${thisWeek.tiebreakerDeviation}`
+                    : thisWeek?.tiebreakerPrediction != null
+                      ? thisWeek.tiebreakerPrediction
+                      : '—'}
+                </span>
+              )}
               <span style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textAlign: 'right' }}>{p.seasonCorrectCount}</span>
             </div>
           );
