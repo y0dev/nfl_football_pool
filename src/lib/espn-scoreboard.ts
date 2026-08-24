@@ -13,8 +13,7 @@
 // fetches raw ESPN JSON and posts it to our backend, which maps it with the
 // exact same logic a server-side fetch would have used.
 import type { NFLGame } from './nfl-api';
-
-export const ESPN_SCOREBOARD_BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+import { debugError, ESPN_SCOREBOARD_URL } from './utils';
 
 export interface ESPNScoreboardEvent {
   id: string;
@@ -135,6 +134,33 @@ export function weekDateRange(year: number, seasonType: number, week: number): {
   };
 }
 
+/**
+ * A single date range comfortably containing every game of a whole
+ * season_type, padded well beyond weekDateRange()'s own week1..maxWeek
+ * span. The padding isn't just safety margin — weekDateRange() has a known
+ * off-by-one against ESPN's own week numbering for at least preseason
+ * (requesting "week N" returns games ESPN itself labels "week N+1"), so a
+ * tight bound risks clipping real games at either edge. This function only
+ * uses week1.start/maxWeek.end as an outer bounding box, never for
+ * per-week filtering, so that mislabeling doesn't matter here — only
+ * ESPN's own per-game week/season_type does. Browser-safe (pure date math)
+ * so both the scan-season route and the admin's browser-side scan fetch
+ * (see fetchEspnEventsForRangeFromBrowser below) compute the identical
+ * range from the identical source of truth.
+ */
+export function seasonTypeWideRange(season: number, seasonType: number, maxWeek: number): { start: string; end: string } {
+  const first = weekDateRange(season, seasonType, 1);
+  const last = weekDateRange(season, seasonType, maxWeek);
+  const padDays = 14;
+
+  const start = new Date(Date.UTC(parseInt(first.start.slice(0, 4)), parseInt(first.start.slice(4, 6)) - 1, parseInt(first.start.slice(6, 8))));
+  start.setUTCDate(start.getUTCDate() - padDays);
+  const end = new Date(Date.UTC(parseInt(last.end.slice(0, 4)), parseInt(last.end.slice(4, 6)) - 1, parseInt(last.end.slice(6, 8))));
+  end.setUTCDate(end.getUTCDate() + padDays);
+
+  return { start: toYMD(start), end: toYMD(end) };
+}
+
 export interface WeekRangeResult {
   start: string;
   end: string;
@@ -158,13 +184,6 @@ export function getDayContaining(timestamp?: string): { date: string } {
   const ts = timestamp || new Date().toISOString();
   const d = new Date(ts);
   return { date: toYMD(d) };
-}
-
-export function buildScoreboardUrl(params: { dates: string; limit?: number }): string {
-  const url = new URL(ESPN_SCOREBOARD_BASE_URL);
-  url.searchParams.set('dates', params.dates);
-  if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit));
-  return url.toString();
 }
 
 /** Same mapping nfl-api.ts's getWeekGames() applies to data.events — pulled
@@ -195,4 +214,40 @@ export function mapEspnEventsToGames(events: ESPNScoreboardEvent[]): NFLGame[] {
       away_team_id: awayTeam.team.abbreviation,
     } as NFLGame;
   }).filter(Boolean) as NFLGame[];
+}
+
+/** Fetches ESPN's scoreboard directly from the browser for an arbitrary
+ * `dates=` range — the admin's own IP, not blocked, unlike Vercel's server
+ * IPs (see this file's header comment). ESPN's endpoint sends
+ * Access-Control-Allow-Origin: *, so this is CORS-permitted. Returns null
+ * on any failure so the caller can fall back to the server-side fetch
+ * instead of hard-failing the whole preview/scan. `limit` matters for any
+ * range wider than one week — see nfl-api.ts's getWeekGames() for why
+ * ESPN silently caps at 100 events with none given. */
+export async function fetchEspnEventsForRangeFromBrowser(start: string, end: string, limit?: number): Promise<ESPNScoreboardEvent[] | null> {
+  try {
+    const params = new URLSearchParams({ dates: `${start}-${end}` });
+    if (limit !== undefined) params.set('limit', String(limit));
+    const url = `${ESPN_SCOREBOARD_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.events) ? data.events : [];
+  } catch (error) {
+    debugError('Direct browser fetch of ESPN failed:', error);
+    return null;
+  }
+}
+
+/** Fetches ESPN's scoreboard directly from the browser for the single week
+ * or day containing `date` — see fetchEspnEventsForRangeFromBrowser above
+ * for why this fetches from the browser at all. */
+export async function fetchEspnEventsFromBrowser(wholeWeek: boolean, date: Date): Promise<ESPNScoreboardEvent[] | null> {
+  const iso = date.toISOString();
+  if (wholeWeek) {
+    const r = getWeekRangeContaining(iso);
+    return fetchEspnEventsForRangeFromBrowser(r.start, r.end);
+  }
+  const { date: ymd } = getDayContaining(iso);
+  return fetchEspnEventsForRangeFromBrowser(ymd, ymd);
 }

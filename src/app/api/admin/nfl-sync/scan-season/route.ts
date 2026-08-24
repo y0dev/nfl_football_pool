@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { requireSuperAdmin } from '@/lib/accounts';
 import { nflAPI } from '@/lib/nfl-api';
+import { seasonTypeWideRange, mapEspnEventsToGames, type ESPNScoreboardEvent } from '@/lib/espn-scoreboard';
 import { SEASON_TYPE_OPTIONS, debugError } from '@/lib/utils';
 
 // Scans an entire season against ESPN to find gaps — games ESPN has that
@@ -26,43 +27,17 @@ interface WeekGapReport {
   dbCount: number;
   missingGames: GapGameRef[];
   extraInDb: GapGameRef[];
-  /** Any date within this week — feeds straight into the existing
-   * single-week preview flow so a found gap can be reviewed immediately. */
+  /** The earliest real kickoff date among this gap's own missing/extra
+   * games ('YYYY-MM-DD') — feeds straight into the existing preview flow
+   * so a found gap can be reviewed immediately. Deliberately NOT derived
+   * from weekDateRange(season, seasonType, week): that function has a
+   * known per-week off-by-one against ESPN's own week numbering (see its
+   * header comment in espn-scoreboard.ts), which previously produced a
+   * representativeDate that didn't actually contain the gap's games —
+   * e.g. reporting Sep 3 for a week whose only missing game kicks off
+   * Aug 29. Every game bucketed into this gap already carries its own
+   * real kickoff, so use that directly instead of re-deriving a range. */
   representativeDate: string;
-}
-
-const YMD_LEN = 8;
-
-function toYMD(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function ymdToDate(ymd: string): Date {
-  return new Date(parseInt(ymd.slice(0, 4)), parseInt(ymd.slice(4, 6)) - 1, parseInt(ymd.slice(6, YMD_LEN)));
-}
-
-/**
- * A single date range comfortably containing every game of a whole
- * season_type, padded well beyond weekDateRange()'s own week1..maxWeek
- * span. The padding isn't just safety margin — weekDateRange() has a known
- * off-by-one against ESPN's own week numbering for at least preseason
- * (requesting "week N" returns games ESPN itself labels "week N+1"), so a
- * tight bound risks clipping real games at either edge. This function only
- * uses week1.start/maxWeek.end as an outer bounding box, never for
- * per-week filtering, so that mislabeling doesn't matter here — only
- * ESPN's own per-game week/season_type (checked below) does.
- */
-function seasonTypeWideRange(season: number, seasonType: number, maxWeek: number): { start: string; end: string } {
-  const first = nflAPI.weekDateRange(season, seasonType, 1);
-  const last = nflAPI.weekDateRange(season, seasonType, maxWeek);
-  const padDays = 14;
-
-  const start = ymdToDate(first.start);
-  start.setDate(start.getDate() - padDays);
-  const end = ymdToDate(last.end);
-  end.setDate(end.getDate() + padDays);
-
-  return { start: toYMD(start), end: toYMD(end) };
 }
 
 export async function POST(request: NextRequest) {
@@ -75,6 +50,16 @@ export async function POST(request: NextRequest) {
     const seasonTypes: number[] = Array.isArray(body.seasonTypes) && body.seasonTypes.length > 0
       ? body.seasonTypes
       : SEASON_TYPE_OPTIONS.map(o => o.value);
+    // Raw ESPN events the browser already fetched, keyed by season_type —
+    // same escape hatch as /api/admin/nfl-sync/preview's espnEvents (see
+    // that route's header comment): ESPN's CDN blocks Vercel's server IPs,
+    // so scanning a whole season server-side can silently under-report
+    // "missing" games it just failed to fetch, not games that are actually
+    // missing. When a season_type's events are present here, this skips
+    // this route's own ESPN fetch for it entirely and trusts what the
+    // browser already retrieved instead.
+    const clientEspnEventsByType: Record<string, ESPNScoreboardEvent[]> =
+      body.espnEventsBySeasonType && typeof body.espnEventsBySeasonType === 'object' ? body.espnEventsBySeasonType : {};
 
     if (!season || Number.isNaN(season)) {
       return NextResponse.json({ success: false, error: 'season is required' }, { status: 400 });
@@ -83,11 +68,11 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     const { data: existingGames, error: dbError } = await supabase
       .from('games')
-      .select('id, week, season_type, home_team, away_team')
+      .select('id, week, season_type, home_team, away_team, kickoff_time')
       .eq('season', season);
     if (dbError) throw new Error(dbError.message);
 
-    const dbByWeek = new Map<string, { id: string; home_team: string; away_team: string }[]>();
+    const dbByWeek = new Map<string, { id: string; home_team: string; away_team: string; kickoff_time: string | null }[]>();
     for (const g of existingGames ?? []) {
       const key = `${g.season_type}-${g.week}`;
       if (!dbByWeek.has(key)) dbByWeek.set(key, []);
@@ -101,15 +86,21 @@ export async function POST(request: NextRequest) {
     for (const opt of SEASON_TYPE_OPTIONS) {
       if (!seasonTypes.includes(opt.value)) continue;
 
-      const { start, end } = seasonTypeWideRange(season, opt.value, opt.weeks);
+      const clientEvents = clientEspnEventsByType[String(opt.value)];
       // One wide query per season_type (up to ~272 games for an 18-week
       // regular season) rather than one call per week — fewer ESPN round
       // trips, and sidesteps weekDateRange()'s per-week off-by-one entirely
       // by trusting each returned game's own week/season_type. limit=400
       // comfortably covers every season_type; see getWeekGames() for why
       // it's needed at all.
-      const espnGames = (await nflAPI.getWeekGames(start, end, 400))
-        .filter(g => g.season === season && g.season_type === opt.value);
+      let espnGames: Awaited<ReturnType<typeof nflAPI.getWeekGames>>;
+      if (Array.isArray(clientEvents)) {
+        espnGames = mapEspnEventsToGames(clientEvents);
+      } else {
+        const { start, end } = seasonTypeWideRange(season, opt.value, opt.weeks);
+        espnGames = await nflAPI.getWeekGames(start, end, 400);
+      }
+      espnGames = espnGames.filter(g => g.season === season && g.season_type === opt.value);
 
       const espnByWeek = new Map<number, typeof espnGames>();
       for (const g of espnGames) {
@@ -135,15 +126,26 @@ export async function POST(request: NextRequest) {
           .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, kickoff: g.time }));
         const extraInDb: GapGameRef[] = dbGames
           .filter(g => !espnIds.has(g.id))
-          .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team }));
+          .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, kickoff: g.kickoff_time ?? undefined }));
 
         if (missingGames.length > 0 || extraInDb.length > 0) {
-          const { start: weekStart } = nflAPI.weekDateRange(season, opt.value, week);
+          // Earliest real kickoff among this gap's own games — see
+          // WeekGapReport.representativeDate's comment for why this is
+          // used instead of weekDateRange(season, seasonType, week).
+          const kickoffs = [...missingGames, ...extraInDb]
+            .map(g => g.kickoff)
+            .filter((k): k is string => !!k)
+            .map(k => new Date(k).getTime())
+            .filter(t => !Number.isNaN(t));
+          const earliest = kickoffs.length > 0 ? new Date(Math.min(...kickoffs)) : null;
+          const representativeDate = earliest
+            ? `${earliest.getUTCFullYear()}-${String(earliest.getUTCMonth() + 1).padStart(2, '0')}-${String(earliest.getUTCDate()).padStart(2, '0')}`
+            : (() => { const { start } = nflAPI.weekDateRange(season, opt.value, week); return `${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}`; })();
           gaps.push({
             seasonType: opt.value, week,
             espnCount: weekEspnGames.length, dbCount: dbGames.length,
             missingGames, extraInDb,
-            representativeDate: `${weekStart.slice(0, 4)}-${weekStart.slice(4, 6)}-${weekStart.slice(6, YMD_LEN)}`,
+            representativeDate,
           });
         }
       }

@@ -1,4 +1,4 @@
-import { debugLog, debugError} from '@/lib/utils';
+import { debugLog, debugError, ESPN_SCOREBOARD_URL} from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Minimal shape for the one field this route actually reads off ESPN's
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     for (const dateStr of dates) {
       try {
-        const url = `https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dateStr}`;
+        const url = `${ESPN_SCOREBOARD_URL}?dates=${dateStr}`;
         debugLog(`Fetching ESPN data for date ${dateStr}:`, url);
         const response = await fetch(url);
 

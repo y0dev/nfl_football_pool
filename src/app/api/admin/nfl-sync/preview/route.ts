@@ -20,6 +20,18 @@ import { debugError } from '@/lib/utils';
 // maps + diffs what the browser already retrieved. Omitting it falls back
 // to the server fetching ESPN itself — unchanged behavior for any
 // environment where that isn't blocked (e.g. local dev).
+//
+// `startDate`/`endDate` ('YYYY-MM-DD'): an explicit range, letting the
+// admin bound exactly which dates to fetch instead of relying on "the week
+// containing this one date" — weekDateRange()'s own per-week off-by-one
+// (see its header comment in src/lib/espn-scoreboard.ts) means that
+// heuristic doesn't always land on the week the admin actually meant.
+// Takes priority over `date`/`wholeWeek` when both are present; `date`/
+// `wholeWeek` stays supported for any caller that doesn't send a range.
+function toYMD(isoDate: string): string {
+  return isoDate.replaceAll('-', '');
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.response;
@@ -28,17 +40,22 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const startDate: string | undefined = typeof body.startDate === 'string' ? body.startDate : undefined;
+    const endDate: string | undefined = typeof body.endDate === 'string' ? body.endDate : undefined;
     const referenceDate: string = body.date || new Date().toISOString();
     // Defaults to a whole-week sync (the only mode this endpoint ever had)
     // so any caller that doesn't send the flag keeps today's behavior.
     const wholeWeek: boolean = body.wholeWeek !== false;
     const clientEspnEvents: ESPNScoreboardEvent[] | undefined = Array.isArray(body.espnEvents) ? body.espnEvents : undefined;
+    const hasExplicitRange = !!startDate && !!endDate;
 
     const incomingGames = clientEspnEvents
       ? mapEspnEventsToGames(clientEspnEvents)
-      : wholeWeek
-        ? await nflAPI.getGamesForWeekContaining(referenceDate)
-        : await nflAPI.getGamesForDayContaining(referenceDate);
+      : hasExplicitRange
+        ? await nflAPI.getWeekGames(toYMD(startDate), toYMD(endDate))
+        : wholeWeek
+          ? await nflAPI.getGamesForWeekContaining(referenceDate)
+          : await nflAPI.getGamesForDayContaining(referenceDate);
 
     if (incomingGames.length === 0) {
       return NextResponse.json({
@@ -46,7 +63,9 @@ export async function POST(request: NextRequest) {
         runId: null,
         summary: { gamesChecked: 0, newCount: 0, updatedCount: 0, unchangedCount: 0 },
         changes: [],
-        message: `No games found from the NFL data provider for this ${wholeWeek ? 'week' : 'day'}.`,
+        message: hasExplicitRange
+          ? `No games found from the NFL data provider between ${startDate} and ${endDate}.`
+          : `No games found from the NFL data provider for this ${wholeWeek ? 'week' : 'day'}.`,
       });
     }
 

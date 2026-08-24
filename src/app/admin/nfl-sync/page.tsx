@@ -13,10 +13,10 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
-import { debugLog, debugError, DEFAULT_POOL_SEASON, isSuspiciousFutureSeason } from '@/lib/utils';
+import { debugLog, debugError, DEFAULT_POOL_SEASON, isSuspiciousFutureSeason, SEASON_TYPE_OPTIONS } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { ESPN_SCOREBOARD_BASE_URL, getWeekRangeContaining, getDayContaining, type ESPNScoreboardEvent } from '@/lib/espn-scoreboard';
+import { fetchEspnEventsForRangeFromBrowser, seasonTypeWideRange } from '@/lib/espn-scoreboard';
 
 interface ProposedChangeView {
   id: string;
@@ -145,9 +145,14 @@ function NFLSyncContent() {
   const [, setIsLoggingOut] = useState(false);
   const [, setIsSuperAdmin] = useState(false);
   const [currentStats, setCurrentStats] = useState({ totalGames: 0, liveGames: 0, completedGames: 0, scheduledGames: 0 });
-  const [previewDate, setPreviewDate] = useState(new Date());
+  // Explicit range, not "the week containing one date" — weekDateRange()'s
+  // own per-week off-by-one (see espn-scoreboard.ts's header comment) means
+  // that heuristic doesn't always land on the week the admin actually
+  // meant, so letting them set the exact bounds makes a target week easier
+  // to pin down. Defaults to today only; widen via the date inputs.
+  const [previewStartDate, setPreviewStartDate] = useState(new Date());
+  const [previewEndDate, setPreviewEndDate] = useState(new Date());
   const [showSyncOptions, setShowSyncOptions] = useState(false);
-  const [syncWholeWeek, setSyncWholeWeek] = useState(false);
 
   // ESPN's CDN hard-blocks Vercel's server IPs but allows direct browser
   // requests (see src/lib/espn-scoreboard.ts) — 'client' fetches ESPN from
@@ -230,31 +235,11 @@ function NFLSyncContent() {
     }
   };
 
-  // Fetches ESPN's scoreboard directly from the browser (the admin's own
-  // IP — not blocked, unlike Vercel's server IPs; ESPN's endpoint sends
-  // Access-Control-Allow-Origin: * so this is CORS-permitted). Returns null
-  // on any failure so the caller can fall back to the server-side fetch
-  // instead of hard-failing the whole preview.
-  const fetchEspnEventsFromBrowser = async (wholeWeek: boolean, date: Date): Promise<ESPNScoreboardEvent[] | null> => {
-    try {
-      const iso = date.toISOString();
-      const dates = wholeWeek
-        ? (() => { const r = getWeekRangeContaining(iso); return `${r.start}-${r.end}`; })()
-        : getDayContaining(iso).date;
-      const url = `${ESPN_SCOREBOARD_BASE_URL}?dates=${dates}`;
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return Array.isArray(data?.events) ? data.events : [];
-    } catch (error) {
-      debugError('Direct browser fetch of ESPN failed:', error);
-      return null;
-    }
-  };
-
-  const handlePreview = async (dateOverride?: Date, wholeWeekOverride?: boolean) => {
-    const targetDate = dateOverride ?? previewDate;
-    const wholeWeek = wholeWeekOverride ?? syncWholeWeek;
+  const handlePreview = async (startOverride?: Date, endOverride?: Date) => {
+    const start = startOverride ?? previewStartDate;
+    const end = endOverride ?? previewEndDate;
+    const startYMD = format(start, 'yyyy-MM-dd');
+    const endYMD = format(end, 'yyyy-MM-dd');
     setPreviewLoading(true);
     setPreviewError('');
     setApplyResult(null);
@@ -262,13 +247,13 @@ function NFLSyncContent() {
       // In 'server' mode (dev-only toggle), skip the browser fetch entirely
       // and let the backend fetch ESPN itself, exactly as before this fix.
       const espnEvents = fetchMode === 'client'
-        ? await fetchEspnEventsFromBrowser(wholeWeek, targetDate)
+        ? await fetchEspnEventsForRangeFromBrowser(startYMD.replaceAll('-', ''), endYMD.replaceAll('-', ''))
         : null;
 
       const res = await fetch('/api/admin/nfl-sync/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ date: targetDate.toISOString(), wholeWeek, ...(espnEvents ? { espnEvents } : {}) }),
+        body: JSON.stringify({ startDate: startYMD, endDate: endYMD, ...(espnEvents ? { espnEvents } : {}) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -277,7 +262,7 @@ function NFLSyncContent() {
           setApprovedIds(new Set());
         } else {
           setPreview(null);
-          toast({ title: 'Nothing to preview', description: data.message || `No games found for this ${wholeWeek ? 'week' : 'day'}.` });
+          toast({ title: 'Nothing to preview', description: data.message || `No games found between ${startYMD} and ${endYMD}.` });
         }
         debugLog('Preview loaded:', data);
       } else {
@@ -329,7 +314,7 @@ function NFLSyncContent() {
       const res = await fetch('/api/admin/nfl-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ timestamp: previewDate.toISOString() }),
+        body: JSON.stringify({ timestamp: previewStartDate.toISOString() }),
       });
       const data = await res.json();
       if (data.success) {
@@ -357,10 +342,31 @@ function NFLSyncContent() {
     setScanError('');
     setScanResult(null);
     try {
+      // Same client-fetch escape hatch as handlePreview above: ESPN blocks
+      // Vercel's server IPs, so scanning a whole season server-side can
+      // silently report games as "missing" that the server just failed to
+      // fetch, not games that are actually missing from the database. One
+      // wide browser fetch per selected season_type (mirrors the server's
+      // own seasonTypeWideRange range), keyed by season_type so the route
+      // can map each back to the right SEASON_TYPE_OPTIONS entry.
+      const espnEventsBySeasonType: Record<number, unknown> = {};
+      if (fetchMode === 'client') {
+        for (const opt of SEASON_TYPE_OPTIONS) {
+          if (!scanSeasonTypes.has(opt.value)) continue;
+          const { start, end } = seasonTypeWideRange(scanSeason, opt.value, opt.weeks);
+          const events = await fetchEspnEventsForRangeFromBrowser(start, end, 400);
+          if (events) espnEventsBySeasonType[opt.value] = events;
+        }
+      }
+
       const res = await fetch('/api/admin/nfl-sync/scan-season', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-email': user?.email ?? '' },
-        body: JSON.stringify({ season: scanSeason, seasonTypes: Array.from(scanSeasonTypes) }),
+        body: JSON.stringify({
+          season: scanSeason,
+          seasonTypes: Array.from(scanSeasonTypes),
+          ...(Object.keys(espnEventsBySeasonType).length > 0 ? { espnEventsBySeasonType } : {}),
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -380,13 +386,34 @@ function NFLSyncContent() {
     }
   };
 
-  // Jumps a found gap straight into the existing single-week preview/apply
-  // flow instead of building a second review UI for the same job.
+  // Jumps a found gap straight into the existing preview/apply flow.
+  // Deliberately NOT weekDateRange(season, seasonType, week): that has a
+  // known per-week off-by-one against ESPN's own week numbering (see its
+  // header comment in espn-scoreboard.ts), which previously could produce
+  // a range that didn't actually contain the gap's own games — e.g. a
+  // Week 4 preseason gap whose only missing game kicks off Aug 29 landing
+  // on a computed range starting Sep 3. Every game the scan bucketed into
+  // this gap already carries its own real kickoff — use the earliest and
+  // latest of those directly instead of re-deriving a range from scratch.
   const reviewGapWeek = (gap: WeekGapReport) => {
-    setPreviewDate(new Date(gap.representativeDate));
-    setSyncWholeWeek(true);
+    const kickoffs = [...gap.missingGames, ...gap.extraInDb]
+      .map(g => g.kickoff)
+      .filter((k): k is string => !!k)
+      .map(k => new Date(k).getTime())
+      .filter(t => !Number.isNaN(t));
+    // UTC calendar date, represented as a local-midnight Date — same
+    // construction the date-range inputs below use, so previewStartDate/
+    // EndDate stay consistent regardless of which one set them.
+    const toLocalCalendarDate = (ms: number) => {
+      const d = new Date(ms);
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    };
+    const startDate = kickoffs.length > 0 ? toLocalCalendarDate(Math.min(...kickoffs)) : new Date(`${gap.representativeDate}T00:00:00`);
+    const endDate = kickoffs.length > 0 ? toLocalCalendarDate(Math.max(...kickoffs)) : startDate;
+    setPreviewStartDate(startDate);
+    setPreviewEndDate(endDate);
     setShowSyncOptions(false);
-    handlePreview(new Date(gap.representativeDate), true);
+    handlePreview(startDate, endDate);
     document.getElementById('manual-sync-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -734,7 +761,9 @@ function NFLSyncContent() {
                         </p>
                         {gap.missingGames.length > 0 && (
                           <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.3rem' }}>
-                            {gap.missingGames.map(g => `${g.awayTeam} @ ${g.homeTeam}`).join(' · ')}
+                            {gap.missingGames
+                              .map(g => `${g.awayTeam} @ ${g.homeTeam}${g.kickoff ? ` (${format(new Date(g.kickoff), 'MMM d', { locale: enUS })})` : ''}`)
+                              .join(' · ')}
                           </p>
                         )}
                       </div>
@@ -775,25 +804,41 @@ function NFLSyncContent() {
               </div>
               {showSyncOptions ? (
                 <div>
-                  <label htmlFor="sync-date" style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
-                    {syncWholeWeek ? 'Any date within the target week' : 'The day to sync'}
+                  <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                    Date range to fetch
                   </label>
-                  <input
-                    id="sync-date"
-                    type="date"
-                    value={previewDate.toISOString().split('T')[0]}
-                    onChange={(e) => setPreviewDate(e.target.value ? new Date(e.target.value) : new Date())}
-                    style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', display: 'block', padding: '0.5rem 0.75rem', background: card, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
-                  />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input
-                      type="checkbox"
-                      checked={syncWholeWeek}
-                      onChange={(e) => setSyncWholeWeek(e.target.checked)}
-                      style={{ width: 15, height: 15, accentColor: green, cursor: 'pointer' }}
+                      id="sync-start-date"
+                      type="date"
+                      aria-label="Start date"
+                      value={format(previewStartDate, 'yyyy-MM-dd')}
+                      max={format(previewEndDate, 'yyyy-MM-dd')}
+                      onChange={(e) => {
+                        const next = e.target.value ? new Date(`${e.target.value}T00:00:00`) : new Date();
+                        setPreviewStartDate(next);
+                        if (next > previewEndDate) setPreviewEndDate(next);
+                      }}
+                      style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', display: 'block', padding: '0.5rem 0.75rem', background: card, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
                     />
-                    <span style={{ ...b, fontSize: '0.8rem', color: textMid }}>Sync the whole week instead of just this day</span>
-                  </label>
+                    <span style={{ ...b, fontSize: '0.78rem', color: textDim, flexShrink: 0 }}>to</span>
+                    <input
+                      id="sync-end-date"
+                      type="date"
+                      aria-label="End date"
+                      value={format(previewEndDate, 'yyyy-MM-dd')}
+                      min={format(previewStartDate, 'yyyy-MM-dd')}
+                      onChange={(e) => {
+                        const next = e.target.value ? new Date(`${e.target.value}T00:00:00`) : new Date();
+                        setPreviewEndDate(next);
+                        if (next < previewStartDate) setPreviewStartDate(next);
+                      }}
+                      style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', display: 'block', padding: '0.5rem 0.75rem', background: card, border: `1px solid ${border}`, borderRadius: 5, color: text, ...b, fontSize: '0.85rem', outline: 'none' }}
+                    />
+                  </div>
+                  <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.4rem' }}>
+                    Every game ESPN lists between these two dates (inclusive) — set them to bound a week exactly instead of guessing from a single date.
+                  </p>
                   {isDev && (
                     <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px dashed ${border}` }}>
                       <label style={{ ...bc, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
@@ -827,11 +872,16 @@ function NFLSyncContent() {
                   )}
                 </div>
               ) : (
-                <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
-                  {syncWholeWeek
-                    ? `Week containing ${format(previewDate, 'MMM dd, yyyy', { locale: enUS })}`
-                    : format(previewDate, 'MMM dd, yyyy', { locale: enUS })}
-                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem 1rem' }}>
+                  <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', color: textDim, textTransform: 'uppercase' }}>Start </span>
+                    {format(previewStartDate, 'MMM dd, yyyy', { locale: enUS })}
+                  </p>
+                  <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', color: textDim, textTransform: 'uppercase' }}>End </span>
+                    {format(previewEndDate, 'MMM dd, yyyy', { locale: enUS })}
+                  </p>
+                </div>
               )}
               <button
                 onClick={() => handlePreview()}

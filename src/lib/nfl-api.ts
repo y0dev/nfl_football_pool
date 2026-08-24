@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { debugInfo, debugWarn, debugLog, debugError } from './utils';
+import { debugInfo, debugWarn, debugLog, debugError, ESPN_BASE_URL } from './utils';
 import { classify as classifyShared, weekDateRange as weekDateRangeShared, mapEspnEventsToGames, type ESPNScoreboardEvent } from './espn-scoreboard';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -206,7 +206,7 @@ class NFLAPIService {
   private readonly TARGET_TZ = 'America/Chicago';
 
   constructor() {
-    this.baseUrl = 'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl';
+    this.baseUrl = ESPN_BASE_URL;
     debugInfo("ESPN API Base URL:", this.baseUrl);
   }
 
