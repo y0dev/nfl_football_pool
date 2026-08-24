@@ -16,7 +16,7 @@ import { AdminGuard } from '@/components/auth/admin-guard';
 import { debugLog, debugError, DEFAULT_POOL_SEASON, isSuspiciousFutureSeason, SEASON_TYPE_OPTIONS } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
-import { fetchEspnEventsForRangeFromBrowser, seasonTypeWideRange, weekDateRange } from '@/lib/espn-scoreboard';
+import { fetchEspnEventsForRangeFromBrowser, seasonTypeWideRange } from '@/lib/espn-scoreboard';
 
 interface ProposedChangeView {
   id: string;
@@ -386,15 +386,30 @@ function NFLSyncContent() {
     }
   };
 
-  // Jumps a found gap straight into the existing preview/apply flow, with
-  // the exact start/end dates for that gap's own week — not just "the week
-  // containing" gap.representativeDate — so it can't drift off the week
-  // the scan actually found the gap in.
+  // Jumps a found gap straight into the existing preview/apply flow.
+  // Deliberately NOT weekDateRange(season, seasonType, week): that has a
+  // known per-week off-by-one against ESPN's own week numbering (see its
+  // header comment in espn-scoreboard.ts), which previously could produce
+  // a range that didn't actually contain the gap's own games — e.g. a
+  // Week 4 preseason gap whose only missing game kicks off Aug 29 landing
+  // on a computed range starting Sep 3. Every game the scan bucketed into
+  // this gap already carries its own real kickoff — use the earliest and
+  // latest of those directly instead of re-deriving a range from scratch.
   const reviewGapWeek = (gap: WeekGapReport) => {
-    if (!scanResult) return;
-    const { start, end } = weekDateRange(scanResult.season, gap.seasonType, gap.week);
-    const startDate = new Date(`${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}T00:00:00Z`);
-    const endDate = new Date(`${end.slice(0, 4)}-${end.slice(4, 6)}-${end.slice(6, 8)}T00:00:00Z`);
+    const kickoffs = [...gap.missingGames, ...gap.extraInDb]
+      .map(g => g.kickoff)
+      .filter((k): k is string => !!k)
+      .map(k => new Date(k).getTime())
+      .filter(t => !Number.isNaN(t));
+    // UTC calendar date, represented as a local-midnight Date — same
+    // construction the date-range inputs below use, so previewStartDate/
+    // EndDate stay consistent regardless of which one set them.
+    const toLocalCalendarDate = (ms: number) => {
+      const d = new Date(ms);
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    };
+    const startDate = kickoffs.length > 0 ? toLocalCalendarDate(Math.min(...kickoffs)) : new Date(`${gap.representativeDate}T00:00:00`);
+    const endDate = kickoffs.length > 0 ? toLocalCalendarDate(Math.max(...kickoffs)) : startDate;
     setPreviewStartDate(startDate);
     setPreviewEndDate(endDate);
     setShowSyncOptions(false);

@@ -27,12 +27,18 @@ interface WeekGapReport {
   dbCount: number;
   missingGames: GapGameRef[];
   extraInDb: GapGameRef[];
-  /** Any date within this week — feeds straight into the existing
-   * single-week preview flow so a found gap can be reviewed immediately. */
+  /** The earliest real kickoff date among this gap's own missing/extra
+   * games ('YYYY-MM-DD') — feeds straight into the existing preview flow
+   * so a found gap can be reviewed immediately. Deliberately NOT derived
+   * from weekDateRange(season, seasonType, week): that function has a
+   * known per-week off-by-one against ESPN's own week numbering (see its
+   * header comment in espn-scoreboard.ts), which previously produced a
+   * representativeDate that didn't actually contain the gap's games —
+   * e.g. reporting Sep 3 for a week whose only missing game kicks off
+   * Aug 29. Every game bucketed into this gap already carries its own
+   * real kickoff, so use that directly instead of re-deriving a range. */
   representativeDate: string;
 }
-
-const YMD_LEN = 8;
 
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
@@ -62,11 +68,11 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
     const { data: existingGames, error: dbError } = await supabase
       .from('games')
-      .select('id, week, season_type, home_team, away_team')
+      .select('id, week, season_type, home_team, away_team, kickoff_time')
       .eq('season', season);
     if (dbError) throw new Error(dbError.message);
 
-    const dbByWeek = new Map<string, { id: string; home_team: string; away_team: string }[]>();
+    const dbByWeek = new Map<string, { id: string; home_team: string; away_team: string; kickoff_time: string | null }[]>();
     for (const g of existingGames ?? []) {
       const key = `${g.season_type}-${g.week}`;
       if (!dbByWeek.has(key)) dbByWeek.set(key, []);
@@ -120,15 +126,26 @@ export async function POST(request: NextRequest) {
           .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, kickoff: g.time }));
         const extraInDb: GapGameRef[] = dbGames
           .filter(g => !espnIds.has(g.id))
-          .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team }));
+          .map(g => ({ id: g.id, homeTeam: g.home_team, awayTeam: g.away_team, kickoff: g.kickoff_time ?? undefined }));
 
         if (missingGames.length > 0 || extraInDb.length > 0) {
-          const { start: weekStart } = nflAPI.weekDateRange(season, opt.value, week);
+          // Earliest real kickoff among this gap's own games — see
+          // WeekGapReport.representativeDate's comment for why this is
+          // used instead of weekDateRange(season, seasonType, week).
+          const kickoffs = [...missingGames, ...extraInDb]
+            .map(g => g.kickoff)
+            .filter((k): k is string => !!k)
+            .map(k => new Date(k).getTime())
+            .filter(t => !Number.isNaN(t));
+          const earliest = kickoffs.length > 0 ? new Date(Math.min(...kickoffs)) : null;
+          const representativeDate = earliest
+            ? `${earliest.getUTCFullYear()}-${String(earliest.getUTCMonth() + 1).padStart(2, '0')}-${String(earliest.getUTCDate()).padStart(2, '0')}`
+            : (() => { const { start } = nflAPI.weekDateRange(season, opt.value, week); return `${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}`; })();
           gaps.push({
             seasonType: opt.value, week,
             espnCount: weekEspnGames.length, dbCount: dbGames.length,
             missingGames, extraInDb,
-            representativeDate: `${weekStart.slice(0, 4)}-${weekStart.slice(4, 6)}-${weekStart.slice(6, YMD_LEN)}`,
+            representativeDate,
           });
         }
       }
