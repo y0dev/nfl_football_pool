@@ -1,6 +1,12 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+export const ESPN_BASE_URL = 'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl';
+export const ESPN_SCOREBOARD_URL = `${ESPN_BASE_URL}/scoreboard`;
+export const ESPN_SCHEDULE_URL = `${ESPN_BASE_URL}/schedule`;
+export const ESPN_TEAMS_URL = `${ESPN_BASE_URL}/teams`;
+export const ESPN_STANDINGS_URL = `${ESPN_BASE_URL}/standings`;
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
