@@ -872,11 +872,16 @@ function NFLSyncContent() {
                   )}
                 </div>
               ) : (
-                <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
-                  {format(previewStartDate, 'yyyy-MM-dd') === format(previewEndDate, 'yyyy-MM-dd')
-                    ? format(previewStartDate, 'MMM dd, yyyy', { locale: enUS })
-                    : `${format(previewStartDate, 'MMM dd, yyyy', { locale: enUS })} – ${format(previewEndDate, 'MMM dd, yyyy', { locale: enUS })}`}
-                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem 1rem' }}>
+                  <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', color: textDim, textTransform: 'uppercase' }}>Start </span>
+                    {format(previewStartDate, 'MMM dd, yyyy', { locale: enUS })}
+                  </p>
+                  <p style={{ ...b, fontSize: '0.85rem', color: textMid }}>
+                    <span style={{ ...bc, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', color: textDim, textTransform: 'uppercase' }}>End </span>
+                    {format(previewEndDate, 'MMM dd, yyyy', { locale: enUS })}
+                  </p>
+                </div>
               )}
               <button
                 onClick={() => handlePreview()}
