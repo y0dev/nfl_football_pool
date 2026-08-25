@@ -391,7 +391,11 @@ export type SubmitPickemPickResult =
  * (not Confidence's atomic whole-week submit), so a participant can keep
  * picking/changing games that haven't started yet even after an earlier
  * game in the same week has already locked. Upserts (insert-or-replace) so
- * changing a not-yet-started game's pick is just calling this again. */
+ * changing a not-yet-started game's pick is just calling this again — right
+ * up until the participant has a pick for every eligible game in the week
+ * (isComplete), at which point this matches Confidence's /api/picks/submit:
+ * regular-season weeks reject any further submission outright ("Picks
+ * already submitted for this week"), playoff weeks keep allowing updates. */
 export async function submitPickemPick(params: {
   participantId: string;
   poolId: string;
@@ -452,6 +456,27 @@ export async function submitPickemPick(params: {
   }
   if (!devUnlocked && isGameLocked(game, now)) {
     return { success: false, error: 'This game has already started — picks can no longer be submitted or changed for it.' };
+  }
+
+  // Once every eligible game in the week already has a pick from this
+  // participant, treat the week as submitted — matching Confidence's
+  // reject-on-resubmission rule, with the same playoff-only exception.
+  const isPlayoff = game.season_type === 3;
+  if (!devUnlocked && !isPlayoff) {
+    const weekGameIds = (weekGames ?? []).map(g => g.id);
+    const { data: existingWeekPicks, error: existingPicksError } = await supabase
+      .from('pickem_picks')
+      .select('game_id')
+      .eq('participant_id', params.participantId)
+      .eq('pool_id', params.poolId)
+      .in('game_id', weekGameIds);
+    if (existingPicksError) return { success: false, error: 'Failed to check existing picks.' };
+
+    const pickedGameIds = new Set((existingWeekPicks ?? []).map(p => p.game_id));
+    const isAlreadyComplete = weekGameIds.length > 0 && weekGameIds.every(id => pickedGameIds.has(id));
+    if (isAlreadyComplete) {
+      return { success: false, error: 'Picks already submitted for this week.' };
+    }
   }
 
   const { error: upsertError } = await supabase

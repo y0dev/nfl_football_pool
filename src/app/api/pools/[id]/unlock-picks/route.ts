@@ -32,10 +32,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ success: false, error: 'Only this pool\'s commissioner or a super admin can unlock picks' }, { status: 403 });
     }
 
-    // Confidence and Pick'em store picks in different tables — deleting
-    // from `picks` for a Pick'em pool silently unlocked nothing (0 rows
-    // matched) while still returning success.
-    const picksTable = pool.competition_type === 'PICKEM' ? 'pickem_picks' : 'picks';
+    // Confidence, Pick'em, and Survivor each store picks in a different
+    // table — deleting from `picks` for a Pick'em or Survivor pool silently
+    // unlocked nothing (0 rows matched) while still returning success.
+    const picksTable = pool.competition_type === 'PICKEM'
+      ? 'pickem_picks'
+      : pool.competition_type === 'SURVIVOR'
+      ? 'survivor_picks'
+      : 'picks';
 
     const { error } = await supabase
       .from(picksTable)

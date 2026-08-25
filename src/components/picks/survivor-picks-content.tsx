@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { Trophy, Skull, ShieldCheck, Lock, CheckCircle2, Clock, Check, X as XIcon, Share2, Users, Eye } from 'lucide-react';
+import { Trophy, Skull, ShieldCheck, Lock, Unlock, CheckCircle2, Clock, Check, X as XIcon, Share2, Users, Target, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
@@ -158,7 +158,9 @@ export function SurvivorPicksContent() {
   const [submitting, setSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showStats, setShowStats] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  // Matches Confidence's showGameDetails — a pure view toggle (Game Details
+  // panel vs. the picks form), defaulting to true just like pool-picks-content.tsx.
+  const [showGameDetails, setShowGameDetails] = useState(true);
   // Dev-only overrides, same pattern/names as Confidence's own seven — every
   // checkbox that flips these only ever renders inside showDebugPanel()'s
   // #debug-panel-controls (shared/debug-panel.tsx), so none of this can
@@ -183,12 +185,12 @@ export function SurvivorPicksContent() {
   // every load and after every submit, so it can't go stale across a
   // reload or a participant switch. This is the UI-level one-pick lock: once
   // a participant has a saved pick for the current week, the pick buttons
-  // are replaced with a locked row (same as Pick'em). Note submitSurvivorPick
-  // (src/lib/survivor.ts) itself still allows a delete-then-reinsert change
-  // server-side up until the week actually locks — that path stays available
-  // for admin tooling / direct API use, only the normal picking UI is gated
-  // here. forceWeekUnlocked doubles as the bypass, same as Confidence/Pick'em
-  // — there's no separate "unlock to make picks" toggle.
+  // are replaced with a locked row (same as Pick'em) — and it's now backed
+  // by a matching server-side lock: submitSurvivorPick (src/lib/survivor.ts)
+  // rejects any further submission once a pick exists for the week outside
+  // playoffs, matching Confidence's reject-on-resubmission rule, so this
+  // isn't just a UX gate. forceWeekUnlocked doubles as the bypass, same as
+  // Confidence/Pick'em — there's no separate "unlock to make picks" toggle.
   const isParticipantSubmitted = (participantId: string) => {
     if (showDebugPanel() && forceWeekUnlocked && participantId === selectedParticipantId) return false;
     if (showDebugPanel() && devSimSubmitted && participantId === selectedParticipantId) return true;
@@ -416,6 +418,40 @@ export function SurvivorPicksContent() {
     }
   };
 
+  // Same server-verified unlock as Pick'em's handleUnlockParticipant —
+  // reuses /api/pools/[id]/unlock-picks, which checks pool ownership /
+  // super-admin from the DB itself (not client-held state) and now deletes
+  // the participant's rows from survivor_picks (not `picks`, which is
+  // Confidence's table) for the given games. Now that submitSurvivorPick
+  // rejects any resubmission once a pick exists for the week, this is the
+  // only way to let a participant redo a pick.
+  const handleUnlockParticipant = async (participantId: string) => {
+    if (!isPoolAdmin && !isSuperAdmin) {
+      toast({ title: 'Permission Denied', description: 'Only pool commissioners or admins can unlock picks', variant: 'destructive' });
+      return;
+    }
+    try {
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('nfl-pool-user') : null;
+      const localUser: { email?: string } | null = storedUser ? JSON.parse(storedUser) : null;
+      if (!localUser?.email) {
+        toast({ title: 'Error', description: 'Could not verify your account', variant: 'destructive' });
+        return;
+      }
+      const res = await fetch(`/api/pools/${poolId}/unlock-picks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': localUser.email },
+        body: JSON.stringify({ participantId, gameIds: currentWeekGames.map(g => g.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to unlock pick');
+      toast({ title: 'Pick Unlocked', description: 'Participant can now make a new pick' });
+      await loadData();
+    } catch (error) {
+      debugError('Error unlocking Survivor pick:', error);
+      toast({ title: 'Error', description: 'Failed to unlock pick. Please try again.', variant: 'destructive' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
@@ -507,11 +543,13 @@ export function SurvivorPicksContent() {
         subtitle="Choose one team to survive this week."
         actions={[
           { label: 'Share', icon: Share2, onClick: handleShare },
+          // Purely a view toggle (Game Details panel vs. the picks form),
+          // matching Confidence's exact placement/gate — see pool-picks-content.tsx.
+          // Once every active participant has a pick for the week, "Make
+          // Picks" is relabeled "Show Leaderboard" (title only — same
+          // onClick, same toggle target) since there's nothing left to pick.
+          ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? (statsActive > 0 && activeWithPick >= statsActive ? 'Show Leaderboard' : 'Make Picks') : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
           { label: 'Stats', icon: Users, onClick: () => setShowStats(!showStats) },
-          // Once results-section auto-shows (season complete, or everyone
-          // eligible has picked — matches Confidence's showResultsTabs),
-          // nothing left to toggle.
-          ...(!showResultsSection ? [{ label: showResults ? 'Hide Standings' : 'Show Standings', icon: Eye, onClick: () => setShowResults(!showResults) }] : []),
         ]}
         learnMoreHref="/how-to/survivor-picks"
         learnMoreText="Survivor picks"
@@ -559,6 +597,60 @@ export function SurvivorPicksContent() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showGameDetails && currentWeekGames.length > 0 && !(effectiveGamesStarted || weekEnded) && (
+        <section style={{ background: bg, padding: '1.5rem 0 0' }}>
+          <div className="lp-inner">
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Target style={{ width: 15, height: 15, color: textMid }} />
+                <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{heroWeekTitle} Game Details</span>
+              </div>
+              <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {currentWeekGames.map((game, index) => {
+                  const gameTime = new Date(game.kickoffTime);
+                  const now = new Date();
+                  const timeDiff = gameTime.getTime() - now.getTime();
+                  const isFinished = normalizeGameStatus(game.status) === 'finished';
+                  const isLocked = (effectiveGamesStarted || timeDiff <= 0) && !isFinished;
+                  const isUpcoming = !isLocked && !isFinished && timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000;
+                  const isDraw = isFinished && game.homeScore != null && game.awayScore != null && game.homeScore === game.awayScore;
+                  const winner = isFinished && !isDraw && game.homeScore != null && game.awayScore != null
+                    ? (game.homeScore > game.awayScore ? game.homeTeam : game.awayTeam)
+                    : null;
+
+                  return (
+                    <div key={game.id} style={{ background: surface, border: `1px solid ${isFinished ? 'oklch(46% 0.14 155 / 0.2)' : isLocked ? border : isUpcoming ? 'oklch(72% 0.16 60 / 0.35)' : 'oklch(46% 0.14 155 / 0.35)'}`, borderRadius: 6, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                          <span style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', color: textDim }}>Game {index + 1}</span>
+                          {isFinished && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textMid, border: `1px solid ${border}`, textTransform: 'uppercase' }}>Final</span>}
+                          {isLocked && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: 'oklch(26% 0.03 255)', color: textDim, border: `1px solid ${border}`, textTransform: 'uppercase' }}>Locked</span>}
+                          {isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase' }}>Upcoming</span>}
+                          {!isFinished && !isLocked && !isUpcoming && <span style={{ ...bc, fontWeight: 700, fontSize: '0.6rem', padding: '0.08rem 0.35rem', borderRadius: 3, background: `oklch(46% 0.14 155 / 0.15)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.35)`, textTransform: 'uppercase' }}>Available</span>}
+                        </div>
+                        <div style={{ ...b, fontWeight: 600, fontSize: '0.85rem', color: text }}>
+                          {game.awayTeam} @ {game.homeTeam}
+                        </div>
+                        <div style={{ ...b, fontSize: '0.72rem', color: textDim }}>{format(gameTime, 'EEE, MMM d · h:mm a')}</div>
+                      </div>
+                      {winner ? (
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: `oklch(46% 0.14 155 / 0.2)`, color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, textTransform: 'uppercase', flexShrink: 0 }}>
+                          Winner: {winner}
+                        </span>
+                      ) : isDraw && (
+                        <span style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: `oklch(72% 0.16 60 / 0.15)`, color: amber, border: `1px solid oklch(72% 0.16 60 / 0.35)`, textTransform: 'uppercase', flexShrink: 0 }}>
+                          Draw
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>
@@ -623,7 +715,7 @@ export function SurvivorPicksContent() {
         </section>
       )}
 
-      {(showResults || showResultsSection) && (
+      {showResultsSection && (
         <section id="results-section" style={{ background: bg, padding: '1.5rem 0 0' }}>
           <div className="lp-inner">
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.5rem' }}>
@@ -707,9 +799,21 @@ export function SurvivorPicksContent() {
                 {isParticipantSubmitted(selectedParticipantId) && weekUnlocked && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '0.85rem 1.25rem', marginBottom: '1.25rem' }}>
                     <Lock style={{ width: 18, height: 18, color: textDim, flexShrink: 0 }} />
-                    <p style={{ ...b, fontSize: '0.82rem', color: textMid }}>
-                      Your pick is submitted for this week{devSimSubmitted ? ' (simulated)' : ''}. Contact your commissioner if you need it changed.
-                    </p>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ ...bc, fontWeight: 700, fontSize: '0.85rem', color: textMid, textTransform: 'uppercase' }}>Pick Submitted</p>
+                      <p style={{ ...b, fontSize: '0.78rem', color: textDim }}>
+                        Your pick is locked for this week{devSimSubmitted ? ' (simulated)' : ''}. Only admins can unlock your pick to make changes.
+                      </p>
+                    </div>
+                    {(isPoolAdmin || isSuperAdmin) && (
+                      <button
+                        type="button"
+                        onClick={() => handleUnlockParticipant(selectedParticipantId)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Unlock style={{ width: 13, height: 13 }} /> Unlock Pick
+                      </button>
+                    )}
                   </div>
                 )}
 

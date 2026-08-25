@@ -61,6 +61,13 @@ async function setupSurvivorPool(opts: {
   participantNames: string[];
   typeSettings?: Record<string, unknown>;
   season?: number;
+  seasonScope?: number[];
+  /** Season & playoff tracking (season_scope including postseason, 3) is a
+   * Standard-plan feature gated in createPool.ts regardless of competition
+   * type — set true to pre-register the generated owner as Standard so a
+   * postseason-scoped fixture pool doesn't hit that unrelated, pre-existing
+   * gate. Mirrors setupPickemPool's identical option. */
+  standardPlanOwner?: boolean;
 }): Promise<Fixture> {
   const season = opts.season ?? fakeSeason();
   const ownerEmail = `e2e-survivor-${season}-${Date.now()}@sundayhuddle.net`;
@@ -69,7 +76,7 @@ async function setupSurvivorPool(opts: {
   // owner via a real account (session-derived), matching production.
   const { data: ownerRow, error: ownerError } = await supabase
     .from('commissioners')
-    .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Survivor Owner', plan: 'free', is_active: true })
+    .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Survivor Owner', plan: opts.standardPlanOwner ? 'standard' : 'free', is_active: true })
     .select('id')
     .single();
   if (ownerError || !ownerRow) throw new Error(`Failed to seed Survivor pool owner: ${ownerError?.message}`);
@@ -79,7 +86,7 @@ async function setupSurvivorPool(opts: {
     name: `E2E Survivor ${season}`,
     created_by: ownerEmail,
     season,
-    season_scope: [2],
+    season_scope: opts.seasonScope ?? [2],
     competition_type: 'SURVIVOR',
     type_settings: opts.typeSettings ?? {},
   });
@@ -98,13 +105,13 @@ async function setupSurvivorPool(opts: {
 }
 
 async function createGame(fixture: Fixture, opts: {
-  week: number;
+  week: number; seasonType?: number;
   homeTeam: string; awayTeam: string; homeTeamId: string; awayTeamId: string;
   kickoff: string; status: string; homeScore?: number | null; awayScore?: number | null; winner?: string | null;
 }): Promise<string> {
   const gameId = `e2e-surv-${fixture.season}-w${opts.week}-${Math.floor(Math.random() * 1e9)}`;
   await supabase.from('games').insert({
-    id: gameId, season: fixture.season, season_type: 2, week: opts.week,
+    id: gameId, season: fixture.season, season_type: opts.seasonType ?? 2, week: opts.week,
     home_team: opts.homeTeam, away_team: opts.awayTeam, home_team_id: opts.homeTeamId, away_team_id: opts.awayTeamId,
     kickoff_time: opts.kickoff, status: opts.status,
     home_score: opts.homeScore ?? null, away_score: opts.awayScore ?? null, winner: opts.winner ?? null,
@@ -188,13 +195,30 @@ test.describe('Survivor Pool — pick submission', () => {
     }
   });
 
-  test('cannot make more than one pick for the same week (second submission replaces, not duplicates)', async () => {
+  test('rejects a second submission for the same week (matches Confidence)', async () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
       const gameId = await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysFromNow(3), status: 'scheduled' });
       await submitSurvivorPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
-      await submitSurvivorPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      const result = await submitSurvivorPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error).toMatch(/already submitted/i);
       const { data: picks } = await supabase.from('survivor_picks').select('selected_team').eq('participant_id', fixture.participants.Alice).eq('week', 1);
+      expect(picks).toHaveLength(1);
+      expect(picks![0].selected_team).toBe('HA');
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+
+  test('playoff weeks keep allowing updates after submission (matches Confidence\'s playoff exception)', async () => {
+    const fixture = await setupSurvivorPool({ participantNames: ['Alice'], seasonScope: [3], standardPlanOwner: true });
+    try {
+      const gameId = await createGame(fixture, { week: 19, seasonType: 3, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysFromNow(3), status: 'scheduled' });
+      await submitSurvivorPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
+      const result = await submitSurvivorPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      expect(result.success).toBe(true);
+      const { data: picks } = await supabase.from('survivor_picks').select('selected_team').eq('participant_id', fixture.participants.Alice).eq('week', 19);
       expect(picks).toHaveLength(1);
       expect(picks![0].selected_team).toBe('AA');
     } finally {
