@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { findAccountById } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { getOverrideEligibility } from '@/lib/season-status';
 import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const {
       poolId,
@@ -15,18 +18,30 @@ export async function POST(request: NextRequest) {
       overrideMode,
       overrideReason,
       pickUpdates,
-      adminId,
       gameId,
       predictedWinner,
       confidencePoints,
     } = body;
+    // The caller's own verified id/role — never the client-supplied adminId
+    // this route previously trusted for both authorization and the audit
+    // trail (there was no authorization check here at all before this fix).
+    const adminId = auth.id;
 
     // Validate required fields
-    if (!poolId || !participantId || !week || !seasonType || !overrideMode || !overrideReason || !adminId) {
+    if (!poolId || !participantId || !week || !seasonType || !overrideMode || !overrideReason) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    const supabase = getSupabaseServiceClient();
+    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+    if (!pool) {
+      return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && pool.created_by !== auth.email) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const eligibility = await getOverrideEligibility(poolId, week, seasonType);
@@ -36,8 +51,6 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-
-    const supabase = getSupabaseServiceClient();
 
     if (overrideMode === 'insert') {
       if (!gameId || !predictedWinner || !confidencePoints) {
@@ -78,8 +91,6 @@ export async function POST(request: NextRequest) {
         .eq('id', poolId)
         .single();
 
-      const callerAccount = await findAccountById(adminId);
-
       const auditDetails = {
         pool_name: pool?.data?.name || 'Unknown Pool',
         participant_name: participant?.data?.name || 'Unknown Participant',
@@ -88,7 +99,7 @@ export async function POST(request: NextRequest) {
         season_type: seasonType,
         override_reason: overrideReason,
         override_type: 'insert_pick',
-        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
+        overridden_by: auth.isSuperAdmin ? 'super_admin' : 'pool_admin',
         overridden_at: new Date().toISOString(),
         game_id: gameId,
         predicted_winner: predictedWinner,
@@ -158,8 +169,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       // Caller could be either a super-admin or a commissioner (pool owner)
-      const callerAccount = await findAccountById(adminId);
-
       const auditDetails = {
         pool_name: pool?.data?.name || 'Unknown Pool',
         participant_name: participant?.data?.name || 'Unknown Participant',
@@ -168,7 +177,7 @@ export async function POST(request: NextRequest) {
         season_type: seasonType,
         override_reason: overrideReason,
         override_type: 'specific_picks',
-        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
+        overridden_by: auth.isSuperAdmin ? 'super_admin' : 'pool_admin',
         overridden_at: new Date().toISOString(),
         updated_picks: updates.map(update => ({
           pick_id: update.id,
@@ -239,8 +248,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       // Caller could be either a super-admin or a commissioner (pool owner)
-      const callerAccount = await findAccountById(adminId);
-
       const auditDetails = {
         pool_name: pool?.data?.name || 'Unknown Pool',
         participant_name: participant?.data?.name || 'Unknown Participant',
@@ -249,7 +256,7 @@ export async function POST(request: NextRequest) {
         season_type: seasonType,
         override_reason: overrideReason,
         override_type: 'erase_all_picks',
-        overridden_by: callerAccount?.role === 'super_admin' ? 'super_admin' : 'pool_admin',
+        overridden_by: auth.isSuperAdmin ? 'super_admin' : 'pool_admin',
         overridden_at: new Date().toISOString(),
         erased_picks_count: picksToDelete?.length || 0
       };

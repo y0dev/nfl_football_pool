@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 // ─────────────────────────────────────────────────────────────
 
 test.describe('POST /api/admin/send-reminders', () => {
-  test('rejects calls without an admin identity header', async ({ request }) => {
+  test('rejects calls with no session', async ({ request }) => {
     const res = await request.post('/api/admin/send-reminders', {
       data: { participantIds: ['00000000-0000-0000-0000-000000000000'], week: 1, seasonType: 2 },
     });
@@ -17,9 +17,9 @@ test.describe('POST /api/admin/send-reminders', () => {
     expect(body.success).toBe(false);
   });
 
-  test('rejects calls from an unknown admin email', async ({ request }) => {
+  test('rejects calls from a session that does not resolve to any account', async ({ request }) => {
     const res = await request.post('/api/admin/send-reminders', {
-      headers: { 'x-admin-email': 'not-a-real-admin@nowhere-real.net' },
+      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
       data: { participantIds: ['00000000-0000-0000-0000-000000000000'], week: 1, seasonType: 2 },
     });
     expect(res.status()).toBe(403);

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { getSupabaseServiceClient } from './supabase-service';
-import { findAccountByEmail } from './accounts';
+import { findAccountById } from './accounts';
 
 // Private-pool password protection. `pools.is_private` gates *discoverability*
 // (search results) and the legacy `pools.join_password` only ever gated the
@@ -177,18 +177,22 @@ export async function checkPoolAccess(poolId: string, cookieValue: string | unde
   return evaluatePoolAccess(pool, cookieValue);
 }
 
-/** True if the given email is either an active super admin, or an active
- * commissioner who owns this pool — lets the trusted commissioner/admin
- * dashboard (already behind its own AdminGuard login) bypass the private-
- * pool password gate below, which exists for anonymous participant-facing
- * traffic (the Picks page and friends), not the pool's own operator. */
-async function isAdminForPool(poolId: string, adminEmail: string): Promise<boolean> {
-  const account = await findAccountByEmail(adminEmail, { activeOnly: true });
+/** True if the signed-in caller is either an active super admin, or an
+ * active commissioner who owns this pool — lets the trusted commissioner/
+ * admin dashboard (already behind its own AdminGuard login) bypass the
+ * private-pool password gate below, which exists for anonymous participant-
+ * facing traffic (the Picks page and friends), not the pool's own operator.
+ * Identity comes from the httpOnly sh-session cookie — previously this
+ * trusted a client-supplied x-admin-email header, which let anyone bypass a
+ * private pool's password just by setting that header to its owner's or any
+ * super admin's email. */
+async function isAdminForPool(poolId: string, sessionId: string): Promise<boolean> {
+  const account = await findAccountById(sessionId, { activeOnly: true });
   if (!account) return false;
   if (account.role === 'super_admin') return true;
   const supabase = getSupabaseServiceClient();
   const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
-  return !!pool && pool.created_by === adminEmail;
+  return !!pool && pool.created_by === account.row.email;
 }
 
 /** Same as checkPoolAccess, reading the pool-specific cookie straight off a
@@ -196,14 +200,13 @@ async function isAdminForPool(poolId: string, adminEmail: string): Promise<boole
  * API route uses as defense-in-depth behind the proxy.ts page gate (a
  * direct API call bypasses page middleware navigation but not this).
  *
- * Also accepts the standard x-admin-email header (see requireSuperAdmin in
- * src/lib/accounts.ts for the same pattern elsewhere) as an alternative to
- * the password cookie: the commissioner/admin dashboard reads this same
- * pool data for a private pool without ever having gone through the
- * participant password flow, and shouldn't be asked to. */
+ * Also accepts a signed-in admin/commissioner session (sh-session) as an
+ * alternative to the password cookie: the commissioner/admin dashboard reads
+ * this same pool data for a private pool without ever having gone through
+ * the participant password flow, and shouldn't be asked to. */
 export async function checkPoolAccessFromRequest(poolId: string, request: NextRequest): Promise<PoolAccessResult> {
-  const adminEmail = request.headers.get('x-admin-email');
-  if (adminEmail && await isAdminForPool(poolId, adminEmail)) {
+  const sessionId = request.cookies.get('sh-session')?.value;
+  if (sessionId && await isAdminForPool(poolId, sessionId)) {
     const pool = await loadPoolAccessRow(poolId);
     if (pool) return { allowed: true, pool };
   }

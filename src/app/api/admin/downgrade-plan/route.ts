@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { getAdminPlan } from '@/lib/plan';
+import { callerOwnsAccount } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Self-service downgrade to Free. Only ever sets 'free' — upgrading to a paid
@@ -11,6 +12,10 @@ export async function POST(request: NextRequest) {
 
     if (!adminId) {
       return NextResponse.json({ success: false, error: 'Missing adminId' }, { status: 400 });
+    }
+
+    if (!callerOwnsAccount(request, adminId)) {
+      return NextResponse.json({ success: false, error: 'Not authorized to modify this account' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

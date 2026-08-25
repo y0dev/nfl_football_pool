@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireSuperAdmin } from '@/lib/accounts';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
+
     debugLog('Toggle admin status started');
     const { adminId } = await request.json();
     debugLog('Toggle status data received:', { adminId });

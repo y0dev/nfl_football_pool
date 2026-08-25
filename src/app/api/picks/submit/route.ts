@@ -4,6 +4,7 @@ import { Pick } from '@/types/game';
 import { pickStorage } from '@/lib/pick-storage';
 import { debugLog, DAYS_BEFORE_GAME, isDummyData, simulatePicksEnabled, debugError} from '@/lib/utils';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +34,18 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Invalid participant ID. Please select a user first.' },
         { status: 400 }
       );
+    }
+
+    if (!firstPick.pool_id) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid pool ID.' },
+        { status: 400 }
+      );
+    }
+
+    const access = await checkPoolAccessFromRequest(firstPick.pool_id, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

@@ -32,7 +32,7 @@ test.describe('GET /api/admin/plan-status — pool limits', () => {
 });
 
 test.describe('GET /api/admin/all-pools — super-admin only', () => {
-  test('rejects requests with no x-admin-email header', async ({ request }) => {
+  test('rejects requests with no session', async ({ request }) => {
     const res = await request.get('/api/admin/all-pools');
     expect(res.status()).toBe(401);
     const body = await res.json();
@@ -41,7 +41,7 @@ test.describe('GET /api/admin/all-pools — super-admin only', () => {
 
   test('rejects a caller that is not a super admin (or does not exist)', async ({ request }) => {
     const res = await request.get('/api/admin/all-pools', {
-      headers: { 'x-admin-email': 'not-a-real-admin@example.com' },
+      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
     });
     expect(res.status()).toBe(403);
     const body = await res.json();
@@ -50,10 +50,11 @@ test.describe('GET /api/admin/all-pools — super-admin only', () => {
 });
 
 // /api/admin/transfer-pool previously had NO auth check at all — any caller
-// could move any pool to any commissioner. Now super-admin only, same
-// x-admin-email pattern as /api/admin/all-pools above.
+// could move any pool to any commissioner. Now super-admin only, identity
+// resolved from the httpOnly sh-session cookie (not a client-supplied
+// header — see /api/admin/all-pools above for the same pattern).
 test.describe('POST /api/admin/transfer-pool — super-admin only', () => {
-  test('rejects requests with no x-admin-email header', async ({ request }) => {
+  test('rejects requests with no session', async ({ request }) => {
     const res = await request.post('/api/admin/transfer-pool', {
       data: { poolId: '00000000-0000-0000-0000-000000000000', newCommissionerEmail: 'someone@example.com' },
     });
@@ -64,7 +65,7 @@ test.describe('POST /api/admin/transfer-pool — super-admin only', () => {
 
   test('rejects a caller that is not a super admin (or does not exist)', async ({ request }) => {
     const res = await request.post('/api/admin/transfer-pool', {
-      headers: { 'x-admin-email': 'not-a-real-admin@example.com' },
+      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
       data: { poolId: '00000000-0000-0000-0000-000000000000', newCommissionerEmail: 'someone@example.com' },
     });
     expect(res.status()).toBe(403);

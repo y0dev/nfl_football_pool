@@ -22,9 +22,16 @@ const supabase = createClient(
 );
 
 const SUPER_ADMIN_EMAIL = 'superadmin@test.com';
+let superAdminId: string;
+
+test.beforeAll(async () => {
+  const { data: superAdmin, error } = await supabase.from('admins').select('id').eq('email', SUPER_ADMIN_EMAIL).single();
+  if (error || !superAdmin) throw new Error(`Could not find seeded super admin: ${error?.message}`);
+  superAdminId = superAdmin.id;
+});
 
 test.describe('POST /api/admin/clone-pool — auth boundaries', () => {
-  test('rejects requests with no x-admin-email header', async ({ request }) => {
+  test('rejects requests with no session', async ({ request }) => {
     const res = await request.post('/api/admin/clone-pool', {
       data: { poolId: '00000000-0000-0000-0000-000000000000' },
     });
@@ -39,7 +46,7 @@ test.describe('POST /api/admin/clone-pool — auth boundaries', () => {
     // whether poolId exists — a 400 "Pool not found." here instead would
     // leak pool-existence to a caller who was never allowed to ask.
     const res = await request.post('/api/admin/clone-pool', {
-      headers: { 'x-admin-email': 'not-a-real-admin@example.com' },
+      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
       data: { poolId: '00000000-0000-0000-0000-000000000000' },
     });
     expect(res.status()).toBe(403);
@@ -49,7 +56,7 @@ test.describe('POST /api/admin/clone-pool — auth boundaries', () => {
 
   test('rejects a pool that does not exist', async ({ request }) => {
     const res = await request.post('/api/admin/clone-pool', {
-      headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+      headers: { Cookie: `sh-session=${superAdminId}` },
       data: { poolId: '00000000-0000-0000-0000-000000000000' },
     });
     expect(res.status()).toBe(400);
@@ -81,7 +88,7 @@ test.describe('POST /api/admin/clone-pool — plan enforcement', () => {
       poolId = pool!.id;
 
       const res = await request.post('/api/admin/clone-pool', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { poolId },
       });
       expect(res.status()).toBe(400);
@@ -160,7 +167,7 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
 
       // ── Act: real clone via the real super-admin API route
       const res = await request.post('/api/admin/clone-pool', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { poolId: sourcePoolId },
       });
       expect(res.ok()).toBeTruthy();

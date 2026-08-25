@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireSuperAdmin } from '@/lib/accounts';
 import bcrypt from 'bcryptjs';
 import { emailService } from '@/lib/email';
 import { debugError, debugWarn } from '@/lib/utils';
@@ -9,23 +10,10 @@ export async function POST(request: NextRequest) {
     // Resets an arbitrary commissioner's password by id — the only thing
     // standing between this and a full account takeover is verifying the
     // caller is an active super admin.
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseServiceClient();
-
-    const { data: currentAdmin } = await supabase
-      .from('admins')
-      .select('is_super_admin, is_active')
-      .eq('email', adminEmail)
-      .eq('is_active', true)
-      .single();
-
-    if (!currentAdmin?.is_super_admin) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
 
     const { adminId, newPassword } = await request.json();
 

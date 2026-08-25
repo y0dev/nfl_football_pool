@@ -15,15 +15,16 @@ loadEnv({ path: '.env.local' });
 // toggling to Private and immediately setting a password in one pass failed
 // even with the secret configured.
 //
-// createPool/updatePool/setPoolPassword are Next.js Server Actions with no
-// REST wrapper (unlike clone-pool, which has one) — same situation
-// documented in payouts-calculation.spec.ts for src/lib/payouts.ts. None of
-// the three import next/headers or cookies(), so — like that file — they're
-// imported and called directly here rather than over HTTP.
+// createPool/setPoolPassword are Next.js Server Actions with no REST wrapper
+// (unlike clone-pool, which has one) — same situation documented in
+// payouts-calculation.spec.ts for src/lib/payouts.ts. Neither imports
+// next/headers or cookies(), so — like that file — they're imported and
+// called directly here rather than over HTTP. updatePool now does read a
+// cookie (it checks pool ownership), so it's called through the real PATCH
+// /api/pools/[id] wrapper below instead — see that route's own comment.
 // ─────────────────────────────────────────────────────────────
 
 import { createPool } from '../../src/actions/createPool';
-import { updatePool } from '../../src/actions/updatePool';
 import { setPoolPassword } from '../../src/actions/poolPassword';
 import { encryptPoolPassword, decryptPoolPassword, validatePoolPassword } from '../../src/lib/pool-access';
 import { getNFLSeasonYear } from '../../src/lib/utils';
@@ -101,12 +102,23 @@ test.describe('createPool — private pool with a password', () => {
 });
 
 test.describe('setPoolPassword — toggling Private and setting a password without a prior save', () => {
-  test('succeeds once is_private is persisted first, matching the pool-settings.tsx fix', async () => {
+  test('succeeds once is_private is persisted first, matching the pool-settings.tsx fix', async ({ request }) => {
     test.setTimeout(30000);
     const ownerEmail = `e2e-toggle-private-${Date.now()}@sundayhuddle.net`;
     let poolId: string | undefined;
+    let ownerId: string | undefined;
 
     try {
+      // A real commissioner row is required — updatePool now authenticates
+      // the caller via a real account (session-derived), matching production.
+      const { data: ownerRow, error: ownerError } = await supabase
+        .from('commissioners')
+        .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Toggle-Private Owner', plan: 'free', is_active: true })
+        .select('id')
+        .single();
+      if (ownerError || !ownerRow) throw new Error(`Failed to seed pool owner: ${ownerError?.message}`);
+      ownerId = ownerRow.id;
+
       // Start as a PUBLIC pool — reproduces the exact bug scenario: a
       // commissioner toggling Visibility to Private in the form and
       // immediately clicking "Set Password" before "Save Settings". Must be
@@ -127,7 +139,14 @@ test.describe('setPoolPassword — toggling Private and setting a password witho
       // persist step) is exactly what used to fail with "Only private pools
       // have a password" — the fix makes handleSetPassword() call
       // updatePool({ is_private: true }) first, so replicate that here.
-      await updatePool(poolId, { is_private: true });
+      // updatePool now checks pool ownership (sh-session-cookie-based), so
+      // this goes through the real PATCH /api/pools/[id] wrapper rather than
+      // calling the Server Action directly — see that route's own comment.
+      const patchRes = await request.patch(`/api/pools/${poolId}`, {
+        headers: { Cookie: `sh-session=${ownerId}` },
+        data: { is_private: true },
+      });
+      expect(patchRes.ok()).toBeTruthy();
 
       const result = await setPoolPassword(poolId, ownerEmail, 'newpassword1', 'newpassword1');
       expect(result.success).toBe(true);
@@ -141,6 +160,7 @@ test.describe('setPoolPassword — toggling Private and setting a password witho
       expect(row?.private_password_encrypted).toBeTruthy();
     } finally {
       if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      if (ownerId) await supabase.from('commissioners').delete().eq('id', ownerId);
       await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
     }
   });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Pool ID is required' },
         { status: 400 }
       );
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

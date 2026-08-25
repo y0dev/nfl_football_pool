@@ -1,6 +1,7 @@
 'use server';
 
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActionCallerOwnsPool } from '@/lib/accounts';
 import { debugError, debugWarn, getNFLSeasonYear } from '@/lib/utils';
 import { checkPoolCapacity, checkInactivePoolCapacity, isPreseasonOnlyScope, scopeIncludesPlayoffs, PLAYOFF_SCOPE_MESSAGE, getAdminPlanByEmail } from '@/lib/plan';
 import { getSeasonSettings } from '@/lib/seasonSettings';
@@ -21,6 +22,9 @@ export async function updatePool(poolId: string, updates: {
    * competition_type itself, which is immutable after pool creation. */
   type_settings?: Record<string, unknown>;
 }) {
+  const auth = await requireActionCallerOwnsPool(poolId);
+  if (!auth.ok) throw new Error(auth.error);
+
   const supabase = getSupabaseServiceClient();
 
   const { data: current } = await supabase

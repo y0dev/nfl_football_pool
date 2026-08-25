@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { emailService } from '@/lib/email';
 import { debugError } from '@/lib/utils';
 import { getAdminPlansByEmails, planAllowsReminders, REMINDERS_PLAN_MESSAGE } from '@/lib/plan';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { computePickemWeekResult } from '@/lib/pickem';
 
 export async function POST(request: NextRequest) {
@@ -12,16 +12,11 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceClient();
 
-    // Caller must be an active admin (same x-admin-email pattern as the
-    // other admin routes — client guards are UX, not security)
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    const caller = await findAccountByEmail(adminEmail, { activeOnly: true });
-    if (!caller) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
-    }
+    // Caller must be an active admin, resolved from the httpOnly sh-session
+    // cookie — not a client-supplied header (client guards are UX, not
+    // security).
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
 
     if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
       return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { adminService } from '@/lib/admin-service';
 import { debugError } from '@/lib/utils';
 
@@ -10,10 +10,8 @@ import { debugError } from '@/lib/utils';
 // replaces.
 export async function GET(request: NextRequest) {
   try {
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
     const week = parseInt(searchParams.get('week') ?? '', 10);
@@ -22,15 +20,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'week and seasonType are required' }, { status: 400 });
     }
 
-    const account = await findAccountByEmail(adminEmail, { activeOnly: true });
-    if (!account) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
-    const isSuperAdmin = account.role === 'super_admin';
-
     const [stats, pools] = await Promise.all([
-      adminService.getDashboardStats(week, seasonType, adminEmail, isSuperAdmin),
-      adminService.getActivePools(adminEmail, isSuperAdmin),
+      adminService.getDashboardStats(week, seasonType, auth.email, auth.isSuperAdmin),
+      adminService.getActivePools(auth.email, auth.isSuperAdmin),
     ]);
 
     return NextResponse.json({ success: true, stats, pools });

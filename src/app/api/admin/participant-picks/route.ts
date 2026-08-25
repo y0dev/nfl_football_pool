@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const participantId = searchParams.get('participant_id');
     const poolId = searchParams.get('pool_id');
@@ -18,7 +22,15 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServiceClient();
-    
+
+    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+    if (!pool) {
+      return NextResponse.json({ error: 'Pool not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && pool.created_by !== auth.email) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     // Get participant's picks for the specified week
     const { data: picksData, error } = await supabase
       .from('picks')

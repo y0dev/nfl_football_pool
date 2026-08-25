@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClonePool } from '@/actions/clonePool';
+import { requireSuperAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Super-admin only. Clones a pool on behalf of its owning commissioner —
 // see adminClonePool for why the caller doesn't need to own the pool.
 export async function POST(request: NextRequest) {
   try {
-    const callerEmail = request.headers.get('x-admin-email');
-    if (!callerEmail) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
+    const callerEmail = auth.email;
 
     const { poolId, newName } = await request.json();
     if (!poolId) {

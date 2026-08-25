@@ -163,7 +163,9 @@ const signIn = async (userOrEmail: User | string, password?: string) => {
     }
 
     try {
-      const res = await fetch(`/api/admin/verify-status?adminId=${encodeURIComponent(user.id)}`);
+      // Identity is resolved server-side from the sh-session cookie, not
+      // from this request — no id needs to be sent.
+      const res = await fetch('/api/admin/verify-status');
       const data = await res.json();
 
       debugLog('[Auth:verifyAdminStatus] DB result — found:', !!data?.isAdmin, '| is_super_admin:', data?.isSuperAdmin);

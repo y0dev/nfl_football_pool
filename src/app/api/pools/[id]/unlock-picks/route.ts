@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Server-only replacement for pool-picks-content.tsx's direct client-side
@@ -11,10 +11,9 @@ import { debugError } from '@/lib/utils';
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: poolId } = await params;
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+    const adminEmail = auth.email;
 
     const { participantId, gameIds } = await request.json();
     if (!participantId || !Array.isArray(gameIds) || gameIds.length === 0) {
@@ -22,20 +21,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const supabase = getSupabaseServiceClient();
-    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+    const { data: pool } = await supabase.from('pools').select('created_by, competition_type').eq('id', poolId).maybeSingle();
     if (!pool) {
       return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
     }
 
-    const account = await findAccountByEmail(adminEmail, { activeOnly: true });
-    const isSuperAdmin = account?.role === 'super_admin';
+    const isSuperAdmin = auth.isSuperAdmin;
     const isOwner = pool.created_by === adminEmail;
     if (!isSuperAdmin && !isOwner) {
       return NextResponse.json({ success: false, error: 'Only this pool\'s commissioner or a super admin can unlock picks' }, { status: 403 });
     }
 
+    // Confidence and Pick'em store picks in different tables — deleting
+    // from `picks` for a Pick'em pool silently unlocked nothing (0 rows
+    // matched) while still returning success.
+    const picksTable = pool.competition_type === 'PICKEM' ? 'pickem_picks' : 'picks';
+
     const { error } = await supabase
-      .from('picks')
+      .from(picksTable)
       .delete()
       .eq('participant_id', participantId)
       .eq('pool_id', poolId)

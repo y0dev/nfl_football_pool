@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { submitPickemPick } from '@/lib/pickem';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 import { isDummyData, simulatePicksEnabled, debugError } from '@/lib/utils';
 
 // Pick'em's equivalent of /api/picks/submit — one game at a time (not
@@ -19,6 +20,11 @@ export async function POST(request: NextRequest) {
 
     if (!participantId || !poolId || !gameId || !selectedTeam) {
       return NextResponse.json({ success: false, error: 'participantId, poolId, gameId, and selectedTeam are all required.' }, { status: 400 });
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
     }
 
     const result = await submitPickemPick({ participantId, poolId, gameId, selectedTeam, submittedBy, devForceUnlock });

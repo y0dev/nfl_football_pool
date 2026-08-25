@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActiveAdmin } from '@/lib/accounts';
 import * as XLSX from 'xlsx';
 import { debugError } from '@/lib/utils';
+
+type Auth = { ok: true; email: string; id: string; isSuperAdmin: boolean };
+
+async function checkPoolOwnership(poolId: string, auth: Auth) {
+  const supabase = getSupabaseServiceClient();
+  const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+  if (!pool) return { ok: false as const, response: NextResponse.json({ error: 'Pool not found' }, { status: 404 }) };
+  if (!auth.isSuperAdmin && pool.created_by !== auth.email) {
+    return { ok: false as const, response: NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 }) };
+  }
+  return { ok: true as const };
+}
 
 type ExcelCell = string | number | boolean | undefined;
 type ExcelRow = ExcelCell[];
@@ -23,15 +36,18 @@ interface ParsedParticipant {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+
     // Check if this is a file upload or data submission
     const contentType = request.headers.get('content-type');
-    
+
     if (contentType?.includes('multipart/form-data')) {
       // Handle file upload and parsing
-      return await handleFileUpload(request);
+      return await handleFileUpload(request, auth);
     } else {
       // Handle data submission
-      return await handleDataSubmission(request);
+      return await handleDataSubmission(request, auth);
     }
   } catch (error) {
     debugError('Error in import picks API:', error);
@@ -42,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleFileUpload(request: NextRequest) {
+async function handleFileUpload(request: NextRequest, auth: Auth) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -55,9 +71,12 @@ async function handleFileUpload(request: NextRequest) {
       );
     }
 
+    const ownership = await checkPoolOwnership(poolId, auth);
+    if (!ownership.ok) return ownership.response;
+
     // Get pool and games information
     const supabase = getSupabaseServiceClient();
-    
+
     const { data: pool } = await supabase
       .from('pools')
       .select('*')
@@ -118,7 +137,7 @@ async function handleFileUpload(request: NextRequest) {
   }
 }
 
-async function handleDataSubmission(request: NextRequest) {
+async function handleDataSubmission(request: NextRequest, auth: Auth) {
   try {
     const { poolId, participants } = await request.json();
 
@@ -129,8 +148,11 @@ async function handleDataSubmission(request: NextRequest) {
       );
     }
 
+    const ownership = await checkPoolOwnership(poolId, auth);
+    if (!ownership.ok) return ownership.response;
+
     const supabase = getSupabaseServiceClient();
-    
+
     // Get pool information
     const { data: pool } = await supabase
       .from('pools')

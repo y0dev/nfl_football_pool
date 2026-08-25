@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { getOverrideEligibility } from '@/lib/season-status';
 import { PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError} from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const { 
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+
+    const {
       poolId, 
       participantId, 
       week, 
@@ -48,6 +52,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseServiceClient();
+    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+    if (!pool) {
+      return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && pool.created_by !== auth.email) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const eligibility = await getOverrideEligibility(poolId, week, seasonType);
     if (!eligibility.allowed) {
       return NextResponse.json(
@@ -55,8 +68,6 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-
-    const supabase = getSupabaseServiceClient();
 
     // Check if participant exists and has picks for this week
     const { data: participant, error: participantError } = await supabase
