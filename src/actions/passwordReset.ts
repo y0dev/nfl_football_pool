@@ -27,14 +27,21 @@ function sign(payload: string): string {
   return createHmac('sha256', signingSecret()).update(payload).digest('base64url');
 }
 
-function buildToken(email: string): string {
+// Stateless token (no DB row to track), so single-use is enforced by
+// binding it to the account's updated_at at issuance time rather than a
+// separate "used tokens" table: resetPasswordWithToken always bumps
+// updated_at when it succeeds, so a replayed token's embedded value no
+// longer matches the account's current one and is rejected. The rare false
+// positive (something else updates the account between request and use) is
+// an acceptable tradeoff — it just means requesting a fresh link.
+function buildToken(email: string, updatedAt: string | null): string {
   const expiresAt = Date.now() + TOKEN_TTL_MS;
-  const payload = Buffer.from(`reset::${email}::${expiresAt}`).toString('base64url');
+  const payload = Buffer.from(`reset::${email}::${expiresAt}::${updatedAt ?? ''}`).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-export async function parseResetToken(token: string): Promise<{ email: string; valid: boolean; expired: boolean }> {
-  const invalid = { email: '', valid: false, expired: false };
+export async function parseResetToken(token: string): Promise<{ email: string; valid: boolean; expired: boolean; updatedAt: string | null }> {
+  const invalid = { email: '', valid: false, expired: false, updatedAt: null };
   try {
     const dot = token.lastIndexOf('.');
     if (dot === -1) return invalid;
@@ -44,14 +51,15 @@ export async function parseResetToken(token: string): Promise<{ email: string; v
 
     const decoded = Buffer.from(payload, 'base64url').toString();
     const parts = decoded.split('::');
-    if (parts.length !== 3 || parts[0] !== 'reset') return invalid;
+    if (parts.length !== 4 || parts[0] !== 'reset') return invalid;
 
     const email = parts[1];
     const expiresAt = parseInt(parts[2], 10);
+    const updatedAt = parts[3] || null;
     if (isNaN(expiresAt)) return invalid;
-    if (Date.now() > expiresAt) return { email, valid: false, expired: true };
+    if (Date.now() > expiresAt) return { email, valid: false, expired: true, updatedAt };
 
-    return { email, valid: true, expired: false };
+    return { email, valid: true, expired: false, updatedAt };
   } catch {
     return invalid;
   }
@@ -77,7 +85,7 @@ export async function requestPasswordReset(
   if (!account || !account.row.is_active) return { success: true };
   const admin = account.row;
 
-  const token = buildToken(admin.email);
+  const token = buildToken(admin.email, admin.updated_at);
   const resetUrl = `${appBaseUrl()}/login/reset-password?token=${encodeURIComponent(token)}`;
 
   try {
@@ -106,7 +114,7 @@ export async function resetPasswordWithToken(
     return { success: false, error: 'Password must be at least 8 characters.' };
   }
 
-  const { email, valid, expired } = await parseResetToken(token);
+  const { email, valid, expired, updatedAt } = await parseResetToken(token);
 
   if (expired) return { success: false, expired: true, error: 'This reset link has expired. Please request a new one.' };
   if (!valid) return { success: false, error: 'This reset link is invalid.' };
@@ -117,6 +125,13 @@ export async function resetPasswordWithToken(
     return { success: false, error: 'Account not found.' };
   }
   const { role, row: admin } = account;
+
+  // Single-use enforcement: the token was issued for this specific
+  // updated_at value. If the account has changed since (most commonly,
+  // this exact token was already redeemed once), reject the replay.
+  if ((admin.updated_at ?? '') !== (updatedAt ?? '')) {
+    return { success: false, error: 'This reset link has already been used or is out of date. Please request a new one.' };
+  }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
