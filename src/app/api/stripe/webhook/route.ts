@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isStripeConfigured } from '@/lib/billing';
 import { getStripe } from '@/lib/stripe';
-import { applyCompletedCheckoutSession } from '@/lib/purchases';
+import { applyCompletedCheckoutSession, handleRefundedCharge } from '@/lib/purchases';
 
 // Stripe webhook — the single place purchases take effect.
 // Plan changes happen here (not on the success redirect) so they can't be
@@ -10,8 +10,8 @@ import { applyCompletedCheckoutSession } from '@/lib/purchases';
 //
 // Events to subscribe to:
 //   - checkout.session.completed (required — handled below, drives plan/addon updates)
-//   - charge.refunded (optional — not yet handled; add a case here if refunds
-//     should auto-downgrade a plan)
+//   - charge.refunded (required — handled below, reverts the plan/addon
+//     grant a refunded purchase made)
 // Every other event (including all subscription/invoice events) is
 // acknowledged and ignored below: purchases are one-time Checkout Sessions
 // (mode: 'payment'), never Subscriptions, so Stripe never actually sends
@@ -39,6 +39,19 @@ export async function POST(request: NextRequest) {
     // fails silently and looks like "payment went through, nothing happened."
     console.error('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object;
+    console.log(JSON.stringify({ scope: 'stripe_webhook', event: event.type, charge_id: charge.id, result: 'received' }));
+    try {
+      const result = await handleRefundedCharge(charge);
+      console.log(JSON.stringify({ scope: 'stripe_webhook', charge_id: charge.id, result: result.applied ? 'reverted' : result.reason }));
+      return NextResponse.json({ received: true });
+    } catch (error) {
+      console.error('Refund webhook handler error:', error);
+      return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+    }
   }
 
   if (event.type !== 'checkout.session.completed') {
