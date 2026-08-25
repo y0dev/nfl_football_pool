@@ -17,6 +17,7 @@ import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } f
 import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
 import { DebugPanel } from '@/components/picks/debug-panel';
 import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
+import { PickemUserSelection } from '@/components/picks/pickem-user-selection';
 
 const bg      = 'oklch(13% 0.025 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -626,11 +627,6 @@ export function PickemPicksContent() {
   const statsComplete = result?.participants.filter(p => p.isComplete).length ?? 0;
   const statsPending = statsTotal - statsComplete;
   const statsCompletionRate = statsTotal > 0 ? Math.round((statsComplete / statsTotal) * 100) : 0;
-  // Real DB submission state — every participant has complete picks for
-  // this week, independent of games having started. Drives hiding the
-  // "Who's picking" selector in favor of a mini leaderboard, matching
-  // Confidence's pool-picks-content.tsx Branch B.
-  const allSubmitted = statsTotal > 0 && statsComplete >= statsTotal;
 
   // Same devSimInProgress-only override as Confidence's effectiveGamesStarted
   // — real gamesStartedNow (from actual kickoff times) stays untouched;
@@ -816,47 +812,25 @@ export function PickemPicksContent() {
           (not myWeek) is what decides which one shows, so a still-resolving
           myWeek doesn't briefly flash the picker. */}
       {(!showResultsSection || (showDebugPanel() && forcePicks)) && (!selectedParticipantId || !myWeek || !result ? (
-        allSubmitted && !(showDebugPanel() && forcePicks) ? (
-          // Everyone has submitted for this week — matches Confidence's
-          // pool-picks-content.tsx Branch B: submittedCount >= participantCount
-          // takes priority over the picker, even before games have started.
-          // Card chrome (including the "Games in progress" badge, which is
-          // wrong in this pre-kickoff state) is copied verbatim from
-          // Confidence — that mislabel is a pre-existing bug there, not
-          // something introduced here.
-          <section style={{ background: card, padding: '2rem 0' }}>
-            <div className="lp-inner">
-              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Trophy style={{ width: 15, height: 15, color: gold }} />
-                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {week} Leaderboard</span>
-                  <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto' }}>Games in progress</span>
-                </div>
-                <div style={{ padding: '1.25rem' }}>
-                  <PickemStandingsPanel poolId={poolId} />
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : (
         <section style={{ background: surface, padding: '2rem 0' }}>
           <div className="lp-inner">
-            <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
-              Who&apos;s picking?
-            </label>
-            <select
-              value={selectedParticipantId}
-              onChange={(e) => handleSelectParticipant(e.target.value)}
-              style={{ width: '100%', padding: '0.65rem 0.85rem', background: card, border: `1px solid ${border}`, borderRadius: 6, color: text, ...b, fontSize: '0.95rem' }}
-            >
-              <option value="">Select your name…</option>
-              {result?.participants.map(p => (
-                <option key={p.participantId} value={p.participantId}>{p.participantName}</option>
-              ))}
-            </select>
+            <PickemUserSelection
+              poolId={poolId}
+              week={week}
+              seasonType={seasonType ?? 2}
+              totalParticipantCount={result?.participants.length ?? 0}
+              // forcePicks (dev only, gated behind showDebugPanel()) lists
+              // everyone regardless of completion — lets a developer preview
+              // an already-submitted participant's locked view. Never
+              // reachable in production, where showDebugPanel() is false.
+              availableParticipants={(showDebugPanel() && forcePicks
+                ? (result?.participants ?? [])
+                : (result?.participants ?? []).filter(p => !p.isComplete)
+              ).map(p => ({ participantId: p.participantId, participantName: p.participantName }))}
+              onUserSelected={handleSelectParticipant}
+            />
           </div>
         </section>
-        )
       ) : (
         <section style={{ background: bg, padding: '2rem 0' }}>
           <div className="lp-inner">
