@@ -763,8 +763,9 @@ test.describe('Survivor Pool — locked game result display', () => {
       // picking?", which may already be hidden by the time data loads.
       await page.waitForSelector('#debug-panel-controls', { timeout: 15000 });
       await page.locator('label:has-text("Force show picks form (ignore")').locator('input[type="checkbox"]').check();
-      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      await page.waitForSelector('text=Select Your Name', { timeout: 15000 });
       await page.selectOption('select', { label: 'Alice' });
+      await page.locator('button:has-text("Continue")').click();
       await page.waitForSelector('text=/Choose Your Team/i', { timeout: 15000 });
 
       await expect(page.locator('button:has-text("Philadelphia")')).toHaveCount(0);
@@ -795,39 +796,41 @@ test.describe('Survivor Pool — full picks flow (UI)', () => {
       });
 
       await page.goto(`/pool/${fixture.poolId}/picks`);
-      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      await page.waitForSelector('text=Select Your Name', { timeout: 15000 });
 
-      // Alice picks and submits.
+      // Alice picks and submits. New picker matches Confidence's actual
+      // PickUserSelection exactly: pick a name, then an explicit "Continue"
+      // (not an immediate onChange) hands off to the picks form.
       await page.selectOption('select', { label: 'Alice' });
+      await page.locator('button:has-text("Continue")').click();
       await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
       await page.locator('button:has-text("Kansas City")').click();
       await page.locator('button:has-text("Submit Pick")').click();
       await expect(page.getByText('Survivor Standings', { exact: true })).toHaveCount(0);
 
       // Bob picks and submits — Carol hasn't yet, so standings stay hidden
-      // and the picker is still reachable.
+      // and the picker is still reachable. Submitting clears the selection
+      // (matches Confidence's handlePicksSubmitted), so the picker is back
+      // automatically — no explicit "switch" needed between participants.
       await page.selectOption('select', { label: 'Bob' });
+      await page.locator('button:has-text("Continue")').click();
       await page.waitForSelector('button:has-text("Buffalo")', { timeout: 15000 });
       await page.locator('button:has-text("Buffalo")').click();
       await page.locator('button:has-text("Submit Pick")').click();
       await expect(page.getByText('Survivor Standings', { exact: true })).toHaveCount(0);
 
-      // Re-selecting Alice must show the locked/submitted view, not pick
-      // buttons — a participant who already picked cannot pick again.
-      await page.selectOption('select', { label: 'Alice' });
-      await expect(page.locator('text=/Your pick is submitted for this week/i')).toBeVisible({ timeout: 15000 });
-      await expect(page.locator('button:has-text("Kansas City"), button:has-text("Buffalo")')).toHaveCount(0);
-      await expect(page.locator('button:has-text("Submit Pick")')).toHaveCount(0);
+      // A participant who already picked is no longer offered as a picker
+      // option at all — matching Confidence's own loadUsers() filtering
+      // exactly (an already-submitted user isn't in that list either).
+      // Alice picked above; she must not appear here.
+      await expect(page.locator('select option', { hasText: 'Alice' })).toHaveCount(0);
 
       // Carol picks and submits — everyone active has now picked, but the
       // game still hasn't started, so standings must NOT reveal yet
       // (matches Confidence's showResultsTabs gate, which also requires
-      // games to have actually started, not just "everyone picked"). Switch
-      // away from Alice's locked view first — the selector only reappears
-      // once no one is selected.
-      await page.locator('button:has-text("Not you? Switch")').click();
-      await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
+      // games to have actually started, not just "everyone picked").
       await page.selectOption('select', { label: 'Carol' });
+      await page.locator('button:has-text("Continue")').click();
       await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
       await page.locator('button:has-text("Kansas City")').click();
       await Promise.all([
@@ -836,14 +839,15 @@ test.describe('Survivor Pool — full picks flow (UI)', () => {
       ]);
       await expect(page.getByText('Survivor Standings', { exact: true })).toHaveCount(0);
 
-      // The "Who's picking" selector must already be gone at this point —
-      // everyone active has picked, even though the game hasn't started yet.
-      // Matches Confidence's pool-picks-content.tsx Branch B: a mini
-      // "Week X Leaderboard" card replaces the picker instead of the full
-      // results section, which still correctly waits for games to start.
-      await expect(page.getByText("Who's picking?", { exact: false })).toHaveCount(0);
+      // The picker must already be replaced at this point — everyone active
+      // has picked, even though the game hasn't started yet. Matches
+      // PickUserSelection's own "All Participants Submitted" empty state
+      // (pick-user-selection.tsx), which Survivor's picker now mirrors
+      // exactly, rather than the full results section, which still
+      // correctly waits for games to start.
+      await expect(page.getByText('Select Your Name', { exact: true })).toHaveCount(0);
       await expect(page.locator('select')).toHaveCount(0);
-      await expect(page.getByText('Week 1 Leaderboard', { exact: true })).toBeVisible();
+      await expect(page.getByText('All Participants Submitted', { exact: true })).toBeVisible();
 
       // Now simulate kickoff actually arriving — everyone already picked
       // while the game was open, and only once the game has since started
