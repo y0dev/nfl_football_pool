@@ -788,6 +788,15 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
       ]);
       await expect(page.getByText("Pick'em Standings", { exact: true })).toHaveCount(0);
 
+      // The "Who's picking" selector must already be gone at this point —
+      // everyone has submitted, even though the game hasn't started yet.
+      // Matches Confidence's pool-picks-content.tsx Branch B: a mini
+      // "Week X Leaderboard" card replaces the picker instead of the full
+      // results section, which still correctly waits for games to start.
+      await expect(page.getByText("Who's picking?", { exact: false })).toHaveCount(0);
+      await expect(page.locator('select')).toHaveCount(0);
+      await expect(page.getByText('Week 1 Leaderboard', { exact: true })).toBeVisible();
+
       // Now simulate kickoff actually arriving — everyone already picked
       // while the game was open (the realistic case: picks come in over the
       // days before kickoff), and only once the game has since started

@@ -626,6 +626,11 @@ export function PickemPicksContent() {
   const statsComplete = result?.participants.filter(p => p.isComplete).length ?? 0;
   const statsPending = statsTotal - statsComplete;
   const statsCompletionRate = statsTotal > 0 ? Math.round((statsComplete / statsTotal) * 100) : 0;
+  // Real DB submission state — every participant has complete picks for
+  // this week, independent of games having started. Drives hiding the
+  // "Who's picking" selector in favor of a mini leaderboard, matching
+  // Confidence's pool-picks-content.tsx Branch B.
+  const allSubmitted = statsTotal > 0 && statsComplete >= statsTotal;
 
   // Same devSimInProgress-only override as Confidence's effectiveGamesStarted
   // — real gamesStartedNow (from actual kickoff times) stays untouched;
@@ -811,6 +816,29 @@ export function PickemPicksContent() {
           (not myWeek) is what decides which one shows, so a still-resolving
           myWeek doesn't briefly flash the picker. */}
       {(!showResultsSection || (showDebugPanel() && forcePicks)) && (!selectedParticipantId || !myWeek || !result ? (
+        allSubmitted && !(showDebugPanel() && forcePicks) ? (
+          // Everyone has submitted for this week — matches Confidence's
+          // pool-picks-content.tsx Branch B: submittedCount >= participantCount
+          // takes priority over the picker, even before games have started.
+          // Card chrome (including the "Games in progress" badge, which is
+          // wrong in this pre-kickoff state) is copied verbatim from
+          // Confidence — that mislabel is a pre-existing bug there, not
+          // something introduced here.
+          <section style={{ background: card, padding: '2rem 0' }}>
+            <div className="lp-inner">
+              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Trophy style={{ width: 15, height: 15, color: gold }} />
+                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Week {week} Leaderboard</span>
+                  <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto' }}>Games in progress</span>
+                </div>
+                <div style={{ padding: '1.25rem' }}>
+                  <PickemStandingsPanel poolId={poolId} />
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : (
         <section style={{ background: surface, padding: '2rem 0' }}>
           <div className="lp-inner">
             <label style={{ ...bc, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
@@ -828,6 +856,7 @@ export function PickemPicksContent() {
             </select>
           </div>
         </section>
+        )
       ) : (
         <section style={{ background: bg, padding: '2rem 0' }}>
           <div className="lp-inner">
