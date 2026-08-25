@@ -48,14 +48,14 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 const FREE_FEATURES = [
   'Create your Huddle with up to 2 pools for the regular season',
   'Invite up to 15 participants',
-  'Weekly picks with confidence points',
+  'Confidence, Pick’em & Survivor pool types',
   'Live leaderboard, updated as scores post',
   'Automatic Q1–Q4 period standings',
 ];
 
 const STANDARD_FEATURES = [
   'Run up to 2 pools in your Huddle, each with up to 30 participants',
-  'Weekly picks with confidence points',
+  'Confidence, Pick’em & Survivor pool types',
   'Live leaderboard, updated as scores post',
   'Automatic Q1–Q4 period standings',
   'Automatically remind participants when picks are due',

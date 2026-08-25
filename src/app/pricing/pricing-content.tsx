@@ -24,9 +24,9 @@ const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
 const FREE_FEATURES = [
-  'Create your Huddle with up to 2 NFL Confidence Pools',
+  'Create your Huddle with up to 2 pools',
   'Invite up to 15 participants',
-  'Weekly confidence picks',
+  'Confidence, Pick’em & Survivor pool types',
   'Live leaderboard with real-time scoring',
   'Automatic Q1-Q4 period standings',
   'Mobile-friendly for commissioners and participants',
@@ -34,6 +34,7 @@ const FREE_FEATURES = [
 
 const STANDARD_HUDDLE_FEATURES = [
   'Run up to 2 pools in your Huddle, each with up to 30 participants',
+  'Confidence, Pick’em & Survivor pool types',
   'Full regular season and playoffs',
   'Add multiple pools to your Huddle',
   'Live leaderboard with real-time scoring',
