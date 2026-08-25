@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireSuperAdmin } from '@/lib/accounts';
 import { adminService } from '@/lib/admin-service';
 import { debugError } from '@/lib/utils';
 
@@ -10,15 +10,8 @@ import { debugError } from '@/lib/utils';
 // the client.
 export async function GET(request: NextRequest) {
   try {
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
-
-    const account = await findAccountByEmail(adminEmail, { activeOnly: true });
-    if (!account || account.role !== 'super_admin') {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const admins = await adminService.getAdmins();
     return NextResponse.json({ success: true, admins });

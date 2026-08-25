@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 
 // Shared resolver for the handful of places that must find an account by
 // email or id without already knowing whether it belongs to a super-admin
@@ -104,32 +105,88 @@ export function callerOwnsAccount(request: NextRequest, adminId: string): boolea
   return !!sessionId && sessionId === adminId;
 }
 
-// Shared caller-is-an-active-super-admin check for admin-privileged (not
-// self-service) routes — data-management operations like NFL sync, season
-// game import/rollback, commissioner management, etc. Trusts the
-// x-admin-email header, matching the established pattern across every other
-// super-admin route in this app (see e.g. src/app/api/super-admin/admins/route.ts) —
-// not a new mechanism. Several routes in this exact family (nfl-sync,
-// season-games submit/rollback) previously had no auth check at all.
-export async function requireSuperAdmin(request: NextRequest): Promise<
-  { ok: true; email: string; id: string } | { ok: false; response: NextResponse }
+// Shared caller-identity check for admin-privileged (not self-service)
+// routes — data-management operations like NFL sync, season game
+// import/rollback, commissioner management, dashboard data, etc.
+//
+// Resolves identity from the httpOnly sh-session cookie (set at login by
+// loginUser/magicLink, and by /auth/callback for OAuth — see
+// callerOwnsAccount's comment above for why this is the only server-side
+// fact that can't be spoofed from the request). This replaces the previous
+// x-admin-email-header-trust pattern that was copied inline into ~25 routes:
+// the header is set by the client from its own React state / localStorage,
+// so any request carrying someone else's real admin/commissioner email —
+// leaked, guessed, or just typed into devtools — was treated as that person,
+// no password required. The client may still send x-admin-email for logging
+// or backward compatibility, but it is never trusted for authorization here.
+//
+// Use requireActiveAdmin for routes any active admin or commissioner may
+// call (it also tells you which); use requireSuperAdmin for routes that
+// must be restricted to super admins specifically.
+export async function requireActiveAdmin(request: NextRequest): Promise<
+  { ok: true; email: string; id: string; isSuperAdmin: boolean } | { ok: false; response: NextResponse }
 > {
-  const adminEmail = request.headers.get('x-admin-email');
-  if (!adminEmail) {
-    return { ok: false, response: NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 }) };
+  const sessionId = request.cookies.get('sh-session')?.value;
+  if (!sessionId) {
+    return { ok: false, response: NextResponse.json({ success: false, error: 'Not signed in' }, { status: 401 }) };
   }
 
-  const supabase = getSupabaseServiceClient();
-  const { data: caller } = await supabase
-    .from('admins')
-    .select('id, is_super_admin')
-    .eq('email', adminEmail)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (!caller?.is_super_admin) {
+  const account = await findAccountById(sessionId, { activeOnly: true });
+  if (!account) {
     return { ok: false, response: NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 }) };
   }
 
-  return { ok: true, email: adminEmail, id: caller.id };
+  return { ok: true, email: account.row.email, id: account.row.id, isSuperAdmin: account.role === 'super_admin' };
+}
+
+export async function requireSuperAdmin(request: NextRequest): Promise<
+  { ok: true; email: string; id: string } | { ok: false; response: NextResponse }
+> {
+  const result = await requireActiveAdmin(request);
+  if (!result.ok) return result;
+
+  if (!result.isSuperAdmin) {
+    return { ok: false, response: NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 }) };
+  }
+
+  return { ok: true, email: result.email, id: result.id };
+}
+
+// Server Action equivalent of requireActiveAdmin/requireSuperAdmin — 'use
+// server' actions don't receive a NextRequest, but can read the incoming
+// request's cookies via next/headers, which is where sh-session lives.
+// Used by Server Actions that mutate a specific pool (updatePool,
+// addParticipantToPool, etc.) which previously trusted a client-supplied
+// poolId/participantId with no check that the caller actually administers
+// that pool at all.
+export async function requireActionCallerOwnsPool(poolId: string): Promise<
+  { ok: true; email: string; id: string; isSuperAdmin: boolean } | { ok: false; error: string }
+> {
+  // cookies() throws if called with no active request at all (e.g. a script
+  // invoking this function directly, outside Next's request lifecycle) —
+  // real callers (a browser's Server Action RPC, or a Route Handler) always
+  // have a request scope, so this only ever triggers for something that
+  // was never a legitimate authenticated call in the first place. Fail
+  // closed rather than let the exception propagate as a raw 500.
+  let jar;
+  try {
+    jar = await cookies();
+  } catch {
+    return { ok: false, error: 'Not signed in.' };
+  }
+  const sessionId = jar.get('sh-session')?.value;
+  if (!sessionId) return { ok: false, error: 'Not signed in.' };
+
+  const caller = await findAccountById(sessionId, { activeOnly: true });
+  if (!caller) return { ok: false, error: 'Not signed in.' };
+  if (caller.role === 'super_admin') {
+    return { ok: true, email: caller.row.email, id: caller.row.id, isSuperAdmin: true };
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+  if (!pool) return { ok: false, error: 'Pool not found.' };
+  if (pool.created_by !== caller.row.email) return { ok: false, error: 'Insufficient permissions.' };
+
+  return { ok: true, email: caller.row.email, id: caller.row.id, isSuperAdmin: false };
 }

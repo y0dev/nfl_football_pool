@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { DUMMY_POOL, isDummyData, debugLog, debugError} from '@/lib/utils';
 import { checkPoolAccessFromRequest } from '@/lib/pool-access';
+import { updatePool } from '@/actions/updatePool';
 
 // GET - Get public pool details with stats (no authentication for public
 // pools; private pools require a valid pool-access cookie — see
@@ -116,5 +117,30 @@ export async function GET(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+// PATCH - Real REST wrapper around the updatePool() Server Action.
+// updatePool is normally called directly from the browser (pool-settings.tsx
+// invokes it as a Server Action RPC, which always runs within a real request
+// scope), so this route isn't needed for the app itself — it exists so
+// updatePool's own ownership check (requireActionCallerOwnsPool, which reads
+// the sh-session cookie via next/headers) can be exercised over real HTTP in
+// tests, the same way clone-pool's REST route lets that Server Action be
+// tested without a browser.
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: poolId } = await params;
+    const updates = await request.json();
+    const pool = await updatePool(poolId, updates);
+    return NextResponse.json({ success: true, pool });
+  } catch (error) {
+    debugError('Error in pool PATCH API:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const status = message === 'Not signed in.' ? 401 : message === 'Insufficient permissions.' ? 403 : 400;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

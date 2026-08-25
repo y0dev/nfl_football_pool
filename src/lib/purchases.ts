@@ -128,6 +128,91 @@ export async function applyCompletedCheckoutSession(session: Stripe.Checkout.Ses
   return { applied: true };
 }
 
+export type RefundResult =
+  | { applied: true }
+  | { applied: false; reason: 'missing_payment_intent' | 'unknown_payment' | 'already_refunded' | 'unknown_admin' };
+
+// Reverts the plan/addon-pool grant a purchase made, once Stripe reports the
+// underlying charge refunded. Looks the purchase up by payment_intent (the
+// only id a `charge.refunded` event carries that also lives on our own
+// `payments` row) rather than session id. Idempotent the same way
+// applyCompletedCheckoutSession is: payments.status flips to 'refunded' on
+// success, so a replayed/duplicate charge.refunded event is a no-op.
+export async function handleRefundedCharge(charge: Stripe.Charge): Promise<RefundResult> {
+  const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+
+  const logEvent = (result: string, extra: Record<string, unknown> = {}) => {
+    console.log(JSON.stringify({ scope: 'stripe_refund_apply', charge_id: charge.id, payment_intent: paymentIntentId ?? null, result, ...extra }));
+  };
+
+  if (!paymentIntentId) {
+    logEvent('missing_payment_intent');
+    return { applied: false, reason: 'missing_payment_intent' };
+  }
+
+  const supabase = getSupabaseServiceClient();
+
+  const { data: payment, error: paymentError } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('stripe_payment_intent', paymentIntentId)
+    .maybeSingle();
+  if (paymentError) throw paymentError;
+
+  if (!payment) {
+    logEvent('unknown_payment');
+    return { applied: false, reason: 'unknown_payment' };
+  }
+  if (payment.status === 'refunded') {
+    logEvent('already_refunded');
+    return { applied: false, reason: 'already_refunded' };
+  }
+
+  const { data: admin, error: adminError } = await supabase
+    .from('commissioners')
+    .select('*')
+    .eq('id', payment.admin_id)
+    .maybeSingle();
+  if (adminError) throw adminError;
+
+  if (!admin) {
+    logEvent('unknown_admin');
+    return { applied: false, reason: 'unknown_admin' };
+  }
+
+  if (payment.product === 'standard') {
+    const { error } = await supabase
+      .from('commissioners')
+      .update({ plan: 'free', trial_ends_at: null, updated_at: new Date().toISOString() })
+      .eq('id', payment.admin_id);
+    if (error) throw error;
+  } else if (payment.product === 'addon_pool') {
+    const remaining = Math.max(0, (admin.addon_pools ?? 0) - payment.quantity);
+    const { error } = await supabase
+      .from('commissioners')
+      .update({ addon_pools: remaining, updated_at: new Date().toISOString() })
+      .eq('id', payment.admin_id);
+    if (error) throw error;
+  }
+
+  const { error: statusError } = await supabase.from('payments').update({ status: 'refunded' }).eq('id', payment.id);
+  if (statusError) {
+    console.error('Failed to mark payment refunded — a duplicate charge.refunded event could double-revoke:', statusError);
+  }
+
+  logEvent('reverted', { product: payment.product, quantity: payment.quantity });
+
+  if (admin.email && payment.product === 'standard') {
+    try {
+      await emailService.sendPlanChangeNotification(admin.email, admin.full_name ?? 'Commissioner', 'free');
+    } catch (emailError) {
+      console.error('Refund plan-change notification email failed (revert already applied):', emailError);
+    }
+  }
+
+  return { applied: true };
+}
+
 // Fallback path for when a webhook delivery never arrives (wrong URL
 // registered, endpoint down, network partition, etc.) — asks Stripe
 // directly for this admin's recent paid Checkout Sessions and applies any

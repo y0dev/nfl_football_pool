@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transferPoolToCommissioner } from '@/lib/poolTransfer';
+import { requireSuperAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Super-admin only. Immediate, no approval needed — a super admin can
@@ -8,10 +9,9 @@ import { debugError } from '@/lib/utils';
 // that requires both parties to confirm by email).
 export async function POST(request: NextRequest) {
   try {
-    const callerEmail = request.headers.get('x-admin-email');
-    if (!callerEmail) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
+    const callerEmail = auth.email;
 
     const { poolId, newCommissionerEmail, removeFromSourceRoster } = await request.json();
     if (!poolId || !newCommissionerEmail) {

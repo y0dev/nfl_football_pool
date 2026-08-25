@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportWeeklyPicks } from '@/lib/export-utils';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { poolId, week, season, seasonType } = body;
 
@@ -14,21 +18,23 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Get pool name for filename
     const supabase = getSupabaseServiceClient();
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('name')
+      .select('name, created_by')
       .eq('id', poolId)
       .single();
 
-    if (poolError) {
-      debugError('Error fetching pool name:', poolError);
-      // Fallback to pool ID if name fetch fails
+    if (poolError || !pool) {
+      return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && pool.created_by !== auth.email) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const poolName = pool?.name || `pool-${poolId}`;
+    const poolName = pool.name || `pool-${poolId}`;
     const formattedPoolName = poolName.toLowerCase().replace(/\s+/g, '-');
     
     // Export the weekly picks data

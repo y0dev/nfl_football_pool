@@ -19,7 +19,6 @@ loadEnv({ path: '.env.local' });
 // ─────────────────────────────────────────────────────────────
 
 import { createPool } from '../../src/actions/createPool';
-import { updatePool } from '../../src/actions/updatePool';
 import {
   computeSurvivorPoolState,
   submitSurvivorPick,
@@ -47,6 +46,7 @@ function daysFromNow(n: number): string {
 
 interface Fixture {
   ownerEmail: string;
+  ownerId: string;
   poolId: string;
   season: number;
   participants: Record<string, string>;
@@ -64,6 +64,16 @@ async function setupSurvivorPool(opts: {
 }): Promise<Fixture> {
   const season = opts.season ?? fakeSeason();
   const ownerEmail = `e2e-survivor-${season}-${Date.now()}@sundayhuddle.net`;
+
+  // A real commissioner row is required — routes now authenticate the pool
+  // owner via a real account (session-derived), matching production.
+  const { data: ownerRow, error: ownerError } = await supabase
+    .from('commissioners')
+    .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Survivor Owner', plan: 'free', is_active: true })
+    .select('id')
+    .single();
+  if (ownerError || !ownerRow) throw new Error(`Failed to seed Survivor pool owner: ${ownerError?.message}`);
+  const ownerId = ownerRow.id;
 
   const result = await createPool({
     name: `E2E Survivor ${season}`,
@@ -84,7 +94,7 @@ async function setupSurvivorPool(opts: {
     .select('id, name');
 
   const participants = Object.fromEntries((parts ?? []).map(p => [p.name, p.id]));
-  return { ownerEmail, poolId, season, participants, gameIds: [] };
+  return { ownerEmail, ownerId, poolId, season, participants, gameIds: [] };
 }
 
 async function createGame(fixture: Fixture, opts: {
@@ -108,6 +118,7 @@ async function cleanup(fixture: Fixture) {
   await supabase.from('survivor_winners').delete().eq('pool_id', fixture.poolId);
   for (const id of fixture.gameIds) await supabase.from('games').delete().eq('id', id);
   await supabase.from('huddles').delete().eq('commissioner_email', fixture.ownerEmail);
+  await supabase.from('commissioners').delete().eq('id', fixture.ownerId);
 }
 
 test.describe('Survivor Pool — creation', () => {
@@ -134,12 +145,19 @@ test.describe('Survivor Pool — creation', () => {
 });
 
 test.describe('Survivor Pool — settings', () => {
-  test('type_settings persists through updatePool and parses back correctly', async () => {
+  test('type_settings persists through updatePool and parses back correctly', async ({ request }) => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
-      await updatePool(fixture.poolId, {
-        type_settings: { noPickRule: 'keep_active', tieRule: 'keep_active', endOfSeasonRule: 'margin_tiebreaker' },
+      // updatePool now checks the caller owns the pool (requireActionCallerOwnsPool,
+      // sh-session-cookie-based) — calling it as a plain function has no
+      // request scope to read a cookie from, so this goes through the real
+      // PATCH /api/pools/[id] wrapper instead, same as clone-pool.spec.ts
+      // does for its own Server Action.
+      const res = await request.patch(`/api/pools/${fixture.poolId}`, {
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        data: { type_settings: { noPickRule: 'keep_active', tieRule: 'keep_active', endOfSeasonRule: 'margin_tiebreaker' } },
       });
+      expect(res.ok()).toBeTruthy();
       const { data: row } = await supabase.from('pools').select('type_settings').eq('id', fixture.poolId).single();
       expect(row?.type_settings).toEqual({ noPickRule: 'keep_active', tieRule: 'keep_active', endOfSeasonRule: 'margin_tiebreaker' });
     } finally {
@@ -602,7 +620,7 @@ test.describe('Survivor Pool — emails', () => {
       await createGame(fixture, { week: 2, homeTeam: 'Home B', awayTeam: 'Away B', homeTeamId: 'HB', awayTeamId: 'BB', kickoff: daysFromNow(3), status: 'scheduled' });
 
       const res = await request.post('/api/survivor/send-reminders', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(200);
@@ -628,7 +646,7 @@ test.describe('Survivor Pool — emails', () => {
       ]);
 
       const res = await request.post('/api/survivor/notify-week-results', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId, week: 1, seasonType: 2 },
       });
       expect(res.status()).toBe(200);
@@ -644,7 +662,7 @@ test.describe('Survivor Pool — emails', () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
       const res = await request.post('/api/survivor/send-reminders', {
-        headers: { 'x-admin-email': 'not-the-owner@example.com' },
+        headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(403);
@@ -657,13 +675,13 @@ test.describe('Survivor Pool — emails', () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
       const rejected = await request.post('/api/survivor/finalize', {
-        headers: { 'x-admin-email': 'not-the-owner@example.com' },
+        headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
         data: { poolId: fixture.poolId },
       });
       expect(rejected.status()).toBe(403);
 
       const allowed = await request.post('/api/survivor/finalize', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId },
       });
       expect(allowed.status()).toBe(200);
@@ -679,7 +697,7 @@ test.describe('Survivor Pool — emails', () => {
       await supabase.from('survivor_picks').insert({ participant_id: fixture.participants.Alice, pool_id: fixture.poolId, game_id: gameId, season: fixture.season, season_type: 2, week: 1, selected_team: 'HA' });
 
       const res = await request.post('/api/survivor/notify-week-results', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId }, // no week/seasonType
       });
       expect(res.status()).toBe(200);
@@ -771,7 +789,7 @@ test.describe('Survivor Pool — full picks flow (UI)', () => {
   test('select, pick, submit; already-submitted participant cannot pick again; standings auto-show and the picker disappears once everyone has picked', async ({ page }) => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice', 'Bob', 'Carol'] });
     try {
-      await createGame(fixture, {
+      const gameId = await createGame(fixture, {
         week: 1, homeTeam: 'Kansas City Chiefs', awayTeam: 'Buffalo Bills', homeTeamId: 'KC', awayTeamId: 'BUF',
         kickoff: daysFromNow(3), status: 'scheduled',
       });
@@ -801,19 +819,35 @@ test.describe('Survivor Pool — full picks flow (UI)', () => {
       await expect(page.locator('button:has-text("Kansas City"), button:has-text("Buffalo")')).toHaveCount(0);
       await expect(page.locator('button:has-text("Submit Pick")')).toHaveCount(0);
 
-      // Carol picks and submits — everyone active has now picked (even
-      // though the game hasn't started). Switch away from Alice's locked
-      // view first — the selector only reappears once no one is selected.
+      // Carol picks and submits — everyone active has now picked, but the
+      // game still hasn't started, so standings must NOT reveal yet
+      // (matches Confidence's showResultsTabs gate, which also requires
+      // games to have actually started, not just "everyone picked"). Switch
+      // away from Alice's locked view first — the selector only reappears
+      // once no one is selected.
       await page.locator('button:has-text("Not you? Switch")').click();
       await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
       await page.selectOption('select', { label: 'Carol' });
       await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
       await page.locator('button:has-text("Kansas City")').click();
-      await page.locator('button:has-text("Submit Pick")').click();
+      await Promise.all([
+        page.waitForResponse(res => res.url().includes('/api/survivor/submit') && res.request().method() === 'POST'),
+        page.locator('button:has-text("Submit Pick")').click(),
+      ]);
+      await expect(page.getByText('Survivor Standings', { exact: true })).toHaveCount(0);
 
-      // Standings auto-show, and the entire picker/picks-form section
-      // (including "Who's picking?") disappears since there's nothing left
-      // to pick for anyone — matches Confidence's showResultsTabs behavior.
+      // Now simulate kickoff actually arriving — everyone already picked
+      // while the game was open, and only once the game has since started
+      // should standings reveal. Waiting for the submit response above
+      // (rather than reloading immediately after the click) matters here:
+      // page.reload() cancels any still-in-flight request, which would
+      // silently drop Carol's submission.
+      await supabase.from('games').update({ kickoff_time: daysAgo(1), status: 'in_progress' }).eq('id', gameId);
+      await page.reload();
+
+      // Standings auto-show now that games have started AND everyone's
+      // picked, and the entire picker/picks-form section (including "Who's
+      // picking?") disappears since there's nothing left to pick for anyone.
       await expect(page.getByText('Survivor Standings', { exact: true })).toBeVisible({ timeout: 15000 });
       await expect(page.getByText("Who's picking?", { exact: false })).toHaveCount(0);
       await expect(page.locator('select')).toHaveCount(0);

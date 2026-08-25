@@ -1,6 +1,7 @@
 'use server';
 
 import { debugError, debugWarn, isDummyData, DUMMY_PARTICIPANTS, DUMMY_POOL } from '@/lib/utils';
+import { requireActionCallerOwnsPool } from '@/lib/accounts';
 
 // Get pool participants
 export async function getPoolParticipants(poolId: string) {
@@ -13,6 +14,9 @@ export async function getPoolParticipants(poolId: string) {
     }));
   }
 
+  const auth = await requireActionCallerOwnsPool(poolId);
+  if (!auth.ok) throw new Error(auth.error);
+
   try {
     const { adminService } = await import('@/lib/admin-service');
     return await adminService.getPoolParticipants(poolId);
@@ -24,6 +28,9 @@ export async function getPoolParticipants(poolId: string) {
 
 // Add participant to pool
 export async function addParticipantToPool(poolId: string, name: string, email?: string, huddleMemberId?: string) {
+  const auth = await requireActionCallerOwnsPool(poolId);
+  if (!auth.ok) throw new Error(auth.error);
+
   try {
     // Get the service role client to bypass RLS policies
     const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
@@ -143,7 +150,8 @@ export async function removeParticipantFromPool(participantId: string) {
     const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
     const supabase = getSupabaseServiceClient();
 
-    // First get the participant to get the pool_id for logging
+    // First get the participant to get the pool_id — needed both for
+    // logging and to verify the caller actually administers this pool.
     const { data: participant, error: fetchError } = await supabase
       .from('participants')
       .select('pool_id, name, email')
@@ -153,6 +161,9 @@ export async function removeParticipantFromPool(participantId: string) {
     if (fetchError) {
       throw new Error(fetchError.message);
     }
+
+    const auth = await requireActionCallerOwnsPool(participant.pool_id);
+    if (!auth.ok) throw new Error(auth.error);
 
     // Remove participant from pool
     const { error: deleteError } = await supabase
@@ -204,7 +215,8 @@ export async function updateParticipantName(participantId: string, newName: stri
     const { getSupabaseServiceClient } = await import('@/lib/supabase-service');
     const supabase = getSupabaseServiceClient();
     
-    // First get the participant to get the pool_id for logging
+    // First get the participant to get the pool_id — needed both for
+    // logging and to verify the caller actually administers this pool.
     const { data: participant, error: fetchError } = await supabase
       .from('participants')
       .select('pool_id, name')
@@ -214,6 +226,9 @@ export async function updateParticipantName(participantId: string, newName: stri
     if (fetchError) {
       throw new Error(fetchError.message);
     }
+
+    const auth = await requireActionCallerOwnsPool(participant.pool_id);
+    if (!auth.ok) throw new Error(auth.error);
 
     // Actually update the participant name in the database using service role
     const { error: updateError } = await supabase

@@ -13,9 +13,16 @@ loadEnv({ path: '.env.local' });
 // get a super admin's id, then reset-admin-password with that id) this was
 // a full unauthenticated platform takeover, not just an IDOR.
 //
-// These tests assert the fix: every route below now requires an
-// x-admin-email header that resolves to an ACTIVE super admin, verified
-// server-side against the admins table — not trusted from the header alone.
+// A first fix layered an x-admin-email header check on top — but the header
+// is set by the client from its own React state, so any request carrying a
+// known admin's email (leaked, guessed, or just typed into devtools) was
+// treated as that admin with zero credentials. That's what these tests
+// actually asserted before this pass.
+//
+// The real fix: every route below now resolves the caller from the httpOnly
+// sh-session cookie (set server-side at login), never from a client-supplied
+// header. These tests assert both that the header alone grants nothing, and
+// that a real session behaves correctly.
 // ─────────────────────────────────────────────────────────────
 
 const supabase = createClient(
@@ -25,6 +32,31 @@ const supabase = createClient(
 
 const SUPER_ADMIN_EMAIL = 'superadmin@test.com';
 const COMMISSIONER_EMAIL = 'pooladmin@test.com';
+
+let superAdminId: string;
+let commissionerId: string;
+
+test.beforeAll(async () => {
+  const { data: superAdmin, error: superAdminError } = await supabase
+    .from('admins')
+    .select('id')
+    .eq('email', SUPER_ADMIN_EMAIL)
+    .single();
+  if (superAdminError || !superAdmin) throw new Error(`Could not find seeded super admin: ${superAdminError?.message}`);
+  superAdminId = superAdmin.id;
+
+  const { data: commissioner, error: commissionerError } = await supabase
+    .from('commissioners')
+    .select('id')
+    .eq('email', COMMISSIONER_EMAIL)
+    .single();
+  if (commissionerError || !commissioner) throw new Error(`Could not find seeded commissioner: ${commissionerError?.message}`);
+  commissionerId = commissioner.id;
+});
+
+function sessionCookieFor(id: string) {
+  return { Cookie: `sh-session=${id}` };
+}
 
 const UNAUTHENTICATED_CASES: { name: string; method: 'GET' | 'POST' | 'DELETE'; url: string; data?: object }[] = [
   { name: 'GET /api/super-admin/admins', method: 'GET', url: '/api/super-admin/admins' },
@@ -36,24 +68,31 @@ const UNAUTHENTICATED_CASES: { name: string; method: 'GET' | 'POST' | 'DELETE'; 
   { name: 'POST /api/super-admin/reset-password', method: 'POST', url: '/api/super-admin/reset-password', data: { adminId: '00000000-0000-0000-0000-000000000000', newPassword: 'irrelevant123' } },
 ];
 
-test.describe('Super-admin management routes reject requests with no admin identity', () => {
+async function callCase(request: import('@playwright/test').APIRequestContext, c: typeof UNAUTHENTICATED_CASES[number], headers?: Record<string, string>) {
+  return c.method === 'GET'
+    ? request.get(c.url, { headers })
+    : c.method === 'POST'
+    ? request.post(c.url, { data: c.data, headers })
+    : request.delete(c.url, { data: c.data, headers });
+}
+
+test.describe('Super-admin management routes reject requests with no real session', () => {
   for (const c of UNAUTHENTICATED_CASES) {
-    test(`${c.name} → 401 with no x-admin-email header`, async ({ request }) => {
-      const res = c.method === 'GET'
-        ? await request.get(c.url)
-        : c.method === 'POST'
-        ? await request.post(c.url, { data: c.data })
-        : await request.delete(c.url, { data: c.data });
+    test(`${c.name} → 401 with nothing at all`, async ({ request }) => {
+      const res = await callCase(request, c);
       expect(res.status()).toBe(401);
     });
 
-    test(`${c.name} → 403 for a caller who is not a super admin`, async ({ request }) => {
-      const headers = { 'x-admin-email': COMMISSIONER_EMAIL };
-      const res = c.method === 'GET'
-        ? await request.get(c.url, { headers })
-        : c.method === 'POST'
-        ? await request.post(c.url, { data: c.data, headers })
-        : await request.delete(c.url, { data: c.data, headers });
+    test(`${c.name} → 401 even with a spoofed x-admin-email header and no session cookie`, async ({ request }) => {
+      // This is the exact vulnerability this suite exists to catch: the
+      // header alone must never be sufficient, no matter whose email it
+      // names, because it's fully attacker-controlled.
+      const res = await callCase(request, c, { 'x-admin-email': SUPER_ADMIN_EMAIL });
+      expect(res.status()).toBe(401);
+    });
+
+    test(`${c.name} → 403 for a real session that is not a super admin`, async ({ request }) => {
+      const res = await callCase(request, c, sessionCookieFor(commissionerId));
       expect(res.status()).toBe(403);
     });
   }
@@ -61,7 +100,7 @@ test.describe('Super-admin management routes reject requests with no admin ident
 
 test.describe('GET /api/super-admin/admins — authorized response shape', () => {
   test('a real super admin gets the list without password hashes', async ({ request }) => {
-    const res = await request.get('/api/super-admin/admins', { headers: { 'x-admin-email': SUPER_ADMIN_EMAIL } });
+    const res = await request.get('/api/super-admin/admins', { headers: sessionCookieFor(superAdminId) });
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
@@ -89,7 +128,7 @@ test.describe('POST /api/admin/reset-password — still works end-to-end for a r
 
     try {
       const res = await request.post('/api/admin/reset-password', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: sessionCookieFor(superAdminId),
         data: { adminId: throwaway.id, newPassword: 'a-brand-new-password-1' },
       });
       expect(res.status()).toBe(200);

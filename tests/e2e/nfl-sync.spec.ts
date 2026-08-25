@@ -23,6 +23,18 @@ const supabase = createClient(
 
 const SUPER_ADMIN_EMAIL = 'superadmin@test.com';
 const COMMISSIONER_EMAIL = 'pooladmin@test.com';
+let superAdminId: string;
+let commissionerId: string;
+
+test.beforeAll(async () => {
+  const { data: superAdmin, error: superAdminError } = await supabase.from('admins').select('id').eq('email', SUPER_ADMIN_EMAIL).single();
+  if (superAdminError || !superAdmin) throw new Error(`Could not find seeded super admin: ${superAdminError?.message}`);
+  superAdminId = superAdmin.id;
+
+  const { data: commissioner, error: commissionerError } = await supabase.from('commissioners').select('id').eq('email', COMMISSIONER_EMAIL).single();
+  if (commissionerError || !commissioner) throw new Error(`Could not find seeded commissioner: ${commissionerError?.message}`);
+  commissionerId = commissioner.id;
+});
 
 async function seedRun(overrides: Record<string, unknown> = {}) {
   const { data, error } = await supabase
@@ -115,13 +127,13 @@ test.describe('NFL Sync — server-side authorization', () => {
   ];
 
   for (const c of cases) {
-    test(`${c.name} rejects with no x-admin-email header`, async ({ request }) => {
+    test(`${c.name} rejects with no session`, async ({ request }) => {
       const res = c.method === 'GET' ? await request.get(c.url) : await request.post(c.url, { data: c.data });
       expect(res.status()).toBe(401);
     });
 
     test(`${c.name} rejects a commissioner caller`, async ({ request }) => {
-      const headers = { 'x-admin-email': COMMISSIONER_EMAIL };
+      const headers = { Cookie: `sh-session=${commissionerId}` };
       const res = c.method === 'GET' ? await request.get(c.url, { headers }) : await request.post(c.url, { data: c.data, headers });
       expect(res.status()).toBe(403);
     });
@@ -131,7 +143,7 @@ test.describe('NFL Sync — server-side authorization', () => {
 test.describe('POST /api/admin/nfl-sync/preview — real ESPN data (shape only, not exact counts)', () => {
   test('returns a well-formed preview for the current week', async ({ request }) => {
     const res = await request.post('/api/admin/nfl-sync/preview', {
-      headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+      headers: { Cookie: `sh-session=${superAdminId}` },
       data: { date: new Date().toISOString() },
     });
     expect(res.status()).toBe(200);
@@ -159,7 +171,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { runId, decisions: { [changeAId]: 'approved', [changeBId]: 'rejected' } },
       });
       expect(res.status()).toBe(200);
@@ -191,7 +203,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { runId, decisions: { [changeId]: 'approved' } },
       });
       expect(res.status()).toBe(200);
@@ -230,7 +242,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { runId, decisions: { [changeId]: 'approved' } },
       });
       const body = await res.json();
@@ -246,7 +258,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
     const runId = await seedRun({ status: 'applied' });
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { runId, approveAll: true },
       });
       expect(res.status()).toBe(409);
@@ -257,7 +269,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
   test('returns 404 for an unknown run id', async ({ request }) => {
     const res = await request.post('/api/admin/nfl-sync/apply', {
-      headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+      headers: { Cookie: `sh-session=${superAdminId}` },
       data: { runId: '00000000-0000-0000-0000-000000000000', approveAll: true },
     });
     expect(res.status()).toBe(404);
@@ -275,7 +287,7 @@ test.describe('POST /api/admin/season-games/rollback — protects real participa
 
     try {
       const res = await request.post('/api/admin/season-games/rollback', {
-        headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+        headers: { Cookie: `sh-session=${superAdminId}` },
         data: { season: 2098, seasonType: 2, week: 1 },
       });
       expect(res.status()).toBe(409);
@@ -295,7 +307,7 @@ test.describe('POST /api/admin/season-games/rollback — protects real participa
     await seedGame(gameId, { season: 2097, season_type: 2, week: 1 });
 
     const res = await request.post('/api/admin/season-games/rollback', {
-      headers: { 'x-admin-email': SUPER_ADMIN_EMAIL },
+      headers: { Cookie: `sh-session=${superAdminId}` },
       data: { season: 2097, seasonType: 2, week: 1 },
     });
     expect(res.status()).toBe(200);

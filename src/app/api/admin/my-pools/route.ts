@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Server-only replacement for the top-level /leaderboard page's direct
@@ -8,20 +8,12 @@ import { debugError } from '@/lib/utils';
 // /api/admin/all-pools's active-only + super-admin-only shape).
 export async function GET(request: NextRequest) {
   try {
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
-
-    const account = await findAccountByEmail(adminEmail, { activeOnly: true });
-    if (!account) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
-    const isSuperAdmin = account.role === 'super_admin';
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseServiceClient();
     let query = supabase.from('pools').select('*').order('created_at', { ascending: false });
-    if (!isSuperAdmin) query = query.eq('created_by', adminEmail);
+    if (!auth.isSuperAdmin) query = query.eq('created_by', auth.email);
 
     const { data: pools, error } = await query;
     if (error) throw error;

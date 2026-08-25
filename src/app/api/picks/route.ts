@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { checkPoolAccessFromRequest } from '@/lib/pool-access';
 import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -11,13 +12,18 @@ export async function GET(request: NextRequest) {
     const seasonType = searchParams.get('seasonType');
     const includeGames = searchParams.get('includeGames') === 'true';
     const includeParticipants = searchParams.get('includeParticipants') === 'true';
-    
+
     debugLog('Picks API - Query params:', { poolId, participantId, week, seasonType, includeGames, includeParticipants });
     if (!poolId) {
       return NextResponse.json(
         { success: false, error: 'Pool ID is required' },
         { status: 400 }
       );
+    }
+
+    const access = await checkPoolAccessFromRequest(poolId, request);
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
     }
 
     const supabase = getSupabaseServiceClient();

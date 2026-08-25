@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { findAccountByEmail } from '@/lib/accounts';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Server-only replacement for override-picks-panel.tsx's direct
@@ -9,10 +9,9 @@ import { debugError } from '@/lib/utils';
 // already went through a proper server route; only these reads didn't.
 export async function GET(request: NextRequest) {
   try {
-    const adminEmail = request.headers.get('x-admin-email');
-    if (!adminEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
+    const adminEmail = auth.email;
 
     const { searchParams } = new URL(request.url);
     const poolId = searchParams.get('poolId');
@@ -29,9 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
     }
 
-    const account = await findAccountByEmail(adminEmail, { activeOnly: true });
-    const isSuperAdmin = account?.role === 'super_admin';
-    if (!isSuperAdmin && pool.created_by !== adminEmail) {
+    if (!auth.isSuperAdmin && pool.created_by !== adminEmail) {
       return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 

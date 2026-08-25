@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { finalizeSurvivorSeason } from '@/lib/survivor';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { requireActiveAdmin } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
 
 // Survivor's equivalent of Confidence Pool's close-season winner
@@ -15,10 +16,8 @@ import { debugError } from '@/lib/utils';
 // commissioner out of finalizing their own pool.
 export async function POST(request: NextRequest) {
   try {
-    const callerEmail = request.headers.get('x-admin-email');
-    if (!callerEmail) {
-      return NextResponse.json({ success: false, error: 'No admin email header' }, { status: 401 });
-    }
+    const auth = await requireActiveAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json().catch(() => ({}));
     const { poolId } = body as { poolId?: string };
@@ -27,16 +26,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServiceClient();
-    const [{ data: pool }, { data: caller }] = await Promise.all([
-      supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle(),
-      supabase.from('admins').select('is_super_admin').eq('email', callerEmail).eq('is_active', true).maybeSingle(),
-    ]);
+    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
     if (!pool) {
       return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
     }
-    const isOwner = pool.created_by === callerEmail;
-    const isSuperAdmin = caller?.is_super_admin === true;
-    if (!isOwner && !isSuperAdmin) {
+    const isOwner = pool.created_by === auth.email;
+    if (!isOwner && !auth.isSuperAdmin) {
       return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
