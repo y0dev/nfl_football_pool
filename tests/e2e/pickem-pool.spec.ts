@@ -190,12 +190,47 @@ test.describe("Pick'em Pool — pick submission", () => {
     }
   });
 
-  test('changing a pick before the game starts upserts rather than duplicating', async () => {
+  test('changing a pick before completing the rest of the week upserts rather than duplicating', async () => {
+    const fixture = await setupPickemPool({ participantNames: ['Alice'] });
+    try {
+      // Two games so picking g1 doesn't complete the week — the resubmission
+      // lock below only engages once every eligible game has a pick.
+      const g1 = await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysFromNow(3), status: 'scheduled' });
+      await createGame(fixture, { week: 1, homeTeam: 'Home B', awayTeam: 'Away B', homeTeamId: 'HB', awayTeamId: 'BB', kickoff: daysFromNow(3), status: 'scheduled' });
+      await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId: g1, selectedTeam: 'HA' });
+      const result = await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId: g1, selectedTeam: 'AA' });
+      expect(result.success).toBe(true);
+      const { data: picks } = await supabase.from('pickem_picks').select('selected_team').eq('participant_id', fixture.participants.Alice).eq('game_id', g1);
+      expect(picks).toHaveLength(1);
+      expect(picks![0].selected_team).toBe('AA');
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+
+  test('rejects any further submission once every eligible game already has a pick (matches Confidence)', async () => {
     const fixture = await setupPickemPool({ participantNames: ['Alice'] });
     try {
       const gameId = await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysFromNow(3), status: 'scheduled' });
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
-      await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      const result = await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error).toMatch(/already submitted/i);
+      const { data: picks } = await supabase.from('pickem_picks').select('selected_team').eq('participant_id', fixture.participants.Alice).eq('game_id', gameId);
+      expect(picks).toHaveLength(1);
+      expect(picks![0].selected_team).toBe('HA');
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+
+  test('playoff weeks keep allowing updates after completion (matches Confidence\'s playoff exception)', async () => {
+    const fixture = await setupPickemPool({ participantNames: ['Alice'], seasonScope: [3], standardPlanOwner: true });
+    try {
+      const gameId = await createGame(fixture, { week: 19, seasonType: 3, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysFromNow(3), status: 'scheduled' });
+      await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
+      const result = await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'AA' });
+      expect(result.success).toBe(true);
       const { data: picks } = await supabase.from('pickem_picks').select('selected_team').eq('participant_id', fixture.participants.Alice).eq('game_id', gameId);
       expect(picks).toHaveLength(1);
       expect(picks![0].selected_team).toBe('AA');
@@ -774,13 +809,11 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
       // A participant who already submitted is no longer offered as a
       // picker option at all — matching Confidence's own loadUsers()
       // filtering exactly (an already-submitted user isn't in that list
-      // either). Alice submitted above; she must not appear here. (Unlike
-      // Confidence's atomic whole-week submit, Pick'em's own submitPickemPick
-      // is intentionally per-game and kickoff-locked, not "reject once
-      // complete" — a still-open game stays editable at the server level
-      // by design; "can't pick again" is enforced by the picker excluding
-      // her and, if she reaches the form some other way, the isComplete
-      // locked banner — not by the submit endpoint itself.)
+      // either). Alice submitted above; she must not appear here. This is
+      // now backed by a matching server-side lock too: submitPickemPick
+      // rejects any further submission once every eligible game already has
+      // a pick from a participant, matching Confidence's reject-on-
+      // resubmission rule (see the dedicated test below).
       await expect(page.locator('select option', { hasText: 'Alice' })).toHaveCount(0);
 
       // Carol picks and submits — everyone has now submitted, but the game

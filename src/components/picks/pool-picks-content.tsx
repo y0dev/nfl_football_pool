@@ -1465,8 +1465,11 @@ export function PoolPicksContent() {
           // are locked/finished, the Game Results tab already shows
           // each game's score and status, so this redundant summary
           // panel (and its toggle) is dropped entirely rather than
-          // relabeled — nothing left for "View Picks" to close.
-          ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? 'Make Picks' : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
+          // relabeled — nothing left for "View Picks" to close. Once all
+          // participants are complete for the week, "Make Picks" is
+          // relabeled "Show Leaderboard" (title only — same onClick, same
+          // toggle target) since there's nothing left to pick.
+          ...(!(effectiveGamesStarted || weekEnded) ? [{ label: showGameDetails ? (participantCount > 0 && submittedCount >= participantCount ? 'Show Leaderboard' : 'Make Picks') : 'Game Details', icon: showGameDetails ? EyeOff : Eye, onClick: () => setShowGameDetails(!showGameDetails) }] : []),
           { label: 'Stats', icon: Users, onClick: () => setShowQuickStats(!showQuickStats) },
           ...(currentSeasonType === 3 ? [{ label: 'Confidence Pts', icon: Target, onClick: () => router.push(`/pool/${poolId}/playoffs`) }] : []),
           ...(weekEnded ? [{ label: showLeaderboard ? 'Hide Results' : 'Show Results', icon: Eye, onClick: () => setShowLeaderboard(!showLeaderboard) }] : []),

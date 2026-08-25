@@ -157,7 +157,7 @@ function LandingPage() {
   );
 
   const features = [
-    { icon: Trophy,   label: 'Weekly Competition', body: 'Confidence points separate the bold from the lucky — assign more points to games you are sure about.',   accent: gold },
+    { icon: Trophy,   label: 'Three Ways to Play', body: 'Confidence, Pick’em, and Survivor pools — pick the format that fits your group, and run as many as you like.',   accent: gold },
     { icon: Users,    label: 'Commissioner Tools',  body: 'Create a pool, invite players, manage picks, and track standings. Everything you need to run a great season.', accent: greenHi },
     { icon: Calendar, label: 'All Season Long',     body: 'Q1-Q4 period prizes, playoff pools, and email reminders keep every week on the line through February.',   accent: gold },
   ];
@@ -170,7 +170,7 @@ function LandingPage() {
 
   const playerSteps = [
     { n: '01', title: 'Join a Pool',   body: 'Get an invite from your commissioner and create your account' },
-    { n: '02', title: 'Make Picks',    body: 'Pick winners and assign confidence points before kickoff' },
+    { n: '02', title: 'Make Picks',    body: 'Submit your picks before kickoff each week' },
     { n: '03', title: 'Win the Week',  body: 'Earn points for correct picks and climb the leaderboard' },
   ];
 
@@ -208,7 +208,7 @@ function LandingPage() {
                 display: 'flex', alignItems: 'center', gap: '0.55rem',
               }}>
                 <span style={{ display: 'inline-block', width: 20, height: 2, background: greenHi, borderRadius: 1, flexShrink: 0 }} />
-                Weekly Confidence Pool
+                Confidence &middot; Pick&apos;em &middot; Survivor
               </p>
 
               <h1 style={{
@@ -227,7 +227,7 @@ function LandingPage() {
                 ...b, fontSize: '1rem', lineHeight: 1.72,
                 color: textMid, maxWidth: '40ch',
               }}>
-                Pick winners, assign confidence points, and compete with friends and family all season long.
+                Run a Confidence, Pick&apos;em, or Survivor pool — compete with friends and family all season long.
               </p>
             </div>
 

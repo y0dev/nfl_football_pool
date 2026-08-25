@@ -388,10 +388,12 @@ export type SubmitSurvivorPickResult =
 
 /** Server-authoritative pick submission — validates everything the client
  * already checks (not eliminated, team not previously used, week still
- * unlocked) again here, since the client check is UX only. Supports
- * changing an already-made pick for the CURRENT week as long as it's still
- * unlocked (delete-then-insert, so the reuse check below naturally excludes
- * the pick being replaced). */
+ * unlocked) again here, since the client check is UX only. Matches
+ * Confidence's /api/picks/submit: once a pick exists for the week, any
+ * further submission is rejected outright ("Picks already submitted for
+ * this week") rather than allowed as a silent change — except during
+ * playoffs, which keep the delete-then-insert update path (so the reuse
+ * check below naturally excludes the pick being replaced). */
 export async function submitSurvivorPick(params: {
   participantId: string;
   poolId: string;
@@ -464,8 +466,28 @@ export async function submitSurvivorPick(params: {
     return { success: false, error: 'This week is locked — picks can no longer be submitted or changed.' };
   }
 
-  // Delete any existing pick for this participant/week (supports changing
-  // an unlocked week's pick), then re-check team reuse against what
+  // Once a pick exists for this week, reject any further submission —
+  // matching Confidence's reject-on-resubmission rule — except during
+  // playoffs, which fall through to the delete-then-insert update below.
+  const isPlayoff = game.season_type === 3;
+  if (!devUnlocked && !isPlayoff) {
+    const { data: existingWeekPick, error: existingWeekPickError } = await supabase
+      .from('survivor_picks')
+      .select('id')
+      .eq('participant_id', params.participantId)
+      .eq('pool_id', params.poolId)
+      .eq('season', pool.season)
+      .eq('season_type', game.season_type)
+      .eq('week', game.week)
+      .maybeSingle();
+    if (existingWeekPickError) return { success: false, error: 'Failed to check existing pick.' };
+    if (existingWeekPick) {
+      return { success: false, error: 'Picks already submitted for this week.' };
+    }
+  }
+
+  // Delete any existing pick for this participant/week (playoffs only, to
+  // support updates there), then re-check team reuse against what
   // remains, then insert.
   const { error: deleteError } = await supabase
     .from('survivor_picks')
