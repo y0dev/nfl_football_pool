@@ -46,6 +46,7 @@ function daysFromNow(n: number): string {
 
 interface Fixture {
   ownerEmail: string;
+  ownerId: string;
   poolId: string;
   season: number;
   participants: Record<string, string>;
@@ -72,9 +73,16 @@ async function setupPickemPool(opts: {
   const season = opts.season ?? fakeSeason();
   const ownerEmail = `e2e-pickem-${season}-${Date.now()}@sundayhuddle.net`;
 
-  if (opts.standardPlanOwner) {
-    await supabase.from('commissioners').insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Pickem Owner', plan: 'standard', is_active: true });
-  }
+  // A real commissioner row is required regardless of plan — routes now
+  // authenticate the pool owner via a real account (session-derived),
+  // matching production (nobody can create a pool without one).
+  const { data: ownerRow, error: ownerError } = await supabase
+    .from('commissioners')
+    .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Pickem Owner', plan: opts.standardPlanOwner ? 'standard' : 'free', is_active: true })
+    .select('id')
+    .single();
+  if (ownerError || !ownerRow) throw new Error(`Failed to seed Pick'em pool owner: ${ownerError?.message}`);
+  const ownerId = ownerRow.id;
 
   const result = await createPool({
     name: `E2E Pickem ${season}`,
@@ -95,7 +103,7 @@ async function setupPickemPool(opts: {
     .select('id, name');
 
   const participants = Object.fromEntries((parts ?? []).map(p => [p.name, p.id]));
-  return { ownerEmail, poolId, season, participants, gameIds: [] };
+  return { ownerEmail, ownerId, poolId, season, participants, gameIds: [] };
 }
 
 async function createGame(fixture: Fixture, opts: {
@@ -141,7 +149,7 @@ async function cleanup(fixture: Fixture) {
   await supabase.from('pools').delete().eq('id', fixture.poolId); // cascades participants + pickem_picks/pickem_tiebreakers
   for (const id of fixture.gameIds) await supabase.from('games').delete().eq('id', id);
   await supabase.from('huddles').delete().eq('commissioner_email', fixture.ownerEmail);
-  await supabase.from('commissioners').delete().eq('email', fixture.ownerEmail); // no-op unless standardPlanOwner was used
+  await supabase.from('commissioners').delete().eq('id', fixture.ownerId);
 }
 
 test.describe("Pick'em Pool — creation", () => {
@@ -732,7 +740,7 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
   test('select, pick, submit; already-submitted participant cannot pick again; leaderboard auto-shows and the picker disappears once everyone has picked', async ({ page }) => {
     const fixture = await setupPickemPool({ participantNames: ['Alice', 'Bob', 'Carol'] });
     try {
-      await createGame(fixture, {
+      const gameId = await createGame(fixture, {
         week: 1, homeTeam: 'Kansas City Chiefs', awayTeam: 'Buffalo Bills', homeTeamId: 'KC', awayTeamId: 'BUF',
         kickoff: daysFromNow(3), status: 'scheduled',
       });
@@ -762,20 +770,38 @@ test.describe("Pick'em Pool — full picks flow (UI)", () => {
       await expect(page.locator('button:has-text("Kansas City"), button:has-text("Buffalo")')).toHaveCount(0);
       await expect(page.locator('button:has-text("Submit Picks")')).toHaveCount(0);
 
-      // Carol picks and submits — everyone has now submitted (even though
-      // the game hasn't started). Switch away from Alice's locked view first
-      // — the selector only reappears once no one is selected.
+      // Carol picks and submits — everyone has now submitted, but the game
+      // still hasn't started, so standings must NOT reveal yet (matching
+      // Confidence's own showResultsTabs gate, which also requires games to
+      // have actually started, not just "everyone picked" — see
+      // showResultsSection in pickem-picks-content.tsx). Switch away from
+      // Alice's locked view first — the selector only reappears once no one
+      // is selected.
       await page.locator('button:has-text("Not you? Switch")').click();
       await page.waitForSelector('text=/Who\'s picking/i', { timeout: 15000 });
       await page.selectOption('select', { label: 'Carol' });
       await page.waitForSelector('button:has-text("Kansas City")', { timeout: 15000 });
       await page.locator('button:has-text("Kansas City")').click();
-      await page.locator('button:has-text("Submit Picks")').click();
+      await Promise.all([
+        page.waitForResponse(res => res.url().includes('/api/pickem/submit') && res.request().method() === 'POST'),
+        page.locator('button:has-text("Submit Picks")').click(),
+      ]);
+      await expect(page.getByText("Pick'em Standings", { exact: true })).toHaveCount(0);
 
-      // Standings auto-show, matching Confidence's showResultsTabs — and,
-      // also matching Confidence, the entire picker/picks-form section
-      // (including "Who's picking?") disappears since there's nothing left
-      // to pick for anyone.
+      // Now simulate kickoff actually arriving — everyone already picked
+      // while the game was open (the realistic case: picks come in over the
+      // days before kickoff), and only once the game has since started
+      // should standings reveal. Waiting for the submit response above
+      // (rather than reloading immediately after the click) matters here:
+      // page.reload() cancels any still-in-flight request, which would
+      // silently drop Carol's submission.
+      await supabase.from('games').update({ kickoff_time: daysAgo(1), status: 'in_progress' }).eq('id', gameId);
+      await page.reload();
+
+      // Standings auto-show now that games have started AND everyone's
+      // picked — and, matching Confidence, the entire picker/picks-form
+      // section (including "Who's picking?") disappears since there's
+      // nothing left to pick for anyone.
       await expect(page.getByText("Pick'em Standings", { exact: true })).toBeVisible({ timeout: 15000 });
       await expect(page.getByText("Who's picking?", { exact: false })).toHaveCount(0);
       await expect(page.locator('select')).toHaveCount(0);
@@ -797,7 +823,7 @@ test.describe("Pick'em Pool — emails", () => {
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId: g2, selectedTeam: 'HB' });
 
       const res = await request.post('/api/pickem/send-reminders', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(200);
@@ -811,18 +837,26 @@ test.describe("Pick'em Pool — emails", () => {
 
   test('notify-week-results sends once the week is final and rejects an unauthorized caller', async ({ request }) => {
     const fixture = await setupPickemPool({ participantNames: ['Alice'] });
+    // A second, real but unrelated commissioner — proves the route enforces
+    // per-pool ownership, not just "any signed-in account."
+    const notOwnerEmail = `e2e-not-the-owner-${Date.now()}@sundayhuddle.net`;
+    const { data: notOwner } = await supabase
+      .from('commissioners')
+      .insert({ email: notOwnerEmail, password_hash: 'google_oauth', full_name: 'E2E Not The Owner', plan: 'free', is_active: true })
+      .select('id')
+      .single();
     try {
       const gameId = await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysAgo(3), status: 'finished', homeScore: 20, awayScore: 10 });
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
 
       const rejected = await request.post('/api/pickem/notify-week-results', {
-        headers: { 'x-admin-email': 'not-the-owner@example.com' },
+        headers: { Cookie: `sh-session=${notOwner!.id}` },
         data: { poolId: fixture.poolId },
       });
       expect(rejected.status()).toBe(403);
 
       const allowed = await request.post('/api/pickem/notify-week-results', {
-        headers: { 'x-admin-email': fixture.ownerEmail },
+        headers: { Cookie: `sh-session=${fixture.ownerId}` },
         data: { poolId: fixture.poolId },
       });
       expect(allowed.status()).toBe(200);
@@ -830,6 +864,7 @@ test.describe("Pick'em Pool — emails", () => {
       expect(body.success).toBe(true);
       expect(body.results.total).toBe(1);
     } finally {
+      await supabase.from('commissioners').delete().eq('email', notOwnerEmail);
       await cleanup(fixture);
     }
   });

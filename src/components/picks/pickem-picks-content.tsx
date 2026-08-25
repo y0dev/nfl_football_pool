@@ -534,8 +534,8 @@ export function PickemPicksContent() {
   // Same server-verified unlock as Confidence's unlockParticipantPicks —
   // reuses /api/pools/[id]/unlock-picks, which checks pool ownership /
   // super-admin from the DB itself (not client-held state) and deletes the
-  // participant's picks rows for the given games, same table Confidence's
-  // own picks live in.
+  // participant's rows from pickem_picks (not `picks`, which is Confidence's
+  // table) for the given games.
   const handleUnlockParticipant = async (participantId: string) => {
     if (!isPoolAdmin && !isSuperAdmin) {
       toast({ title: 'Permission Denied', description: 'Only pool commissioners or admins can unlock picks', variant: 'destructive' });
@@ -634,15 +634,16 @@ export function PickemPicksContent() {
   // Real DB-backed "has anyone picked this week" — same shape as
   // Confidence's anyPicksSubmitted check (some(entry => picks > 0)).
   const weekHasPicks = (result?.participants ?? []).some(p => p.picks.some(pk => !!pk.selectedTeam));
-  // Auto-show once everyone has submitted: real week-ended, OR the dev-only
-  // force override, OR every participant's real (DB) picks are complete —
-  // not gated on games having started, so the standings appear the moment
-  // the last participant submits, even pre-kickoff. devForceLeaderboard is
-  // a separate dev-only override, never required for correct production
-  // behavior.
+  // Auto-show once everyone has submitted AND games have actually started —
+  // same two-part gate as Confidence's showResultsTabs. Requiring
+  // effectiveGamesStarted too (not just "everyone's picks are complete")
+  // matters: without it, a participant who submits last reveals every other
+  // participant's selected teams before any game has locked, which a
+  // remaining participant elsewhere in the pool could exploit. weekEnded and
+  // devForceLeaderboard bypass it the same way Confidence's does.
   const showResultsSection = weekEnded
     || (showDebugPanel() && devForceLeaderboard)
-    || (statsTotal > 0 && statsComplete >= statsTotal);
+    || (effectiveGamesStarted && statsTotal > 0 && statsComplete >= statsTotal);
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>

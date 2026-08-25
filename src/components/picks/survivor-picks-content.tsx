@@ -469,15 +469,16 @@ export function SurvivorPicksContent() {
   // games, same real data gamesForLock/gamesStartedNow above already use.
   const weekEnded = currentWeekGames.length > 0 && currentWeekGames.every(g => normalizeGameStatus(g.status) === 'finished');
   const weekHasPicks = activeWithPick > 0;
-  // Auto-show once every ACTIVE participant's real (DB) pick is in: season
-  // complete, OR the dev-only force override, OR everyone eligible has
-  // picked — not gated on games having started, so standings appear the
-  // moment the last active participant picks, even pre-kickoff.
-  // devForceLeaderboard is a separate dev-only override, never required for
-  // correct production behavior.
+  // Auto-show once every ACTIVE participant's real (DB) pick is in AND
+  // games have actually started — same two-part gate as Confidence's
+  // showResultsTabs. Requiring effectiveGamesStarted too (not just "everyone
+  // eligible has picked") matters: without it, the last active participant
+  // to pick reveals every other participant's selected team before any game
+  // has locked, which a remaining participant could exploit. season_complete
+  // and devForceLeaderboard bypass it the same way Confidence's does.
   const showResultsSection = heroWeekState === 'season_complete'
     || (showDebugPanel() && devForceLeaderboard)
-    || (statsActive > 0 && activeWithPick >= statsActive);
+    || (effectiveGamesStarted && statsActive > 0 && activeWithPick >= statsActive);
 
   return (
     <div style={{ background: bg, minHeight: '100vh' }}>
