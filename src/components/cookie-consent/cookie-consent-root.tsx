@@ -89,8 +89,7 @@ export function CookieConsentRoot() {
         >
           <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
             <p style={{ ...b, fontSize: '0.85rem', color: textMid, lineHeight: 1.6, flex: '1 1 320px', margin: 0 }}>
-              Sunday Huddle only uses cookies required to keep the site working — signing you in, remembering a
-              private pool&rsquo;s password, and completing sign-up with Google. We don&rsquo;t use analytics,
+              Sunday Huddle only uses cookies required to keep the site working. We don&rsquo;t use analytics,
               advertising, or tracking cookies.{' '}
               <Link href="/privacy#cookies" style={{ color: greenHi }}>Learn more</Link>
             </p>
