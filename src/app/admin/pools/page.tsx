@@ -240,6 +240,20 @@ function AdminPoolsContent() {
     return [...groups.values()].sort((a, b2) => a.leagueName.localeCompare(b2.leagueName));
   }, [paginated]);
 
+  // League-wide participant totals — summed across every one of that
+  // league's pools system-wide (from the full `pools` list, not just the
+  // current filtered/paginated page), so the number doesn't change as an
+  // admin searches, filters, or pages through the pool list.
+  const leagueParticipantTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const pool of pools) {
+      const key = pool.huddle_id ?? 'none';
+      const count = pool.participants?.[0]?.count ?? 0;
+      totals.set(key, (totals.get(key) ?? 0) + count);
+    }
+    return totals;
+  }, [pools]);
+
   if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
@@ -368,6 +382,10 @@ function AdminPoolsContent() {
                     <p style={{ ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase', wordBreak: 'break-word' }}>
                       {group.leagueName} ({group.pools.length})
                     </p>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', ...b, fontSize: '0.72rem', color: textMid }}>
+                      <Users style={{ width: 11, height: 11, color: textDim }} />
+                      {leagueParticipantTotals.get(group.huddleId ?? 'none') ?? 0} participants total
+                    </span>
                     {group.huddleId && (
                       <button
                         onClick={() => router.push(`/admin/league/${group.huddleId}`)}
