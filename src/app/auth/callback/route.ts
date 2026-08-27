@@ -220,6 +220,12 @@ function buildSessionRedirect(
   // Hand session to the browser via a non-httpOnly cookie so AuthProvider can read it.
   // is_super_admin is intentionally omitted — authorization must always be verified
   // against the database (via verifyAdminStatus) and never trusted from client storage.
+  // This is a one-time handoff, not the real session: AuthProvider.checkSession()
+  // consumes it on the very next page load and deletes it immediately, copying the
+  // data into localStorage. maxAge is kept short (not the 90-day session lifetime)
+  // so that if the client never runs that JS (JS disabled, tab closed before
+  // hydration), this non-httpOnly PII cookie doesn't linger for months — the actual
+  // persistent session is the httpOnly `sh-session` cookie set below.
   const sessionPayload = JSON.stringify({
     id: admin.id,
     email: admin.email,
@@ -230,7 +236,7 @@ function buildSessionRedirect(
 
   response.cookies.set('nfl-pool-session', sessionPayload, {
     path: '/',
-    maxAge: 90 * 24 * 60 * 60,
+    maxAge: 60, // one-time handoff window, not a session lifetime
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     httpOnly: false, // must be readable by JS in AuthProvider
