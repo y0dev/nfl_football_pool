@@ -117,13 +117,22 @@ export function Footer({
             © {year} {title}. All rights reserved.
           </p>
 
+          <div style={{ display: "flex", justifyContent: "center", gap: "1.25rem", marginTop: "0.85rem" }}>
+            <Link href="/terms" style={{ ...linkStyle, fontSize: "0.78rem" }}>
+              Terms of Service
+            </Link>
+            <Link href="/privacy" style={{ ...linkStyle, fontSize: "0.78rem" }}>
+              Privacy Policy
+            </Link>
+          </div>
+
           <p
             id="footer-disclaimer"
             style={{
               fontFamily: font,
               fontSize: "0.72rem",
               color: textDim,
-              marginTop: "0.5rem",
+              marginTop: "0.75rem",
               lineHeight: 1.6,
             }}
           >
