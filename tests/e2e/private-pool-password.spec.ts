@@ -192,3 +192,81 @@ test.describe('setPoolPassword — toggling Private and setting a password witho
     }
   });
 });
+
+// A private pool with no password configured at all can only exist as
+// legacy/inconsistent data — createPool() itself rejects is_private:true
+// with no password (see the test above) — so this is seeded by updating the
+// row directly, the same way a pool could end up in this state outside the
+// normal create/set-password flow.
+test.describe('/pool/[id]/access — private pool with no password configured', () => {
+  test('visitor can leave the page instead of being stuck with no password to enter', async ({ page }) => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-needs-setup-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+
+    try {
+      const created = await createPool({
+        name: 'E2E Needs-Setup Pool',
+        created_by: ownerEmail,
+        season: 2020,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      // Bypass the app-level validation that would normally require a
+      // password alongside is_private:true, reproducing the legacy/
+      // inconsistent-data state PoolPasswordPrompt's needsSetup branch
+      // exists to handle.
+      await supabase.from('pools').update({ is_private: true, private_password_encrypted: null }).eq('id', poolId);
+
+      await page.goto(`/pool/${poolId}/access`);
+      await expect(page.getByRole('heading', { name: 'Password Required' })).toBeVisible();
+      await expect(page.getByText(/ask your commissioner to set one/i)).toBeVisible();
+
+      // There must be no password field to fill in here (nothing to submit),
+      // so the exit link is the only way out of this page.
+      await expect(page.locator('input[type="password"]')).toHaveCount(0);
+
+      const exitLink = page.getByRole('link', { name: /back to sunday huddle/i });
+      await expect(exitLink).toBeVisible();
+      await expect(exitLink).toHaveAttribute('href', '/');
+
+      await exitLink.click();
+      await expect(page).toHaveURL(/\/$/);
+    } finally {
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+
+  test('password-prompt case also offers the same exit link', async ({ page }) => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-exit-link-pw-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+
+    try {
+      const created = await createPool({
+        name: 'E2E Exit-Link Password Pool',
+        created_by: ownerEmail,
+        season: 2020,
+        season_scope: [2],
+        is_private: true,
+        join_password: 'testpass123',
+        join_password_confirm: 'testpass123',
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      await page.goto(`/pool/${poolId}/access`);
+      await expect(page.getByRole('heading', { name: 'Private Pool' })).toBeVisible();
+      await expect(page.getByRole('link', { name: /back to sunday huddle/i })).toHaveAttribute('href', '/');
+    } finally {
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+});
