@@ -9,9 +9,11 @@ import {
 } from '@/actions/poolPayouts';
 import {
   PayoutConfig, calculatePayouts, computeTotalPool, computeWeeklyDollarAmount,
-  computeOverallAllocation, formatCurrency, StandingEntry,
+  computeQuarterDollarAmount, computeOverallAllocation, formatCurrency, StandingEntry,
 } from '@/lib/payouts';
-import { DollarSign, RefreshCw, Check, AlertTriangle, Calendar, Trophy } from 'lucide-react';
+import { getRegularSeasonPeriods } from '@/lib/utils';
+import { DollarSign, RefreshCw, Check, AlertTriangle, Calendar, Trophy, CalendarRange } from 'lucide-react';
+import { SharePayoutsButton, PoolTypeLabel } from '@/components/admin/payout-share';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -31,6 +33,8 @@ const SEASON_TYPE_LABELS: Record<number, string> = { 1: 'Preseason', 2: 'Regular
 
 interface PayoutCalculatorProps {
   poolId: string;
+  /** Only used for the "Share Payouts" image (pool name shown on the card) — never fetched or persisted here. */
+  poolName?: string;
   season: number;
   seasonScope: number[];
   defaultSeasonType: number;
@@ -40,6 +44,11 @@ interface PayoutCalculatorProps {
    * fetchPickemSeasonStandings above. Everything past the fetch (the actual
    * payout math) is identical either way. */
   isPickem?: boolean;
+  /** Only used to label the pool type on the shared image — Survivor never
+   * reaches QuarterCalculator regardless (see showQuarterOption gating). */
+  isSurvivor?: boolean;
+  /** Quarter (Q1-Q4) payouts — see the gating comment in pool-workspace.tsx. */
+  showQuarterOption?: boolean;
 }
 
 interface LeaderboardRow { participant_id: string; participant_name: string; total_points: number }
@@ -70,6 +79,23 @@ async function fetchSeasonLeaderboard(poolId: string, season: number, currentWee
     .sort((a, b2) => b2.score - a.score);
 }
 
+// Quarter standings reuse the same period-leaderboard endpoint the app's own
+// Period tab (src/app/api/periods/leaderboard/route.ts) already uses for
+// Q1-Q4 — that endpoint's regular-season branch computes standings via
+// computeSeasonReview(), which is the authoritative source for a quarter's
+// totals. Only reachable when showQuarterOption is true (Confidence pools
+// with the regular season in scope), so seasonType is always 2 here.
+interface PeriodLeaderboardRow { participant_id: string; name: string; total_points: number }
+
+async function fetchQuarterLeaderboard(poolId: string, season: number, periodName: string, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${periodName}&seasonType=2`, { headers: adminHeaders(adminEmail) });
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.data.leaderboard as PeriodLeaderboardRow[])
+    .map(r => ({ participantId: r.participant_id, participantName: r.name, score: r.total_points }))
+    .sort((a, b2) => b2.score - a.score);
+}
+
 // Pick'em adapter — maps computePickemWeekResult/computePickemSeasonSummary
 // (src/lib/pickem.ts, the one authoritative Pick'em service) into the same
 // generic StandingEntry[] shape the Confidence adapters above produce, so
@@ -94,7 +120,7 @@ async function fetchPickemSeasonStandings(poolId: string, adminEmail: string | n
     .sort((a, b2) => b2.score - a.score);
 }
 
-export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonType, defaultWeek, isPickem }: PayoutCalculatorProps) {
+export function PayoutCalculator({ poolId, poolName, season, seasonScope, defaultSeasonType, defaultWeek, isPickem, isSurvivor, showQuarterOption }: PayoutCalculatorProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -129,6 +155,8 @@ export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonTyp
     );
   }
 
+  const poolTypeLabel: PoolTypeLabel = isSurvivor ? 'Survivor' : isPickem ? "Pick'em" : 'Confidence';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -143,21 +171,28 @@ export function PayoutCalculator({ poolId, season, seasonScope, defaultSeasonTyp
 
       {config.weeklyEnabled && (
         <WeeklyCalculator
-          poolId={poolId} season={season} config={config} totalPool={totalPool}
+          poolId={poolId} poolName={poolName} poolTypeLabel={poolTypeLabel} season={season} config={config} totalPool={totalPool}
           availableSeasonTypes={availableSeasonTypes} defaultSeasonType={defaultSeasonType} defaultWeek={defaultWeek}
           requestedBy={user?.email ?? ''} toast={toast} isPickem={isPickem}
         />
       )}
 
+      {showQuarterOption && config.quarterEnabled && (
+        <QuarterCalculator
+          poolId={poolId} poolName={poolName} poolTypeLabel={poolTypeLabel} season={season} config={config} totalPool={totalPool}
+          requestedBy={user?.email ?? ''} toast={toast}
+        />
+      )}
+
       {config.overallEnabled && (
         <OverallCalculator
-          poolId={poolId} season={season} config={config} totalPool={totalPool}
+          poolId={poolId} poolName={poolName} poolTypeLabel={poolTypeLabel} season={season} config={config} totalPool={totalPool}
           defaultSeasonType={defaultSeasonType}
           requestedBy={user?.email ?? ''} toast={toast} isPickem={isPickem}
         />
       )}
 
-      {!config.weeklyEnabled && !config.overallEnabled && (
+      {!config.weeklyEnabled && !config.overallEnabled && !(showQuarterOption && config.quarterEnabled) && (
         <div style={{ ...cardStyle, textAlign: 'center', color: textDim, fontSize: '0.85rem', ...b }}>
           Neither weekly nor overall payouts are enabled — turn one on in Settings to calculate payouts.
         </div>
@@ -206,9 +241,9 @@ function ResultsTable({
 }
 
 function WeeklyCalculator({
-  poolId, season, config, totalPool, availableSeasonTypes, defaultSeasonType, defaultWeek, requestedBy, toast, isPickem,
+  poolId, poolName, poolTypeLabel, season, config, totalPool, availableSeasonTypes, defaultSeasonType, defaultWeek, requestedBy, toast, isPickem,
 }: {
-  poolId: string; season: number; config: PayoutConfig; totalPool: number;
+  poolId: string; poolName?: string; poolTypeLabel: PoolTypeLabel; season: number; config: PayoutConfig; totalPool: number;
   availableSeasonTypes: number[]; defaultSeasonType: number; defaultWeek: number;
   requestedBy: string; toast: ReturnType<typeof useToast>['toast']; isPickem?: boolean;
 }) {
@@ -314,16 +349,23 @@ function WeeklyCalculator({
       ) : results.length === 0 ? (
         <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded for Week {week} yet.</p>
       ) : (
-        <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
+        <>
+          <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
+          <SharePayoutsButton
+            poolName={poolName} poolTypeLabel={poolTypeLabel}
+            timeframeLabel={`${seasonType !== 2 ? SEASON_TYPE_LABELS[seasonType] + ' ' : ''}Week ${week} Payout`}
+            entryFee={config.entryFee} tiePolicy={config.tiePolicy} results={results}
+          />
+        </>
       )}
     </div>
   );
 }
 
 function OverallCalculator({
-  poolId, season, config, totalPool, defaultSeasonType, requestedBy, toast, isPickem,
+  poolId, poolName, poolTypeLabel, season, config, totalPool, defaultSeasonType, requestedBy, toast, isPickem,
 }: {
-  poolId: string; season: number; config: PayoutConfig; totalPool: number; defaultSeasonType: number;
+  poolId: string; poolName?: string; poolTypeLabel: PoolTypeLabel; season: number; config: PayoutConfig; totalPool: number; defaultSeasonType: number;
   requestedBy: string; toast: ReturnType<typeof useToast>['toast']; isPickem?: boolean;
 }) {
   const [standings, setStandings] = useState<StandingEntry[] | null>(null);
@@ -427,7 +469,124 @@ function OverallCalculator({
       ) : results.length === 0 ? (
         <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded for this season yet.</p>
       ) : (
-        <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
+        <>
+          <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
+          <SharePayoutsButton
+            poolName={poolName} poolTypeLabel={poolTypeLabel} timeframeLabel="Season Payout"
+            entryFee={config.entryFee} tiePolicy={config.tiePolicy} results={results}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+const QUARTER_PERIODS = getRegularSeasonPeriods();
+
+/** Only rendered when showQuarterOption is true (Confidence pools with the
+ * regular season in scope — see pool-workspace.tsx) and quarterEnabled is
+ * on. Mirrors WeeklyCalculator exactly: same ResultsTable, same save/mark-paid
+ * flow, same share button — only the standings source (a quarter/period
+ * instead of a single week) and dollar-amount config fields differ. */
+function QuarterCalculator({
+  poolId, poolName, poolTypeLabel, season, config, totalPool, requestedBy, toast,
+}: {
+  poolId: string; poolName?: string; poolTypeLabel: PoolTypeLabel; season: number; config: PayoutConfig; totalPool: number;
+  requestedBy: string; toast: ReturnType<typeof useToast>['toast'];
+}) {
+  const [periodName, setPeriodName] = useState(QUARTER_PERIODS[0].name);
+  const [standings, setStandings] = useState<StandingEntry[] | null>(null);
+  const [records, setRecords] = useState<Record<string, { id: string; paid: boolean }>>({});
+  const [isCalculating, setIsCalculating] = useState(false);
+
+  const quarterDollar = computeQuarterDollarAmount(config, totalPool);
+
+  const runCalculation = useCallback(async () => {
+    setIsCalculating(true);
+    try {
+      const rows = await fetchQuarterLeaderboard(poolId, season, periodName, requestedBy);
+      setStandings(rows);
+      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName);
+      setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
+    } finally {
+      setIsCalculating(false);
+    }
+  }, [poolId, season, periodName, requestedBy]);
+
+  const results = useMemo(() => {
+    if (!standings) return [];
+    const calculated = calculatePayouts(config.quarterPositions, quarterDollar, standings, config.tiePolicy);
+    return calculated.map(r => ({ ...r, id: records[r.participantId]?.id, paid: records[r.participantId]?.paid ?? false }));
+  }, [standings, config, quarterDollar, records]);
+
+  const handleSaveAndTogglePaid = async (index: number) => {
+    const row = results[index];
+    if (!requestedBy) return;
+
+    if (!row.id) {
+      const inputs: PayoutRecordInput[] = results.filter(r => !r.needsManualResolution).map(r => ({
+        scope: 'quarter', season, week: 0, seasonType: 2, periodName, place: r.place,
+        participantId: r.participantId, participantName: r.participantName, amount: r.amount,
+      }));
+      const saveResult = await savePayoutCalculation(poolId, requestedBy, inputs);
+      if (!saveResult.success) { toast({ title: 'Error', description: saveResult.error, variant: 'destructive' }); return; }
+      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName);
+      setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
+      const refreshed = existing.find(r => r.participant_id === row.participantId);
+      if (refreshed) {
+        const result = await markPayoutPaid(refreshed.id, requestedBy, !refreshed.paid);
+        if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return; }
+        setRecords(prev => ({ ...prev, [row.participantId]: { id: refreshed.id, paid: !refreshed.paid } }));
+      }
+      return;
+    }
+
+    const result = await markPayoutPaid(row.id, requestedBy, !row.paid);
+    if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return; }
+    setRecords(prev => ({ ...prev, [row.participantId]: { id: row.id!, paid: !row.paid } }));
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+        <CalendarRange style={{ width: 15, height: 15, color: greenHi }} />
+        <p style={{ ...bc, fontWeight: 800, fontSize: '0.85rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quarter Payout Calculator</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.25rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.2rem' }}>
+          {QUARTER_PERIODS.map(p => (
+            <button key={p.name} type="button" onClick={() => { setPeriodName(p.name); setStandings(null); }} style={{ padding: '0.35rem 0.6rem', background: periodName === p.name ? green : 'transparent', color: periodName === p.name ? text : textDim, border: 'none', borderRadius: 4, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem' }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button" onClick={runCalculation} disabled={isCalculating}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: green, color: text, border: 'none', borderRadius: 6, cursor: isCalculating ? 'not-allowed' : 'pointer', ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+        >
+          <RefreshCw style={{ width: 12, height: 12 }} className={isCalculating ? 'animate-spin' : ''} />
+          {isCalculating ? 'Calculating…' : 'Calculate'}
+        </button>
+      </div>
+
+      <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.75rem' }}>
+        Quarter Prize Pool: <strong style={{ color: text }}>{formatCurrency(quarterDollar)}</strong>
+      </p>
+
+      {standings === null ? (
+        <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Choose a quarter and click Calculate.</p>
+      ) : results.length === 0 ? (
+        <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded for {periodName} yet.</p>
+      ) : (
+        <>
+          <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
+          <SharePayoutsButton
+            poolName={poolName} poolTypeLabel={poolTypeLabel}
+            timeframeLabel={`Quarter ${periodName.replace('Q', '')} Payout`}
+            entryFee={config.entryFee} tiePolicy={config.tiePolicy} results={results}
+          />
+        </>
       )}
     </div>
   );

@@ -110,6 +110,12 @@ export function PoolWorkspace({
   const [competitionTypeError, setCompetitionTypeError] = useState(false);
   const isSurvivor = competitionType === 'SURVIVOR';
   const isPickem = competitionType === 'PICKEM';
+  // Quarter (Q1-Q4) payouts ride on the existing Confidence period-winners
+  // feature (getRegularSeasonPeriods()/period_winners — see src/lib/season-review.ts),
+  // which only exists for regular-season Confidence pools. Survivor and
+  // Pick'em have no quarter/period concept at all, so this is additive-only
+  // for everything else, gated on the regular season actually being in scope.
+  const showQuarterPayouts = !isSurvivor && !isPickem && (seasonScope ?? [2]).includes(2);
 
   useEffect(() => {
     let cancelled = false;
@@ -748,11 +754,14 @@ export function PoolWorkspace({
       {activePoolTab === 'payouts' && (
         <PayoutCalculator
           poolId={poolId}
+          poolName={poolName}
           season={season}
           seasonScope={seasonScope ?? [2]}
           defaultSeasonType={currentSeasonType}
           defaultWeek={currentWeek}
           isPickem={isPickem}
+          isSurvivor={isSurvivor}
+          showQuarterOption={showQuarterPayouts}
         />
       )}
 
@@ -769,7 +778,7 @@ export function PoolWorkspace({
           onPoolDeleted={onPoolDeleted}
           onPoolUpdated={() => { loadStats(); onPoolUpdated?.(); }}
         >
-          <PayoutSettings poolId={poolId} isLocked={season < getNFLSeasonYear()} poolSeason={season} />
+          <PayoutSettings poolId={poolId} isLocked={season < getNFLSeasonYear()} poolSeason={season} showQuarterOption={showQuarterPayouts} />
         </PoolSettings>
       )}
     </div>

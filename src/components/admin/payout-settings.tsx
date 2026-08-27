@@ -8,7 +8,7 @@ import { getPoolPayoutConfig, setPoolPayoutConfig, getActiveParticipantCount } f
 import {
   PayoutConfig, PayoutPosition, TiePolicy, WeeklyAmountType,
   validatePayoutPositions, validateEntryFee, validateWeeklyAmount,
-  computeTotalPool, computeWeeklyDollarAmount, computeOverallAllocation,
+  computeTotalPool, computeWeeklyDollarAmount, computeQuarterDollarAmount, computeOverallAllocation,
   defaultPositionSplit, formatCurrency, ordinal, DEFAULT_PAYOUT_CONFIG,
 } from '@/lib/payouts';
 import { DollarSign, Info, Plus, Trash2, Save, AlertTriangle, Lock } from 'lucide-react';
@@ -144,9 +144,13 @@ interface PayoutSettingsProps {
   isLocked?: boolean;
   /** Only used to word the lock notice ("from the {poolSeason} season") — omit and the notice falls back to generic wording. */
   poolSeason?: number;
+  /** Quarter Payouts only makes sense for pools that have a quarter/period
+   * concept at all (Confidence pools with the regular season in scope) —
+   * see the gating comment in pool-workspace.tsx. */
+  showQuarterOption?: boolean;
 }
 
-export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsProps) {
+export function PayoutSettings({ poolId, isLocked, poolSeason, showQuarterOption }: PayoutSettingsProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -181,11 +185,18 @@ export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsP
       const posErr = validatePayoutPositions(config.overallPositions);
       if (posErr) list.push(`Overall payouts: ${posErr}`);
     }
+    if (showQuarterOption && config.quarterEnabled) {
+      const amtErr = validateWeeklyAmount(config.quarterAmountType, config.quarterAmount, 'quarter');
+      if (amtErr) list.push(`Quarter payouts: ${amtErr}`);
+      const posErr = validatePayoutPositions(config.quarterPositions);
+      if (posErr) list.push(`Quarter payouts: ${posErr}`);
+    }
     return list;
-  }, [config]);
+  }, [config, showQuarterOption]);
 
   const totalPool = computeTotalPool(config.entryFee, participantCount);
   const weeklyDollar = config.weeklyEnabled ? computeWeeklyDollarAmount(config, totalPool) : 0;
+  const quarterDollar = showQuarterOption && config.quarterEnabled ? computeQuarterDollarAmount(config, totalPool) : 0;
   // Preview assumes a full 17-week regular season for illustration only —
   // the calculator uses the pool's real season scope when it actually runs.
   const overallDollar = config.overallEnabled
@@ -334,6 +345,53 @@ export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsP
               )}
             </div>
 
+            {/* Quarter payouts — only for pools with a quarter/period concept (Confidence, regular season in scope) */}
+            {showQuarterOption && (
+              <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: config.quarterEnabled ? '1rem' : 0 }}>
+                  <p style={{ ...bc, fontWeight: 700, fontSize: '0.8rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quarter Payouts</p>
+                  <OnOffToggle value={config.quarterEnabled} onChange={v => setConfig({ ...config, quarterEnabled: v })} />
+                </div>
+                {config.quarterEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                      <label style={labelStyle}>Quarter Prize Pool</label>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.25rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.2rem' }}>
+                          {(['fixed', 'percentage'] as WeeklyAmountType[]).map(t => (
+                            <button
+                              key={t} type="button"
+                              onClick={() => setConfig({ ...config, quarterAmountType: t })}
+                              style={{ padding: '0.3rem 0.6rem', background: config.quarterAmountType === t ? green : 'transparent', color: config.quarterAmountType === t ? text : textDim, border: 'none', borderRadius: 4, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase' }}
+                            >
+                              {t === 'fixed' ? '$ Fixed' : '% of Pool'}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ position: 'relative', width: '8rem' }}>
+                          {config.quarterAmountType === 'fixed' && <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: textDim, fontSize: '0.875rem' }}>$</span>}
+                          <input
+                            type="number" min={0} step={0.01}
+                            value={config.quarterAmount ?? ''}
+                            onChange={e => setConfig({ ...config, quarterAmount: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                            style={{ ...inputStyle, paddingLeft: config.quarterAmountType === 'fixed' ? '1.5rem' : '0.75rem' }}
+                          />
+                          {config.quarterAmountType === 'percentage' && <span style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: textDim, fontSize: '0.875rem' }}>%</span>}
+                        </div>
+                      </div>
+                      {config.quarterAmountType === 'percentage' && (
+                        <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.3rem' }}>Percentage of the total prize pool (entry fee × participants), paid out each quarter.</p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Quarter Winners</label>
+                      <PositionsEditor positions={config.quarterPositions} onChange={p => setConfig({ ...config, quarterPositions: p })} accent={greenHi} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Tie policy */}
             <div>
               <label style={labelStyle}>If Participants Tie</label>
@@ -355,7 +413,7 @@ export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsP
             </div>
 
             {/* Live preview (Step 15) */}
-            {(config.weeklyEnabled || config.overallEnabled) && (
+            {(config.weeklyEnabled || config.overallEnabled || (showQuarterOption && config.quarterEnabled)) && (
               <div style={{ background: 'oklch(19% 0.04 72)', border: `1px solid oklch(35% 0.1 72)`, borderRadius: 8, padding: '1rem' }}>
                 <p style={{ ...bc, fontWeight: 800, fontSize: '0.78rem', color: gold, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem' }}>Payout Preview</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -363,6 +421,7 @@ export function PayoutSettings({ poolId, isLocked, poolSeason }: PayoutSettingsP
                   <PreviewRow label="Active Participants" value={String(participantCount)} />
                   <PreviewRow label="Total Contributions" value={formatCurrency(totalPool)} strong />
                   {config.weeklyEnabled && <PreviewRow label={`Weekly Payout${config.weeklyAmountType === 'percentage' ? ' (per week)' : ''}`} value={formatCurrency(weeklyDollar)} />}
+                  {showQuarterOption && config.quarterEnabled && <PreviewRow label={`Quarter Payout${config.quarterAmountType === 'percentage' ? ' (per quarter)' : ''}`} value={formatCurrency(quarterDollar)} />}
                   {config.overallEnabled && (
                     <PreviewRow
                       label="Overall Allocation"

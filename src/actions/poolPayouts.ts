@@ -43,6 +43,10 @@ function toConfig(row: {
   weekly_positions: PayoutPosition[];
   overall_enabled: boolean;
   overall_positions: PayoutPosition[];
+  quarter_enabled?: boolean | null;
+  quarter_amount_type?: string | null;
+  quarter_amount?: number | null;
+  quarter_positions?: PayoutPosition[] | null;
 } | null): PayoutConfig {
   if (!row) return DEFAULT_PAYOUT_CONFIG;
   return {
@@ -55,6 +59,13 @@ function toConfig(row: {
     weeklyPositions: row.weekly_positions?.length ? row.weekly_positions : DEFAULT_WEEKLY_POSITIONS,
     overallEnabled: row.overall_enabled,
     overallPositions: row.overall_positions?.length ? row.overall_positions : DEFAULT_OVERALL_POSITIONS,
+    // Optional at the type level so a row saved before this migration ran
+    // (or a stale schema cache) still resolves to sane quarter-off defaults
+    // instead of throwing.
+    quarterEnabled: row.quarter_enabled ?? false,
+    quarterAmountType: (row.quarter_amount_type as WeeklyAmountType) ?? 'fixed',
+    quarterAmount: row.quarter_amount ?? null,
+    quarterPositions: row.quarter_positions?.length ? row.quarter_positions : DEFAULT_WEEKLY_POSITIONS,
   };
 }
 
@@ -117,6 +128,13 @@ export async function setPoolPayoutConfig(
     if (overallPositionsError) return { success: false, error: `Overall payouts: ${overallPositionsError}` };
   }
 
+  if (config.quarterEnabled) {
+    const quarterAmountError = validateWeeklyAmount(config.quarterAmountType, config.quarterAmount, 'quarter');
+    if (quarterAmountError) return { success: false, error: `Quarter payouts: ${quarterAmountError}` };
+    const quarterPositionsError = validatePayoutPositions(config.quarterPositions);
+    if (quarterPositionsError) return { success: false, error: `Quarter payouts: ${quarterPositionsError}` };
+  }
+
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from('payout_configs')
@@ -131,6 +149,10 @@ export async function setPoolPayoutConfig(
       weekly_positions: config.weeklyPositions,
       overall_enabled: config.overallEnabled,
       overall_positions: config.overallPositions,
+      quarter_enabled: config.quarterEnabled,
+      quarter_amount_type: config.quarterAmountType,
+      quarter_amount: config.quarterAmount,
+      quarter_positions: config.quarterPositions,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'pool_id' });
 
@@ -142,14 +164,18 @@ export async function setPoolPayoutConfig(
 }
 
 export interface PayoutRecordInput {
-  scope: 'weekly' | 'overall';
+  scope: 'weekly' | 'overall' | 'quarter';
   season: number;
-  /** Real week number for 'weekly' scope. Always 0 for 'overall' scope —
-   * NOT null: the (pool, scope, season, week, place) unique constraint
-   * can't dedupe on NULL (Postgres treats NULL <> NULL), so 'overall'
-   * records use 0 as a concrete "not applicable" sentinel instead. */
+  /** Real week number for 'weekly' scope. Always 0 for 'overall' and
+   * 'quarter' scope — NOT null: the unique constraint can't dedupe on NULL
+   * (Postgres treats NULL <> NULL), so both use 0 as a concrete
+   * "not applicable" sentinel instead. */
   week: number;
   seasonType: number | null;
+  /** Required for 'quarter' scope ('Q1'..'Q4' — see getRegularSeasonPeriods()
+   * in src/lib/utils.ts), null otherwise. This is what actually
+   * distinguishes one quarter's records from another, since week is always 0. */
+  periodName?: string | null;
   place: number;
   participantId: string | null;
   participantName: string;
@@ -181,13 +207,14 @@ export async function savePayoutCalculation(
         season: r.season,
         week: r.week,
         season_type: r.seasonType,
+        period_name: r.periodName ?? null,
         place: r.place,
         participant_id: r.participantId,
         participant_name: r.participantName,
         amount: r.amount,
         updated_at: new Date().toISOString(),
       })),
-      { onConflict: 'pool_id,scope,season,week,participant_id', ignoreDuplicates: false }
+      { onConflict: 'pool_id,scope,season,week,period_name,participant_id', ignoreDuplicates: false }
     )
     .select('id, paid');
 
@@ -200,9 +227,13 @@ export async function savePayoutCalculation(
 
 export async function getPayoutRecords(
   poolId: string,
-  scope: 'weekly' | 'overall',
+  scope: 'weekly' | 'overall' | 'quarter',
   season: number,
-  week?: number
+  week?: number,
+  /** Only meaningful (and required to scope to one specific quarter) for
+   * scope 'quarter' — e.g. 'Q1'. Omit to fetch every quarter's records for
+   * this pool/season, same as omitting `week` fetches every week. */
+  periodName?: string
 ) {
   const supabase = getSupabaseServiceClient();
   let query = supabase
@@ -215,6 +246,10 @@ export async function getPayoutRecords(
 
   if (scope === 'weekly' && week != null) query = query.eq('week', week);
   else if (scope === 'overall') query = query.eq('week', 0);
+  else if (scope === 'quarter') {
+    query = query.eq('week', 0);
+    if (periodName) query = query.eq('period_name', periodName);
+  }
 
   const { data, error } = await query;
   if (error) {

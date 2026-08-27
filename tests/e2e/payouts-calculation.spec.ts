@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import {
   calculatePayouts, computeTotalPool, computeOverallAllocation, computeWeeklyDollarAmount,
-  validatePayoutPositions, validateEntryFee, defaultPositionSplit,
+  computeQuarterDollarAmount, validatePayoutPositions, validateEntryFee, validateWeeklyAmount,
+  defaultPositionSplit,
 } from '../../src/lib/payouts';
 
 // ─────────────────────────────────────────────────────────────
@@ -134,5 +135,51 @@ test.describe('Payout calculations', () => {
       expect(total).toBe(100);
       expect(validatePayoutPositions(split)).toBeNull();
     }
+  });
+
+  // Quarter payouts — Part A2 of the quarter-payouts spec requires the exact
+  // same formula as Weekly, just scoped to a quarter. These mirror Scenario 3
+  // and Scenario 4 above field-for-field (only the function name differs) to
+  // prove computeQuarterDollarAmount and computeWeeklyDollarAmount produce
+  // identical output for identical input, fixed and percentage alike.
+  test('Quarter formula parity — fixed amount matches computeWeeklyDollarAmount exactly', () => {
+    const weekly = computeWeeklyDollarAmount({ weeklyAmountType: 'fixed', weeklyAmount: 50 }, 0);
+    const quarter = computeQuarterDollarAmount({ quarterAmountType: 'fixed', quarterAmount: 50 }, 0);
+    expect(quarter).toBe(weekly);
+    expect(quarter).toBe(50);
+  });
+
+  test('Quarter formula parity — percentage-of-pool matches computeWeeklyDollarAmount exactly', () => {
+    const total = computeTotalPool(20, 15); // 300
+    const weekly = computeWeeklyDollarAmount({ weeklyAmountType: 'percentage', weeklyAmount: 10 }, total);
+    const quarter = computeQuarterDollarAmount({ quarterAmountType: 'percentage', quarterAmount: 10 }, total);
+    expect(quarter).toBe(weekly);
+    expect(quarter).toBe(30);
+  });
+
+  test('Quarter payouts reuse calculatePayouts unchanged, including tie splitting', () => {
+    const total = computeTotalPool(20, 15); // 300
+    const quarterDollar = computeQuarterDollarAmount({ quarterAmountType: 'fixed', quarterAmount: 100 }, total);
+    const standings = [
+      { participantId: '1', participantName: 'A', score: 20 },
+      { participantId: '2', participantName: 'B', score: 20 }, // tied for 1st
+      { participantId: '3', participantName: 'C', score: 15 },
+    ];
+    const positions = [{ place: 1, percentage: 60 }, { place: 2, percentage: 25 }, { place: 3, percentage: 15 }];
+    const results = calculatePayouts(positions, quarterDollar, standings, 'split');
+    // Combined 1st+2nd (60+25=85%) of $100 split between the 2 tied participants
+    expect(results[0].amount).toBeCloseTo(42.5, 2);
+    expect(results[1].amount).toBeCloseTo(42.5, 2);
+    expect(results[0].tied).toBe(true);
+    expect(results[2].place).toBe(3);
+    expect(results[2].amount).toBeCloseTo(15, 2);
+  });
+
+  test('validateWeeklyAmount reused for quarter validation produces quarter-worded messages', () => {
+    expect(validateWeeklyAmount('fixed', null)).toBe('Enter a weekly payout amount.');
+    expect(validateWeeklyAmount('fixed', null, 'quarter')).toBe('Enter a quarter payout amount.');
+    expect(validateWeeklyAmount('fixed', -5, 'quarter')).toBe('Quarter payout amount cannot be negative.');
+    expect(validateWeeklyAmount('percentage', 150, 'quarter')).toBe('Quarter payout percentage cannot exceed 100%.');
+    expect(validateWeeklyAmount('fixed', 50, 'quarter')).toBeNull();
   });
 });

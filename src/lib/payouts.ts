@@ -23,6 +23,15 @@ export interface PayoutConfig {
   weeklyPositions: PayoutPosition[];
   overallEnabled: boolean;
   overallPositions: PayoutPosition[];
+  /** Quarter (Q1-Q4) payouts — only meaningful for pools that have a
+   * quarter/period concept at all (currently: Confidence pools with the
+   * regular season in scope — see getRegularSeasonPeriods()/period_winners).
+   * Same shape and formula as the weekly fields, scoped to a quarter instead
+   * of a week; see computeQuarterDollarAmount below. */
+  quarterEnabled: boolean;
+  quarterAmountType: WeeklyAmountType;
+  quarterAmount: number | null;
+  quarterPositions: PayoutPosition[];
 }
 
 export interface StandingEntry {
@@ -62,6 +71,10 @@ export const DEFAULT_PAYOUT_CONFIG: PayoutConfig = {
   weeklyPositions: DEFAULT_WEEKLY_POSITIONS,
   overallEnabled: false,
   overallPositions: DEFAULT_OVERALL_POSITIONS,
+  quarterEnabled: false,
+  quarterAmountType: 'fixed',
+  quarterAmount: null,
+  quarterPositions: DEFAULT_WEEKLY_POSITIONS,
 };
 
 const FLOAT_TOLERANCE = 0.01;
@@ -128,11 +141,20 @@ export function validateEntryFee(fee: number | null | undefined): string | null 
   return null;
 }
 
-export function validateWeeklyAmount(type: WeeklyAmountType, amount: number | null | undefined): string | null {
-  if (amount == null || !Number.isFinite(amount)) return 'Enter a weekly payout amount.';
-  if (amount < 0) return 'Weekly payout amount cannot be negative.';
-  if (type === 'percentage' && amount > 100) return 'Weekly payout percentage cannot exceed 100%.';
+/**
+ * `label` defaults to 'weekly' so every existing call site keeps its exact
+ * original message text — pass 'quarter' (or any other recurring-payout
+ * scope added later) to reuse this same validation with matching wording.
+ */
+export function validateWeeklyAmount(type: WeeklyAmountType, amount: number | null | undefined, label: string = 'weekly'): string | null {
+  if (amount == null || !Number.isFinite(amount)) return `Enter a ${label} payout amount.`;
+  if (amount < 0) return `${capitalize(label)} payout amount cannot be negative.`;
+  if (type === 'percentage' && amount > 100) return `${capitalize(label)} payout percentage cannot exceed 100%.`;
   return null;
+}
+
+function capitalize(s: string): string {
+  return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
 /** Total contributions if every active participant paid the entry fee. Entry fee is optional — a $0/null fee is a valid, purely competitive pool. */
@@ -141,11 +163,22 @@ export function computeTotalPool(entryFee: number | null | undefined, participan
   return round2(entryFee * participantCount);
 }
 
+function computeRecurringDollarAmount(amountType: WeeklyAmountType, amount: number | null, totalPool: number): number {
+  if (!amount) return 0;
+  if (amountType === 'fixed') return round2(amount);
+  return round2(totalPool * (amount / 100));
+}
+
 /** Resolves the configured weekly amount into a concrete per-week dollar figure. */
 export function computeWeeklyDollarAmount(config: Pick<PayoutConfig, 'weeklyAmountType' | 'weeklyAmount'>, totalPool: number): number {
-  if (!config.weeklyAmount) return 0;
-  if (config.weeklyAmountType === 'fixed') return round2(config.weeklyAmount);
-  return round2(totalPool * (config.weeklyAmount / 100));
+  return computeRecurringDollarAmount(config.weeklyAmountType, config.weeklyAmount, totalPool);
+}
+
+/** Same formula as computeWeeklyDollarAmount, scoped to a quarter instead of
+ * a week — confirmed identical on purpose (Part A2 of the quarter-payouts
+ * spec): fixed → flat amount; percentage → that % of the total prize pool. */
+export function computeQuarterDollarAmount(config: Pick<PayoutConfig, 'quarterAmountType' | 'quarterAmount'>, totalPool: number): number {
+  return computeRecurringDollarAmount(config.quarterAmountType, config.quarterAmount, totalPool);
 }
 
 /**
