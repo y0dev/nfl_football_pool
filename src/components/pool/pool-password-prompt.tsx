@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Lock, AlertTriangle } from 'lucide-react';
 
 const bg      = 'oklch(13% 0.025 255)';
@@ -112,6 +113,15 @@ export function PoolPasswordPrompt({ poolId, poolName, needsSetup, next }: PoolP
             </button>
           </form>
         )}
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: `1px solid ${border}` }}>
+          <Link
+            href="/"
+            style={{ ...b, fontSize: '0.82rem', color: textMid, textDecoration: 'none' }}
+          >
+            ← Back to Sunday Huddle
+          </Link>
+        </div>
       </div>
     </div>
   );
