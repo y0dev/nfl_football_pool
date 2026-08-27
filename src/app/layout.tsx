@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Barlow, Barlow_Condensed } from "next/font/google";
+import { CookieConsentRoot } from "@/components/cookie-consent/cookie-consent-root";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -98,6 +99,7 @@ export default function RootLayout({
           }}
         />
         {children}
+        <CookieConsentRoot />
       </body>
     </html>
   );

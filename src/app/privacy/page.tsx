@@ -139,8 +139,15 @@ export default function PrivacyPage() {
           <li><strong>Session cookie</strong> — an HttpOnly cookie that keeps a commissioner/admin signed in, valid for up to 90 days;</li>
           <li><strong>Sign-in handoff cookie</strong> — a short-lived (about one minute) cookie used only to hand your session from our Google sign-in redirect to your browser; it is deleted automatically the next time the page loads;</li>
           <li><strong>OAuth flow cookies</strong> — short-lived (a few minutes) cookies that keep track of your sign-in/registration flow while you are redirected to and back from Google;</li>
-          <li><strong>Private-pool access cookie</strong> — a pool-specific, signed cookie set after you correctly enter a private pool&rsquo;s password, valid for up to 30 days, so you are not asked for the password on every visit to that pool.</li>
+          <li><strong>Private-pool access cookie</strong> — a pool-specific, signed cookie set after you correctly enter a private pool&rsquo;s password, valid for up to 30 days, so you are not asked for the password on every visit to that pool; and</li>
+          <li><strong>Cookie notice cookie</strong> — remembers your choice on our cookie notice (see below) for up to one year, so it does not show again on every visit.</li>
         </ul>
+        <p>
+          Our cookie notice, shown on your first visit, explains that these cookies are required and links back to
+          this section; you can reopen it at any time from the &ldquo;Cookie Preferences&rdquo; link in the footer.
+          Because every cookie above is required for the Service to function, there is currently nothing optional to
+          turn on or off.
+        </p>
         <p>
           We also use your browser&rsquo;s local storage (not a cookie) to keep you signed in between visits, to
           remember a participant&rsquo;s pick session on a shared device for up to 24 hours, and to locally cache

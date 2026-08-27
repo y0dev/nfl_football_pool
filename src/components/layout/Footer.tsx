@@ -1,7 +1,10 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { isPricingVisible } from "@/lib/billing";
+import { openCookiePreferences } from "@/components/cookie-consent/cookie-consent-root";
 
 type FooterProps = {
   pageName?: string;
@@ -117,13 +120,20 @@ export function Footer({
             © {year} {title}. All rights reserved.
           </p>
 
-          <div style={{ display: "flex", justifyContent: "center", gap: "1.25rem", marginTop: "0.85rem" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "1.25rem", marginTop: "0.85rem" }}>
             <Link href="/terms" style={{ ...linkStyle, fontSize: "0.78rem" }}>
               Terms of Service
             </Link>
             <Link href="/privacy" style={{ ...linkStyle, fontSize: "0.78rem" }}>
               Privacy Policy
             </Link>
+            <button
+              type="button"
+              onClick={() => openCookiePreferences()}
+              style={{ ...linkStyle, fontSize: "0.78rem", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              Cookie Preferences
+            </button>
           </div>
 
           <p
