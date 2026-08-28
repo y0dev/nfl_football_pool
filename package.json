@@ -36,6 +36,7 @@
     "transfer-pool": "tsx scripts/transfer-pool-to-commissioner.ts",
     "backfill-pool-roster": "tsx scripts/backfill-pool-participants-to-roster.ts",
     "cleanup-stale-pro-plan": "tsx scripts/cleanup-stale-pro-plan.ts",
+    "cleanup-e2e-data": "tsx scripts/cleanup-e2e-data.ts",
     "generate-dev-key": "tsx scripts/generate-dev-master-key.ts"
   },
   "dependencies": {

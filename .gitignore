@@ -23,6 +23,8 @@
 !tests/api/**
 !tests/utils
 !tests/utils/**
+!tests/setup
+!tests/setup/**
 !tests/how-it-works-faq.spec.ts
 !next.config.js
 !playwright.config.ts
