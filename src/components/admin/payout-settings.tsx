@@ -436,8 +436,25 @@ export function PayoutSettings({ poolId, isLocked, poolSeason, showQuarterOption
                     />
                   )}
                 </div>
+                {config.weeklyEnabled && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid oklch(35% 0.1 72 / 0.5)` }}>
+                    <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.35rem' }}>Per week:</p>
+                    {config.weeklyPositions.filter(p => p.percentage > 0).sort((a, b2) => a.place - b2.place).map(p => (
+                      <PreviewRow key={p.place} label={`${ordinal(p.place)} Place — ${p.percentage}%`} value={formatCurrency(round2(weeklyDollar * p.percentage / 100))} />
+                    ))}
+                  </div>
+                )}
+                {showQuarterOption && config.quarterEnabled && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid oklch(35% 0.1 72 / 0.5)` }}>
+                    <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.35rem' }}>Per quarter:</p>
+                    {config.quarterPositions.filter(p => p.percentage > 0).sort((a, b2) => a.place - b2.place).map(p => (
+                      <PreviewRow key={p.place} label={`${ordinal(p.place)} Place — ${p.percentage}%`} value={formatCurrency(round2(quarterDollar * p.percentage / 100))} />
+                    ))}
+                  </div>
+                )}
                 {config.overallEnabled && (
                   <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid oklch(35% 0.1 72 / 0.5)` }}>
+                    <p style={{ ...b, fontSize: '0.68rem', color: textDim, marginBottom: '0.35rem' }}>Overall season:</p>
                     {config.overallPositions.filter(p => p.percentage > 0).sort((a, b2) => a.place - b2.place).map(p => (
                       <PreviewRow key={p.place} label={`${ordinal(p.place)} Place — ${p.percentage}%`} value={formatCurrency(round2(overallDollar * p.percentage / 100))} />
                     ))}
