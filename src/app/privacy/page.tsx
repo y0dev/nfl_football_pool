@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LegalLayout, Section, greenHi } from '@/components/legal/legal-layout';
+import { MINIMUM_AGE, CHILDRENS_PRIVACY_AGE } from '@/lib/legal-constants';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = 'August 27, 2026';
-const LAST_UPDATED = 'August 27, 2026';
+const LAST_UPDATED = 'August 28, 2026';
 
 const toc = [
   { id: 'introduction', label: 'Introduction' },
@@ -214,9 +215,14 @@ export default function PrivacyPage() {
 
       <Section id="childrens-privacy" number={11} title="Children's Privacy">
         <p>
-          Sunday Huddle is not directed to children under the age of 13, and we do not knowingly collect personal
-          information from children under 13. If you believe a child under 13 has provided us with personal
-          information, contact us at <strong>[PRIVACY CONTACT EMAIL]</strong> so we can delete it.
+          You must be at least {MINIMUM_AGE} years old to create an account or use the Service — see{' '}
+          <Link href="/terms#eligibility" style={{ color: greenHi }}>Eligibility</Link> in our Terms of Service.
+        </p>
+        <p>
+          Sunday Huddle is not directed to children under the age of {CHILDRENS_PRIVACY_AGE}, and we do not knowingly
+          collect personal information from children under {CHILDRENS_PRIVACY_AGE}. If you believe a child under{' '}
+          {CHILDRENS_PRIVACY_AGE} has provided us with personal information, contact us at{' '}
+          <strong>[PRIVACY CONTACT EMAIL]</strong> so we can delete it.
         </p>
       </Section>
 
