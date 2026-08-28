@@ -32,6 +32,7 @@
 !package.json
 !README.md
 !LICENSE
+!CLAUDE.md
 
 !supabase
 !supabase/**
