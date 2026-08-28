@@ -21,6 +21,12 @@ loadEnv({ path: '.env.local' });
 // computeWeeklyDollarAmount) and calculatePayouts' tie handling are covered
 // in payouts-calculation.spec.ts — this file is specifically about the new
 // persistence path actually working against the real database.
+//
+// Also covers the postseason extension: for a pool whose season scope
+// includes the playoffs, getPayoutRecords() takes an optional seasonType
+// filter, the Quarter calculator offers a "Playoffs" period (period_name
+// 'Playoffs', season_type 3), and a weekly payout for Regular-season Week N
+// and one for Postseason Week N must persist as two independent rows.
 // ─────────────────────────────────────────────────────────────
 
 import { createPool } from '../../src/actions/createPool';
@@ -217,6 +223,128 @@ test.describe('savePayoutCalculation / getPayoutRecords — quarter scope', () =
       expect(records).toHaveLength(1);
       expect(Number(records[0].amount)).toBe(65);
       expect(records[0].paid).toBe(true);
+    } finally {
+      if (poolId) await supabase.from('payout_records').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+
+  test('a Playoffs-period payout persists alongside Q1, and the seasonType filter isolates each phase', async () => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-quarter-playoffs-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+    const season = 2020;
+
+    try {
+      // season_scope stays [2] here — createPool gates a playoffs scope on
+      // plan/season-settings, and none of that is what this test exercises:
+      // payout_records persistence never reads pools.season_scope, so a
+      // season_type-3 'Playoffs' row round-trips regardless.
+      const created = await createPool({
+        name: 'E2E Quarter Playoffs Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      // A regular-season quarter and the postseason "Playoffs" period — the
+      // latter is what the Quarter calculator now offers when the pool's
+      // scope includes the playoffs (period_name 'Playoffs', season_type 3).
+      const q1Save = await savePayoutCalculation(poolId, ownerEmail, [
+        { scope: 'quarter', season, week: 0, seasonType: 2, periodName: 'Q1', place: 1, participantId: null, participantName: 'Alice', amount: 100 },
+      ]);
+      expect(q1Save.success).toBe(true);
+      const playoffSave = await savePayoutCalculation(poolId, ownerEmail, [
+        { scope: 'quarter', season, week: 0, seasonType: 3, periodName: 'Playoffs', place: 1, participantId: null, participantName: 'Zoe', amount: 250 },
+      ]);
+      expect(playoffSave.success).toBe(true);
+
+      // Playoffs is its own period_name — saving it leaves Q1 untouched.
+      const playoffRecords = await getPayoutRecords(poolId, 'quarter', season, undefined, 'Playoffs');
+      expect(playoffRecords).toHaveLength(1);
+      expect(playoffRecords[0].participant_name).toBe('Zoe');
+      expect(Number(playoffRecords[0].season_type)).toBe(3);
+
+      const q1Records = await getPayoutRecords(poolId, 'quarter', season, undefined, 'Q1');
+      expect(q1Records).toHaveLength(1);
+      expect(q1Records[0].participant_name).toBe('Alice');
+
+      // The new trailing seasonType arg narrows a fetch to one phase.
+      const regularOnly = await getPayoutRecords(poolId, 'quarter', season, undefined, undefined, 2);
+      expect(regularOnly.map(r => r.participant_name)).toEqual(['Alice']);
+      const postseasonOnly = await getPayoutRecords(poolId, 'quarter', season, undefined, undefined, 3);
+      expect(postseasonOnly.map(r => r.participant_name)).toEqual(['Zoe']);
+    } finally {
+      if (poolId) await supabase.from('payout_records').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+});
+
+test.describe('savePayoutCalculation / getPayoutRecords — weekly scope across season phases', () => {
+  test('Regular-season Week 1 and Postseason Week 1 persist independently; seasonType filter keeps them apart', async () => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-weekly-phases-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+    const season = 2020;
+
+    try {
+      // season_scope [2] — see the note in the Playoffs quarter test above;
+      // the weekly persistence path doesn't read it either.
+      const created = await createPool({
+        name: 'E2E Weekly Phases Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      const { data: participant, error: participantError } = await supabase
+        .from('participants')
+        .insert({ pool_id: poolId, name: 'Frank', is_active: true })
+        .select('id')
+        .single();
+      if (participantError || !participant) throw new Error(`Failed to seed participant: ${participantError?.message}`);
+
+      // Regular-season Week 1, then marked paid.
+      const regSave = await savePayoutCalculation(poolId, ownerEmail, [
+        { scope: 'weekly', season, week: 1, seasonType: 2, place: 1, participantId: participant.id, participantName: 'Frank', amount: 40 },
+      ]);
+      expect(regSave.success).toBe(true);
+      if (!regSave.success) return;
+      const markResult = await markPayoutPaid(regSave.data[0].id, ownerEmail, true);
+      expect(markResult.success).toBe(true);
+
+      // Postseason Week 1 — same week number, must not overwrite or unpay the
+      // regular-season row (they differ only by season_type).
+      const postSave = await savePayoutCalculation(poolId, ownerEmail, [
+        { scope: 'weekly', season, week: 1, seasonType: 3, place: 1, participantId: participant.id, participantName: 'Frank', amount: 90 },
+      ]);
+      expect(postSave.success).toBe(true);
+
+      const regRecords = await getPayoutRecords(poolId, 'weekly', season, 1, undefined, 2);
+      expect(regRecords).toHaveLength(1);
+      expect(Number(regRecords[0].amount)).toBe(40);
+      expect(regRecords[0].paid).toBe(true);
+
+      const postRecords = await getPayoutRecords(poolId, 'weekly', season, 1, undefined, 3);
+      expect(postRecords).toHaveLength(1);
+      expect(Number(postRecords[0].amount)).toBe(90);
+      expect(postRecords[0].paid).toBe(false);
+
+      // Without the seasonType filter, both phases' Week 1 rows come back.
+      const bothPhases = await getPayoutRecords(poolId, 'weekly', season, 1);
+      expect(bothPhases).toHaveLength(2);
     } finally {
       if (poolId) await supabase.from('payout_records').delete().eq('pool_id', poolId);
       if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
