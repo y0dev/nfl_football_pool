@@ -17,6 +17,10 @@ export default defineConfig({
   reporter: 'html',
   /* Global setup for tests */
   globalSetup: './tests/setup/global-setup.ts',
+  /* Global teardown — sweeps up any leftover e2e pools/commissioners/huddles
+   * once the whole suite finishes, as a safety net beyond each spec's own
+   * try/finally cleanup. See tests/setup/cleanup-e2e-data.ts. */
+  globalTeardown: './tests/setup/global-teardown.ts',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
