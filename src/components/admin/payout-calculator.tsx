@@ -11,7 +11,7 @@ import {
   PayoutConfig, calculatePayouts, computeTotalPool, computeWeeklyDollarAmount,
   computeQuarterDollarAmount, computeOverallAllocation, formatCurrency, StandingEntry,
 } from '@/lib/payouts';
-import { getRegularSeasonPeriods } from '@/lib/utils';
+import { getRegularSeasonPeriods, getPlayoffRoundName } from '@/lib/utils';
 import { DollarSign, RefreshCw, Check, AlertTriangle, Calendar, Trophy, CalendarRange } from 'lucide-react';
 import { SharePayoutsButton, PoolTypeLabel } from '@/components/admin/payout-share';
 
@@ -80,15 +80,16 @@ async function fetchSeasonLeaderboard(poolId: string, season: number, currentWee
 }
 
 // Quarter standings reuse the same period-leaderboard endpoint the app's own
-// Period tab (src/app/api/periods/leaderboard/route.ts) already uses for
-// Q1-Q4 — that endpoint's regular-season branch computes standings via
-// computeSeasonReview(), which is the authoritative source for a quarter's
-// totals. Only reachable when showQuarterOption is true (Confidence pools
-// with the regular season in scope), so seasonType is always 2 here.
+// Period tab (src/app/api/periods/leaderboard/route.ts) already uses — that
+// endpoint's regular-season branch (seasonType 2) computes Q1-Q4 standings
+// via computeSeasonReview(), and its seasonType-3 branch computes the
+// combined "Playoffs" period. A pool whose season scope includes the
+// postseason gets a "Playoffs" option alongside Q1-Q4, so seasonType is 2
+// for a quarter and 3 for the playoff period.
 interface PeriodLeaderboardRow { participant_id: string; name: string; total_points: number }
 
-async function fetchQuarterLeaderboard(poolId: string, season: number, periodName: string, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
-  const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${periodName}&seasonType=2`, { headers: adminHeaders(adminEmail) });
+async function fetchQuarterLeaderboard(poolId: string, season: number, periodName: string, seasonType: number, adminEmail: string | null | undefined): Promise<StandingEntry[]> {
+  const res = await fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&periodName=${periodName}&seasonType=${seasonType}`, { headers: adminHeaders(adminEmail) });
   const data = await res.json();
   if (!data.success) return [];
   return (data.data.leaderboard as PeriodLeaderboardRow[])
@@ -180,7 +181,7 @@ export function PayoutCalculator({ poolId, poolName, season, seasonScope, defaul
       {showQuarterOption && config.quarterEnabled && (
         <QuarterCalculator
           poolId={poolId} poolName={poolName} poolTypeLabel={poolTypeLabel} season={season} config={config} totalPool={totalPool}
-          requestedBy={user?.email ?? ''} toast={toast}
+          seasonScope={availableSeasonTypes} requestedBy={user?.email ?? ''} toast={toast}
         />
       )}
 
@@ -262,8 +263,12 @@ function WeeklyCalculator({
         ? await fetchPickemWeekStandings(poolId, week, seasonType, requestedBy)
         : await fetchWeekLeaderboard(poolId, week, seasonType, season, requestedBy);
       setStandings(rows);
-      const existing = await getPayoutRecords(poolId, 'weekly', season, week);
-      setRecords(Object.fromEntries(existing.map(r => [`${r.place}`, { id: r.id, paid: r.paid }])));
+      // Scoped to the selected season phase: a full-scope pool's Regular-season
+      // Week N and Postseason Week N records share the same `week` number, and
+      // are keyed by participant here (not `place` — tied participants share a
+      // place), so the phase filter is what keeps the two apart.
+      const existing = await getPayoutRecords(poolId, 'weekly', season, week, undefined, seasonType);
+      setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
     } finally {
       setIsCalculating(false);
     }
@@ -290,7 +295,7 @@ function WeeklyCalculator({
       }));
       const saveResult = await savePayoutCalculation(poolId, requestedBy, inputs);
       if (!saveResult.success) { toast({ title: 'Error', description: saveResult.error, variant: 'destructive' }); return; }
-      const existing = await getPayoutRecords(poolId, 'weekly', season, week);
+      const existing = await getPayoutRecords(poolId, 'weekly', season, week, undefined, seasonType);
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
       const refreshed = existing.find(r => r.participant_id === row.participantId);
       if (refreshed) {
@@ -328,7 +333,9 @@ function WeeklyCalculator({
         <div>
           <label style={{ ...bc, fontSize: '0.62rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Week</label>
           <select value={week} onChange={e => setWeek(parseInt(e.target.value))} style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.4rem 0.6rem', borderRadius: 6, fontSize: '0.85rem' }}>
-            {Array.from({ length: maxWeek }, (_, i) => i + 1).map(w => <option key={w} value={w}>Week {w}</option>)}
+            {Array.from({ length: maxWeek }, (_, i) => i + 1).map(w => (
+              <option key={w} value={w}>{seasonType === 3 ? getPlayoffRoundName(w) : `Week ${w}`}</option>
+            ))}
           </select>
         </div>
         <button
@@ -387,7 +394,10 @@ function OverallCalculator({
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
       if (config.weeklyEnabled && weeksPaid === 0) {
         const weeklyExisting = await getPayoutRecords(poolId, 'weekly', season);
-        const distinctWeeks = new Set(weeklyExisting.map(r => r.week)).size;
+        // Count phase+week combos, not bare week numbers — for a full-scope
+        // pool a paid Regular-season Week 1 and a paid Postseason Week 1 are
+        // two distinct weekly payouts and both should be subtracted here.
+        const distinctWeeks = new Set(weeklyExisting.map(r => `${r.season_type}-${r.week}`)).size;
         setWeeksPaid(distinctWeeks);
       }
     } finally {
@@ -482,36 +492,47 @@ function OverallCalculator({
 }
 
 const QUARTER_PERIODS = getRegularSeasonPeriods();
+const PLAYOFFS_PERIOD = 'Playoffs';
 
-/** Only rendered when showQuarterOption is true (Confidence pools with the
- * regular season in scope — see pool-workspace.tsx) and quarterEnabled is
- * on. Mirrors WeeklyCalculator exactly: same ResultsTable, same save/mark-paid
- * flow, same share button — only the standings source (a quarter/period
- * instead of a single week) and dollar-amount config fields differ. */
+/** Rendered when showQuarterOption is true (Confidence pools with the regular
+ * season and/or the postseason in scope — see pool-workspace.tsx) and
+ * quarterEnabled is on. Mirrors WeeklyCalculator exactly: same ResultsTable,
+ * same save/mark-paid flow, same share button — only the standings source (a
+ * quarter/period instead of a single week) and dollar-amount config fields
+ * differ. When the pool's season scope includes the postseason, a "Playoffs"
+ * period is offered alongside Q1-Q4 and scored via seasonType 3. */
 function QuarterCalculator({
-  poolId, poolName, poolTypeLabel, season, config, totalPool, requestedBy, toast,
+  poolId, poolName, poolTypeLabel, season, config, totalPool, seasonScope, requestedBy, toast,
 }: {
   poolId: string; poolName?: string; poolTypeLabel: PoolTypeLabel; season: number; config: PayoutConfig; totalPool: number;
+  seasonScope: number[];
   requestedBy: string; toast: ReturnType<typeof useToast>['toast'];
 }) {
-  const [periodName, setPeriodName] = useState(QUARTER_PERIODS[0].name);
+  const periodOptions = useMemo(() => {
+    const names = seasonScope.includes(2) ? QUARTER_PERIODS.map(p => p.name) : [];
+    if (seasonScope.includes(3)) names.push(PLAYOFFS_PERIOD);
+    return names;
+  }, [seasonScope]);
+
+  const [periodName, setPeriodName] = useState(periodOptions[0] ?? QUARTER_PERIODS[0].name);
   const [standings, setStandings] = useState<StandingEntry[] | null>(null);
   const [records, setRecords] = useState<Record<string, { id: string; paid: boolean }>>({});
   const [isCalculating, setIsCalculating] = useState(false);
 
+  const periodSeasonType = periodName === PLAYOFFS_PERIOD ? 3 : 2;
   const quarterDollar = computeQuarterDollarAmount(config, totalPool);
 
   const runCalculation = useCallback(async () => {
     setIsCalculating(true);
     try {
-      const rows = await fetchQuarterLeaderboard(poolId, season, periodName, requestedBy);
+      const rows = await fetchQuarterLeaderboard(poolId, season, periodName, periodSeasonType, requestedBy);
       setStandings(rows);
-      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName);
+      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName, periodSeasonType);
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
     } finally {
       setIsCalculating(false);
     }
-  }, [poolId, season, periodName, requestedBy]);
+  }, [poolId, season, periodName, periodSeasonType, requestedBy]);
 
   const results = useMemo(() => {
     if (!standings) return [];
@@ -525,12 +546,12 @@ function QuarterCalculator({
 
     if (!row.id) {
       const inputs: PayoutRecordInput[] = results.filter(r => !r.needsManualResolution).map(r => ({
-        scope: 'quarter', season, week: 0, seasonType: 2, periodName, place: r.place,
+        scope: 'quarter', season, week: 0, seasonType: periodSeasonType, periodName, place: r.place,
         participantId: r.participantId, participantName: r.participantName, amount: r.amount,
       }));
       const saveResult = await savePayoutCalculation(poolId, requestedBy, inputs);
       if (!saveResult.success) { toast({ title: 'Error', description: saveResult.error, variant: 'destructive' }); return; }
-      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName);
+      const existing = await getPayoutRecords(poolId, 'quarter', season, undefined, periodName, periodSeasonType);
       setRecords(Object.fromEntries(existing.filter(r => r.participant_id).map(r => [r.participant_id, { id: r.id, paid: r.paid }])));
       const refreshed = existing.find(r => r.participant_id === row.participantId);
       if (refreshed) {
@@ -555,9 +576,9 @@ function QuarterCalculator({
 
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: '0.25rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.2rem' }}>
-          {QUARTER_PERIODS.map(p => (
-            <button key={p.name} type="button" onClick={() => { setPeriodName(p.name); setStandings(null); }} style={{ padding: '0.35rem 0.6rem', background: periodName === p.name ? green : 'transparent', color: periodName === p.name ? text : textDim, border: 'none', borderRadius: 4, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem' }}>
-              {p.name}
+          {periodOptions.map(name => (
+            <button key={name} type="button" onClick={() => { setPeriodName(name); setStandings(null); }} style={{ padding: '0.35rem 0.6rem', background: periodName === name ? green : 'transparent', color: periodName === name ? text : textDim, border: 'none', borderRadius: 4, cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.68rem' }}>
+              {name}
             </button>
           ))}
         </div>
@@ -571,11 +592,11 @@ function QuarterCalculator({
       </div>
 
       <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginBottom: '0.75rem' }}>
-        Quarter Prize Pool: <strong style={{ color: text }}>{formatCurrency(quarterDollar)}</strong>
+        {periodName === PLAYOFFS_PERIOD ? 'Playoffs' : 'Quarter'} Prize Pool: <strong style={{ color: text }}>{formatCurrency(quarterDollar)}</strong>
       </p>
 
       {standings === null ? (
-        <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Choose a quarter and click Calculate.</p>
+        <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Choose a {periodName === PLAYOFFS_PERIOD ? 'period' : 'quarter'} and click Calculate.</p>
       ) : results.length === 0 ? (
         <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No scores recorded for {periodName} yet.</p>
       ) : (
@@ -583,7 +604,7 @@ function QuarterCalculator({
           <ResultsTable results={results} onTogglePaid={handleSaveAndTogglePaid} />
           <SharePayoutsButton
             poolName={poolName} poolTypeLabel={poolTypeLabel}
-            timeframeLabel={`Quarter ${periodName.replace('Q', '')} Payout`}
+            timeframeLabel={periodName === PLAYOFFS_PERIOD ? 'Playoffs Payout' : `Quarter ${periodName.replace('Q', '')} Payout`}
             entryFee={config.entryFee} tiePolicy={config.tiePolicy} results={results}
           />
         </>

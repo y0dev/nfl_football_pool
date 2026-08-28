@@ -233,7 +233,13 @@ export async function getPayoutRecords(
   /** Only meaningful (and required to scope to one specific quarter) for
    * scope 'quarter' — e.g. 'Q1'. Omit to fetch every quarter's records for
    * this pool/season, same as omitting `week` fetches every week. */
-  periodName?: string
+  periodName?: string,
+  /** Season phase (2 = regular season, 3 = postseason). Matters for a pool
+   * whose scope spans both: a weekly payout for Regular-season Week N and one
+   * for Postseason Week N share the same `week` number, so the caller must
+   * pass this to keep the two phases' records apart. Omit to fetch every
+   * phase's records. */
+  seasonType?: number
 ) {
   const supabase = getSupabaseServiceClient();
   let query = supabase
@@ -250,6 +256,8 @@ export async function getPayoutRecords(
     query = query.eq('week', 0);
     if (periodName) query = query.eq('period_name', periodName);
   }
+
+  if (seasonType != null) query = query.eq('season_type', seasonType);
 
   const { data, error } = await query;
   if (error) {

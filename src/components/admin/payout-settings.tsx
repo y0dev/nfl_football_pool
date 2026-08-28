@@ -345,7 +345,10 @@ export function PayoutSettings({ poolId, isLocked, poolSeason, showQuarterOption
               )}
             </div>
 
-            {/* Quarter payouts — only for pools with a quarter/period concept (Confidence, regular season in scope) */}
+            {/* Quarter payouts — for pools with a quarter/period concept (Confidence with
+                the regular season and/or postseason in scope). The same amount/positions
+                apply to every quarter, and to the "Playoffs" period when the postseason
+                is in scope — mirroring how the weekly amount applies to every week. */}
             {showQuarterOption && (
               <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: config.quarterEnabled ? '1rem' : 0 }}>
@@ -354,6 +357,9 @@ export function PayoutSettings({ poolId, isLocked, poolSeason, showQuarterOption
                 </div>
                 {config.quarterEnabled && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <p style={{ ...b, fontSize: '0.72rem', color: textDim }}>
+                      Applies to each quarter (Q1–Q4), and to the Playoffs period if this pool&rsquo;s season includes the postseason.
+                    </p>
                     <div>
                       <label style={labelStyle}>Quarter Prize Pool</label>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

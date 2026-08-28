@@ -111,11 +111,13 @@ export function PoolWorkspace({
   const isSurvivor = competitionType === 'SURVIVOR';
   const isPickem = competitionType === 'PICKEM';
   // Quarter (Q1-Q4) payouts ride on the existing Confidence period-winners
-  // feature (getRegularSeasonPeriods()/period_winners — see src/lib/season-review.ts),
-  // which only exists for regular-season Confidence pools. Survivor and
-  // Pick'em have no quarter/period concept at all, so this is additive-only
-  // for everything else, gated on the regular season actually being in scope.
-  const showQuarterPayouts = !isSurvivor && !isPickem && (seasonScope ?? [2]).includes(2);
+  // feature (getRegularSeasonPeriods()/period_winners — see src/lib/season-review.ts).
+  // Survivor and Pick'em have no quarter/period concept at all, so this is
+  // additive-only for everything else. Enabled when the regular season is in
+  // scope (Q1-Q4) OR the postseason is (the "Playoffs" period the calculator
+  // offers alongside the quarters).
+  const showQuarterPayouts = !isSurvivor && !isPickem &&
+    ((seasonScope ?? [2]).includes(2) || (seasonScope ?? [2]).includes(3));
 
   useEffect(() => {
     let cancelled = false;
