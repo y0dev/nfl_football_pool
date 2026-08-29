@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LegalLayout, Section, greenHi, textDim } from '@/components/legal/legal-layout';
+import { MINIMUM_AGE, CHILDRENS_PRIVACY_AGE } from '@/lib/legal-constants';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = 'August 27, 2026';
-const LAST_UPDATED = 'August 27, 2026';
+const LAST_UPDATED = 'August 28, 2026';
 
 const toc = [
   { id: 'introduction', label: 'Introduction' },
@@ -81,10 +82,16 @@ export default function TermsPage() {
 
       <Section id="eligibility" number={3} title="Eligibility">
         <p>
-          To use the Service, you must be capable of forming a legally binding contract under the laws that apply to
-          you. Sunday Huddle is not directed to, and is not intended for use by, children under the age of 13. If a
-          higher minimum age applies to you under the laws of your jurisdiction, you must meet that age before using
-          the Service. <strong>[MINIMUM AGE, IF ONE IS FORMALLY ADOPTED]</strong>
+          <strong>You must be at least {MINIMUM_AGE} years old to create an account or otherwise use the Service.</strong>{' '}
+          By creating an account or using the Service, you represent that you are {MINIMUM_AGE} or older. You must also
+          be capable of forming a legally binding contract under the laws that apply to you, and if a higher minimum
+          age applies to you under the laws of your jurisdiction, you must meet that age before using the Service.
+        </p>
+        <p>
+          Separately, Sunday Huddle is not directed to, and is not intended for use by, children under the age of{' '}
+          {CHILDRENS_PRIVACY_AGE}, and we do not knowingly collect personal information from them — see{' '}
+          <Link href="/privacy#childrens-privacy" style={{ color: greenHi }}>Children&rsquo;s Privacy</Link> in our
+          Privacy Policy.
         </p>
         <p>
           You must also provide accurate information when creating an account and use the Service only in a manner
