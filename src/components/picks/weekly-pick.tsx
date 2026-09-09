@@ -503,9 +503,21 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   };
 
   const handleSetConfidence = (gameId: string, points: number) => {
+    const currentPoints = picks.find(p => p.game_id === gameId)?.confidence_points ?? 0;
+    // Tapping the value already on this game clears it, releasing that number
+    // back to the pool for another game.
+    const releasing = currentPoints === points;
+
     const updatedPicks = picks.map(p => {
-      if (p.game_id === gameId) return { ...p, confidence_points: points };
-      if (p.confidence_points === points) return { ...p, confidence_points: 0 };
+      if (p.game_id === gameId) {
+        return { ...p, confidence_points: releasing ? 0 : points };
+      }
+      // Another game currently holds the number being assigned here: hand it
+      // this game's previous value (a swap), or leave it unset when this game
+      // had no value yet.
+      if (!releasing && p.confidence_points === points) {
+        return { ...p, confidence_points: currentPoints };
+      }
       return p;
     });
     setPicks(updatedPicks);
