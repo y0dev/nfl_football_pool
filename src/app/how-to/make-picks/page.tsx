@@ -39,13 +39,19 @@ export default function MakePicksGuide() {
         />
       </Step>
 
-      <Step number={3} title="Submit Your Picks">
+      <Step number={3} title="Change or Swap a Confidence Value">
+        <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
+          Every number from 1 to the game count is always shown under each pick. A number already assigned to another game appears <strong>dimmed with a ⇄ mark</strong> — you don&apos;t have to clear that game first. Tap the dimmed number and it moves to the current game, while the value that was on the current game swaps over to the other one. If the current game didn&apos;t have a value yet, the other game is simply left blank for you to re-rank. To free a number entirely, tap the number that&apos;s already selected on a game and it clears.
+        </p>
+      </Step>
+
+      <Step number={4} title="Submit Your Picks">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           Once every game has a team and a confidence value assigned — the Confidence Points Summary at the top shows 0 remaining — scroll to the bottom and tap <strong>Submit Picks</strong>. You can come back and change your picks anytime before the week locks at kickoff.
         </p>
       </Step>
 
-      <Step number={4} title="Locked and Finished Games">
+      <Step number={5} title="Locked and Finished Games">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
           Picks for the entire week <strong>lock</strong> as soon as the first game of that week kicks off — every game shows Locked at that point, even ones that haven&apos;t started yet. Once a game ends, it shows <strong>Final</strong> with the score, and whether your pick was correct.
         </p>

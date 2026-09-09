@@ -129,9 +129,10 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
   const selectedTeam = pick?.predicted_winner;
   const confidencePoints = pick?.confidence_points;
 
-  const availablePoints = Array.from({ length: totalGames }, (_, i) => i + 1).filter(
-    p => !usedPoints.includes(p) || p === confidencePoints
-  );
+  // Every value 1..totalGames is always shown. A value used on another game
+  // stays tappable — picking it here moves it over and swaps this game's
+  // current value onto that game (see handleSetConfidence in weekly-pick.tsx).
+  const allPoints = Array.from({ length: totalGames }, (_, i) => i + 1);
 
   let kickoffLabel = '';
   try {
@@ -254,30 +255,56 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
           <div
             className='game-card-confidence-options'
             style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', justifyContent: 'center' }}>
-            {availablePoints.map(p => (
-              <button
-                key={p}
-                onClick={() => onSetConfidence(game.id, p)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: 'none',
-                  background: confidencePoints === p ? green : 'oklch(26% 0.03 255)',
-                  color: confidencePoints === p ? '#fff' : textMid,
-                  cursor: 'pointer',
-                  transform: confidencePoints === p ? 'scale(1.12)' : 'scale(1)',
-                  boxShadow: confidencePoints === p ? `0 3px 10px ${green}55` : 'none',
-                  transition: 'background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease',
-                  ...bc,
-                  fontWeight: 700,
-                  fontSize: '0.75rem',
-                }}
-              >
-                {p}
-              </button>
-            ))}
+            {allPoints.map(p => {
+              const isSelected = confidencePoints === p;
+              const isTaken = usedPoints.includes(p);
+              return (
+                <button
+                  key={p}
+                  type='button'
+                  onClick={() => onSetConfidence(game.id, p)}
+                  aria-pressed={isSelected}
+                  title={
+                    isSelected
+                      ? 'Assigned to this game — tap to clear it'
+                      : isTaken
+                      ? 'Used on another game — tap to move it here'
+                      : `Assign ${p} confidence point${p === 1 ? '' : 's'}`
+                  }
+                  style={{
+                    position: 'relative',
+                    width: 32,
+                    height: 32,
+                    borderRadius: 7,
+                    border: isTaken && !isSelected ? '1px dashed oklch(42% 0.02 255)' : '1px solid transparent',
+                    background: isSelected ? green : 'oklch(26% 0.03 255)',
+                    color: isSelected ? '#fff' : isTaken ? textDim : textMid,
+                    opacity: isTaken && !isSelected ? 0.5 : 1,
+                    cursor: 'pointer',
+                    transform: isSelected ? 'scale(1.12)' : 'scale(1)',
+                    boxShadow: isSelected ? `0 3px 10px ${green}55` : 'none',
+                    transition: 'background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease',
+                    ...bc,
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  {p}
+                  {isTaken && !isSelected && (
+                    <span
+                      aria-hidden='true'
+                      style={{ position: 'absolute', top: -5, right: -5, fontSize: '0.6rem', lineHeight: 1, color: amber, fontWeight: 700 }}
+                    >
+                      ⇄
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          <p style={{ ...b, fontSize: '0.62rem', color: textDim, textAlign: 'center', margin: '0.5rem 0 0' }}>
+            Tap a dimmed <span style={{ color: amber }}>⇄</span> number to move it here (your current one swaps over). Tap your own number to clear it.
+          </p>
         </div>
       )}
 
