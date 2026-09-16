@@ -28,6 +28,27 @@ interface LeaderboardProps {
   season?: number;
 }
 
+/**
+ * Real total_points already only counts finished, correctly-picked games —
+ * this adds a provisional estimate for games currently in progress: a pick
+ * on the team that's presently ahead on the scoreboard contributes its
+ * confidence points, same as if the game had already ended that way. A
+ * scheduled (not-yet-started) game never contributes — there's nothing to
+ * project it from.
+ */
+function computeProjectedPoints(entry: LeaderboardEntryWithPicks): number {
+  let projected = entry.total_points || 0;
+  entry.picks?.forEach(pick => {
+    if (normalizeGameStatus(pick.game_status) !== 'live') return;
+    if (!pick.predicted_winner || pick.home_score == null || pick.away_score == null) return;
+    const pickedHome = pick.predicted_winner.toLowerCase() === (pick.home_team || '').toLowerCase();
+    const pickedAway = pick.predicted_winner.toLowerCase() === (pick.away_team || '').toLowerCase();
+    const isLeading = pickedHome ? pick.home_score > pick.away_score : pickedAway ? pick.away_score > pick.home_score : false;
+    if (isLeading) projected += pick.confidence_points || 0;
+  });
+  return projected;
+}
+
 export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: LeaderboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntryWithPicks[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -138,6 +159,15 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
   // Nobody has actually scored yet (week ungraded) — don't crown a leader.
   const hasScores = leaderboardData.some(entry => (entry.total_points || 0) > 0);
 
+  // Projected points only earn their keep once there's enough of the week
+  // played to make an estimate meaningful, and only while the real total
+  // could still change — once every game is final, "projected" and "total"
+  // are identical, so the column would be pure noise.
+  const finishedGameCount = games.filter(g => normalizeGameStatus(g.status) === 'finished').length;
+  const anyGameStarted = games.some(g => normalizeGameStatus(g.status) !== 'scheduled');
+  const allGamesFinished = games.length > 0 && finishedGameCount === games.length;
+  const showProjected = games.length > 0 && anyGameStarted && !allGamesFinished && (finishedGameCount / games.length) >= 0.25;
+
   const thStyle: React.CSSProperties = {
     ...bc, fontWeight: 700, fontSize: '0.68rem', letterSpacing: '0.08em',
     color: textDim, textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -173,10 +203,17 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
                     {entry.participant_name || 'Unknown'}
                   </span>
                 </div>
-                <span style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', color: greenHi }}>
-                  {entry.total_points || 0}
-                  <span style={{ ...b, fontWeight: 400, fontSize: '0.7rem', color: textDim, marginLeft: '0.25rem' }}>pts</span>
-                </span>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ ...bc, fontWeight: 900, fontSize: '1.4rem', color: greenHi }}>
+                    {entry.total_points || 0}
+                    <span style={{ ...b, fontWeight: 400, fontSize: '0.7rem', color: textDim, marginLeft: '0.25rem' }}>pts</span>
+                  </span>
+                  {showProjected && (
+                    <div style={{ ...b, fontSize: '0.68rem', color: 'oklch(65% 0.12 240)' }}>
+                      Proj. {computeProjectedPoints(entry)}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
@@ -233,6 +270,9 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
             <th style={{ ...thStyle, minWidth: '3.5rem' }}>Rank</th>
             <th style={{ ...thStyle, minWidth: '9rem' }}>Participant</th>
             <th style={{ ...thStyle, minWidth: '4.5rem', textAlign: 'center' }}>Points</th>
+            {showProjected && (
+              <th style={{ ...thStyle, minWidth: '4.5rem', textAlign: 'center' }}>Projected</th>
+            )}
             <th style={{ ...thStyle, minWidth: '5rem', textAlign: 'center' }}>Correct</th>
             {isPeriodWeek && (
               <th style={{ ...thStyle, minWidth: '5rem', textAlign: 'center' }}>Mon Night</th>
@@ -263,6 +303,11 @@ export function Leaderboard({ poolId, weekNumber = 1, seasonType = 2, season }: 
               <td style={{ ...bc, fontSize: '0.95rem', fontWeight: 900, color: greenHi, textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 {entry.total_points || 0}
               </td>
+              {showProjected && (
+                <td style={{ ...bc, fontSize: '0.95rem', fontWeight: 900, color: 'oklch(65% 0.12 240)', textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
+                  {computeProjectedPoints(entry)}
+                </td>
+              )}
               <td style={{ ...b, fontSize: '0.875rem', color: textMid, textAlign: 'center', padding: '0.5rem 0.75rem', verticalAlign: 'middle' }}>
                 {entry.correct_picks || 0}/{entry.total_picks || 0}
               </td>
