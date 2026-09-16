@@ -34,6 +34,11 @@ interface GameCardProps {
   totalGames: number;
   usedPoints: number[];
   locked?: boolean;
+  /** Team name -> number of participants who picked that team, e.g.
+   * { 'Kansas City Chiefs': 8, 'Buffalo Bills': 4 }. Only ever populated
+   * once this game has actually started (see the pick-counts endpoint) —
+   * undefined/empty renders nothing, never a 0-0 split. */
+  pickCounts?: Record<string, number>;
 }
 
 function formatRecord(r?: TeamRecord): string {
@@ -122,12 +127,18 @@ function TeamButton({
   );
 }
 
-export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked }: GameCardProps) {
+export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked, pickCounts }: GameCardProps) {
   const isFinal = game.status === 'finished' || game.status === 'cancelled';
   const isLive = game.status === 'in_progress' || game.status === 'live';
   const isSelectable = !locked && !isFinal && !isLive;
   const selectedTeam = pick?.predicted_winner;
   const confidencePoints = pick?.confidence_points;
+
+  const awayPickCount = pickCounts?.[game.away_team] ?? 0;
+  const homePickCount = pickCounts?.[game.home_team] ?? 0;
+  const totalPickers = awayPickCount + homePickCount;
+  const awayPickPct = totalPickers > 0 ? Math.round((awayPickCount / totalPickers) * 100) : 0;
+  const homePickPct = totalPickers > 0 ? 100 - awayPickPct : 0;
 
   // Every value 1..totalGames is always shown. A value used on another game
   // stays tappable — picking it here moves it over and swaps this game's
@@ -245,6 +256,33 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
           onClick={() => isSelectable && onSelectTeam(game.id, game.home_team)}
         />
       </div>
+
+      {/* Pick distribution — how the pool picked this game. Only ever shown
+          once the game has started (isFinal/isLive), matching the fact that
+          pickCounts itself is only ever populated for a started game. */}
+      {(isFinal || isLive) && totalPickers > 0 && (
+        <div className='game-card-pick-distribution' style={{ padding: '0 1rem 0.875rem' }}>
+          <p style={{ ...b, fontSize: '0.65rem', color: textDim, textAlign: 'center', marginBottom: '0.35rem' }}>
+            How the Pool Picked
+          </p>
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'oklch(26% 0.03 255)' }}>
+            {awayPickCount > 0 && (
+              <div style={{ width: `${awayPickPct}%`, background: getTeam(getTeamAbbreviation(game.away_team)).color2 }} />
+            )}
+            {homePickCount > 0 && (
+              <div style={{ width: `${homePickPct}%`, background: getTeam(getTeamAbbreviation(game.home_team)).color2 }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
+            <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>
+              {getTeamAbbreviation(game.away_team)} {awayPickCount} ({awayPickPct}%)
+            </span>
+            <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>
+              {getTeamAbbreviation(game.home_team)} {homePickCount} ({homePickPct}%)
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Confidence selector */}
       {selectedTeam && !isFinal && !isLive && !locked && (

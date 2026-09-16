@@ -10,7 +10,7 @@ import { WeeklyPick } from '@/components/picks/weekly-pick';
 import { GameCard } from '@/components/picks/game-card';
 import { PickUserSelection } from '@/components/picks/pick-user-selection';
 import { RecentPicksViewer } from '@/components/picks/recent-picks-viewer';
-import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, RefreshCw, Crown, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Calendar, Clock, AlertTriangle, Info, Share2, BarChart3, Eye, EyeOff, Target, Zap, Lock, Unlock, RefreshCw, Crown, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { pickStorage } from '@/lib/pick-storage';
 import { getUpcomingWeek } from '@/actions/loadCurrentWeek';
@@ -99,6 +99,41 @@ function PicksNav({
   return <AppNav isAuthenticated={isAdmin} isSuperAdmin={isSuperAdmin} onSignOut={onLogout} poolId={poolId} />;
 }
 
+/** Collapsible card shared by the Quarter and Season leaderboard sections —
+ * a clickable header with an explicit open/closed caret (a plain
+ * `<details>`'s native marker is invisible once its `<summary>` is
+ * `display: flex`, which is why this exists instead). */
+function CollapsibleLeaderboardCard({
+  icon: Icon, iconColor, title, subtitle, open, onToggle, children,
+}: {
+  icon: React.ComponentType<{ style?: React.CSSProperties }>;
+  iconColor: string;
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        style={{ width: '100%', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left', borderBottom: open ? `1px solid ${border}` : 'none' }}
+      >
+        <Icon style={{ width: 16, height: 16, color: iconColor, flexShrink: 0 }} />
+        <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</span>
+        {subtitle && <span style={{ ...b, fontSize: '0.75rem', color: textDim }}>{subtitle}</span>}
+        <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex' }}>
+          {open ? <ChevronDown style={{ width: 16, height: 16, color: textDim }} /> : <ChevronRight style={{ width: 16, height: 16, color: textDim }} />}
+        </span>
+      </button>
+      {open && <div style={{ padding: '1.25rem' }}>{children}</div>}
+    </div>
+  );
+}
+
 export function PoolPicksContent() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -138,6 +173,17 @@ export function PoolPicksContent() {
   } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState(false);
   const [weekEnded, setWeekEnded] = useState(false);
+  // Quarter/Season leaderboard toggles. null = "not manually touched yet" —
+  // Quarter then defaults open during a quarter/tie-breaker week and closed
+  // otherwise (Season always defaults closed); once the participant clicks
+  // one, their choice sticks regardless of week.
+  const [quarterLeaderboardOverride, setQuarterLeaderboardOverride] = useState<boolean | null>(null);
+  const [seasonLeaderboardOverride, setSeasonLeaderboardOverride] = useState<boolean | null>(null);
+  // A "quarter week" is the same tie-breaker/period-boundary week used
+  // elsewhere in this file (PERIOD_WEEKS — Q1-Q4 marks and the Super Bowl).
+  const isQuarterWeek = currentSeasonType !== 1 && PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]);
+  const showQuarterLeaderboard = quarterLeaderboardOverride ?? isQuarterWeek;
+  const showSeasonLeaderboard = seasonLeaderboardOverride ?? false;
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
@@ -1382,24 +1428,19 @@ export function PoolPicksContent() {
               </div>
             )}
 
-            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Trophy style={{ width: 16, height: 16, color: greenHi }} />
-                <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Quarter Standings</span>
-              </div>
-              <div style={{ padding: '1.25rem' }}>
-                <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
-              </div>
-            </div>
+            <CollapsibleLeaderboardCard
+              icon={Crown} iconColor={purple} title="Current Quarter Standings"
+              open={showQuarterLeaderboard} onToggle={() => setQuarterLeaderboardOverride(!showQuarterLeaderboard)}
+            >
+              <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+            </CollapsibleLeaderboardCard>
 
-            <details style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-              <summary style={{ padding: '1rem 1.25rem', cursor: 'pointer', ...bc, fontWeight: 700, fontSize: '0.82rem', color: textMid, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Trophy style={{ width: 14, height: 14 }} /> Show Season {poolSeason} Standings
-              </summary>
-              <div style={{ borderTop: `1px solid ${border}`, padding: '1.25rem' }}>
-                <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
-              </div>
-            </details>
+            <CollapsibleLeaderboardCard
+              icon={Trophy} iconColor={gold} title={`Season ${poolSeason} Standings`}
+              open={showSeasonLeaderboard} onToggle={() => setSeasonLeaderboardOverride(!showSeasonLeaderboard)}
+            >
+              <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+            </CollapsibleLeaderboardCard>
 
             {currentSeasonType !== 1 && PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]) && (
               <div style={{ background: `oklch(65% 0.12 290 / 0.08)`, border: `1px solid oklch(65% 0.12 290 / 0.3)`, borderRadius: 10, padding: '1.25rem' }}>
@@ -1670,20 +1711,36 @@ export function PoolPicksContent() {
                     <div
                       id="season-standings"
                       style={{ borderTop: `1px solid ${border}`, paddingTop: '1.25rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSeasonLeaderboardOverride(!showSeasonLeaderboard)}
+                        aria-expanded={showSeasonLeaderboard}
+                        style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: showSeasonLeaderboard ? '1rem' : 0 }}
+                      >
                         <Trophy style={{ width: 15, height: 15, color: greenHi }} />
                         <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Season {poolSeason} Overall Standings</span>
                         <span style={{ ...b, fontSize: '0.75rem', color: textDim, marginLeft: 'auto' }}>Up to Week {currentWeek}</span>
-                      </div>
-                      <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+                        {showSeasonLeaderboard ? <ChevronDown style={{ width: 15, height: 15, color: textDim, flexShrink: 0 }} /> : <ChevronRight style={{ width: 15, height: 15, color: textDim, flexShrink: 0 }} />}
+                      </button>
+                      {showSeasonLeaderboard && (
+                        <SeasonLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} currentSeasonType={currentSeasonType} />
+                      )}
                     </div>
                   )}
                   <div style={{ borderTop: `1px solid ${border}`, paddingTop: '1.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setQuarterLeaderboardOverride(!showQuarterLeaderboard)}
+                      aria-expanded={showQuarterLeaderboard}
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: showQuarterLeaderboard ? '1rem' : 0 }}
+                    >
                       <Crown style={{ width: 15, height: 15, color: purple }} />
                       <span style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{getPeriodName(currentSeasonType, currentWeek)}</span>
-                    </div>
-                    <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+                      {showQuarterLeaderboard ? <ChevronDown style={{ width: 15, height: 15, color: textDim, marginLeft: 'auto', flexShrink: 0 }} /> : <ChevronRight style={{ width: 15, height: 15, color: textDim, marginLeft: 'auto', flexShrink: 0 }} />}
+                    </button>
+                    {showQuarterLeaderboard && (
+                      <QuarterLeaderboard poolId={poolId} season={poolSeason} currentWeek={currentWeek} seasonType={currentSeasonType} />
+                    )}
                   </div>
                 </div>
               )}
