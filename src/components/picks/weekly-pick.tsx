@@ -11,7 +11,7 @@ import { MondayNightScoreInput } from './monday-night-score-input';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
-import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
+import { Game, Pick, StoredPick, SelectedUser, normalizeGameStatus } from '@/types/game';
 import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { GameCard } from '@/components/picks/game-card';
@@ -81,6 +81,8 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
   const [poolSeason, setPoolSeason] = useState<number | null>(null);
   const [, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
+  // Pick distribution ("who picked which team") per game, e.g. { gameId: { 'Kansas City Chiefs': 8, 'Buffalo Bills': 4 } }.
+  const [pickCounts, setPickCounts] = useState<Record<string, Record<string, number>>>({});
 
   const { toast } = useToast();
   const errorsRef = useRef<HTMLDivElement>(null);
@@ -96,6 +98,28 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
 
   // Determine if we're in playoff mode
   const isPlayoffMode = seasonType === 3;
+
+  // Pick distribution ("N picked Team A, M picked Team B") for games that
+  // have started — refetched whenever the loaded games change so a game
+  // going live/final during the visit picks up its counts. The endpoint
+  // itself also never returns counts for a still-scheduled game, so this is
+  // defense in depth rather than the only gate against showing picks early.
+  useEffect(() => {
+    const anyGameStarted = games.some(g => normalizeGameStatus(g.status) !== 'scheduled');
+    if (!poolId || !currentWeek || !anyGameStarted) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/picks/pick-counts?poolId=${poolId}&week=${currentWeek}&seasonType=${seasonType ?? 2}`);
+        const data = await res.json();
+        if (!cancelled && data.success) setPickCounts(data.counts || {});
+      } catch (error) {
+        debugError('Error loading pick counts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [poolId, currentWeek, seasonType, games]);
 
   // Load current week and games (only if not prevented)
   useEffect(() => {
@@ -899,6 +923,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
               totalGames={games.length}
               usedPoints={usedConfidencePoints}
               locked={isLocked}
+              pickCounts={pickCounts[game.id]}
             />
           );
         })}
