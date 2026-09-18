@@ -188,6 +188,10 @@ export function PoolPicksContent() {
   const isQuarterWeek = currentSeasonType !== 1 && PERIOD_WEEKS.includes(currentWeek as typeof PERIOD_WEEKS[number]);
   const showQuarterLeaderboard = quarterLeaderboardOverride ?? isQuarterWeek;
   const showSeasonLeaderboard = seasonLeaderboardOverride ?? false;
+  // Pick distribution for the read-only "Game Results" tab only — the
+  // personal Make Picks flow (WeeklyPick) fetches and locks off this same
+  // endpoint's data independently, but never renders the bar itself.
+  const [gameResultsPickCounts, setGameResultsPickCounts] = useState<Record<string, Record<string, number>>>({});
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
@@ -1221,6 +1225,26 @@ export function PoolPicksContent() {
   const effectiveGamesStarted = gamesStarted || (process.env.NODE_ENV === 'development' && devSimInProgress);
   const showResultsTabs = weekEnded || (process.env.NODE_ENV === 'development' && devForceLeaderboard) || (effectiveGamesStarted && !weekEnded && submittedCount >= participantCount);
 
+  // Pick distribution for the "Game Results" tab — refetched whenever the
+  // loaded games change so a game going live/final, or the last participant
+  // completing the week, picks up its counts during the visit. The endpoint
+  // itself decides what's revealable (a started game, or every game once
+  // the whole pool has submitted) and returns {} otherwise.
+  useEffect(() => {
+    if (!poolId || !currentWeek || games.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/picks/pick-counts?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}${poolSeason ? `&season=${poolSeason}` : ''}`);
+        const data = await res.json();
+        if (!cancelled && data.success) setGameResultsPickCounts(data.counts || {});
+      } catch (error) {
+        debugError('Error loading pick counts for Game Results tab:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [poolId, currentWeek, currentSeasonType, poolSeason, games]);
+
   // ── LOADING ──────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
@@ -1755,6 +1779,8 @@ export function PoolPicksContent() {
                       totalGames={devDisplayGames.length}
                       usedPoints={[]}
                       locked={true}
+                      pickCounts={gameResultsPickCounts[game.id]}
+                      showPickDistribution
                     />
                   ))}
                 </div>
