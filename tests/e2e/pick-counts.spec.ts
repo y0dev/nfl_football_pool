@@ -5,12 +5,13 @@ loadEnv({ path: '.env.local' });
 
 // ─────────────────────────────────────────────────────────────
 // /api/picks/pick-counts — data source for the picks page's "How the Pool
-// Picked" game-card bar. The property that actually matters is the one
-// called out in the route's own comment: a game that hasn't kicked off yet
-// must never appear in the response, no matter how many picks already
-// exist for it — that's what keeps picks hidden before a game locks even
-// if a client bug tried to render them early. Aggregation correctness for
-// a game that HAS started is the second thing this covers.
+// Picked" game-card bar. A game is only ever revealed once it has kicked
+// off OR every active participant has submitted for the week — the
+// property that matters is that a game meeting NEITHER condition must
+// never appear in the response, no matter how many picks already exist
+// for it, so a client bug can't render picks early. Aggregation
+// correctness, and the "everyone's submitted" reveal path unlocking a
+// still-scheduled game, are the other two things this covers.
 //
 // This is a plain Next.js Route Handler (unlike the Server Actions used by
 // most other specs in this suite), so it's called directly over HTTP via
@@ -134,6 +135,128 @@ test.describe('GET /api/picks/pick-counts', () => {
     } finally {
       if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
       if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+
+  test('reveals a still-scheduled game once every active participant has submitted for the week', async ({ request }) => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-pick-counts-allsub-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+    const gameIds: string[] = [];
+    const season = 2020;
+    const week = 5;
+
+    try {
+      const created = await createPool({
+        name: 'E2E Pick Counts All Submitted Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .insert([
+          { pool_id: poolId, name: 'Alice', is_active: true },
+          { pool_id: poolId, name: 'Bob', is_active: true },
+        ])
+        .select('id');
+      if (participantsError || !participants) throw new Error(`Failed to seed participants: ${participantsError?.message}`);
+
+      const scheduledGameId = `e2e-pickcounts-${season}-w${week}-scheduled-${Date.now()}`;
+      gameIds.push(scheduledGameId);
+      const { error: gamesError } = await supabase.from('games').insert({
+        id: scheduledGameId, season, season_type: 2, week,
+        home_team: 'Green Bay Packers', away_team: 'Chicago Bears',
+        home_team_id: 5, away_team_id: 6,
+        kickoff_time: '2020-10-04T13:00:00Z', status: 'scheduled',
+      });
+      if (gamesError) throw new Error(`Failed to seed games: ${gamesError.message}`);
+
+      // Both active participants have a pick in — game is still scheduled,
+      // but nobody has an unmade pick left, so this is revealable.
+      const { error: picksError } = await supabase.from('picks').insert([
+        { pool_id: poolId, game_id: scheduledGameId, participant_id: participants[0].id, predicted_winner: 'Green Bay Packers', confidence_points: 1 },
+        { pool_id: poolId, game_id: scheduledGameId, participant_id: participants[1].id, predicted_winner: 'Chicago Bears', confidence_points: 1 },
+      ]);
+      if (picksError) throw new Error(`Failed to seed picks: ${picksError.message}`);
+
+      const res = await request.get(`/api/picks/pick-counts?poolId=${poolId}&week=${week}&seasonType=2&season=${season}`);
+      expect(res.ok()).toBe(true);
+      const data = await res.json();
+
+      expect(data.success).toBe(true);
+      expect(data.counts[scheduledGameId]).toEqual({ 'Green Bay Packers': 1, 'Chicago Bears': 1 });
+    } finally {
+      if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
+      if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+
+  test('keeps a still-scheduled game hidden while only some active participants have submitted', async ({ request }) => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-pick-counts-partial-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+    const gameIds: string[] = [];
+    const season = 2020;
+    const week = 6;
+
+    try {
+      const created = await createPool({
+        name: 'E2E Pick Counts Partial Submitted Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .insert([
+          { pool_id: poolId, name: 'Alice', is_active: true },
+          { pool_id: poolId, name: 'Bob', is_active: true },
+        ])
+        .select('id');
+      if (participantsError || !participants) throw new Error(`Failed to seed participants: ${participantsError?.message}`);
+
+      const scheduledGameId = `e2e-pickcounts-${season}-w${week}-scheduled-${Date.now()}`;
+      gameIds.push(scheduledGameId);
+      const { error: gamesError } = await supabase.from('games').insert({
+        id: scheduledGameId, season, season_type: 2, week,
+        home_team: 'Green Bay Packers', away_team: 'Chicago Bears',
+        home_team_id: 5, away_team_id: 6,
+        kickoff_time: '2020-10-11T13:00:00Z', status: 'scheduled',
+      });
+      if (gamesError) throw new Error(`Failed to seed games: ${gamesError.message}`);
+
+      // Only Alice has picked — Bob hasn't, so this must stay hidden.
+      const { error: picksError } = await supabase.from('picks').insert({
+        pool_id: poolId, game_id: scheduledGameId, participant_id: participants[0].id, predicted_winner: 'Green Bay Packers', confidence_points: 1,
+      });
+      if (picksError) throw new Error(`Failed to seed picks: ${picksError.message}`);
+
+      const res = await request.get(`/api/picks/pick-counts?poolId=${poolId}&week=${week}&seasonType=2&season=${season}`);
+      expect(res.ok()).toBe(true);
+      const data = await res.json();
+
+      expect(data.success).toBe(true);
+      expect(data.counts).toEqual({});
+    } finally {
+      if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
+      if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
       if (poolId) await supabase.from('pools').delete().eq('id', poolId);
       await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
     }

@@ -257,10 +257,12 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         />
       </div>
 
-      {/* Pick distribution — how the pool picked this game. Only ever shown
-          once the game has started (isFinal/isLive), matching the fact that
-          pickCounts itself is only ever populated for a started game. */}
-      {(isFinal || isLive) && totalPickers > 0 && (
+      {/* Pick distribution — how the pool picked this game. The pick-counts
+          endpoint is the sole authority on when this is revealable (once the
+          game has started, or once every participant has submitted for the
+          week) — pickCounts is simply empty until then, so rendering purely
+          off totalPickers here is enough; no need to duplicate that gate. */}
+      {totalPickers > 0 && (
         <div className='game-card-pick-distribution' style={{ padding: '0 1rem 0.875rem' }}>
           <p style={{ ...b, fontSize: '0.65rem', color: textDim, textAlign: 'center', marginBottom: '0.35rem' }}>
             How the Pool Picked

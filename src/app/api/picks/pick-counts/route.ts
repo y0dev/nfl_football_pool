@@ -6,10 +6,18 @@ import { debugError } from '@/lib/utils';
 
 /**
  * Per-game pick distribution ("N picked Team A, M picked Team B") for the
- * Confidence picks page's game cards. A game that hasn't kicked off yet is
- * dropped before its picks are even queried — the response can never carry
- * counts for a still-scheduled game, so a client bug can't reveal picks
- * before that game locks. This mirrors the access gate on /api/leaderboard.
+ * Confidence picks page's game cards. A game is only ever revealed once
+ * EITHER it has actually kicked off, OR every active participant in the
+ * pool has already submitted their picks for the week — whichever comes
+ * first. A game that's still scheduled AND not everyone is in yet is
+ * dropped before its picks are even queried, so the response can never
+ * carry counts for it; a client bug can't reveal picks early. This mirrors
+ * the access gate on /api/leaderboard.
+ *
+ * Note: submitting doesn't lock a participant's picks — they can still
+ * edit any pick for the week up until the first kickoff, same as always.
+ * "Everyone's submitted" just means nobody has an *unmade* pick left to be
+ * influenced by seeing this; it isn't a guarantee nobody edits afterward.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -52,11 +60,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to load games' }, { status: 500 });
     }
 
-    const startedGameIds = (games ?? [])
+    if (!games || games.length === 0) {
+      return NextResponse.json({ success: true, counts: {} });
+    }
+
+    const startedGameIds = games
       .filter(g => normalizeGameStatus(g.status) !== 'scheduled')
       .map(g => g.id);
 
-    if (startedGameIds.length === 0) {
+    // "Everyone's submitted" is the same definition /api/pools/[id] already
+    // uses to show the participant/submitted counts elsewhere on this page:
+    // active participants vs. distinct participant_ids with a pick recorded
+    // anywhere in this pool/week/season_type.
+    const allGameIds = games.map(g => g.id);
+    const [{ count: activeParticipantCount }, { data: weekPicks, error: weekPicksError }] = await Promise.all([
+      supabase.from('participants').select('id', { count: 'exact', head: true }).eq('pool_id', poolId).eq('is_active', true),
+      supabase.from('picks').select('participant_id').eq('pool_id', poolId).in('game_id', allGameIds),
+    ]);
+
+    if (weekPicksError) {
+      debugError('Error checking submission completeness for pick counts:', weekPicksError);
+      return NextResponse.json({ success: false, error: 'Failed to load picks' }, { status: 500 });
+    }
+
+    const submittedCount = new Set((weekPicks ?? []).map(p => p.participant_id)).size;
+    const allSubmitted = (activeParticipantCount ?? 0) > 0 && submittedCount >= (activeParticipantCount ?? 0);
+
+    const revealGameIds = allSubmitted ? allGameIds : startedGameIds;
+    if (revealGameIds.length === 0) {
       return NextResponse.json({ success: true, counts: {} });
     }
 
@@ -64,7 +95,7 @@ export async function GET(request: NextRequest) {
       .from('picks')
       .select('game_id, predicted_winner')
       .eq('pool_id', poolId)
-      .in('game_id', startedGameIds);
+      .in('game_id', revealGameIds);
 
     if (picksError) {
       debugError('Error loading picks for pick counts:', picksError);
