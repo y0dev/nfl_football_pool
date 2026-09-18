@@ -41,9 +41,14 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 function LockedPickemGameRow({
   game,
   pick,
+  pickCounts,
 }: {
   game: PickemWeekResult['eligibleGames'][number];
   pick: PickemGamePick | undefined;
+  /** selected_team -> number of participants who picked it. Only ever
+   * populated once this game is revealed (see /api/pickem/pick-counts) —
+   * undefined/empty renders no distribution, just the row as it already was. */
+  pickCounts?: Record<string, number>;
 }) {
   const normalized = normalizeGameStatus(game.status);
   const isFinished = normalized === 'finished';
@@ -51,6 +56,12 @@ function LockedPickemGameRow({
   const awayTeam = getTeam(getTeamAbbreviation(game.awayTeam));
   const homeTeam = getTeam(getTeamAbbreviation(game.homeTeam));
   const showScores = (isFinished || isLive) && game.homeScore != null && game.awayScore != null;
+
+  const awayPickCount = (game.awayTeamId && pickCounts?.[game.awayTeamId]) || 0;
+  const homePickCount = (game.homeTeamId && pickCounts?.[game.homeTeamId]) || 0;
+  const totalPickers = awayPickCount + homePickCount;
+  const awayPickPct = totalPickers > 0 ? Math.round((awayPickCount / totalPickers) * 100) : 0;
+  const homePickPct = totalPickers > 0 ? 100 - awayPickPct : 0;
 
   return (
     <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
@@ -97,6 +108,22 @@ function LockedPickemGameRow({
           );
         })}
       </div>
+
+      {totalPickers > 0 && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <p style={{ ...b, fontSize: '0.65rem', color: textDim, textAlign: 'center', marginBottom: '0.35rem' }}>
+            How the Pool Picked
+          </p>
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'oklch(26% 0.03 255)' }}>
+            {awayPickCount > 0 && <div style={{ width: `${awayPickPct}%`, background: awayTeam.color2 }} />}
+            {homePickCount > 0 && <div style={{ width: `${homePickPct}%`, background: homeTeam.color2 }} />}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
+            <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>{getTeamAbbreviation(game.awayTeam)} {awayPickCount} ({awayPickPct}%)</span>
+            <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>{getTeamAbbreviation(game.homeTeam)} {homePickCount} ({homePickPct}%)</span>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: `1px solid ${border}` }}>
         {pick?.selectedTeam ? (
@@ -168,6 +195,12 @@ export function PickemPicksContent() {
   const [devSimFinished, setDevSimFinished] = useState(false);
   const [devForceLeaderboard, setDevForceLeaderboard] = useState(false);
   const [devSimSubmitted, setDevSimSubmitted] = useState(false);
+  // Pick distribution ("N picked Team A, M picked Team B") per game, keyed
+  // by the same selected_team identifier LockedPickemGameRow already
+  // resolves via getTeam(). Same rule as Confidence's /api/picks/pick-counts:
+  // a game only ever appears here once it's started, or once every active
+  // participant has a complete set of picks for the week.
+  const [pickCounts, setPickCounts] = useState<Record<string, Record<string, number>>>({});
 
   // This component only ever mounts for PICKEM pools — the router in
   // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
@@ -191,6 +224,27 @@ export function PickemPicksContent() {
     const participant = result?.participants.find(p => p.participantId === participantId);
     return !!participant?.isComplete;
   };
+
+  // Refetched whenever the loaded games change so a game going live/final,
+  // or the last participant completing their week, picks up its counts
+  // during the visit. The endpoint itself decides what's revealable and
+  // returns {} otherwise, so this always asks and just renders whatever
+  // comes back — same pattern as Confidence's weekly-pick.tsx.
+  useEffect(() => {
+    if (!poolId || week == null || seasonType == null || !result || result.eligibleGames.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/pickem/pick-counts?poolId=${poolId}&week=${week}&seasonType=${seasonType}${pool?.season ? `&season=${pool.season}` : ''}`);
+        const data = await res.json();
+        if (!cancelled && data.success) setPickCounts(data.counts || {});
+      } catch (error) {
+        debugError('Error loading pickem pick counts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [poolId, week, seasonType, pool?.season, result]);
 
   // Resolve which week to show: explicit ?week=/?seasonType= params, else
   // the same "what's the NFL's current/upcoming week" logic every other
@@ -958,18 +1012,29 @@ export function PickemPicksContent() {
               {devDisplayGames.map(game => {
                 const locked = !forceWeekUnlocked && isGameLocked({ kickoff_time: game.kickoffTime, status: game.status }, now);
                 const pickForGame = myWeek.picks.find(p => p.gameId === game.id);
+                const gamePickCounts = pickCounts[game.id];
+                // pickCounts is only ever populated once this specific game
+                // is revealed (see /api/pickem/pick-counts) — either it's
+                // started, or every active participant has a complete set of
+                // picks for the week. A game revealed that way is treated as
+                // locked here too, even if it technically hasn't kicked off:
+                // seeing the crowd's picks and still being able to change
+                // your own at the same time is exactly what "revealed" is
+                // meant to prevent.
+                const isRevealed = !!gamePickCounts && Object.keys(gamePickCounts).length > 0;
 
-                // Once a game is locked, OR this participant has already
-                // submitted a complete set of picks for the week, its result
-                // (teams, score, your pick, correct/incorrect) is the primary
+                // Once a game is locked, revealed, OR this participant has
+                // already submitted a complete set of picks for the week,
+                // its result (teams, score, your pick, correct/incorrect, and
+                // now the pool's pick distribution) is the primary
                 // information — no live pick buttons left to show, and no
                 // separate "Game Details" disclosure needed to see the same
                 // thing. This is the real, DB-backed one-submission lock:
                 // once submitted, every still-open game row shows this way
                 // instead of a clickable pick, matching Confidence's locked/
                 // submitted view.
-                if (locked || isParticipantSubmitted(selectedParticipantId)) {
-                  return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} />;
+                if (locked || isRevealed || isParticipantSubmitted(selectedParticipantId)) {
+                  return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} pickCounts={gamePickCounts} />;
                 }
 
                 // Draft state (not the last-saved pick) drives what's shown
