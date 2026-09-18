@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { getRegularSeasonPeriods, PERIOD_WEEKS } from './utils';
+import { normalizeGameStatus } from '../types/game';
 
 const PICKS_PAGE_SIZE = 1000;
 const REGULAR_SEASON_TYPE = 2;
@@ -281,13 +282,24 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
   // games has no pool_id column (shared across pools by season/week).
   const { data: games } = await supabase
     .from('games')
-    .select('id, week, winner')
+    .select('id, week, winner, status')
     .eq('season', season)
     .eq('season_type', 2);
 
   if (!games || games.length === 0) {
     return emptyPayload(pool?.name);
   }
+
+  // A week only has an actual winner once every one of its games is
+  // decided — otherwise "the current leader" is just whoever's ahead on
+  // the games that happen to be done so far, not a real week win. Matches
+  // the same completeness gate the weekly-winners cron function uses
+  // (games.every(isGameFinished)) before crediting a week.
+  const weekCompleteMap = new Map<number, boolean>();
+  games.forEach(g => {
+    if (!weekCompleteMap.has(g.week)) weekCompleteMap.set(g.week, true);
+    if (normalizeGameStatus(g.status) !== 'finished') weekCompleteMap.set(g.week, false);
+  });
 
   const poolTieInfo = {
     id: poolId,
@@ -347,8 +359,12 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
 
     standings.forEach((s, idx) => finishRanks.get(s.id)?.push(idx + 1));
 
+    // Nobody "wins" a week that isn't over yet — whoever's leading is only
+    // ahead on the games decided so far, not the final tally.
+    const isWeekComplete = weekCompleteMap.get(week) ?? false;
+
     let winner = standings[0];
-    if (winner && winner.entry.points > 0) {
+    if (isWeekComplete && winner && winner.entry.points > 0) {
       const topScorers = standings.filter(s => s.entry.points === winner.entry.points);
       // Ties are only formally broken on tie-breaker (period) weeks, or for
       // non-normal pools — matching the same gating the Deno cron function
@@ -363,18 +379,24 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
         if (resolvedWinner) winner = resolvedWinner;
       }
     }
-    const winnerWon = winner && winner.entry.points > 0;
-    participants.forEach(p => {
-      const wonThisWeek = winnerWon && p.id === winner.id;
-      if (wonThisWeek) {
-        currentStreak.set(p.id, (currentStreak.get(p.id) ?? 0) + 1);
-        longestStreak.set(p.id, Math.max(longestStreak.get(p.id) ?? 0, currentStreak.get(p.id) ?? 0));
-      } else if (standings.some(s => s.id === p.id)) {
-        // Only resets the streak if they actually played and didn't win —
-        // a bye/no-picks week doesn't count against a streak.
-        currentStreak.set(p.id, 0);
-      }
-    });
+    const winnerWon = isWeekComplete && winner && winner.entry.points > 0;
+    // Streaks are a week-over-week concept too — an incomplete week must
+    // not touch them either way: not crediting a not-yet-decided leader,
+    // but also not resetting someone's streak just because their week
+    // isn't finished yet.
+    if (isWeekComplete) {
+      participants.forEach(p => {
+        const wonThisWeek = winnerWon && p.id === winner.id;
+        if (wonThisWeek) {
+          currentStreak.set(p.id, (currentStreak.get(p.id) ?? 0) + 1);
+          longestStreak.set(p.id, Math.max(longestStreak.get(p.id) ?? 0, currentStreak.get(p.id) ?? 0));
+        } else if (standings.some(s => s.id === p.id)) {
+          // Only resets the streak if they actually played and didn't win —
+          // a bye/no-picks week doesn't count against a streak.
+          currentStreak.set(p.id, 0);
+        }
+      });
+    }
 
     if (winnerWon) {
       weeksWonCount.set(winner.id, (weeksWonCount.get(winner.id) ?? 0) + 1);

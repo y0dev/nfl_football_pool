@@ -1710,9 +1710,6 @@ export function PoolPicksContent() {
                   <BarChart3 style={{ width: 14, height: 14 }} />
                   Game Results
                 </button>
-                {effectiveGamesStarted && !weekEnded && submittedCount >= participantCount && (
-                  <span style={{ ...b, fontSize: '0.73rem', color: textDim, marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 1rem' }}>Games in progress</span>
-                )}
                 {showDebugPanel() && devForceLeaderboard && !weekEnded && !(effectiveGamesStarted && submittedCount >= participantCount) && (
                   <span style={{ alignSelf: 'center', marginLeft: 'auto', marginRight: '1rem', ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.08em', color: amber, background: 'oklch(72% 0.16 60 / 0.12)', border: '1px solid oklch(72% 0.16 60 / 0.3)', borderRadius: 4, padding: '0.1rem 0.4rem', textTransform: 'uppercase' }}>Dev</span>
                 )}
