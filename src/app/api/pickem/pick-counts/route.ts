@@ -5,19 +5,20 @@ import { normalizeGameStatus } from '@/types/game';
 import { debugError } from '@/lib/utils';
 
 /**
- * Per-game pick distribution ("N picked Team A, M picked Team B") for the
- * Confidence picks page's game cards. A game is only ever revealed once
- * EITHER it has actually kicked off, OR every active participant in the
- * pool has already submitted their picks for the week — whichever comes
- * first. A game that's still scheduled AND not everyone is in yet is
- * dropped before its picks are even queried, so the response can never
- * carry counts for it; a client bug can't reveal picks early. This mirrors
- * the access gate on /api/leaderboard.
+ * Pick'em's counterpart to /api/picks/pick-counts, sourced from
+ * pickem_picks instead of Confidence's picks table. Same reveal rule: a
+ * game is only ever returned once it has started, or once every active
+ * participant has picks in for every game in the week — a game meeting
+ * neither condition is dropped before its picks are even queried, so a
+ * client bug can't reveal them early.
  *
- * Note: submitting doesn't lock a participant's picks — they can still
- * edit any pick for the week up until the first kickoff, same as always.
- * "Everyone's submitted" just means nobody has an *unmade* pick left to be
- * influenced by seeing this; it isn't a guarantee nobody edits afterward.
+ * Pick'em's own "submitted" bar is stricter than Confidence's — a
+ * participant only counts as done once they have a pick for EVERY
+ * eligible game (matching submitPickemPick's own isAlreadyComplete rule
+ * in src/lib/pickem.ts), not just "at least one pick recorded."
+ *
+ * Counts are keyed by selected_team, the same team-identifying string
+ * LockedPickemGameRow already resolves via getTeam() for "Your pick".
  */
 export async function GET(request: NextRequest) {
   try {
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     const { data: games, error: gamesError } = await gamesQuery;
 
     if (gamesError) {
-      debugError('Error loading games for pick counts:', gamesError);
+      debugError('Error loading games for pickem pick counts:', gamesError);
       return NextResponse.json({ success: false, error: 'Failed to load games' }, { status: 500 });
     }
 
@@ -64,27 +65,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, counts: {} });
     }
 
+    const allGameIds = games.map(g => g.id);
     const startedGameIds = games
       .filter(g => normalizeGameStatus(g.status) !== 'scheduled')
       .map(g => g.id);
 
-    // "Everyone's submitted" is the same definition /api/pools/[id] already
-    // uses to show the participant/submitted counts elsewhere on this page:
-    // active participants vs. distinct participant_ids with a pick recorded
-    // anywhere in this pool/week/season_type.
-    const allGameIds = games.map(g => g.id);
     const [{ count: activeParticipantCount }, { data: weekPicks, error: weekPicksError }] = await Promise.all([
       supabase.from('participants').select('id', { count: 'exact', head: true }).eq('pool_id', poolId).eq('is_active', true),
-      supabase.from('picks').select('participant_id').eq('pool_id', poolId).in('game_id', allGameIds),
+      supabase.from('pickem_picks').select('participant_id, game_id').eq('pool_id', poolId).in('game_id', allGameIds),
     ]);
 
     if (weekPicksError) {
-      debugError('Error checking submission completeness for pick counts:', weekPicksError);
+      debugError('Error checking submission completeness for pickem pick counts:', weekPicksError);
       return NextResponse.json({ success: false, error: 'Failed to load picks' }, { status: 500 });
     }
 
-    const submittedCount = new Set((weekPicks ?? []).map(p => p.participant_id)).size;
-    const allSubmitted = (activeParticipantCount ?? 0) > 0 && submittedCount >= (activeParticipantCount ?? 0);
+    const gameIdsByParticipant = new Map<string, Set<string>>();
+    (weekPicks ?? []).forEach(p => {
+      if (!gameIdsByParticipant.has(p.participant_id)) gameIdsByParticipant.set(p.participant_id, new Set());
+      gameIdsByParticipant.get(p.participant_id)!.add(p.game_id);
+    });
+    const completedParticipantCount = [...gameIdsByParticipant.values()]
+      .filter(gameIds => gameIds.size >= allGameIds.length).length;
+    const allSubmitted = (activeParticipantCount ?? 0) > 0 && completedParticipantCount >= (activeParticipantCount ?? 0);
 
     const revealGameIds = allSubmitted ? allGameIds : startedGameIds;
     if (revealGameIds.length === 0) {
@@ -92,26 +95,26 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: picks, error: picksError } = await supabase
-      .from('picks')
-      .select('game_id, predicted_winner')
+      .from('pickem_picks')
+      .select('game_id, selected_team')
       .eq('pool_id', poolId)
       .in('game_id', revealGameIds);
 
     if (picksError) {
-      debugError('Error loading picks for pick counts:', picksError);
+      debugError('Error loading picks for pickem pick counts:', picksError);
       return NextResponse.json({ success: false, error: 'Failed to load picks' }, { status: 500 });
     }
 
     const counts: Record<string, Record<string, number>> = {};
     (picks ?? []).forEach(pick => {
-      if (!pick.predicted_winner) return;
+      if (!pick.selected_team) return;
       const gameCounts = counts[pick.game_id] ?? (counts[pick.game_id] = {});
-      gameCounts[pick.predicted_winner] = (gameCounts[pick.predicted_winner] ?? 0) + 1;
+      gameCounts[pick.selected_team] = (gameCounts[pick.selected_team] ?? 0) + 1;
     });
 
     return NextResponse.json({ success: true, counts });
   } catch (error) {
-    debugError('Error in pick-counts API:', error);
+    debugError('Error in pickem pick-counts API:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -130,7 +130,6 @@ function TeamButton({
 export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked, pickCounts }: GameCardProps) {
   const isFinal = game.status === 'finished' || game.status === 'cancelled';
   const isLive = game.status === 'in_progress' || game.status === 'live';
-  const isSelectable = !locked && !isFinal && !isLive;
   const selectedTeam = pick?.predicted_winner;
   const confidencePoints = pick?.confidence_points;
 
@@ -139,6 +138,14 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
   const totalPickers = awayPickCount + homePickCount;
   const awayPickPct = totalPickers > 0 ? Math.round((awayPickCount / totalPickers) * 100) : 0;
   const homePickPct = totalPickers > 0 ? 100 - awayPickPct : 0;
+  // pickCounts is only ever populated once this game is revealable — either
+  // it's started, or every participant has submitted for the week (see the
+  // pick-counts endpoint) — so its presence doubles as "no more editing for
+  // this game": once revealed, the pick-buttons/confidence-selector give way
+  // to the read-only distribution below, even for a game that technically
+  // hasn't kicked off yet.
+  const isRevealed = totalPickers > 0;
+  const isSelectable = !locked && !isFinal && !isLive && !isRevealed;
 
   // Every value 1..totalGames is always shown. A value used on another game
   // stays tappable — picking it here moves it over and swaps this game's
@@ -191,6 +198,12 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
             <>
               <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, flexShrink: 0, animation: 'pulse 1.4s ease-in-out infinite' }} />
               <span style={{ color: liveRed, fontWeight: 700 }}>Live</span>
+            </>
+          ) : isRevealed ? (
+            <>
+              <Check size={12} color={greenHi} />
+              <span style={{ color: greenHi, fontWeight: 700 }}>All Picks In</span>
+              <span>· {kickoffLabel}</span>
             </>
           ) : (
             <>
@@ -257,10 +270,12 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         />
       </div>
 
-      {/* Pick distribution — how the pool picked this game. Only ever shown
-          once the game has started (isFinal/isLive), matching the fact that
-          pickCounts itself is only ever populated for a started game. */}
-      {(isFinal || isLive) && totalPickers > 0 && (
+      {/* Pick distribution — how the pool picked this game. The pick-counts
+          endpoint is the sole authority on when this is revealable (once the
+          game has started, or once every participant has submitted for the
+          week) — pickCounts is simply empty until then, so rendering purely
+          off totalPickers here is enough; no need to duplicate that gate. */}
+      {totalPickers > 0 && (
         <div className='game-card-pick-distribution' style={{ padding: '0 1rem 0.875rem' }}>
           <p style={{ ...b, fontSize: '0.65rem', color: textDim, textAlign: 'center', marginBottom: '0.35rem' }}>
             How the Pool Picked
@@ -284,8 +299,11 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         </div>
       )}
 
-      {/* Confidence selector */}
-      {selectedTeam && !isFinal && !isLive && !locked && (
+      {/* Confidence selector — hidden once revealed, same as the pick
+          buttons above: seeing the crowd's picks and still being able to
+          change your own at the same time is exactly what "revealed" is
+          meant to prevent. */}
+      {selectedTeam && !isFinal && !isLive && !locked && !isRevealed && (
         <div className='game-card-confidence' style={{ padding: '0 1rem 1rem' }}>
           <p style={{ ...b, fontSize: '0.68rem', color: textDim, textAlign: 'center', marginBottom: '0.5rem', marginTop: 0 }}>
             Confidence Points
@@ -346,8 +364,11 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
         </div>
       )}
 
-      {/* Points badge when locked or final */}
-      {!!confidencePoints && (isFinal || locked) && (
+      {/* Points badge — final only. A locked-but-not-final game either shows
+          the pick-distribution above (once it's revealed) or nothing yet; a
+          static, uncolored point count with no correct/incorrect signal
+          wasn't earning its place there. */}
+      {!!confidencePoints && isFinal && (
         <div className='game-card-points' style={{ padding: '0 1rem 0.875rem', textAlign: 'center' }}>
           <span
             style={{

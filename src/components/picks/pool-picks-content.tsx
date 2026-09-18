@@ -152,7 +152,11 @@ export function PoolPicksContent() {
   const [isTestMode, setIsTestMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  // Week Final Results — collapsible, but open by default (unlike Season,
+  // which always defaults closed) since it's the headline content of the
+  // "week ended" screen; the header's Show/Hide Results action and this
+  // section's own caret both drive the same state.
+  const [showLeaderboard, setShowLeaderboard] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showGameDetails, setShowGameDetails] = useState(true);
   const [countdown, setCountdown] = useState<string>('');
@@ -1416,17 +1420,12 @@ export function PoolPicksContent() {
               </div>
             </div>
 
-            {showLeaderboard && (
-              <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Trophy style={{ width: 16, height: 16, color: gold }} />
-                  <span style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{getWeekTitle()} Final Results</span>
-                </div>
-                <div style={{ padding: '1.25rem' }}>
-                  <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
-                </div>
-              </div>
-            )}
+            <CollapsibleLeaderboardCard
+              icon={Trophy} iconColor={gold} title={`${getWeekTitle()} Final Results`}
+              open={showLeaderboard} onToggle={() => setShowLeaderboard(!showLeaderboard)}
+            >
+              <Leaderboard poolId={poolId} weekNumber={currentWeek} seasonType={currentSeasonType} season={poolSeason} />
+            </CollapsibleLeaderboardCard>
 
             <CollapsibleLeaderboardCard
               icon={Crown} iconColor={purple} title="Current Quarter Standings"

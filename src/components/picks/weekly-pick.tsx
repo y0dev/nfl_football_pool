@@ -11,7 +11,7 @@ import { MondayNightScoreInput } from './monday-night-score-input';
 import { userSessionManager } from '@/lib/user-session';
 import { pickStorage } from '@/lib/pick-storage';
 import { Clock, Save, AlertTriangle } from 'lucide-react';
-import { Game, Pick, StoredPick, SelectedUser, normalizeGameStatus } from '@/types/game';
+import { Game, Pick, StoredPick, SelectedUser } from '@/types/game';
 import { debugLog, DAYS_BEFORE_GAME, PERIOD_WEEKS, SUPER_BOWL_SEASON_TYPE, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { getPlayoffConfidencePoints } from '@/lib/playoff-utils';
 import { GameCard } from '@/components/picks/game-card';
@@ -99,14 +99,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   // Determine if we're in playoff mode
   const isPlayoffMode = seasonType === 3;
 
-  // Pick distribution ("N picked Team A, M picked Team B") for games that
-  // have started — refetched whenever the loaded games change so a game
-  // going live/final during the visit picks up its counts. The endpoint
-  // itself also never returns counts for a still-scheduled game, so this is
-  // defense in depth rather than the only gate against showing picks early.
+  // Pick distribution ("N picked Team A, M picked Team B") — the endpoint
+  // itself decides what's revealable (a game that's live/final, or every
+  // game once every active participant has submitted for the week) and
+  // returns {} otherwise, so this always asks and just renders whatever
+  // comes back. Refetched whenever the loaded games change so a game going
+  // live/final, or the last participant submitting, picks up its counts
+  // during the visit without a manual refresh.
   useEffect(() => {
-    const anyGameStarted = games.some(g => normalizeGameStatus(g.status) !== 'scheduled');
-    if (!poolId || !currentWeek || !anyGameStarted) return;
+    if (!poolId || !currentWeek || games.length === 0) return;
 
     let cancelled = false;
     (async () => {
