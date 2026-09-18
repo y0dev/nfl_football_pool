@@ -206,12 +206,6 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
               <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, flexShrink: 0, animation: 'pulse 1.4s ease-in-out infinite' }} />
               <span style={{ color: liveRed, fontWeight: 700 }}>Live</span>
             </>
-          ) : isRevealed ? (
-            <>
-              <Check size={12} color={greenHi} />
-              <span style={{ color: greenHi, fontWeight: 700 }}>All Picks In</span>
-              <span>· {kickoffLabel}</span>
-            </>
           ) : (
             <>
               <Clock size={12} />
@@ -290,11 +284,24 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
             How the Pool Picked
           </p>
           <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'oklch(26% 0.03 255)' }}>
-            {awayPickCount > 0 && (
-              <div style={{ width: `${awayPickPct}%`, background: getTeam(getTeamAbbreviation(game.away_team)).color2 }} />
+            {/* The Panthers secondary color is hard to see on the dark background so use the primary color instead */}
+            {getTeam(getTeamAbbreviation(game.away_team)).abbreviation === 'CAR' ? (
+              awayPickCount > 0 && (
+                <div style={{ width: `${awayPickPct}%`, background: getTeam(getTeamAbbreviation(game.away_team)).color }} />
+              )
+            ) : (
+              awayPickCount > 0 && (
+                <div style={{ width: `${awayPickPct}%`, background: getTeam(getTeamAbbreviation(game.away_team)).color2 }} />
+              )
             )}
-            {homePickCount > 0 && (
-              <div style={{ width: `${homePickPct}%`, background: getTeam(getTeamAbbreviation(game.home_team)).color2 }} />
+            {getTeam(getTeamAbbreviation(game.home_team)).abbreviation === 'CAR' ? (
+              homePickCount > 0 && (
+                <div style={{ width: `${homePickPct}%`, background: getTeam(getTeamAbbreviation(game.home_team)).color }} />
+              )
+            ) : (
+              homePickCount > 0 && (
+                <div style={{ width: `${homePickPct}%`, background: getTeam(getTeamAbbreviation(game.home_team)).color2 }} />
+              )
             )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
