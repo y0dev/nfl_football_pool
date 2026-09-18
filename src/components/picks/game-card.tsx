@@ -19,6 +19,18 @@ const liveRed = 'oklch(62% 0.22 25)';
 const bc = { fontFamily: 'var(--font-barlow-condensed)' } as const;
 const b  = { fontFamily: 'var(--font-barlow)' } as const;
 
+// These teams' color2 (their normal pick-distribution bar segment color) is
+// too dark/near-black to read against the bar's own dark track — Arizona
+// #000000, Atlanta #000000, Carolina #101820, Cincinnati #000000,
+// New Orleans #101820, NY Jets #000000, Pittsburgh #101820, Tampa Bay
+// #34302B — so they fall back to their brighter primary color instead.
+const DARK_SECONDARY_TEAMS = new Set(['ARI', 'ATL', 'CAR', 'CIN', 'NO', 'NYJ', 'PIT', 'TB']);
+
+function pickBarColor(fullTeamName: string): string {
+  const team = getTeam(getTeamAbbreviation(fullTeamName));
+  return DARK_SECONDARY_TEAMS.has(team.abbreviation) ? team.color : team.color2;
+}
+
 export interface GameCardPickState {
   predicted_winner?: string;
   confidence_points?: number;
@@ -206,12 +218,6 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
               <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: liveRed, flexShrink: 0, animation: 'pulse 1.4s ease-in-out infinite' }} />
               <span style={{ color: liveRed, fontWeight: 700 }}>Live</span>
             </>
-          ) : isRevealed ? (
-            <>
-              <Check size={12} color={greenHi} />
-              <span style={{ color: greenHi, fontWeight: 700 }}>All Picks In</span>
-              <span>· {kickoffLabel}</span>
-            </>
           ) : (
             <>
               <Clock size={12} />
@@ -291,10 +297,10 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
           </p>
           <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'oklch(26% 0.03 255)' }}>
             {awayPickCount > 0 && (
-              <div style={{ width: `${awayPickPct}%`, background: getTeam(getTeamAbbreviation(game.away_team)).color2 }} />
+              <div style={{ width: `${awayPickPct}%`, background: pickBarColor(game.away_team) }} />
             )}
             {homePickCount > 0 && (
-              <div style={{ width: `${homePickPct}%`, background: getTeam(getTeamAbbreviation(game.home_team)).color2 }} />
+              <div style={{ width: `${homePickPct}%`, background: pickBarColor(game.home_team) }} />
             )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>

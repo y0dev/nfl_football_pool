@@ -47,13 +47,13 @@ export default function MakePicksGuide() {
 
       <Step number={4} title="Submit Your Picks">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
-          Once every game has a team and a confidence value assigned — the Confidence Points Summary at the top shows 0 remaining — scroll to the bottom and tap <strong>Submit Picks</strong>. You can come back and change your picks anytime before the week locks at kickoff.
+          Once every game has a team and a confidence value assigned — the Confidence Points Summary at the top shows 0 remaining — scroll to the bottom and tap <strong>Submit Picks</strong>. You can come back and change your picks anytime before the week locks — either at kickoff, or earlier, once every participant in the pool has submitted (see below).
         </p>
       </Step>
 
       <Step number={5} title="Locked and Finished Games">
         <p style={{ ...b, fontSize: '0.9rem', color: textMid, lineHeight: 1.6 }}>
-          Picks for the entire week <strong>lock</strong> as soon as the first game of that week kicks off — every game shows Locked at that point, even ones that haven&apos;t started yet. Once a game ends, it shows <strong>Final</strong> with the score, and whether your pick was correct.
+          Picks for the entire week <strong>lock</strong> the moment either of two things happens, whichever comes first: the first game of the week kicks off, or every participant in the pool has submitted their picks. Once locked, a game that hasn&apos;t started yet just goes back to showing its normal kickoff time — there&apos;s no separate badge for this, so keep an eye on whether the team buttons and confidence selector are still there. Once a game actually starts, it shows <strong>Live</strong> with the current score; once it ends, it shows <strong>Final</strong> with the score and whether your pick was correct.
         </p>
       </Step>
     </GuideLayout>
