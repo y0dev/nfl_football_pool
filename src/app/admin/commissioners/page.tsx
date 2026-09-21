@@ -81,6 +81,10 @@ function CommissionersManagementContent() {
   const [planError, setPlanError]       = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoGroup, setPromoGroup]     = useState<'free' | 'standard'>('free');
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [feedbackPreviewLoading, setFeedbackPreviewLoading] = useState(false);
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackTargets, setFeedbackTargets] = useState<{ email: string; name: string; poolNames: string[] }[] | null>(null);
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -140,6 +144,46 @@ function CommissionersManagementContent() {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to send', variant: 'destructive' });
     } finally {
       setPromoLoading(false);
+    }
+  };
+
+  // Fetches the current target list (commissioners with a this-season pool
+  // that has no participants, or participants but zero picks ever) so the
+  // dialog can show who's about to get emailed before actually sending.
+  const handleOpenFeedbackDialog = async () => {
+    setFeedbackDialogOpen(true);
+    setFeedbackTargets(null);
+    setFeedbackPreviewLoading(true);
+    try {
+      const res = await fetch('/api/super-admin/send-inactive-pool-feedback', {
+        headers: { 'x-admin-email': user?.email ?? '' },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load targets');
+      setFeedbackTargets(data.targets);
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to load targets', variant: 'destructive' });
+      setFeedbackDialogOpen(false);
+    } finally {
+      setFeedbackPreviewLoading(false);
+    }
+  };
+
+  const handleSendFeedbackRequest = async () => {
+    setFeedbackSending(true);
+    try {
+      const res = await fetch('/api/super-admin/send-inactive-pool-feedback', {
+        method: 'POST',
+        headers: { 'x-admin-email': user?.email ?? '' },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to send');
+      toast({ title: 'Feedback Requests Sent', description: `Sent to ${data.sent} commissioner${data.sent !== 1 ? 's' : ''}` });
+      setFeedbackDialogOpen(false);
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to send', variant: 'destructive' });
+    } finally {
+      setFeedbackSending(false);
     }
   };
 
@@ -312,6 +356,61 @@ function CommissionersManagementContent() {
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleSendPromo} disabled={promoTargetCount === 0} style={{ background: gold, color: 'oklch(13% 0.025 255)', border: 'none', opacity: promoTargetCount === 0 ? 0.5 : 1 }}>
                     {promoLoading ? 'Sending…' : 'Send Emails'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
+              <button
+                type="button"
+                onClick={handleOpenFeedbackDialog}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'oklch(58% 0.15 250 / 0.1)', color: 'oklch(72% 0.12 250)', border: '1px solid oklch(58% 0.15 250 / 0.45)', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <Send style={{ width: 13, height: 13 }} />
+                Feedback Request
+              </button>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Request Feedback From Inactive Pools
+                  </AlertDialogTitle>
+                  <AlertDialogDescription style={{ color: textMid }}>
+                    Emails every active commissioner who created a pool this season that never got going —
+                    no participants added, or participants added but no pick ever submitted. Asks what got in
+                    the way, reply-to-this-email style; not a survey link or an upgrade pitch.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <div>
+                  {feedbackPreviewLoading ? (
+                    <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>Checking this season&apos;s pools…</p>
+                  ) : feedbackTargets && feedbackTargets.length > 0 ? (
+                    <>
+                      <p style={{ ...b, fontSize: '0.78rem', color: textMid, marginBottom: '0.5rem' }}>
+                        Will send to <strong style={{ color: text }}>{feedbackTargets.length} commissioner{feedbackTargets.length !== 1 ? 's' : ''}</strong>:
+                      </p>
+                      <div style={{ maxHeight: '9rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem', background: 'oklch(13% 0.025 255)', border: `1px solid ${border}`, borderRadius: 6, padding: '0.6rem 0.75rem' }}>
+                        {feedbackTargets.map(t => (
+                          <div key={t.email} style={{ ...b, fontSize: '0.76rem', color: textMid }}>
+                            <span style={{ color: text }}>{t.name}</span> — {t.poolNames.join(', ')}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ ...b, fontSize: '0.82rem', color: textDim }}>No unused pools found for this season — nobody to email.</p>
+                  )}
+                </div>
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleSendFeedbackRequest}
+                    disabled={feedbackPreviewLoading || feedbackSending || !feedbackTargets || feedbackTargets.length === 0}
+                    style={{ background: 'oklch(58% 0.15 250)', color: text, border: 'none', opacity: (feedbackPreviewLoading || !feedbackTargets || feedbackTargets.length === 0) ? 0.5 : 1 }}
+                  >
+                    {feedbackSending ? 'Sending…' : 'Send Emails'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
