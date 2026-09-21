@@ -29,18 +29,29 @@ interface LeaderboardProps {
 }
 
 /**
- * Real total_points already only counts finished, correctly-picked games —
- * this adds a provisional estimate for games currently in progress: a pick
- * on the team that's presently ahead on the scoreboard contributes its
- * confidence points, same as if the game had already ended that way. A
- * scheduled (not-yet-started) game never contributes — there's nothing to
- * project it from.
+ * Real total_points already only counts finished, correctly-picked games.
+ * Projected adds every pick on a game that hasn't finished yet, split two
+ * ways: a live game only contributes while the pick is presently ahead on
+ * the scoreboard (nothing's proven it wrong, but nothing's proven it right
+ * either — "if it ended right now"); a still-scheduled game has no score
+ * to judge at all, so it's projected as a win outright — nothing has
+ * disproven it yet. A finished game is skipped either way since a wrong
+ * pick there is already correctly excluded from total_points, and crediting
+ * it again here would double-count a correct one.
  */
 function computeProjectedPoints(entry: LeaderboardEntryWithPicks): number {
   let projected = entry.total_points || 0;
   entry.picks?.forEach(pick => {
-    if (normalizeGameStatus(pick.game_status) !== 'live') return;
-    if (!pick.predicted_winner || pick.home_score == null || pick.away_score == null) return;
+    const status = normalizeGameStatus(pick.game_status);
+    if (status === 'finished' || !pick.predicted_winner) return;
+
+    if (status === 'scheduled') {
+      projected += pick.confidence_points || 0;
+      return;
+    }
+
+    // Live — only counts while currently ahead.
+    if (pick.home_score == null || pick.away_score == null) return;
     const pickedHome = pick.predicted_winner.toLowerCase() === (pick.home_team || '').toLowerCase();
     const pickedAway = pick.predicted_winner.toLowerCase() === (pick.away_team || '').toLowerCase();
     const isLeading = pickedHome ? pick.home_score > pick.away_score : pickedAway ? pick.away_score > pick.home_score : false;
