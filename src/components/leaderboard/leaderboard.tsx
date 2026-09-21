@@ -30,32 +30,19 @@ interface LeaderboardProps {
 
 /**
  * Real total_points already only counts finished, correctly-picked games.
- * Projected adds every pick on a game that hasn't finished yet, split two
- * ways: a live game only contributes while the pick is presently ahead on
- * the scoreboard (nothing's proven it wrong, but nothing's proven it right
- * either — "if it ended right now"); a still-scheduled game has no score
- * to judge at all, so it's projected as a win outright — nothing has
- * disproven it yet. A finished game is skipped either way since a wrong
- * pick there is already correctly excluded from total_points, and crediting
- * it again here would double-count a correct one.
+ * Projected adds the full confidence value of every pick on a game that
+ * hasn't finished yet — live or still scheduled alike — since neither has
+ * been proven wrong: a "best case if the rest goes my way" ceiling, not a
+ * live in-game lead tracker. A finished game is skipped either way since a
+ * wrong pick there is already correctly excluded from total_points, and
+ * crediting it again here would double-count a correct one.
  */
 function computeProjectedPoints(entry: LeaderboardEntryWithPicks): number {
   let projected = entry.total_points || 0;
   entry.picks?.forEach(pick => {
     const status = normalizeGameStatus(pick.game_status);
     if (status === 'finished' || !pick.predicted_winner) return;
-
-    if (status === 'scheduled') {
-      projected += pick.confidence_points || 0;
-      return;
-    }
-
-    // Live — only counts while currently ahead.
-    if (pick.home_score == null || pick.away_score == null) return;
-    const pickedHome = pick.predicted_winner.toLowerCase() === (pick.home_team || '').toLowerCase();
-    const pickedAway = pick.predicted_winner.toLowerCase() === (pick.away_team || '').toLowerCase();
-    const isLeading = pickedHome ? pick.home_score > pick.away_score : pickedAway ? pick.away_score > pick.home_score : false;
-    if (isLeading) projected += pick.confidence_points || 0;
+    projected += pick.confidence_points || 0;
   });
   return projected;
 }
