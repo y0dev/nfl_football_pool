@@ -987,6 +987,50 @@ class EmailService {
     return this.sendEmail({ to: email, subject, html });
   }
 
+  // Sent to a commissioner who created a pool for the current season but
+  // never actually got it going (no participants added, or participants
+  // added but nobody — including them — ever submitted a pick). A direct,
+  // reply-to-this-email ask for feedback, not a survey link or a pitch to
+  // upgrade — see /api/super-admin/send-inactive-pool-feedback.
+  async sendInactivePoolFeedbackRequest(email: string, displayName: string, poolNames: string[]): Promise<boolean> {
+    const subject = poolNames.length === 1
+      ? `Quick question about "${poolNames[0]}"`
+      : `Quick question about your ${poolNames.length} pools`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const dashboardUrl = `${baseUrl}/dashboard`;
+
+    const poolList = poolNames.length === 1
+      ? `<strong style="color:#f1f5f9;">${poolNames[0]}</strong>`
+      : `<strong style="color:#f1f5f9;">${poolNames.slice(0, -1).join('", "')}</strong> and <strong style="color:#f1f5f9;">${poolNames[poolNames.length - 1]}</strong>`;
+
+    const content = `
+      <p style="margin:0 0 20px;color:#f1f5f9;font-size:16px;line-height:1.6;">Hi ${displayName},</p>
+      <p style="margin:0 0 20px;color:#94a3b8;font-size:15px;line-height:1.6;">
+        I noticed you set up ${poolList} this season, but it doesn't look like it ever really got going — no
+        picks have been made in it yet.
+      </p>
+      <p style="margin:0 0 20px;color:#94a3b8;font-size:15px;line-height:1.6;">
+        I'd genuinely like to know why. Did something get in the way of inviting people? Was a setting confusing?
+        Did the timing just not work out? Or is this simply not something you need right now?
+      </p>
+      <p style="margin:0 0 20px;color:#94a3b8;font-size:15px;line-height:1.6;">
+        Just reply to this email and let me know — even a couple sentences helps me make Sunday Huddle better.
+        If you'd rather just jump back in, your dashboard is right where you left it.
+      </p>
+      <p style="margin:0;color:#94a3b8;font-size:15px;line-height:1.6;">Thanks,<br>The Sunday Huddle team</p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Did we miss something?',
+      content,
+      buttonText: 'Go to My Dashboard',
+      buttonUrl: dashboardUrl,
+      footerText: 'You received this because you created a pool on Sunday Huddle. Just reply — a real person reads these.',
+    });
+
+    return this.sendEmail({ to: email, subject, html });
+  }
+
   // Sent to the commissioner who initiated a Huddle transfer, asking them
   // to confirm their own request before it can take effect.
   async sendHuddleTransferConfirmation(fromEmail: string, huddleName: string, toEmail: string, confirmUrl: string): Promise<boolean> {
