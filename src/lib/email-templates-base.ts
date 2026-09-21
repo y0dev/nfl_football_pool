@@ -1,5 +1,12 @@
 /**
- * Base responsive email template utilities — Sunday Huddle dark theme
+ * Base responsive email template utilities — Sunday Huddle dark theme.
+ *
+ * Layout is a plain, single-column newsletter shell (small wordmark, a
+ * left-aligned heading, flowing body copy, one plain button, a quiet
+ * footer) — no bordered "card" box, no all-caps banner header. Modeled on
+ * a classic simple Mailchimp campaign's structure, not its light color
+ * scheme: every existing content string across email.ts already hardcodes
+ * text colors for this dark background, so only the shell changed.
  */
 
 // Dark theme palette (email-safe hex)
@@ -25,6 +32,13 @@ export interface ResponsiveEmailOptions {
   accentColor?: string;
 }
 
+// Structure follows a plain single-column newsletter layout (no bordered
+// "card" box, no shouty all-caps header) instead of the previous boxed,
+// heavily-branded shell — see the redesign note above the palette. Content
+// strings passed in by every caller in email.ts already hardcode text
+// colors for this same dark background (${C.text}/${C.textMid} equivalents
+// like #f1f5f9/#94a3b8), so the palette itself is unchanged; only the shell
+// around it is simpler.
 export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): string {
   const {
     title,
@@ -50,36 +64,36 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
 <body style="margin:0;padding:0;background-color:${C.outerBg};font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:${C.outerBg};">
     <tr>
-      <td style="padding:32px 16px;">
+      <td style="padding:40px 20px;">
 
-        <!-- Main card -->
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin:0 auto;max-width:600px;width:100%;background-color:${C.bg};border-radius:10px;border:1px solid ${C.border};border-top:3px solid ${accentColor};">
+        <!-- Single flowing column, no card/border around it -->
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="560" style="margin:0 auto;max-width:560px;width:100%;">
 
-          <!-- Header -->
+          <!-- Small wordmark, not a big branded banner -->
           <tr>
-            <td style="padding:28px 32px 20px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:${C.greenHi};text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
-              <h1 style="margin:0;font-size:24px;font-weight:900;color:${C.text};letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">${title}</h1>
+            <td style="padding-bottom:24px;text-align:center;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background-color:${accentColor};margin-right:8px;vertical-align:middle;"></span>
+              <span style="font-size:12px;font-weight:700;letter-spacing:0.14em;color:${C.textMid};text-transform:uppercase;vertical-align:middle;">Sunday Huddle</span>
             </td>
           </tr>
 
-          <!-- Divider -->
+          <!-- Heading — left-aligned like the body it introduces -->
           <tr>
-            <td style="padding:0 32px;">
-              <div style="height:1px;background-color:${C.border};"></div>
+            <td style="padding-bottom:18px;">
+              <h1 style="margin:0;font-size:21px;font-weight:700;color:${C.text};line-height:1.35;">${title}</h1>
             </td>
           </tr>
 
-          <!-- Content -->
+          <!-- Body copy -->
           <tr>
-            <td style="padding:28px 32px;">
+            <td style="font-size:15px;line-height:1.65;">
               ${content}
 
               ${buttonText && buttonUrl ? `
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:28px 0 8px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 4px;">
                 <tr>
-                  <td style="text-align:center;">
-                    <a href="${buttonUrl}" style="display:inline-block;background-color:${accentColor};color:${C.text};text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+                  <td style="border-radius:6px;background-color:${accentColor};">
+                    <a href="${buttonUrl}" style="display:inline-block;color:${C.text};text-decoration:none;padding:12px 28px;font-weight:600;font-size:15px;">
                       ${buttonText}
                     </a>
                   </td>
@@ -89,11 +103,12 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer — quiet, no box -->
           <tr>
-            <td style="padding:18px 32px 24px;border-top:1px solid ${C.border};text-align:center;">
-              <p style="margin:0 0 6px;color:${C.textDim};font-size:12px;line-height:1.5;">${footerText}</p>
-              <p style="margin:0;color:${C.textDim};font-size:11px;">© ${new Date().getFullYear()} Sunday Huddle. All rights reserved.</p>
+            <td style="padding-top:32px;margin-top:8px;">
+              <div style="height:1px;background-color:${C.border};margin-bottom:16px;"></div>
+              <p style="margin:0 0 4px;color:${C.textDim};font-size:12px;line-height:1.5;">${footerText}</p>
+              <p style="margin:0;color:${C.textDim};font-size:11px;">© ${new Date().getFullYear()} Sunday Huddle</p>
             </td>
           </tr>
 
