@@ -19,6 +19,11 @@ import { debugError } from '@/lib/utils';
  *
  * Counts are keyed by selected_team, the same team-identifying string
  * LockedPickemGameRow already resolves via getTeam() for "Your pick".
+ *
+ * `details` is the same reveal set broken down to the participant level —
+ * game_id -> selected_team -> [{ name }] (alphabetical; Pick'em has no
+ * per-game confidence value to sort by) — for the "See who picked what"
+ * expand under the distribution bar.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!games || games.length === 0) {
-      return NextResponse.json({ success: true, counts: {} });
+      return NextResponse.json({ success: true, counts: {}, details: {} });
     }
 
     const allGameIds = games.map(g => g.id);
@@ -91,28 +96,47 @@ export async function GET(request: NextRequest) {
 
     const revealGameIds = allSubmitted ? allGameIds : startedGameIds;
     if (revealGameIds.length === 0) {
-      return NextResponse.json({ success: true, counts: {} });
+      return NextResponse.json({ success: true, counts: {}, details: {} });
     }
 
-    const { data: picks, error: picksError } = await supabase
-      .from('pickem_picks')
-      .select('game_id, selected_team')
-      .eq('pool_id', poolId)
-      .in('game_id', revealGameIds);
+    const [{ data: picks, error: picksError }, { data: participants, error: participantsError }] = await Promise.all([
+      supabase
+        .from('pickem_picks')
+        .select('game_id, selected_team, participant_id')
+        .eq('pool_id', poolId)
+        .in('game_id', revealGameIds),
+      supabase.from('participants').select('id, name').eq('pool_id', poolId),
+    ]);
 
     if (picksError) {
       debugError('Error loading picks for pickem pick counts:', picksError);
       return NextResponse.json({ success: false, error: 'Failed to load picks' }, { status: 500 });
     }
+    if (participantsError) {
+      debugError('Error loading participants for pickem pick counts:', participantsError);
+      return NextResponse.json({ success: false, error: 'Failed to load participants' }, { status: 500 });
+    }
+
+    const participantNames = new Map((participants ?? []).map(p => [p.id, p.name]));
 
     const counts: Record<string, Record<string, number>> = {};
+    const details: Record<string, Record<string, { name: string }[]>> = {};
     (picks ?? []).forEach(pick => {
       if (!pick.selected_team) return;
       const gameCounts = counts[pick.game_id] ?? (counts[pick.game_id] = {});
       gameCounts[pick.selected_team] = (gameCounts[pick.selected_team] ?? 0) + 1;
+
+      const name = pick.participant_id ? participantNames.get(pick.participant_id) : undefined;
+      if (!name) return;
+      const gameDetails = details[pick.game_id] ?? (details[pick.game_id] = {});
+      const teamDetails = gameDetails[pick.selected_team] ?? (gameDetails[pick.selected_team] = []);
+      teamDetails.push({ name });
+    });
+    Object.values(details).forEach(gameDetails => {
+      Object.values(gameDetails).forEach(list => list.sort((a, b) => a.name.localeCompare(b.name)));
     });
 
-    return NextResponse.json({ success: true, counts });
+    return NextResponse.json({ success: true, counts, details });
   } catch (error) {
     debugError('Error in pickem pick-counts API:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

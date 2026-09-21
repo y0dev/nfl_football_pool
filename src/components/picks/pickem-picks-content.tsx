@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { CheckCircle2, Lock, Unlock, Target, Trophy, Clock, Check, X as XIcon, Share2, Users, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, Lock, Unlock, Target, Trophy, Clock, Check, X as XIcon, Share2, Users, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AppNav } from '@/components/layout/AppNav';
 import { TeamLogo } from '@/components/ui/team-logo';
@@ -42,6 +42,7 @@ function LockedPickemGameRow({
   game,
   pick,
   pickCounts,
+  pickDetails,
 }: {
   game: PickemWeekResult['eligibleGames'][number];
   pick: PickemGamePick | undefined;
@@ -49,6 +50,10 @@ function LockedPickemGameRow({
    * populated once this game is revealed (see /api/pickem/pick-counts) —
    * undefined/empty renders no distribution, just the row as it already was. */
   pickCounts?: Record<string, number>;
+  /** selected_team -> the participants who picked it, alphabetical (no
+   * confidence points in Pick'em). Same reveal source/rule as pickCounts —
+   * powers the "See who picked what" expand under the distribution bar. */
+  pickDetails?: Record<string, { name: string }[]>;
 }) {
   const normalized = normalizeGameStatus(game.status);
   const isFinished = normalized === 'finished';
@@ -56,12 +61,14 @@ function LockedPickemGameRow({
   const awayTeam = getTeam(getTeamAbbreviation(game.awayTeam));
   const homeTeam = getTeam(getTeamAbbreviation(game.homeTeam));
   const showScores = (isFinished || isLive) && game.homeScore != null && game.awayScore != null;
+  const [showPickDetail, setShowPickDetail] = useState(false);
 
   const awayPickCount = (game.awayTeamId && pickCounts?.[game.awayTeamId]) || 0;
   const homePickCount = (game.homeTeamId && pickCounts?.[game.homeTeamId]) || 0;
   const totalPickers = awayPickCount + homePickCount;
   const awayPickPct = totalPickers > 0 ? Math.round((awayPickCount / totalPickers) * 100) : 0;
   const homePickPct = totalPickers > 0 ? 100 - awayPickPct : 0;
+  const hasPickDetail = !!((game.awayTeamId && pickDetails?.[game.awayTeamId]?.length) || (game.homeTeamId && pickDetails?.[game.homeTeamId]?.length));
 
   return (
     <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 8, padding: '1rem 1.25rem' }}>
@@ -122,6 +129,60 @@ function LockedPickemGameRow({
             <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>{getTeamAbbreviation(game.awayTeam)} {awayPickCount} ({awayPickPct}%)</span>
             <span style={{ ...b, fontSize: '0.7rem', color: textMid }}>{getTeamAbbreviation(game.homeTeam)} {homePickCount} ({homePickPct}%)</span>
           </div>
+
+          {hasPickDetail && (
+            <>
+              <button
+                type='button'
+                onClick={() => setShowPickDetail(v => !v)}
+                aria-expanded={showPickDetail}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.3rem',
+                  width: '100%',
+                  marginTop: '0.6rem',
+                  padding: '0.3rem 0',
+                }}
+              >
+                {showPickDetail ? <ChevronDown size={14} color={textDim} /> : <ChevronRight size={14} color={textDim} />}
+                <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontWeight: 600 }}>
+                  {showPickDetail ? 'Hide who picked what' : 'See who picked what'}
+                </span>
+              </button>
+
+              {showPickDetail && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.4rem', paddingTop: '0.6rem', borderTop: `1px solid ${border}` }}>
+                  {[
+                    { team: awayTeam, teamId: game.awayTeamId, list: (game.awayTeamId ? pickDetails?.[game.awayTeamId] : undefined) ?? [], count: awayPickCount },
+                    { team: homeTeam, teamId: game.homeTeamId, list: (game.homeTeamId ? pickDetails?.[game.homeTeamId] : undefined) ?? [], count: homePickCount },
+                  ].map(({ team, teamId, list, count }) => (
+                    <div key={teamId ?? team.abbreviation} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 2, background: team.color2, display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, color: text }}>{team.city}</span>
+                        <span style={{ ...b, fontSize: '0.62rem', color: textDim }}>· {count}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 180, overflowY: 'auto' }}>
+                        {list.length === 0 ? (
+                          <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontStyle: 'italic' }}>—</span>
+                        ) : (
+                          list.map((p, i) => (
+                            <span key={`${p.name}-${i}`} style={{ ...b, fontSize: '0.7rem', color: textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.name}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -201,6 +262,7 @@ export function PickemPicksContent() {
   // a game only ever appears here once it's started, or once every active
   // participant has a complete set of picks for the week.
   const [pickCounts, setPickCounts] = useState<Record<string, Record<string, number>>>({});
+  const [pickDetails, setPickDetails] = useState<Record<string, Record<string, { name: string }[]>>>({});
 
   // This component only ever mounts for PICKEM pools — the router in
   // src/app/pool/[id]/picks/page.tsx branches to PoolPicksContent /
@@ -238,7 +300,10 @@ export function PickemPicksContent() {
       try {
         const res = await fetch(`/api/pickem/pick-counts?poolId=${poolId}&week=${week}&seasonType=${seasonType}${pool?.season ? `&season=${pool.season}` : ''}`);
         const data = await res.json();
-        if (!cancelled && data.success) setPickCounts(data.counts || {});
+        if (!cancelled && data.success) {
+          setPickCounts(data.counts || {});
+          setPickDetails(data.details || {});
+        }
       } catch (error) {
         debugError('Error loading pickem pick counts:', error);
       }
@@ -1034,7 +1099,7 @@ export function PickemPicksContent() {
                 // instead of a clickable pick, matching Confidence's locked/
                 // submitted view.
                 if (locked || isRevealed || isParticipantSubmitted(selectedParticipantId)) {
-                  return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} pickCounts={gamePickCounts} />;
+                  return <LockedPickemGameRow key={game.id} game={game} pick={pickForGame} pickCounts={gamePickCounts} pickDetails={pickDetails[game.id]} />;
                 }
 
                 // Draft state (not the last-saved pick) drives what's shown
