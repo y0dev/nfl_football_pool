@@ -46,6 +46,22 @@ test.describe('GET /api/picks/pick-counts', () => {
       if (!created.success) return;
       poolId = created.data.id as string;
 
+      // A 4th active participant (Devon) deliberately gets no pick at all —
+      // keeps "everyone's submitted" false so the scheduled game's own
+      // reveal path (asserted below) stays isolated to just that condition,
+      // rather than accidentally tripping the all-submitted path once every
+      // *other* participant happens to have a pick somewhere in the week.
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .insert([
+          { pool_id: poolId, name: 'Priya', is_active: true },
+          { pool_id: poolId, name: 'Marcus', is_active: true },
+          { pool_id: poolId, name: 'Sam', is_active: true },
+          { pool_id: poolId, name: 'Devon', is_active: true },
+        ])
+        .select('id');
+      if (participantsError || !participants) throw new Error(`Failed to seed participants: ${participantsError?.message}`);
+
       const liveGameId = `e2e-pickcounts-${season}-w${week}-live-${Date.now()}`;
       const scheduledGameId = `e2e-pickcounts-${season}-w${week}-scheduled-${Date.now()}`;
       gameIds.push(liveGameId, scheduledGameId);
@@ -70,10 +86,10 @@ test.describe('GET /api/picks/pick-counts', () => {
       // one pick already exists on the still-scheduled game — that one must
       // never come back, no matter how the counts are aggregated.
       const { error: picksError } = await supabase.from('picks').insert([
-        { pool_id: poolId, game_id: liveGameId, participant_id: null, predicted_winner: 'Kansas City Chiefs', confidence_points: 5 },
-        { pool_id: poolId, game_id: liveGameId, participant_id: null, predicted_winner: 'Kansas City Chiefs', confidence_points: 3 },
-        { pool_id: poolId, game_id: liveGameId, participant_id: null, predicted_winner: 'Dallas Cowboys', confidence_points: 1 },
-        { pool_id: poolId, game_id: scheduledGameId, participant_id: null, predicted_winner: 'Buffalo Bills', confidence_points: 4 },
+        { pool_id: poolId, game_id: liveGameId, participant_id: participants[0].id, predicted_winner: 'Kansas City Chiefs', confidence_points: 5 },
+        { pool_id: poolId, game_id: liveGameId, participant_id: participants[1].id, predicted_winner: 'Kansas City Chiefs', confidence_points: 3 },
+        { pool_id: poolId, game_id: liveGameId, participant_id: participants[2].id, predicted_winner: 'Dallas Cowboys', confidence_points: 1 },
+        { pool_id: poolId, game_id: scheduledGameId, participant_id: participants[0].id, predicted_winner: 'Buffalo Bills', confidence_points: 4 },
       ]);
       if (picksError) throw new Error(`Failed to seed picks: ${picksError.message}`);
 
@@ -84,9 +100,19 @@ test.describe('GET /api/picks/pick-counts', () => {
       expect(data.success).toBe(true);
       expect(data.counts[liveGameId]).toEqual({ 'Kansas City Chiefs': 2, 'Dallas Cowboys': 1 });
       expect(data.counts[scheduledGameId]).toBeUndefined();
+
+      // Per-participant detail for the revealed game, most confidence points
+      // first; the still-hidden game must carry no detail either.
+      expect(data.details[liveGameId]['Kansas City Chiefs']).toEqual([
+        { name: 'Priya', points: 5 },
+        { name: 'Marcus', points: 3 },
+      ]);
+      expect(data.details[liveGameId]['Dallas Cowboys']).toEqual([{ name: 'Sam', points: 1 }]);
+      expect(data.details[scheduledGameId]).toBeUndefined();
     } finally {
       if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
       if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
       if (poolId) await supabase.from('pools').delete().eq('id', poolId);
       await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
     }
@@ -132,6 +158,7 @@ test.describe('GET /api/picks/pick-counts', () => {
 
       expect(data.success).toBe(true);
       expect(data.counts).toEqual({});
+      expect(data.details).toEqual({});
     } finally {
       if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
       if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);

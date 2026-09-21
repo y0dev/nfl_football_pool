@@ -192,6 +192,7 @@ export function PoolPicksContent() {
   // personal Make Picks flow (WeeklyPick) fetches and locks off this same
   // endpoint's data independently, but never renders the bar itself.
   const [gameResultsPickCounts, setGameResultsPickCounts] = useState<Record<string, Record<string, number>>>({});
+  const [gameResultsPickDetails, setGameResultsPickDetails] = useState<Record<string, Record<string, { name: string; points?: number }[]>>>({});
   const [upcomingWeek, setUpcomingWeek] = useState<{week: number, seasonType: number}>({week: 1, seasonType: 2});
   const [isOffseasonState, setIsOffseasonState] = useState(false);
   const [isPoolClosed, setIsPoolClosed] = useState(false);
@@ -1237,7 +1238,10 @@ export function PoolPicksContent() {
       try {
         const res = await fetch(`/api/picks/pick-counts?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}${poolSeason ? `&season=${poolSeason}` : ''}`);
         const data = await res.json();
-        if (!cancelled && data.success) setGameResultsPickCounts(data.counts || {});
+        if (!cancelled && data.success) {
+          setGameResultsPickCounts(data.counts || {});
+          setGameResultsPickDetails(data.details || {});
+        }
       } catch (error) {
         debugError('Error loading pick counts for Game Results tab:', error);
       }
@@ -1777,6 +1781,7 @@ export function PoolPicksContent() {
                       usedPoints={[]}
                       locked={true}
                       pickCounts={gameResultsPickCounts[game.id]}
+                      pickDetails={gameResultsPickDetails[game.id]}
                       showPickDistribution
                     />
                   ))}

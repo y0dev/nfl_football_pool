@@ -100,6 +100,13 @@ test.describe('GET /api/pickem/pick-counts', () => {
       expect(data.success).toBe(true);
       expect(data.counts[liveGameId]).toEqual({ KC: 2, DAL: 1 });
       expect(data.counts[scheduledGameId]).toBeUndefined();
+
+      // Per-participant detail for the revealed game, alphabetical (Pick'em
+      // has no confidence value to sort by); the still-hidden game must
+      // carry no detail either.
+      expect(data.details[liveGameId].KC).toEqual([{ name: 'Alice' }, { name: 'Bob' }]);
+      expect(data.details[liveGameId].DAL).toEqual([{ name: 'Carol' }]);
+      expect(data.details[scheduledGameId]).toBeUndefined();
     } finally {
       await cleanup(poolId, gameIds, ownerEmail);
     }

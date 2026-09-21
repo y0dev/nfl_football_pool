@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Game, TeamRecord } from '@/types/game';
 import { getTeam, getTeamAbbreviation } from '@/lib/utils';
 import { TeamLogo } from '@/components/ui/team-logo';
-import { Check, Clock, Trophy } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clock, Trophy } from 'lucide-react';
 import { format } from 'date-fns';
 
 const card    = 'oklch(20% 0.03 255)';
@@ -58,6 +59,12 @@ interface GameCardProps {
    * bar is Game Results-tab-only; the personal Make Picks view still locks
    * once a game is revealed, it just doesn't render the bar. */
   showPickDistribution?: boolean;
+  /** Team name -> the participants who picked it, most confidence points
+   * first, e.g. { 'Buffalo Bills': [{ name: 'Jordan H.', points: 16 }, ...] }.
+   * Same reveal rule/source as pickCounts — only ever populated once the
+   * game is revealable. Powers the "See who picked what" expand under the
+   * distribution bar; omit or leave empty to render just the bar. */
+  pickDetails?: Record<string, { name: string; points?: number }[]>;
 }
 
 function formatRecord(r?: TeamRecord): string {
@@ -146,17 +153,19 @@ function TeamButton({
   );
 }
 
-export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked, pickCounts, showPickDistribution }: GameCardProps) {
+export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames, usedPoints, locked, pickCounts, showPickDistribution, pickDetails }: GameCardProps) {
   const isFinal = game.status === 'finished' || game.status === 'cancelled';
   const isLive = game.status === 'in_progress' || game.status === 'live';
   const selectedTeam = pick?.predicted_winner;
   const confidencePoints = pick?.confidence_points;
+  const [showPickDetail, setShowPickDetail] = useState(false);
 
   const awayPickCount = pickCounts?.[game.away_team] ?? 0;
   const homePickCount = pickCounts?.[game.home_team] ?? 0;
   const totalPickers = awayPickCount + homePickCount;
   const awayPickPct = totalPickers > 0 ? Math.round((awayPickCount / totalPickers) * 100) : 0;
   const homePickPct = totalPickers > 0 ? 100 - awayPickPct : 0;
+  const hasPickDetail = !!(pickDetails?.[game.away_team]?.length || pickDetails?.[game.home_team]?.length);
   // pickCounts is only ever populated once this game is revealable — either
   // it's started, or every participant has submitted for the week (see the
   // pick-counts endpoint) — so its presence doubles as "no more editing for
@@ -311,6 +320,63 @@ export function GameCard({ game, pick, onSelectTeam, onSetConfidence, totalGames
               {getTeamAbbreviation(game.home_team)} {homePickCount} ({homePickPct}%)
             </span>
           </div>
+
+          {hasPickDetail && (
+            <>
+              <button
+                type='button'
+                onClick={() => setShowPickDetail(v => !v)}
+                aria-expanded={showPickDetail}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.3rem',
+                  width: '100%',
+                  marginTop: '0.6rem',
+                  padding: '0.3rem 0',
+                }}
+              >
+                {showPickDetail ? <ChevronDown size={14} color={textDim} /> : <ChevronRight size={14} color={textDim} />}
+                <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontWeight: 600 }}>
+                  {showPickDetail ? 'Hide who picked what' : 'See who picked what'}
+                </span>
+              </button>
+
+              {showPickDetail && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.4rem', paddingTop: '0.6rem', borderTop: `1px solid ${border}` }}>
+                  {[
+                    { fullName: game.away_team, list: pickDetails?.[game.away_team] ?? [], count: awayPickCount },
+                    { fullName: game.home_team, list: pickDetails?.[game.home_team] ?? [], count: homePickCount },
+                  ].map(({ fullName, list, count }) => (
+                    <div key={fullName} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 2, background: pickBarColor(fullName), display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ ...bc, fontSize: '0.72rem', fontWeight: 700, color: text }}>{getTeam(getTeamAbbreviation(fullName)).city}</span>
+                        <span style={{ ...b, fontSize: '0.62rem', color: textDim }}>· {count}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 180, overflowY: 'auto' }}>
+                        {list.length === 0 ? (
+                          <span style={{ ...b, fontSize: '0.68rem', color: textDim, fontStyle: 'italic' }}>—</span>
+                        ) : (
+                          list.map((p, i) => (
+                            <div key={`${p.name}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                              <span style={{ ...b, fontSize: '0.7rem', color: textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                              {p.points != null && (
+                                <span style={{ ...b, fontSize: '0.68rem', fontWeight: 700, color: amber, flexShrink: 0 }}>({p.points})</span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
