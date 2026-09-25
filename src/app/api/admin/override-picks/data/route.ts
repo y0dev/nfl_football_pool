@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: gamesData } = await supabase
-      .from('games').select('id, home_team, away_team, week, season, season_type, kickoff_time, status')
+      .from('games').select('id, home_team, away_team, week, season, season_type, kickoff_time, status, winner, home_score, away_score')
       .eq('week', week).eq('season', season).eq('season_type', seasonType)
       .order('kickoff_time', { ascending: true });
 

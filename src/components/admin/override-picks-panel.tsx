@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Target, Users, Calendar, Edit, RefreshCw, AlertTriangle } from 'lucide-react';
@@ -58,6 +58,7 @@ interface OverridePicksPanelProps {
 export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScope }: OverridePicksPanelProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const router = useRouter();
 
   // Only offer season types this pool actually covers, and the correct week
   // range for whichever one is selected — a pool scoped to Regular Season
@@ -81,18 +82,14 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
   const [picks, setPicks] = useState<Pick[]>([]);
   const [isLoadingPicks, setIsLoadingPicks] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showAddPickDialog, setShowAddPickDialog] = useState(false);
   const [showMondayNightDialog, setShowMondayNightDialog] = useState(false);
   const [selectedParticipantForManagement, setSelectedParticipantForManagement] = useState<string>('');
-  const [selectedParticipantForNewPick, setSelectedParticipantForNewPick] = useState<string>('');
   const [availableGames, setAvailableGames] = useState<Array<{
     id: string; home_team: string; away_team: string;
     week: number; season: number; season_type: number;
     kickoff_time: string; status: string;
   }>>([]);
   const [allParticipants, setAllParticipants] = useState<Array<{ id: string; name: string; email: string | null }>>([]);
-  const [newPickData, setNewPickData] = useState({ gameId: '', predictedWinner: '', confidencePoints: 1 });
-  const [overrideReason, setOverrideReason] = useState('');
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [eligibility, setEligibility] = useState<OverrideEligibility | null>(null);
 
@@ -191,49 +188,6 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
       setEligibility(null);
     }
   }, [selectedWeek, selectedSeasonType, currentSeason, loadPicks, loadAvailableGames, loadEligibility]);
-
-  const submitNewPick = useCallback(async () => {
-    const participantId = selectedParticipantForNewPick || selectedParticipantForManagement;
-    if (!participantId || !newPickData.gameId || !newPickData.predictedWinner || !overrideReason.trim()) {
-      toast({ title: 'Error', description: 'Please fill in all required fields, including a reason', variant: 'destructive' });
-      return;
-    }
-    if (!weekInfo || !user?.id) return;
-    setIsSaving(true);
-    try {
-      const response = await fetch('/api/admin/override-picks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          poolId,
-          participantId,
-          week: weekInfo.week,
-          seasonType: weekInfo.seasonType,
-          overrideMode: 'insert',
-          overrideReason: overrideReason.trim(),
-          adminId: user.id,
-          gameId: newPickData.gameId,
-          predictedWinner: newPickData.predictedWinner,
-          confidencePoints: newPickData.confidencePoints,
-        }),
-      });
-      const result = await response.json();
-      if (!result.success) {
-        toast({ title: 'Error', description: result.error, variant: 'destructive' });
-        return;
-      }
-      await loadPicks(weekInfo.week, weekInfo.seasonType);
-      setShowAddPickDialog(false);
-      setSelectedParticipantForNewPick('');
-      setNewPickData({ gameId: '', predictedWinner: '', confidencePoints: 1 });
-      setOverrideReason('');
-      toast({ title: 'Success', description: 'Pick submitted successfully' });
-    } catch {
-      toast({ title: 'Error', description: 'Failed to submit pick', variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedParticipantForNewPick, selectedParticipantForManagement, newPickData, overrideReason, poolId, weekInfo, user, loadPicks, toast]);
 
   const submitMondayNightScore = useCallback(async () => {
     if (!selectedParticipantForManagement || !mondayNightScore) {
@@ -388,7 +342,7 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
                 </div>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => setShowAddPickDialog(true)}
+                    onClick={() => router.push(`/league/pool/${poolId}/override-picks/${selectedParticipantForManagement}?week=${weekInfo.week}&seasonType=${weekInfo.seasonType}`)}
                     disabled={eligibility?.allowed === false}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: eligibility?.allowed === false ? textDim : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer' }}
                   >
@@ -436,101 +390,6 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
           <p style={{ ...b, fontSize: '0.8rem', color: textDim }}>Loading picks…</p>
         </div>
       )}
-
-      {/* Add Pick Dialog */}
-      <Dialog open={showAddPickDialog} onOpenChange={setShowAddPickDialog}>
-        <DialogContent style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, maxWidth: 480 }}>
-          <DialogHeader>
-            <DialogTitle style={{ ...bc, fontWeight: 800, fontSize: '1rem', color: text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Add Pick for Participant
-            </DialogTitle>
-            <DialogDescription style={{ ...b, fontSize: '0.8rem', color: textDim }}>
-              Submit a pick on behalf of a participant.
-            </DialogDescription>
-          </DialogHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.5rem' }}>
-            <div>
-              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Participant</Label>
-              <Select value={selectedParticipantForNewPick || selectedParticipantForManagement} onValueChange={setSelectedParticipantForNewPick}>
-                <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
-                  <SelectValue placeholder="Select a participant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allParticipants.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.email || 'No email'})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Game</Label>
-              <Select
-                value={newPickData.gameId}
-                onValueChange={(value) => {
-                  const game = availableGames.find(g => g.id === value);
-                  setNewPickData(prev => ({ ...prev, gameId: value, predictedWinner: game ? game.home_team : '' }));
-                }}
-              >
-                <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
-                  <SelectValue placeholder="Select a game" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableGames.map(game => (
-                    <SelectItem key={game.id} value={game.id}>{game.away_team} @ {game.home_team}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {newPickData.gameId && (
-              <div>
-                <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Predicted Winner</Label>
-                <Select value={newPickData.predictedWinner} onValueChange={(value) => setNewPickData(prev => ({ ...prev, predictedWinner: value }))}>
-                  <SelectTrigger style={{ background: surface, border: `1px solid ${border}`, color: text, ...b }}>
-                    <SelectValue placeholder="Select winner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(() => {
-                      const game = availableGames.find(g => g.id === newPickData.gameId);
-                      return game ? (
-                        <>
-                          <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
-                          <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                        </>
-                      ) : null;
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div>
-              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Confidence Points</Label>
-              <input
-                type="number" min="1" max="16"
-                value={newPickData.confidencePoints}
-                onChange={(e) => setNewPickData(prev => ({ ...prev, confidencePoints: parseInt(e.target.value) || 1 }))}
-                style={{ background: surface, border: `1px solid ${border}`, color: text, padding: '0.5rem 0.75rem', width: '100%', borderRadius: 6, boxSizing: 'border-box', ...b, fontSize: '0.875rem' }}
-              />
-            </div>
-            <div>
-              <Label style={{ ...bc, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', color: textMid, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>Reason for Override</Label>
-              <Input
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="e.g., Participant emailed their pick before kickoff"
-                style={{ background: surface, border: `1px solid ${border}`, color: text, ...b, fontSize: '0.875rem' }}
-              />
-            </div>
-          </div>
-          <DialogFooter style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-            <button onClick={() => { setShowAddPickDialog(false); setOverrideReason(''); }} style={{ padding: '0.5rem 0.9rem', background: 'transparent', color: textMid, border: `1px solid ${border}`, borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button onClick={submitNewPick} disabled={isSaving} style={{ padding: '0.5rem 0.9rem', background: isSaving ? textDim : green, color: text, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-              {isSaving ? 'Submitting…' : 'Submit Pick'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Monday Night Score Dialog */}
       <Dialog open={showMondayNightDialog} onOpenChange={setShowMondayNightDialog}>
