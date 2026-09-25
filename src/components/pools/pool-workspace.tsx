@@ -90,6 +90,10 @@ export function PoolWorkspace({
   const [poolLeader, setPoolLeader] = useState<{ name: string; points: number; correctPicks: number } | null>(null);
   const [missingParticipants, setMissingParticipants] = useState<Array<{ id: string; name: string }>>([]);
   const [weekGamesCount, setWeekGamesCount] = useState(0);
+  // Once true, a still-missing participant can no longer submit for
+  // themselves (the week locks at first kickoff) — that's when the
+  // Missing Picks list should offer a direct link to the override tool.
+  const [gamesStarted, setGamesStarted] = useState(false);
   const [leaderboardEntries, setLeaderboardEntries] = useState<Array<{ participantId: string; name: string; points: number; correctPicks: number }>>([]);
   // Separate from leaderboardEntries.length === 0 — that's ambiguous between
   // "genuinely nobody has scored yet" and "the fetch failed/threw," which
@@ -168,6 +172,7 @@ export function PoolWorkspace({
       if (!statsRes.ok || !statsData.success) throw new Error(statsData.error || 'Failed to load workspace stats');
 
       setWeekGamesCount(statsData.weekGamesCount);
+      setGamesStarted(!!statsData.gamesStarted);
       setSelectedPoolStats(statsData.stats);
       setMissingParticipants(statsData.missingParticipants ?? []);
 
@@ -230,6 +235,7 @@ export function PoolWorkspace({
       // participants/missing-picks/stats sitting on screen looking like
       // they belong to the one just switched to.
       setWeekGamesCount(0);
+      setGamesStarted(false);
       setSelectedPoolStats({ participants: 0, completed: 0, pending: 0, completionRate: 0 });
       setMissingParticipants([]);
       setPickWindowOpened(null);
@@ -637,13 +643,28 @@ export function PoolWorkspace({
                   {missingParticipants.length} pending
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gamesStarted && !isSurvivor && !isPickem ? 210 : 160}px, 1fr))`, gap: '0.5rem' }}>
                 {missingParticipants.map(p => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.55rem 0.75rem' }}>
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: surface, border: `1px solid ${border}`, borderRadius: 6, padding: '0.55rem 0.6rem 0.55rem 0.75rem' }}>
                     <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'oklch(72% 0.16 60 / 0.15)', border: '1px solid oklch(72% 0.16 60 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...bc, fontWeight: 800, fontSize: '0.72rem', color: amber }}>
                       {p.name.charAt(0).toUpperCase()}
                     </div>
-                    <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ ...b, fontSize: '0.8rem', color: text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{p.name}</span>
+                    {/* Only once games have actually kicked off — before
+                        that, the participant can still submit for
+                        themselves, so this would just be a redundant
+                        shortcut around them. Confidence-only: Survivor and
+                        Pick'em have no Override Picks tab to send them to. */}
+                    {gamesStarted && !isSurvivor && !isPickem && (
+                      <button
+                        onClick={() => router.push(`/league/pool/${poolId}/override-picks/${p.id}?week=${currentWeek}&seasonType=${currentSeasonType}`)}
+                        title={`Make picks for ${p.name}`}
+                        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.5rem', background: green, color: text, border: 'none', borderRadius: 5, ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        <Edit style={{ width: 11, height: 11 }} />
+                        Make Picks
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

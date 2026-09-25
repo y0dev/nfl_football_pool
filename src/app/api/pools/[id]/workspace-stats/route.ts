@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const supabase = getSupabaseServiceClient();
     const { data: pool, error: poolError } = await supabase
       .from('pools')
-      .select('competition_type')
+      .select('competition_type, season')
       .eq('id', poolId)
       .maybeSingle();
     if (poolError || !pool) {
@@ -53,12 +53,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('is_active', true);
     const total = allParticipants?.length ?? 0;
 
+    // Scoped to this pool's own season — without it, week/season_type
+    // numbers colliding across seasons (week 9 of season_type 2 exists
+    // every year) pull in an unrelated season's games, corrupting
+    // weekGamesCount, gamesStarted, and (for Confidence pools) which
+    // participants show as missing a pick.
     const { data: weekGames } = await supabase
       .from('games')
-      .select('id')
+      .select('id, kickoff_time, status')
       .eq('week', week)
-      .eq('season_type', seasonType);
+      .eq('season_type', seasonType)
+      .eq('season', pool.season);
     const weekGamesCount = weekGames?.length ?? 0;
+    // Drives the Overview tab's "Make Picks" override shortcut — once a
+    // game has kicked off, a still-missing participant can no longer submit
+    // for themselves at all (the whole week locks at first kickoff), so
+    // that's exactly when a direct link to the commissioner override tool
+    // becomes useful rather than redundant with just waiting.
+    const now = new Date();
+    const gamesStarted = (weekGames ?? []).some(g => new Date(g.kickoff_time) <= now || g.status !== 'scheduled');
 
     let completed = 0;
     let missingParticipants: Array<{ id: string; name: string }> = [];
@@ -105,6 +118,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({
       success: true,
       weekGamesCount,
+      gamesStarted,
       stats: { participants: total, completed, pending, completionRate },
       missingParticipants,
     });
