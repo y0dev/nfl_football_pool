@@ -74,15 +74,6 @@ interface PickForm {
   points: number | null;
 }
 
-function actualWinner(game: GameRow): string | null {
-  if (game.winner) return game.winner;
-  if (game.home_score != null && game.away_score != null) {
-    if (game.home_score > game.away_score) return game.home_team;
-    if (game.away_score > game.home_score) return game.away_team;
-  }
-  return null;
-}
-
 function isGameStarted(game: GameRow, now: Date): boolean {
   return new Date(game.kickoff_time) <= now || normalizeGameStatus(game.status) !== 'scheduled';
 }
@@ -282,34 +273,56 @@ function OverridePicksPageContent() {
     setForm(prev => ({ ...prev, [gameId]: { ...prev[gameId], points } }));
   };
 
+  // Every game the participant has no winner picked for yet — not just
+  // started ones. This is a "make picks for someone who isn't going to"
+  // convenience, so it fills the whole week in one click; it never
+  // overwrites a winner already set (auto-picked, admin-picked, or
+  // carried over from a real submission).
+  const gamesNeedingAutoPick = useMemo(
+    () => games.filter(g => !form[g.id]?.winner),
+    [games, form]
+  );
+
   const handleAutoPick = () => {
-    const needsAutoPick = startedGames.filter(g => !form[g.id]?.winner);
-    if (needsAutoPick.length === 0) {
-      toast({ title: 'Nothing to auto-pick', description: 'Every already-started game already has a pick.' });
+    if (gamesNeedingAutoPick.length === 0) {
+      toast({ title: 'Nothing to auto-pick', description: 'Every game already has a pick.' });
       return;
     }
     setForm(prev => {
       const next = { ...prev };
-      const used = new Set(Object.values(next).map(v => v.points).filter((p): p is number => p != null && p !== 0));
-      let candidate = 1;
-      for (const g of needsAutoPick) {
-        const winner = actualWinner(g) ?? g.home_team;
-        if (zeroForcedGameIds.has(g.id)) {
-          next[g.id] = { winner, points: 0 };
-          continue;
-        }
-        while (used.has(candidate) && candidate <= maxConfidence) candidate++;
-        const points = candidate <= maxConfidence ? candidate : null;
-        if (points != null) used.add(points);
-        next[g.id] = { winner, points };
+
+      // Random winner for every blank game — this is a "just fill something
+      // in" convenience, not a prediction, so it never peeks at the actual
+      // score/winner of an already-decided game.
+      const randomWinner = (g: GameRow) => (Math.random() < 0.5 ? g.home_team : g.away_team);
+
+      const zeroForced = gamesNeedingAutoPick.filter(g => zeroForcedGameIds.has(g.id));
+      const ranked = gamesNeedingAutoPick.filter(g => !zeroForcedGameIds.has(g.id));
+
+      for (const g of zeroForced) {
+        next[g.id] = { winner: randomWinner(g), points: 0 };
       }
+
+      // Random confidence points from whatever's left in 1..maxConfidence
+      // (not already used elsewhere in the form) — shuffled so picks don't
+      // just stack up in ascending order.
+      const used = new Set(Object.values(next).map(v => v.points).filter((p): p is number => p != null && p !== 0));
+      const availablePoints = Array.from({ length: maxConfidence }, (_, i) => i + 1).filter(p => !used.has(p));
+      for (let i = availablePoints.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availablePoints[i], availablePoints[j]] = [availablePoints[j], availablePoints[i]];
+      }
+      ranked.forEach((g, i) => {
+        next[g.id] = { winner: randomWinner(g), points: availablePoints[i] ?? null };
+      });
+
       return next;
     });
     toast({
       title: 'Auto-picked',
       description: reduceConfidence
-        ? `Filled in ${needsAutoPick.length} started game${needsAutoPick.length !== 1 ? 's' : ''} — missed games got 0 points. Review before saving.`
-        : `Filled in ${needsAutoPick.length} started game${needsAutoPick.length !== 1 ? 's' : ''} with the lowest available confidence points. Review before saving.`,
+        ? `Filled in ${gamesNeedingAutoPick.length} game${gamesNeedingAutoPick.length !== 1 ? 's' : ''} with random winners and random points — already-started games with no pick got 0. Review before saving.`
+        : `Filled in ${gamesNeedingAutoPick.length} game${gamesNeedingAutoPick.length !== 1 ? 's' : ''} with random winners and random confidence points. Review before saving.`,
     });
   };
 
@@ -486,11 +499,11 @@ function OverridePicksPageContent() {
               </div>
               <button
                 onClick={handleAutoPick}
-                disabled={eligibility?.allowed === false || startedGames.length === 0}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: (eligibility?.allowed === false || startedGames.length === 0) ? textDim : greenHi, color: bg, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: (eligibility?.allowed === false || startedGames.length === 0) ? 'not-allowed' : 'pointer' }}
+                disabled={eligibility?.allowed === false || gamesNeedingAutoPick.length === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: (eligibility?.allowed === false || gamesNeedingAutoPick.length === 0) ? textDim : greenHi, color: bg, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: (eligibility?.allowed === false || gamesNeedingAutoPick.length === 0) ? 'not-allowed' : 'pointer' }}
               >
                 <Zap style={{ width: 13, height: 13 }} />
-                Auto-pick started games
+                Auto-pick remaining games
               </button>
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
