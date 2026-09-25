@@ -93,6 +93,19 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
   const [mondayNightScore, setMondayNightScore] = useState<string>('');
   const [eligibility, setEligibility] = useState<OverrideEligibility | null>(null);
 
+  // Who still needs a pick for the selected week is exactly who this tab
+  // exists to help with — surface them first in the dropdown instead of
+  // making the commissioner hunt for them in a plain A-Z list.
+  const participantsWithPicks = useMemo(() => new Set(picks.map(p => p.participant_id)), [picks]);
+  const sortedParticipants = useMemo(() => {
+    return [...allParticipants].sort((a, b) => {
+      const aMissing = !participantsWithPicks.has(a.id);
+      const bMissing = !participantsWithPicks.has(b.id);
+      if (aMissing !== bMissing) return aMissing ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [allParticipants, participantsWithPicks]);
+
   const loadOverrideData = useCallback(async (week: number, seasonType: number) => {
     if (!user?.email) return null;
     const res = await fetch(`/api/admin/override-picks/data?poolId=${poolId}&week=${week}&season=${currentSeason}&seasonType=${seasonType}`, {
@@ -320,9 +333,24 @@ export function OverridePicksPanel({ poolId, poolName, currentSeason, seasonScop
                 <SelectValue placeholder="Choose a participant" />
               </SelectTrigger>
               <SelectContent>
-                {allParticipants.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.email || 'No email'})</SelectItem>
-                ))}
+                {sortedParticipants.map(p => {
+                  const hasPicks = participantsWithPicks.has(p.id);
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{p.name} ({p.email || 'No email'})</span>
+                        <span style={{
+                          ...bc, fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.06em', padding: '0.1rem 0.35rem', borderRadius: 3, textTransform: 'uppercase',
+                          background: hasPicks ? 'oklch(59% 0.15 155 / 0.15)' : 'oklch(72% 0.16 60 / 0.15)',
+                          color: hasPicks ? greenHi : amber,
+                          border: `1px solid ${hasPicks ? 'oklch(59% 0.15 155 / 0.35)' : 'oklch(72% 0.16 60 / 0.35)'}`,
+                        }}>
+                          {hasPicks ? 'Picks in' : 'No picks yet'}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

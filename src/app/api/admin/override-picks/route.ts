@@ -310,7 +310,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const points = weekPicks.map((p: { confidencePoints: number }) => p.confidencePoints);
+      // 0 means "missed this game" (the client only sends it for a
+      // started game the participant had no pick in for, once the
+      // reduce-confidence option is on) — multiple picks may share it;
+      // only the real 1..N ranked values must be unique.
+      const points = weekPicks.map((p: { confidencePoints: number }) => p.confidencePoints).filter((p: number) => p !== 0);
       if (new Set(points).size !== points.length) {
         return NextResponse.json(
           { success: false, error: 'Confidence points must be unique' },

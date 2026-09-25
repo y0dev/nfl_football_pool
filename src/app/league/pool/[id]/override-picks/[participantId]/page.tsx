@@ -83,6 +83,10 @@ function actualWinner(game: GameRow): string | null {
   return null;
 }
 
+function isGameStarted(game: GameRow, now: Date): boolean {
+  return new Date(game.kickoff_time) <= now || normalizeGameStatus(game.status) !== 'scheduled';
+}
+
 function OverridePicksPageContent() {
   const params = useParams();
   const router = useRouter();
@@ -198,6 +202,12 @@ function OverridePicksPageContent() {
       setForm(nextForm);
       setInitialPickGameIds(nextInitial);
       setNow(new Date());
+      // Default the reason for the common case this page exists for —
+      // never overwrites a reason the admin already typed, and only ever
+      // applies when the participant has nothing in for this week at all.
+      if (nextInitial.size === 0) {
+        setOverrideReason(prev => prev.trim() ? prev : 'Participant missed the pick deadline — picks made on their behalf.');
+      }
     } catch (error) {
       debugError('Failed to load override-picks data:', error);
       toast({ title: 'Error', description: 'Failed to load games and picks for this week.', variant: 'destructive' });
@@ -216,32 +226,51 @@ function OverridePicksPageContent() {
 
   const totalGames = games.length;
   const startedGames = useMemo(
-    () => games.filter(g => new Date(g.kickoff_time) <= now || normalizeGameStatus(g.status) !== 'scheduled'),
+    () => games.filter(g => isGameStarted(g, now)),
     [games, now]
   );
+  // A started game the participant never got a pick in for (they missed the
+  // whole week's deadline) can only be worth 0 once "reduce confidence" is
+  // on — it never competes for a real 1..N slot. A started game that
+  // already had a pick recorded (however it got there) keeps whatever
+  // point value it was given; it's not forced to 0.
+  const zeroForcedGameIds = useMemo(() => {
+    if (!reduceConfidence) return new Set<string>();
+    return new Set(startedGames.filter(g => !initialPickGameIds.has(g.id)).map(g => g.id));
+  }, [reduceConfidence, startedGames, initialPickGameIds]);
   const maxConfidence = reduceConfidence
-    ? Math.max(1, totalGames - startedGames.length)
+    ? Math.max(1, totalGames - zeroForcedGameIds.size)
     : totalGames;
 
-  // Clamp out-of-range confidence selections when the reduced ceiling shrinks.
+  // Force zero-forced games to 0 once they have a winner selected, and clear
+  // any selection that's no longer valid — either a stray 0 on a game that
+  // isn't (or is no longer) zero-forced, or a real value that exceeds the
+  // reduced ceiling.
   useEffect(() => {
     setForm(prev => {
       let changed = false;
       const next = { ...prev };
-      for (const [gid, v] of Object.entries(next)) {
-        if (v.points != null && v.points > maxConfidence) {
-          next[gid] = { ...v, points: null };
+      for (const g of games) {
+        const v = next[g.id];
+        if (!v) continue;
+        if (zeroForcedGameIds.has(g.id)) {
+          if (v.winner && v.points !== 0) {
+            next[g.id] = { ...v, points: 0 };
+            changed = true;
+          }
+        } else if (v.points === 0 || (v.points != null && v.points > maxConfidence)) {
+          next[g.id] = { ...v, points: null };
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [maxConfidence]);
+  }, [zeroForcedGameIds, maxConfidence, games]);
 
   const usedPoints = useMemo(() => {
     const s = new Set<number>();
     for (const v of Object.values(form)) {
-      if (v.points != null) s.add(v.points);
+      if (v.points != null && v.points !== 0) s.add(v.points);
     }
     return s;
   }, [form]);
@@ -261,18 +290,27 @@ function OverridePicksPageContent() {
     }
     setForm(prev => {
       const next = { ...prev };
-      const used = new Set(Object.values(next).map(v => v.points).filter((p): p is number => p != null));
+      const used = new Set(Object.values(next).map(v => v.points).filter((p): p is number => p != null && p !== 0));
       let candidate = 1;
       for (const g of needsAutoPick) {
+        const winner = actualWinner(g) ?? g.home_team;
+        if (zeroForcedGameIds.has(g.id)) {
+          next[g.id] = { winner, points: 0 };
+          continue;
+        }
         while (used.has(candidate) && candidate <= maxConfidence) candidate++;
         const points = candidate <= maxConfidence ? candidate : null;
         if (points != null) used.add(points);
-        const winner = actualWinner(g) ?? g.home_team;
         next[g.id] = { winner, points };
       }
       return next;
     });
-    toast({ title: 'Auto-picked', description: `Filled in ${needsAutoPick.length} started game${needsAutoPick.length !== 1 ? 's' : ''} with the lowest available confidence points. Review before saving.` });
+    toast({
+      title: 'Auto-picked',
+      description: reduceConfidence
+        ? `Filled in ${needsAutoPick.length} started game${needsAutoPick.length !== 1 ? 's' : ''} — missed games got 0 points. Review before saving.`
+        : `Filled in ${needsAutoPick.length} started game${needsAutoPick.length !== 1 ? 's' : ''} with the lowest available confidence points. Review before saving.`,
+    });
   };
 
   const handleSubmit = async () => {
@@ -292,7 +330,10 @@ function OverridePicksPageContent() {
       toast({ title: 'Error', description: 'Every game with a winner selected also needs confidence points.', variant: 'destructive' });
       return;
     }
-    const pointValues = weekPicks.map(p => p.confidencePoints);
+    // 0 means "missed this game" (only reachable via the reduce-confidence
+    // checkbox) — multiple games can legitimately share it; only the real
+    // 1..N ranked values need to be unique.
+    const pointValues = weekPicks.map(p => p.confidencePoints).filter(p => p !== 0);
     if (new Set(pointValues).size !== pointValues.length) {
       toast({ title: 'Error', description: 'Confidence points must be unique.', variant: 'destructive' });
       return;
@@ -465,7 +506,7 @@ function OverridePicksPageContent() {
             </label>
             <p style={{ ...b, fontSize: '0.75rem', color: textDim, paddingLeft: '1.6rem' }}>
               {reduceConfidence
-                ? `Max confidence point available is now ${maxConfidence} (${totalGames} games − ${startedGames.length} already started).`
+                ? `Started games with no existing pick can only be worth 0 points. Remaining games use 1–${maxConfidence} (${totalGames} games − ${zeroForcedGameIds.size} forced to 0).`
                 : `Full range is available (1–${totalGames}), same as picking before any games started.`}
             </p>
           </div>
@@ -488,16 +529,18 @@ function OverridePicksPageContent() {
           {!isLoadingGames && games.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {games.map((g) => {
-                const started = new Date(g.kickoff_time) <= now || normalizeGameStatus(g.status) !== 'scheduled';
+                const started = isGameStarted(g, now);
                 const entry = form[g.id] ?? { winner: null, points: null };
-                const pointOptions = Array.from({ length: maxConfidence }, (_, i) => i + 1)
-                  .filter(p => !usedPoints.has(p) || entry.points === p);
+                const zeroForced = zeroForcedGameIds.has(g.id);
+                const pointOptions = zeroForced
+                  ? [0]
+                  : Array.from({ length: maxConfidence }, (_, i) => i + 1).filter(p => !usedPoints.has(p) || entry.points === p);
                 return (
                   <div key={g.id} style={{ background: card, border: `1px solid ${border}`, borderLeft: started ? `3px solid ${amber}` : `3px solid ${border}`, borderRadius: 10, padding: '1.1rem 1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ minWidth: 200, flex: '1 1 200px' }}>
                       <p style={{ ...bc, fontWeight: 800, fontSize: '0.95rem', color: text }}>{g.away_team} @ {g.home_team}</p>
                       <p style={{ ...b, fontSize: '0.72rem', color: textDim, marginTop: '0.2rem' }}>
-                        {new Date(g.kickoff_time).toLocaleString()} {started && <span style={{ color: amber }}>· Started</span>}
+                        {new Date(g.kickoff_time).toLocaleString()} {started && <span style={{ color: amber }}>· Started</span>} {zeroForced && <span style={{ color: amber }}>· Locked to 0 pts</span>}
                       </p>
                     </div>
 
@@ -532,7 +575,7 @@ function OverridePicksPageContent() {
                         </SelectTrigger>
                         <SelectContent>
                           {pointOptions.map(p => (
-                            <SelectItem key={p} value={p.toString()}>{p} pt{p !== 1 ? 's' : ''}</SelectItem>
+                            <SelectItem key={p} value={p.toString()}>{p === 0 ? '0 pts (missed)' : `${p} pt${p !== 1 ? 's' : ''}`}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

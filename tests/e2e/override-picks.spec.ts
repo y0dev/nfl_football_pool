@@ -224,4 +224,131 @@ test.describe('POST /api/admin/override-picks (overrideMode: week)', () => {
       if (otherId) await supabase.from('commissioners').delete().eq('id', otherId);
     }
   });
+
+  test('allows multiple 0-confidence-point picks (missed games) without tripping the uniqueness check', async ({ request }) => {
+    test.setTimeout(45000);
+
+    const ownerEmail = `e2e-override-zero-${Date.now()}@sundayhuddle.test`;
+    let ownerId: string | undefined;
+    let poolId: string | undefined;
+    let participantId: string | undefined;
+    const gameIds: string[] = [];
+    const season = 2020;
+    const week = 8;
+
+    try {
+      const { data: owner, error: ownerError } = await supabase
+        .from('commissioners')
+        .insert({
+          email: ownerEmail,
+          password_hash: '$2b$12$fakehashfortest00000000000000000000000000000000000000',
+          full_name: 'E2E Override Zero Owner',
+          is_active: true,
+        })
+        .select('id')
+        .single();
+      if (ownerError || !owner) throw new Error(`Failed to seed owner commissioner: ${ownerError?.message}`);
+      ownerId = owner.id;
+
+      const created = await createPool({
+        name: 'E2E Override Zero Points Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .insert([{ pool_id: poolId, name: 'Missed-Deadline Mike', is_active: true }])
+        .select('id');
+      if (participantsError || !participants) throw new Error(`Failed to seed participant: ${participantsError?.message}`);
+      participantId = participants[0].id;
+
+      // Two games the participant missed (no existing pick) and one they'd
+      // already have a real ranked value for — mirrors the page: only the
+      // missed games go in at 0, the ranked one stays a real value.
+      const gameOneId = `e2e-override-zero-${season}-w${week}-g1-${Date.now()}`;
+      const gameTwoId = `e2e-override-zero-${season}-w${week}-g2-${Date.now()}`;
+      const gameThreeId = `e2e-override-zero-${season}-w${week}-g3-${Date.now()}`;
+      gameIds.push(gameOneId, gameTwoId, gameThreeId);
+      const { error: gamesError } = await supabase.from('games').insert([
+        {
+          id: gameOneId, season, season_type: 2, week,
+          home_team: 'Kansas City Chiefs', away_team: 'Dallas Cowboys',
+          home_team_id: 1, away_team_id: 2,
+          kickoff_time: '2020-10-25T13:00:00Z', status: 'final', winner: 'Kansas City Chiefs',
+        },
+        {
+          id: gameTwoId, season, season_type: 2, week,
+          home_team: 'Buffalo Bills', away_team: 'Miami Dolphins',
+          home_team_id: 3, away_team_id: 4,
+          kickoff_time: '2020-10-25T13:00:00Z', status: 'final', winner: 'Buffalo Bills',
+        },
+        {
+          id: gameThreeId, season, season_type: 2, week,
+          home_team: 'Green Bay Packers', away_team: 'Chicago Bears',
+          home_team_id: 5, away_team_id: 6,
+          kickoff_time: '2020-10-25T20:00:00Z', status: 'scheduled',
+        },
+      ]);
+      if (gamesError) throw new Error(`Failed to seed games: ${gamesError.message}`);
+
+      const res = await request.post('/api/admin/override-picks', {
+        headers: sessionCookieFor(ownerId!),
+        data: {
+          poolId, participantId, week, seasonType: 2,
+          overrideMode: 'week',
+          overrideReason: 'E2E: two missed games forced to 0, one ranked pick',
+          reduceConfidence: true,
+          weekPicks: [
+            { gameId: gameOneId, predictedWinner: 'Kansas City Chiefs', confidencePoints: 0 },
+            { gameId: gameTwoId, predictedWinner: 'Buffalo Bills', confidencePoints: 0 },
+            { gameId: gameThreeId, predictedWinner: 'Green Bay Packers', confidencePoints: 1 },
+          ],
+        },
+      });
+      expect(res.ok()).toBe(true);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+
+      const { data: saved } = await supabase
+        .from('picks')
+        .select('game_id, confidence_points')
+        .eq('pool_id', poolId)
+        .eq('participant_id', participantId)
+        .order('confidence_points', { ascending: true });
+      expect(saved).toEqual([
+        { game_id: gameOneId, confidence_points: 0 },
+        { game_id: gameTwoId, confidence_points: 0 },
+        { game_id: gameThreeId, confidence_points: 1 },
+      ]);
+
+      // Two real (non-zero) duplicate values are still rejected.
+      const dupeRes = await request.post('/api/admin/override-picks', {
+        headers: sessionCookieFor(ownerId!),
+        data: {
+          poolId, participantId, week, seasonType: 2,
+          overrideMode: 'week',
+          overrideReason: 'E2E: dupe non-zero values should still fail',
+          weekPicks: [
+            { gameId: gameOneId, predictedWinner: 'Kansas City Chiefs', confidencePoints: 2 },
+            { gameId: gameTwoId, predictedWinner: 'Buffalo Bills', confidencePoints: 2 },
+          ],
+        },
+      });
+      expect(dupeRes.status()).toBe(400);
+    } finally {
+      if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('audit_logs').delete().eq('entity', 'pool').eq('entity_id', poolId);
+      if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+      if (ownerId) await supabase.from('commissioners').delete().eq('id', ownerId);
+    }
+  });
 });
