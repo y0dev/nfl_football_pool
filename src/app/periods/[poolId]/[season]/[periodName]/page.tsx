@@ -6,6 +6,9 @@ import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3, AlertTrian
 import { useToast } from '@/hooks/use-toast';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { isWeekComplete, periodChartData } from '@/lib/period-display';
+import { normalizeGameStatus } from '@/types/game';
+import { useAuth } from '@/lib/auth';
 import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
@@ -97,6 +100,7 @@ export default function PeriodLeaderboardPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const poolId = params.poolId as string;
   const season = params.season as string;
@@ -127,12 +131,14 @@ export default function PeriodLeaderboardPage() {
   }, []);
 
   const handleSignOut = async () => {
+    await signOut();
+    setIsAdmin(false);
+    setIsSuperAdmin(false);
     try {
       const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
-      router.push('/login');
-    } catch {}
+      await getSupabaseClient().auth.signOut();
+    } catch (error) { debugWarn('Supabase sign-out failed:', error); }
+    router.push('/login');
   };
 
   // Convert period number to period name
@@ -163,33 +169,31 @@ export default function PeriodLeaderboardPage() {
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'weekly' | 'chart'>('leaderboard');
 
   useEffect(() => {
-    loadPeriodData();
+    const controller = new AbortController();
+    loadPeriodData(controller.signal);
+    return () => controller.abort();
     // loadPeriodData is declared below via a plain function (not useCallback)
-    // and also reads `seasonType` (derived fresh from searchParams each
-    // render) — omitted here to avoid pulling in a function reference whose
+    // and reads `seasonType`, included below. The function itself is
+    // omitted here to avoid pulling in a function reference whose
     // identity changes every render, which would turn this into a fetch-on-
     // every-render effect instead of one gated on the listed route params.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poolId, season, periodNumber, periodName]);
+  }, [poolId, season, periodNumber, periodName, seasonType]);
 
-  // Initialize selected participants when leaderboard data loads
+  // Initialize once per new leaderboard; clearing chart selection stays cleared.
   useEffect(() => {
-    if (leaderboard && leaderboard.length > 0 && selectedParticipants.length === 0) {
-      setSelectedParticipants(leaderboard.map(p => p.name));
-    }
-  }, [leaderboard, selectedParticipants.length]);
+    setSelectedParticipants(leaderboard.map(p => p.participant_id));
+  }, [leaderboard]);
 
   // Determine if all weeks are completed
   useEffect(() => {
-    if (periodInfo && games.length > 0) {
+    setAllWeeksCompleted(false);
+    if (periodInfo && periodInfo.weeks.length > 0 && games.length > 0) {
       const completedWeeks = periodInfo.weeks.filter(week => {
         const weekGames = games.filter(game => game.week === week);
         if (weekGames.length === 0) return false;
 
-        const allGamesFinished = weekGames.every(game => {
-          const status = game.status?.toLowerCase() || '';
-          return status === 'final' || status === 'post';
-        });
+        const allGamesFinished = isWeekComplete(weekGames);
 
         debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
         return allGamesFinished;
@@ -201,16 +205,26 @@ export default function PeriodLeaderboardPage() {
     }
   }, [periodInfo, games]);
 
-  const loadPeriodData = async () => {
+  const loadPeriodData = async (signal: AbortSignal) => {
     setIsLoading(true);
+    setPeriodWinner(null);
+    setWeeklyWinners([]);
+    setLeaderboard([]);
+    setPeriodInfo(null);
+    setPoolName('');
+    setGames([]);
+    setTieBreakerInfo(null);
+    setShowTieBreakerInfo(false);
+    setAllWeeksCompleted(false);
     try {
       const [periodResponse, poolResponse] = await Promise.all([
-        fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&seasonType=${seasonType}&periodName=${encodeURIComponent(periodName)}`),
-        fetch(`/api/pools/${poolId}`)
+        fetch(`/api/periods/leaderboard?poolId=${poolId}&season=${season}&seasonType=${seasonType}&periodName=${encodeURIComponent(periodName)}`, { signal }),
+        fetch(`/api/pools/${poolId}`, { signal })
       ]);
 
       const periodResult = await periodResponse.json();
       const poolResult = await poolResponse.json();
+      if (signal.aborted) return;
 
       debugLog('Period data loaded:', periodResult);
       debugLog('Pool data loaded:', poolResult);
@@ -288,28 +302,10 @@ export default function PeriodLeaderboardPage() {
           setGames(periodResult.data.games || []);
           setTieBreakerInfo(periodResult.data.tieBreakerInfo || null);
         } else {
-          if (process.env.NODE_ENV === 'development') {
-            debugLog('API succeeded but no data found, loading dummy data for development');
-            loadDummyData();
-          } else {
-            toast({
-              title: 'No Data',
-              description: 'No period data available for this period',
-              variant: 'destructive'
-            });
-          }
+          toast({ title: 'No Data', description: 'No period data available for this period' });
         }
       } else {
-        if (process.env.NODE_ENV === 'development') {
-          debugLog('API failed, loading dummy data for development');
-          loadDummyData();
-        } else {
-          toast({
-            title: 'Error',
-            description: periodResult.error,
-            variant: 'destructive'
-          });
-        }
+        toast({ title: 'Error', description: periodResult.error || 'Failed to load period data', variant: 'destructive' });
       }
 
       if (poolResult.success && poolResult.pool) {
@@ -319,156 +315,12 @@ export default function PeriodLeaderboardPage() {
         setPoolName(`Pool ${poolId.slice(0, 8)}...`);
       }
     } catch (error) {
+      if (signal.aborted) return;
       debugError('Error loading period data:', error);
-      if (process.env.NODE_ENV === 'development') {
-        debugLog('Error loading period data, loading dummy data for development');
-        loadDummyData();
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to load period data',
-          variant: 'destructive'
-        });
-      }
+      toast({ title: 'Error', description: 'Failed to load period data', variant: 'destructive' });
     } finally {
-      setIsLoading(false);
+      if (!signal.aborted) setIsLoading(false);
     }
-  };
-
-  const loadDummyData = () => {
-    debugLog('Loading dummy data for development');
-
-    const getPeriodWeeks = (periodNum: number): number[] => {
-      switch (periodNum) {
-        case 1: return [1, 2, 3, 4];
-        case 2: return [5, 6, 7, 8, 9];
-        case 3: return [10, 11, 12, 13, 14];
-        case 4: return [15, 16, 17, 18];
-        default: return [1, 2, 3, 4];
-      }
-    };
-
-    const dummyWeeks = getPeriodWeeks(periodNumber);
-
-    const dummyPeriodWinner: PeriodWinner = {
-      id: 'dummy-winner-1',
-      pool_id: poolId,
-      season: parseInt(season),
-      period_name: periodName,
-      winner_participant_id: 'dummy-participant-1',
-      winner_name: 'John Doe',
-      winner_points: 255,
-      winner_correct_picks: 32,
-      tie_breaker_used: false,
-      total_participants: 8,
-      created_at: new Date().toISOString()
-    };
-
-    const dummyWeeklyWinners: WeeklyWinner[] = dummyWeeks.map((week, index) => ({
-      week: week,
-      winner_name: ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'][index % 5],
-      winner_points: 15 + Math.floor(Math.random() * 10),
-      winner_correct_picks: 3 + Math.floor(Math.random() * 3),
-      tie_breaker_used: Math.random() > 0.7,
-      total_participants: 8
-    }));
-
-    const dummyLeaderboard: LeaderboardEntry[] = [
-      {
-        participant_id: 'dummy-participant-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        total_points: 255,
-        total_correct: 32,
-        total_picks: 64,
-        weeks_won: 2,
-        weekly_scores: dummyWeeks.map(week => ({
-          week: week,
-          points: 8 + Math.floor(Math.random() * 8),
-          correct: 2 + Math.floor(Math.random() * 3),
-          total: 4
-        }))
-      },
-      {
-        participant_id: 'dummy-participant-2',
-        name: 'Jane Smith',
-        email: 'jane@example.com',
-        total_points: 252,
-        total_correct: 31,
-        total_picks: 64,
-        weeks_won: 1,
-        weekly_scores: dummyWeeks.map(week => ({
-          week: week,
-          points: 7 + Math.floor(Math.random() * 8),
-          correct: 2 + Math.floor(Math.random() * 3),
-          total: 4
-        }))
-      },
-      {
-        participant_id: 'dummy-participant-3',
-        name: 'Mike Johnson',
-        email: 'mike@example.com',
-        total_points: 248,
-        total_correct: 28,
-        total_picks: 64,
-        weeks_won: 1,
-        weekly_scores: dummyWeeks.map(week => ({
-          week: week,
-          points: 6 + Math.floor(Math.random() * 8),
-          correct: 2 + Math.floor(Math.random() * 3),
-          total: 4
-        }))
-      },
-      {
-        participant_id: 'dummy-participant-4',
-        name: 'Sarah Wilson',
-        email: 'sarah@example.com',
-        total_points: 205,
-        total_correct: 27,
-        total_picks: 64,
-        weeks_won: 0,
-        weekly_scores: dummyWeeks.map(week => ({
-          week: week,
-          points: 5 + Math.floor(Math.random() * 8),
-          correct: 1 + Math.floor(Math.random() * 3),
-          total: 4
-        }))
-      },
-      {
-        participant_id: 'dummy-participant-5',
-        name: 'Tom Brown',
-        email: 'tom@example.com',
-        total_points: 202,
-        total_correct: 26,
-        total_picks: 64,
-        weeks_won: 0,
-        weekly_scores: dummyWeeks.map(week => ({
-          week: week,
-          points: 4 + Math.floor(Math.random() * 8),
-          correct: 1 + Math.floor(Math.random() * 3),
-          total: 4
-        }))
-      }
-    ];
-
-    const dummyPeriodInfo: PeriodInfo = {
-      name: periodName,
-      weeks: dummyWeeks,
-      totalWeeks: dummyWeeks.length
-    };
-
-    debugLog('Setting dummy period winner:', dummyPeriodWinner);
-    debugLog('Setting dummy weekly winners:', dummyWeeklyWinners);
-    debugLog('Setting dummy leaderboard:', dummyLeaderboard);
-    debugLog('Setting dummy period info:', dummyPeriodInfo);
-
-    setPeriodWinner(dummyPeriodWinner);
-    setWeeklyWinners(dummyWeeklyWinners);
-    setLeaderboard(dummyLeaderboard);
-    setPeriodInfo(dummyPeriodInfo);
-    setPoolName(`Development Pool (${poolId.slice(0, 8)}...)`);
-
-    debugLog('Dummy data set successfully');
   };
 
   const renderRankIcon = (index: number) => {
@@ -486,70 +338,15 @@ export default function PeriodLeaderboardPage() {
 
   const handleParticipantSelection = (action: 'select-all' | 'clear-all') => {
     if (action === 'select-all') {
-      setSelectedParticipants(leaderboard.map(p => p.name));
+      setSelectedParticipants(leaderboard.map(p => p.participant_id));
     } else if (action === 'clear-all') {
       setSelectedParticipants([]);
     }
   };
 
-  const prepareChartData = (): Array<{ week: string; [key: string]: number | string }> => {
-    debugLog('Chart data preparation - leaderboard:', leaderboard);
-    debugLog('Chart data preparation - selectedParticipants:', selectedParticipants);
-    debugLog('Chart data preparation - periodInfo:', periodInfo);
-
-    if (leaderboard && leaderboard.length > 0 && selectedParticipants.length > 0) {
-      debugLog('Using leaderboard data for chart (selected participants)');
-
-      let weeks: number[] = [];
-      if (periodInfo && periodInfo.weeks && periodInfo.weeks.length > 0) {
-        weeks = periodInfo.weeks;
-      } else {
-        const weeksFromScores = new Set<number>();
-        leaderboard.forEach(participant => {
-          participant.weekly_scores?.forEach(score => {
-            weeksFromScores.add(score.week);
-          });
-        });
-        weeks = Array.from(weeksFromScores).sort((a, b) => a - b);
-      }
-
-      if (weeks.length === 0) {
-        weeks = [1, 2, 3, 4];
-      }
-
-      debugLog('Weeks for chart:', weeks);
-      debugLog('Selected participants for chart:', selectedParticipants);
-
-      const chartData: Array<{ week: string; [key: string]: number | string }> = [];
-
-      weeks.forEach(week => {
-        const weekData: { week: string; [key: string]: number | string } = { week: `Week ${week}` };
-
-        leaderboard
-          .filter(participant => selectedParticipants.includes(participant.name))
-          .forEach(participant => {
-            const weeklyScore = participant.weekly_scores?.find(score => score.week === week);
-            const points = weeklyScore ? weeklyScore.points || 0 : 0;
-            weekData[participant.name] = points;
-
-            debugLog(`Week ${week} - ${participant.name}: ${points} points`);
-          });
-
-        chartData.push(weekData);
-      });
-
-      debugLog('Chart data from leaderboard:', chartData);
-      return chartData;
-    }
-
-    debugLog('No leaderboard data or selected participants available for chart');
-    return [];
-  };
-
-  const chartData = prepareChartData();
-  debugLog('Chart data prepared:', chartData);
-  debugLog('Current leaderboard state:', leaderboard);
-  debugLog('Current periodInfo state:', periodInfo);
+  const chartWeeks = periodInfo?.weeks.length ? periodInfo.weeks
+    : Array.from(new Set(leaderboard.flatMap(p => p.weekly_scores.map(score => score.week)))).sort((a, b) => a - b);
+  const chartData = selectedParticipants.length > 0 ? periodChartData(leaderboard, chartWeeks, selectedParticipants) : [];
 
   // ── Loading state ──
   if (isLoading) {
@@ -662,28 +459,8 @@ export default function PeriodLeaderboardPage() {
       <section style={{ background: bg, padding: '2rem 0', minHeight: '50vh' }}>
         <div className="lp-inner" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-          {/* Development banner */}
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{ padding: '0.85rem 1rem', background: 'oklch(46% 0.14 155 / 0.08)', border: `1px solid oklch(46% 0.14 155 / 0.3)`, borderRadius: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: 8, height: 8, background: greenHi, borderRadius: '50%' }} />
-                  <p style={{ ...b, fontWeight: 600, fontSize: '0.8rem', color: greenHi }}>Development Mode</p>
-                </div>
-                <button
-                  onClick={loadDummyData}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.7rem', background: 'transparent', color: greenHi, border: `1px solid oklch(46% 0.14 155 / 0.4)`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-                >
-                  Load Dummy Data
-                </button>
-              </div>
-              <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.35rem' }}>
-                {(!periodWinner || periodWinner.id.startsWith('dummy-'))
-                  ? 'Showing dummy data for development. No real period data is available.'
-                  : 'Click "Load Dummy Data" to test with sample data.'
-                }
-              </p>
-            </div>
+          {!periodInfo && (
+            <p style={{ ...b, color: textDim }}>No period results available. Try reloading this page.</p>
           )}
 
           {/* Period Winner card */}
@@ -896,7 +673,7 @@ export default function PeriodLeaderboardPage() {
                       if (weekGames.length > 0) {
                         const finishedGames = weekGames.filter(game => {
                           const status = game.status?.toLowerCase() || '';
-                          return status === 'final' || status === 'post';
+                          return normalizeGameStatus(status) === 'finished';
                         });
 
                         if (finishedGames.length === weekGames.length) {
@@ -905,7 +682,7 @@ export default function PeriodLeaderboardPage() {
                           statusBg = 'oklch(46% 0.14 155 / 0.15)';
                           statusColor = greenHi;
                           statusBorder = 'oklch(46% 0.14 155 / 0.4)';
-                        } else if (finishedGames.length > 0) {
+                        } else if (finishedGames.length > 0 || weekGames.some(game => normalizeGameStatus(game.status) === 'live')) {
                           weekStatus = 'in-progress';
                           statusText = 'In Progress';
                           statusBg = 'oklch(72% 0.16 60 / 0.1)';
@@ -938,13 +715,15 @@ export default function PeriodLeaderboardPage() {
                                       </span>
                                     </div>
                                   </>
+                                ) : weekStatus === 'completed' ? (
+                                  <p style={{ ...b, color: textDim }}>No winner data available</p>
                                 ) : weekStatus === 'in-progress' ? (
                                   <>
                                     <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: amber }}>Games In Progress</p>
                                     <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.2rem' }}>
                                       {weekGames.filter(game => {
                                         const status = game.status?.toLowerCase() || '';
-                                        return status === 'final' || status === 'post';
+                                        return normalizeGameStatus(status) === 'finished';
                                       }).length} of {weekGames.length} games finished
                                     </p>
                                   </>
@@ -992,7 +771,7 @@ export default function PeriodLeaderboardPage() {
                     <p style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.6rem' }}>Select Participants to Display:</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
                       {leaderboard.map((participant) => {
-                        const checked = selectedParticipants.includes(participant.name);
+                        const checked = selectedParticipants.includes(participant.participant_id);
                         return (
                           <label
                             key={participant.participant_id}
@@ -1003,9 +782,9 @@ export default function PeriodLeaderboardPage() {
                               checked={checked}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedParticipants(prev => [...prev, participant.name]);
+                                  setSelectedParticipants(prev => [...prev, participant.participant_id]);
                                 } else {
-                                  setSelectedParticipants(prev => prev.filter(name => name !== participant.name));
+                                  setSelectedParticipants(prev => prev.filter(id => id !== participant.participant_id));
                                 }
                               }}
                               style={{ accentColor: green, width: 13, height: 13 }}
@@ -1067,7 +846,8 @@ export default function PeriodLeaderboardPage() {
                             <Line
                               key={participant.participant_id}
                               type="monotone"
-                              dataKey={participant.name}
+                              dataKey={participant.participant_id}
+                              name={participant.name}
                               stroke={chartColors[index % chartColors.length]}
                               strokeWidth={2}
                               dot={{ r: 4, fill: chartColors[index % chartColors.length] }}

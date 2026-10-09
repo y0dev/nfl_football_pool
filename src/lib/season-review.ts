@@ -211,6 +211,7 @@ export interface SeasonReviewData {
   /** Every participant's per-period (Q1-Q4) totals, not just the winner —
    * used by /api/periods/leaderboard to render a full period leaderboard. */
   periodTotals: PeriodTotalEntry[];
+  weeklyScores: Array<WeekEntry & { participant_id: string; week: number }>;
   seasonStats: {
     total_weeks: number;
     total_participants: number;
@@ -234,6 +235,7 @@ function emptyPayload(poolName: string | undefined): SeasonReviewData {
     weeklyWinners: [],
     participantStats: [],
     periodTotals: [],
+    weeklyScores: [],
     seasonStats: {
       total_weeks: 0,
       total_participants: 0,
@@ -594,6 +596,9 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
     weeklyWinners,
     participantStats,
     periodTotals,
+    weeklyScores: Array.from(weeklyBreakdown, ([participant_id, weekMap]) =>
+      Array.from(weekMap, ([week, entry]) => ({ participant_id, week, ...entry }))
+    ).flat(),
     seasonStats,
   };
 }

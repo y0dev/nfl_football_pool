@@ -43,6 +43,7 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 interface WeeklyPickProps {
   poolId: string;
   weekNumber?: number;
+  poolSeason?: number;
   seasonType?: number;
   selectedUser?: SelectedUser;
   games?: Game[];
@@ -56,7 +57,7 @@ interface WeeklyPickProps {
   onUserChangeRequested?: () => void;
 }
 
-export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, forceWeekUnlocked: propForceWeekUnlocked, upcomingWeek, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
+export function WeeklyPick({ poolId, poolSeason: propPoolSeason, weekNumber, seasonType, selectedUser: propSelectedUser, games: propGames, preventGameLoading, forceWeekUnlocked: propForceWeekUnlocked, upcomingWeek, onPicksSubmitted, onUserChangeRequested }: WeeklyPickProps) {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(propSelectedUser || null);
   const [games, setGames] = useState<Game[]>(propGames || []);
   const [picks, setPicks] = useState<Pick[]>([]);
@@ -79,7 +80,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
   const devForceUnlockedRef = useRef(simulatePicksEnabled());
   const [, setDevForceUnlocked] = useState(devForceUnlockedRef.current);
   const [mondayNightScore, setMondayNightScore] = useState<number | null>(null);
-  const [poolSeason, setPoolSeason] = useState<number | null>(null);
+  const [poolSeason, setPoolSeason] = useState<number | null>(propPoolSeason ?? null);
   const [, setPlayoffConfidencePoints] = useState<Record<string, number>>({});
   // Pick distribution ("who picked which team") per game, e.g. { gameId: { 'Kansas City Chiefs': 8, 'Buffalo Bills': 4 } }.
   const [pickCounts, setPickCounts] = useState<Record<string, Record<string, number>>>({});
@@ -226,24 +227,21 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     }
   }, [propSelectedUser, selectedUser]);
 
-  // Load pool season for playoff mode
+  // Draft saves need the season for every pool type, not only playoffs.
   useEffect(() => {
+    let cancelled = false;
+    setPoolSeason(propPoolSeason ?? null);
+    if (propPoolSeason != null) return;
     const loadPoolSeason = async () => {
-      if (isPlayoffMode && !poolSeason) {
-        try {
-          const response = await fetch(`/api/pools/${poolId}`);
-          const data = await response.json();
-          if (data.success && data.pool?.season) {
-            setPoolSeason(data.pool.season);
-            debugLog('WeeklyPick: Loaded pool season for playoff mode:', data.pool.season);
-          }
-        } catch (error) {
-          debugError('Error loading pool season:', error);
-        }
-      }
+      try {
+        const response = await fetch(`/api/pools/${poolId}`);
+        const data = await response.json();
+        if (!cancelled && data.success && data.pool?.season) setPoolSeason(data.pool.season);
+      } catch (error) { debugError('Error loading pool season:', error); }
     };
     loadPoolSeason();
-  }, [isPlayoffMode, poolId, poolSeason]);
+    return () => { cancelled = true; };
+  }, [poolId, propPoolSeason]);
 
   // Load playoff confidence points when user is selected (playoff mode only)
   useEffect(() => {

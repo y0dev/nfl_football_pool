@@ -85,6 +85,18 @@ export async function updateAccount(id: string, role: AccountRole, patch: Record
   return supabase.from(table).update(patch).eq('id', id);
 }
 
+// Atomic compare-and-swap: only one redemption may advance an account
+// from the timestamp embedded in an authentication link.
+export async function redeemAccountLink(id: string, role: AccountRole, updatedAt: string | null, patch: Record<string, unknown> = {}) {
+  const supabase = getSupabaseServiceClient();
+  const nextTimestamp = new Date(Math.max(Date.now(), updatedAt ? Date.parse(updatedAt) + 1 : 0)).toISOString();
+  let query = supabase.from(role === 'super_admin' ? 'admins' : 'commissioners')
+    .update({ ...patch, updated_at: nextTimestamp }).eq('id', id).eq('is_active', true);
+  query = updatedAt === null ? query.is('updated_at', null) : query.eq('updated_at', updatedAt);
+  const { data, error } = await query.select('id').maybeSingle();
+  return { redeemed: !!data && !error, error };
+}
+
 // Self-service account routes (account-type, unlink-google, set-password,
 // change-password, notification-preferences, ...) take `adminId` as a plain
 // request parameter — that's fine for READING non-sensitive data scoped to

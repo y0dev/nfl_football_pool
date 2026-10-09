@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const { picks, mondayNightScore }: { picks: Pick[], mondayNightScore?: number | null } = await request.json();
     debugLog('Picks:', picks);
     // Validate picks
-    if (picks.length === 0) {
+    if (!Array.isArray(picks) || picks.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No picks provided' },
         { status: 400 }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     // Validate that all picks have a valid participant_id
     const firstPick = picks[0];
     
-    if (!firstPick.participant_id || firstPick.participant_id.trim() === '') {
+    if (!firstPick || typeof firstPick.participant_id !== 'string' || firstPick.participant_id.trim() === '') {
       return NextResponse.json(
         { success: false, error: 'Invalid participant ID. Please select a user first.' },
         { status: 400 }
@@ -41,6 +41,11 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Invalid pool ID.' },
         { status: 400 }
       );
+    }
+
+    if (picks.some(pick => !pick || pick.participant_id !== firstPick.participant_id || pick.pool_id !== firstPick.pool_id)
+      || new Set(picks.map(pick => pick.game_id)).size !== picks.length) {
+      return NextResponse.json({ success: false, error: 'Picks must belong to one participant and pool, with no duplicate games' }, { status: 400 });
     }
 
     const access = await checkPoolAccessFromRequest(firstPick.pool_id, request);
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
     // Check if games are locked
     const { data: games, error: gamesError } = await supabase
       .from('games')
-      .select('id, status, kickoff_time, week, season, season_type')
+      .select('id, status, kickoff_time, week, season, season_type, home_team, away_team')
       .in('id', gameIds);
     debugLog('Games:', games);
     if (gamesError) {
@@ -83,6 +88,42 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Failed to validate games' },
         { status: 500 }
       );
+    }
+
+    const scope = games?.[0];
+    if (!scope || games?.length !== gameIds.length || games.some(game =>
+      game.week !== scope.week || game.season !== scope.season || game.season_type !== scope.season_type)) {
+      return NextResponse.json({ success: false, error: 'All picks must reference existing games from one week and season' }, { status: 400 });
+    }
+
+    const [{ data: participant, error: participantError }, { data: pool, error: poolError }] = await Promise.all([
+      supabase.from('participants').select('id').eq('id', firstPick.participant_id).eq('pool_id', firstPick.pool_id).eq('is_active', true).maybeSingle(),
+      supabase.from('pools').select('season').eq('id', firstPick.pool_id).maybeSingle(),
+    ]);
+    if (participantError || poolError) {
+      return NextResponse.json({ success: false, error: 'Failed to validate participant or pool' }, { status: 500 });
+    }
+    if (!participant || !pool || pool.season !== scope.season) {
+      return NextResponse.json({ success: false, error: 'Invalid participant or pool season' }, { status: 400 });
+    }
+
+    // The full schedule controls both completeness and the first-kickoff
+    // deadline. A caller cannot move the deadline by omitting earlier games.
+    const { data: weekGames, error: weekGamesError } = await supabase.from('games')
+      .select('id, status, kickoff_time, week, season, season_type, home_team, away_team')
+      .eq('season', scope.season).eq('season_type', scope.season_type).eq('week', scope.week);
+    if (weekGamesError || !weekGames?.length) {
+      return NextResponse.json({ success: false, error: 'Failed to load the full week schedule' }, { status: 500 });
+    }
+    if (weekGames.length !== picks.length || weekGames.some(game => !gameIds.includes(game.id))) {
+      return NextResponse.json({ success: false, error: 'Submit exactly one pick for every game in the week' }, { status: 400 });
+    }
+    const gameById = new Map(weekGames.map(game => [game.id, game]));
+    if (picks.some(pick => {
+      const game = gameById.get(pick.game_id);
+      return !game || ![game.home_team, game.away_team].includes(pick.predicted_winner);
+    })) {
+      return NextResponse.json({ success: false, error: 'Each pick must select a team playing in that game' }, { status: 400 });
     }
 
     // Determine if this is a playoff week from the already fetched games
@@ -108,7 +149,7 @@ export async function POST(request: NextRequest) {
     // identical regardless, so this check has always been the real
     // gatekeeper in every environment. Giving it new dev-only leniency
     // would be a behavior change beyond what's needed here, not a fix.
-    const sortedByKickoff = [...(games ?? [])].sort(
+    const sortedByKickoff = [...weekGames].sort(
       (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
     );
     const firstGame = sortedByKickoff[0];
@@ -159,24 +200,6 @@ export async function POST(request: NextRequest) {
           { success: false, error: 'Picks already submitted for this week' },
           { status: 400 }
         );
-      } else {
-        // For playoff games, delete existing picks and reinsert (update)
-        const { error: deleteError } = await supabase
-          .from('picks')
-          .delete()
-          .eq('participant_id', firstPick.participant_id)
-          .eq('pool_id', firstPick.pool_id)
-          .in('game_id', gameIds);
-        
-        if (deleteError) {
-          debugError('Error deleting existing playoff picks:', deleteError);
-          return NextResponse.json(
-            { success: false, error: 'Failed to update existing picks' },
-            { status: 500 }
-          );
-        }
-        
-        debugLog('Deleted existing playoff picks, will insert new ones');
       }
     }
 
@@ -205,15 +228,19 @@ export async function POST(request: NextRequest) {
 
     // Prepare picks for database insertion with additional metadata
     const picksToInsert = picks.map(pick => ({
-      ...pick,
+      participant_id: pick.participant_id,
+      pool_id: pick.pool_id,
+      game_id: pick.game_id,
+      predicted_winner: pick.predicted_winner,
+      confidence_points: pick.confidence_points,
       created_at: new Date().toISOString()
     }));
 
     // Insert picks
-    const { data, error } = await supabase
-      .from('picks')
-      .insert(picksToInsert)
-      .select();
+    const write = isPlayoff
+      ? supabase.from('picks').upsert(picksToInsert, { onConflict: 'participant_id,pool_id,game_id' })
+      : supabase.from('picks').insert(picksToInsert);
+    const { data, error } = await write.select();
 
     if (error) {
       debugError('Error submitting picks:', error);
