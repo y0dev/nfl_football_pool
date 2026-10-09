@@ -8,7 +8,7 @@ import { debugLog, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { isWeekComplete, periodChartData } from '@/lib/period-display';
 import { normalizeGameStatus } from '@/types/game';
-import { useAuth } from '@/lib/auth';
+import { useAuth, AuthProvider } from '@/lib/auth';
 import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
@@ -95,7 +95,7 @@ interface TieBreakerInfo {
   participantsInvolved: TieBreakerParticipant[];
 }
 
-export default function PeriodLeaderboardPage() {
+function PeriodLeaderboardContent() {
   const searchParams = useSearchParams();
   const params = useParams();
   const router = useRouter();
@@ -880,5 +880,13 @@ export default function PeriodLeaderboardPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function PeriodLeaderboardPage() {
+  return (
+    <AuthProvider>
+      <PeriodLeaderboardContent />
+    </AuthProvider>
   );
 }
