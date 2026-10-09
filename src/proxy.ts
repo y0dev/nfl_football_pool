@@ -1,3 +1,4 @@
+import { verifySessionToken } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { checkPoolAccess, poolAccessCookieName } from '@/lib/pool-access';
 
@@ -31,7 +32,7 @@ export async function proxy(request: NextRequest) {
 
   // Protect admin and dashboard routes — require a server-side session cookie
   const needsAuth = PROTECTED.some(p => pathname === p || pathname.startsWith(p + '/'));
-  if (needsAuth && !request.cookies.has('sh-session')) {
+  if (needsAuth && !verifySessionToken(request.cookies.get('sh-session')?.value)) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);

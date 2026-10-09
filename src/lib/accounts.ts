@@ -1,3 +1,4 @@
+import { verifySessionToken } from '@/lib/session';
 import { getSupabaseServiceClient } from './supabase-service';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
@@ -93,15 +94,15 @@ export async function updateAccount(id: string, role: AccountRole, patch: Record
 // carrying someone else's adminId (leaked, guessed, or just typed into
 // devtools) could flip their google_linked flag, set a password on their
 // Google-only account, or read their auth state — a full account-takeover
-// path, not just an info leak. The one server-side fact that can't be
-// spoofed from the request body is the httpOnly sh-session cookie set at
+// path, not just an info leak. Identity must come from a cryptographically verified session, never
+// a raw account ID. The signed httpOnly sh-session cookie is set at
 // login (src/actions/sessionCookie.ts for password login,
 // src/app/auth/callback/route.ts's buildSessionRedirect for OAuth) — so
 // self-service routes must check the caller's session actually IS the
 // account they're asking to modify, not just that the id resolves to some
 // active account.
 export function callerOwnsAccount(request: NextRequest, adminId: string): boolean {
-  const sessionId = request.cookies.get('sh-session')?.value;
+  const sessionId = verifySessionToken(request.cookies.get('sh-session')?.value);
   return !!sessionId && sessionId === adminId;
 }
 
@@ -111,8 +112,7 @@ export function callerOwnsAccount(request: NextRequest, adminId: string): boolea
 //
 // Resolves identity from the httpOnly sh-session cookie (set at login by
 // loginUser/magicLink, and by /auth/callback for OAuth — see
-// callerOwnsAccount's comment above for why this is the only server-side
-// fact that can't be spoofed from the request). This replaces the previous
+// callerOwnsAccount's comment above for signature verification). This replaces the previous
 // x-admin-email-header-trust pattern that was copied inline into ~25 routes:
 // the header is set by the client from its own React state / localStorage,
 // so any request carrying someone else's real admin/commissioner email —
@@ -126,7 +126,7 @@ export function callerOwnsAccount(request: NextRequest, adminId: string): boolea
 export async function requireActiveAdmin(request: NextRequest): Promise<
   { ok: true; email: string; id: string; isSuperAdmin: boolean } | { ok: false; response: NextResponse }
 > {
-  const sessionId = request.cookies.get('sh-session')?.value;
+  const sessionId = verifySessionToken(request.cookies.get('sh-session')?.value);
   if (!sessionId) {
     return { ok: false, response: NextResponse.json({ success: false, error: 'Not signed in' }, { status: 401 }) };
   }
@@ -174,7 +174,7 @@ export async function requireActionCallerOwnsPool(poolId: string): Promise<
   } catch {
     return { ok: false, error: 'Not signed in.' };
   }
-  const sessionId = jar.get('sh-session')?.value;
+  const sessionId = verifySessionToken(jar.get('sh-session')?.value);
   if (!sessionId) return { ok: false, error: 'Not signed in.' };
 
   const caller = await findAccountById(sessionId, { activeOnly: true });

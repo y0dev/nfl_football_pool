@@ -1,3 +1,4 @@
+import { verifySessionToken } from '@/lib/session';
 import type { NextRequest } from 'next/server';
 import { getSupabaseServiceClient } from './supabase-service';
 import { findAccountById } from './accounts';
@@ -205,7 +206,7 @@ async function isAdminForPool(poolId: string, sessionId: string): Promise<boolea
  * this same pool data for a private pool without ever having gone through
  * the participant password flow, and shouldn't be asked to. */
 export async function checkPoolAccessFromRequest(poolId: string, request: NextRequest): Promise<PoolAccessResult> {
-  const sessionId = request.cookies.get('sh-session')?.value;
+  const sessionId = verifySessionToken(request.cookies.get('sh-session')?.value);
   if (sessionId && await isAdminForPool(poolId, sessionId)) {
     const pool = await loadPoolAccessRow(poolId);
     if (pool) return { allowed: true, pool };

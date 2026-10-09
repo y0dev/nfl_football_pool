@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -58,7 +59,7 @@ test.describe('GET /api/admin/verify-status', () => {
 
   test('a session cookie for a nonexistent id returns isAdmin: false', async ({ request }) => {
     const res = await request.get('/api/admin/verify-status', {
-      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+      headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -67,7 +68,7 @@ test.describe('GET /api/admin/verify-status', () => {
 
   test('a real super admin session reports isAdmin and isSuperAdmin true', async ({ request }) => {
     const res = await request.get('/api/admin/verify-status', {
-      headers: { Cookie: `sh-session=${superAdminId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -76,7 +77,7 @@ test.describe('GET /api/admin/verify-status', () => {
 
   test('a real commissioner session reports isAdmin true, isSuperAdmin false — even with a spoofed super-admin adminId param', async ({ request }) => {
     const res = await request.get(`/api/admin/verify-status?adminId=${superAdminId}`, {
-      headers: { Cookie: `sh-session=${commissionerId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(commissionerId)}` },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();

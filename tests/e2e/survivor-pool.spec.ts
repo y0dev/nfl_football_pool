@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -161,7 +162,7 @@ test.describe('Survivor Pool — settings', () => {
       // PATCH /api/pools/[id] wrapper instead, same as clone-pool.spec.ts
       // does for its own Server Action.
       const res = await request.patch(`/api/pools/${fixture.poolId}`, {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { type_settings: { noPickRule: 'keep_active', tieRule: 'keep_active', endOfSeasonRule: 'margin_tiebreaker' } },
       });
       expect(res.ok()).toBeTruthy();
@@ -644,7 +645,7 @@ test.describe('Survivor Pool — emails', () => {
       await createGame(fixture, { week: 2, homeTeam: 'Home B', awayTeam: 'Away B', homeTeamId: 'HB', awayTeamId: 'BB', kickoff: daysFromNow(3), status: 'scheduled' });
 
       const res = await request.post('/api/survivor/send-reminders', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(200);
@@ -670,7 +671,7 @@ test.describe('Survivor Pool — emails', () => {
       ]);
 
       const res = await request.post('/api/survivor/notify-week-results', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId, week: 1, seasonType: 2 },
       });
       expect(res.status()).toBe(200);
@@ -686,7 +687,7 @@ test.describe('Survivor Pool — emails', () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
       const res = await request.post('/api/survivor/send-reminders', {
-        headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+        headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(403);
@@ -699,13 +700,13 @@ test.describe('Survivor Pool — emails', () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
       const rejected = await request.post('/api/survivor/finalize', {
-        headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+        headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
         data: { poolId: fixture.poolId },
       });
       expect(rejected.status()).toBe(403);
 
       const allowed = await request.post('/api/survivor/finalize', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId },
       });
       expect(allowed.status()).toBe(200);
@@ -721,7 +722,7 @@ test.describe('Survivor Pool — emails', () => {
       await supabase.from('survivor_picks').insert({ participant_id: fixture.participants.Alice, pool_id: fixture.poolId, game_id: gameId, season: fixture.season, season_type: 2, week: 1, selected_team: 'HA' });
 
       const res = await request.post('/api/survivor/notify-week-results', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId }, // no week/seasonType
       });
       expect(res.status()).toBe(200);
