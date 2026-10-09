@@ -27,6 +27,21 @@ async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number,
   }
 
   const review = await computeSeasonReview(poolId, season);
+
+  const supabase = getSupabaseServiceClient();
+  const { data: gamesData } = await supabase
+    .from('games')
+    .select('*')
+    .eq('season', season)
+    .eq('season_type', REGULAR_SEASON_TYPE)
+    .in('week', period.weeks);
+
+  // Total games in the period, not each participant's own submitted-pick
+  // count — those can differ (a missed/overridden pick, a late-joining
+  // participant) and this column is meant to read as "correct out of the
+  // quarter's total games," the same fixed denominator for everyone.
+  const totalGamesInPeriod = gamesData?.length || 0;
+
   const periodEntries = review.periodTotals
     .filter(t => t.period_name === periodName)
     .map(t => ({
@@ -38,9 +53,7 @@ async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number,
       weekly_scores: review.weeklyScores
         .filter(score => score.participant_id === t.participant_id && period.weeks.includes(score.week))
         .map(({ week, points, correct, total }) => ({ week, points, correct, total })),
-      total_picks: review.weeklyScores
-        .filter(score => score.participant_id === t.participant_id && period.weeks.includes(score.week))
-        .reduce((total, score) => total + score.total, 0),
+      total_picks: totalGamesInPeriod,
     }))
     .sort((a, b) => b.total_points - a.total_points);
 
@@ -69,14 +82,6 @@ async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number,
       tie_breaker_used: false,
       total_participants: w.total_participants,
     }));
-
-  const supabase = getSupabaseServiceClient();
-  const { data: gamesData } = await supabase
-    .from('games')
-    .select('*')
-    .eq('season', season)
-    .eq('season_type', REGULAR_SEASON_TYPE)
-    .in('week', period.weeks);
 
   return NextResponse.json({
     success: true,
@@ -349,9 +354,6 @@ export async function GET(request: NextRequest) {
     // debugLog('Period Leaderboard - Games data:', gamesData);
     debugLog('Period Leaderboard - Games error:', gamesError);
     debugLog('Period Leaderboard - Number of games:', gamesData?.length || 0);
-    
-    const totalGamesInQuarter = gamesData?.length || 0;
-    debugLog('Period Leaderboard - Total games in quarter:', totalGamesInQuarter);
 
     // Debug: Check games per week
     if (gamesData) {
@@ -381,6 +383,12 @@ export async function GET(request: NextRequest) {
       ? periodWeeks.filter(w => w >= poolStartWeek)
       : periodWeeks;
     debugLog('Pool start week:', poolStartWeek, '| Effective period weeks:', effectivePeriodWeeks);
+
+    // Total games across the pool's effective period weeks — the same
+    // fixed denominator for every participant, not each participant's own
+    // submitted-pick count (which can differ on a missed/overridden pick).
+    const totalGamesInEffectivePeriod = gamesData?.filter(game => effectivePeriodWeeks.includes(game.week)).length || 0;
+    debugLog('Total games in effective period (fixed denominator for all participants):', totalGamesInEffectivePeriod);
 
     // Determine which weeks are completed (all games finished)
     const completedWeeksForTotals = effectivePeriodWeeks.filter(week => {
@@ -481,8 +489,7 @@ export async function GET(request: NextRequest) {
 
       let totalPoints = 0;
       let totalCorrectPicks = 0;
-      let totalPicks = 0;
-      
+
       debugLog(`\n=== Processing ${participant.name} ===`);
       
       // Process each week (only weeks from pool's effective start week onwards)
@@ -522,7 +529,6 @@ export async function GET(request: NextRequest) {
         // This allows real-time standings including partial results from current week
         totalPoints += weekPoints;
         totalCorrectPicks += weekCorrectPicks;
-        totalPicks += weekTotalPicks;
 
         // Add to weekly breakdown
         participant.weekly_scores.push({
@@ -538,9 +544,9 @@ export async function GET(request: NextRequest) {
 
       participant.total_points = totalPoints;
       participant.total_correct = totalCorrectPicks;
-      participant.total_picks = totalPicks;
-      
-      debugLog(`  ${participant.name} FINAL TOTALS: ${totalPoints} points, ${totalCorrectPicks} correct, ${totalPicks} total picks`);
+      participant.total_picks = totalGamesInEffectivePeriod;
+
+      debugLog(`  ${participant.name} FINAL TOTALS: ${totalPoints} points, ${totalCorrectPicks} correct, ${totalGamesInEffectivePeriod} total games in period`);
     });
 
     // Reset weeks_won to 0 for all participants before calculating
