@@ -1891,6 +1891,7 @@ export function PoolPicksContent() {
                             </div>
                           )}
                           <WeeklyPick
+                            poolSeason={poolSeason}
                             poolId={poolId}
                             weekNumber={currentWeek}
                             seasonType={currentSeasonType}

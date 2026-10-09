@@ -241,3 +241,97 @@ test('period sign-out clears app auth and redirects even if Supabase sign-out fa
   assert.deepEqual(h.authCalls, ['logout']);
   assert.deepEqual(h.navigations, ['/login']);
 });
+
+function confidenceSubmitHarness({ playoff = false, started = false, failWrite = false } = {}) {
+  const now = Date.now();
+  const games = [
+    { id: 'early', week: 1, season: 2026, season_type: playoff ? 3 : 2, status: started ? 'live' : 'scheduled', kickoff_time: new Date(now + (started ? -1 : 1) * 86400000).toISOString(), home_team: 'Home', away_team: 'Away' },
+    { id: 'late', week: 1, season: 2026, season_type: playoff ? 3 : 2, status: 'scheduled', kickoff_time: new Date(now + 2 * 86400000).toISOString(), home_team: 'Home', away_team: 'Away' },
+  ];
+  const oldPicks = playoff ? games.map(g => ({ participant_id: 'p', pool_id: 'pool', game_id: g.id, predicted_winner: 'Away', confidence_points: 0 })) : [];
+  let stored = [...oldPicks];
+  const operations = [];
+  const client = { from(table) {
+    let operation = 'select', rows, ids;
+    return { select() { return this; }, eq() { return this; }, in(_key, value) { ids = value; return this; }, maybeSingle() { return this; },
+      insert(value) { operation = 'insert'; rows = value; return this; },
+      upsert(value, options) { assert.equal(options.onConflict, 'participant_id,pool_id,game_id'); operation = 'upsert'; rows = value; return this; },
+      delete() { operation = 'delete'; return this; },
+      then(resolve) {
+        operations.push({ table, operation });
+        if (table === 'games') return resolve({ data: ids ? games.filter(g => ids.includes(g.id)) : games, error: null });
+        if (table === 'participants') return resolve({ data: { id: 'p' }, error: null });
+        if (table === 'pools') return resolve({ data: { season: 2026 }, error: null });
+        if (table === 'picks' && operation === 'select') return resolve({ data: oldPicks, error: null });
+        if (table === 'picks' && ['insert', 'upsert'].includes(operation)) {
+          if (failWrite) return resolve({ data: null, error: { message: 'write failed' } });
+          stored = rows; return resolve({ data: rows, error: null });
+        }
+        return resolve({ data: [], error: null });
+      },
+    };
+  } };
+  const utils = { DAYS_BEFORE_GAME: 7, debugLog() {}, debugError() {}, isDummyData: () => false, simulatePicksEnabled: () => false };
+  const unlock = load('src/lib/week-unlock-status.ts', { '@/lib/utils': utils }, state);
+  const route = load('src/app/api/picks/submit/route.ts', {
+    'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } },
+    '@/lib/supabase-service': { getSupabaseServiceClient: () => client }, '@/lib/pick-storage': { pickStorage: { clearPicks() {} } },
+    '@/lib/utils': utils, '@/lib/week-unlock-status': unlock, '@/lib/pool-access': { checkPoolAccessFromRequest: async () => ({ allowed: true }) },
+  }, state);
+  const picks = games.map((game, index) => ({ participant_id: 'p', pool_id: 'pool', game_id: game.id, predicted_winner: 'Home', confidence_points: index + 1 }));
+  return { picks, operations, oldPicks, stored: () => stored, submit: value => route.POST({ json: async () => ({ picks: value }) }) };
+}
+
+test('confidence submission rejects partial weeks and full weeks after the first kickoff', async () => {
+  const h = confidenceSubmitHarness({ started: true });
+  assert.equal((await h.submit([{ ...h.picks[1], confidence_points: 1 }])).status, 400);
+  assert.equal((await h.submit(h.picks)).status, 400);
+  assert.equal(h.operations.some(op => op.table === 'picks' && op.operation !== 'select'), false);
+});
+
+test('confidence submission accepts a complete unlocked week and rejects malformed or mixed picks', async () => {
+  const h = confidenceSubmitHarness();
+  assert.equal((await h.submit(undefined)).status, 400);
+  assert.equal((await h.submit([h.picks[0], h.picks[0]])).status, 400);
+  assert.equal((await h.submit([h.picks[0], { ...h.picks[1], pool_id: 'other' }])).status, 400);
+  assert.equal((await h.submit([h.picks[0], { ...h.picks[1], predicted_winner: 'Not playing' }])).status, 400);
+  assert.equal((await h.submit(h.picks)).status, 200);
+});
+
+test('failed playoff replacement leaves existing picks intact without deleting them', async () => {
+  const h = confidenceSubmitHarness({ playoff: true, failWrite: true });
+  assert.equal((await h.submit(h.picks)).status, 500);
+  assert.deepEqual(h.stored(), h.oldPicks);
+  assert.ok(h.operations.some(op => op.table === 'picks' && op.operation === 'upsert'));
+  assert.equal(h.operations.some(op => op.table === 'picks' && op.operation === 'delete'), false);
+});
+
+test('successful playoff replacement uses the existing unique key atomically', async () => {
+  const h = confidenceSubmitHarness({ playoff: true });
+  assert.equal((await h.submit(h.picks)).status, 200);
+  assert.equal(h.stored()[0].predicted_winner, 'Home');
+  assert.equal(h.operations.some(op => op.table === 'picks' && op.operation === 'delete'), false);
+});
+
+test('regular-season picks obtain draft season from props or fetch without a playoff-only guard', async () => {
+  async function render(poolSeason) {
+    const effects = [], updates = [], initialStates = [];
+    const jsx = () => null;
+    const component = load('src/components/picks/weekly-pick.tsx', {
+      react: { useState: initial => { initialStates.push(initial); return [initial, value => updates.push(value)]; }, useEffect: fn => effects.push(fn), useRef: initial => ({ current: initial }) },
+      'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
+      '@/actions/submitPicks': {}, '@/actions/loadWeekGames': {}, '@/actions/loadCurrentWeek': {}, '@/lib/week-unlock-status': {},
+      './pick-confirmation-dialog': {}, './monday-night-score-input': {}, '@/lib/user-session': {}, '@/lib/pick-storage': {}, 'lucide-react': {},
+      '@/lib/utils': { simulatePicksEnabled: () => false, showDebugPanel: () => false, debugLog() {}, debugError() {} },
+      '@/lib/playoff-utils': {}, '@/components/picks/game-card': {}, '@/components/ui/alert-dialog': {},
+    }, { env: { NODE_ENV: 'production' } }, { fetch: async () => ({ json: async () => ({ success: true, pool: { season: 2026 } }) }) });
+    component.WeeklyPick({ poolId: 'pool', seasonType: 2, poolSeason, games: [], preventGameLoading: true });
+    const effect = effects.find(fn => fn.toString().includes('const loadPoolSeason'));
+    assert.ok(effect);
+    effect();
+    await new Promise(resolve => setImmediate(resolve));
+    return { initialStates, updates };
+  }
+  assert.ok((await render(2026)).initialStates.includes(2026));
+  assert.ok((await render(undefined)).updates.includes(2026));
+});
