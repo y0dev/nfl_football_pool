@@ -24,18 +24,18 @@ import {
 dotenv.config({ path: '.env.local' });
 
 // Validate environment variables
-const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('❌ Missing required environment variables:');
-  console.error('   SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+  console.error('   SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
   console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅ Set' : '❌ Missing');
   console.error('');
   console.error('Please check your .env.local file and ensure these variables are set.');
   console.error('');
   console.error('Required variables:');
-  console.error('  SUPABASE_URL=your_supabase_url');
+  console.error('  NEXT_PUBLIC_SUPABASE_URL=your_supabase_url');
   console.error('  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key');
   process.exit(1);
 }
@@ -177,4 +177,4 @@ async function setupDatabase() {
   }
 }
 
-setupDatabase(); 
+setupDatabase();
