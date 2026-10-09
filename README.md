@@ -116,3 +116,11 @@ The system automatically:
 ## License
 
 MIT License - see LICENSE file for details
+
+Admin sessions are signed and expire after 90 days. Set a server-only
+`SESSION_SECRET`, or authentication uses `POOL_ACCESS_SECRET` with a separate
+signature domain. Rotating the active signing secret logs out existing sessions;
+legacy unsigned sessions require signing in again.
+
+Run the isolated security/setup regression checks with
+`node --test tests/unit/security-and-setup.test.mjs`.

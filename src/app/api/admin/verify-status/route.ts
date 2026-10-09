@@ -1,3 +1,4 @@
+import { verifySessionToken } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { findAccountById } from '@/lib/accounts';
 import { debugError } from '@/lib/utils';
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
   // anyone claim to be any other admin/commissioner's id. sh-session is set
   // server-side at login (password, magic link, and OAuth) and can't be
   // forged from the browser.
-  const sessionId = request.cookies.get('sh-session')?.value;
+  const sessionId = verifySessionToken(request.cookies.get('sh-session')?.value);
 
   if (!sessionId) {
     return NextResponse.json({ success: true, isAdmin: false, isSuperAdmin: false });

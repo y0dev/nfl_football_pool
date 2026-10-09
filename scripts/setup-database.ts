@@ -47,6 +47,7 @@ async function setupDatabase() {
   console.log('Setting up database tables...');
 
   try {
+    const failures: string[] = [];
     // Create tables in order
     const tables = [
       { name: 'admins', sql: adminsTable },
@@ -74,6 +75,7 @@ async function setupDatabase() {
       const { error } = await supabase.rpc('sql', { query: table.sql });
       
       if (error) {
+        failures.push(`${table.name}: ${error.message}`);
         // If sql function doesn't exist, try alternative approach
         console.log(`Trying alternative method for ${table.name}...`);
         
@@ -90,6 +92,7 @@ async function setupDatabase() {
     const { error: rlsError } = await supabase.rpc('sql', { query: rlsPolicies });
     
     if (rlsError) {
+      failures.push(`RLS policies: ${rlsError.message}`);
       console.log('⚠️  RLS policies application attempted (manual setup may be required)');
     } else {
       console.log('✅ RLS policies applied successfully');
@@ -150,6 +153,7 @@ async function setupDatabase() {
     const { error: winnerRlsError } = await supabase.rpc('sql', { query: winnerRlsPolicies });
     
     if (winnerRlsError) {
+      failures.push(`Winner RLS policies: ${winnerRlsError.message}`);
       console.log('⚠️  Winner table RLS policies application attempted (manual setup may be required)');
     } else {
       console.log('✅ Winner table RLS policies applied successfully');
@@ -171,9 +175,11 @@ async function setupDatabase() {
     console.log('3. After running the SQL, you can seed the database with:');
     console.log('   npm run seed');
 
+    if (failures.length) throw new Error(`Database setup incomplete:\n${failures.join('\n')}`);
     console.log('Database setup complete!');
   } catch (error) {
     console.error('Database setup failed:', error);
+    process.exitCode = 1;
   }
 }
 

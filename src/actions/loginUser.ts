@@ -1,7 +1,7 @@
 'use server';
 
 import { findAccountByEmail } from '@/lib/accounts';
-import { setSessionCookie } from '@/actions/sessionCookie';
+import { setSessionCookie } from '@/lib/session';
 import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
