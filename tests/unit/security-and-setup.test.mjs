@@ -75,3 +75,95 @@ for (const mode of ['success', 'rpc-error', 'exception']) {
     assert.equal(processState.exitCode ?? 0, mode === 'success' ? 0 : 1);
   });
 }
+
+test('link redemption atomically rejects concurrent consumers and preserves password on replay', async () => {
+  let timestamp = null;
+  let storedPassword = 'old';
+  const client = { from() {
+    let expected;
+    let patch;
+    return { update(value) { patch = value; return this; }, eq(key, value) { if (key === 'updated_at') expected = value; return this; },
+      is(key, value) { expected = value; return this; }, select() { return this; },
+      async maybeSingle() {
+        if (timestamp !== expected) return { data: null, error: null };
+        timestamp = patch.updated_at;
+        storedPassword = patch.password_hash ?? storedPassword;
+        return { data: { id: 'account' }, error: null };
+      },
+    };
+  } };
+  const accounts = load('src/lib/accounts.ts', { '@/lib/session': session,
+    './supabase-service': { getSupabaseServiceClient: () => client }, 'next/server': {}, 'next/headers': {},
+  }, state);
+  const results = await Promise.all([
+    accounts.redeemAccountLink('account', 'commissioner', null, { password_hash: 'first' }),
+    accounts.redeemAccountLink('account', 'commissioner', null, { password_hash: 'second' }),
+  ]);
+  assert.equal(results.filter(r => r.redeemed).length, 1);
+  assert.equal(storedPassword, 'first');
+  assert.equal((await accounts.redeemAccountLink('account', 'commissioner', null)).redeemed, false);
+  assert.equal((await accounts.redeemAccountLink('account', 'commissioner', timestamp)).redeemed, true);
+});
+
+test('finished quarters and legacy statuses are complete; missing/live weeks are not', () => {
+  const game = load('src/types/game.ts', {}, state);
+  const display = load('src/lib/period-display.ts', { '@/types/game': game }, state);
+  assert.equal(display.isWeekComplete([{ status: 'finished' }, { status: 'Final' }, { status: 'post' }]), true);
+  assert.equal(display.isWeekComplete([]), false);
+  assert.equal(display.isWeekComplete([{ status: 'finished' }, { status: 'live' }]), false);
+  assert.equal(display.isWeekComplete([{ status: 'scheduled' }]), false);
+});
+
+test('points chart keeps same-name participants separate and respects selection', () => {
+  const display = load('src/lib/period-display.ts', { '@/types/game': load('src/types/game.ts', {}, state) }, state);
+  const entries = [
+    { participant_id: 'a', name: 'Pat J.', weekly_scores: [{ week: 1, points: 12 }] },
+    { participant_id: 'b', name: 'Pat J.', weekly_scores: [{ week: 1, points: 8 }] },
+  ];
+  const rows = display.periodChartData(entries, [1, 2], ['a', 'b']);
+  assert.equal(rows[0].a, 12); assert.equal(rows[0].b, 8); assert.equal(rows[1].a, 0);
+  assert.equal('b' in display.periodChartData(entries, [1], ['a'])[0], false);
+});
+
+test('magic-link action accepts a token once and rejects legacy, expired and concurrent replays', async () => {
+  let updatedAt = null;
+  let sessions = 0;
+  const signingKey = 'test-only-magic-key';
+  const account = { role: 'commissioner', row: { id: 'a', email: 'test@example.invalid', is_active: true, updated_at: null } };
+  const action = load('src/actions/magicLink.ts', {
+    crypto, '@/lib/accounts': { findAccountByEmail: async () => account,
+      redeemAccountLink: async (_id, _role, expected) => {
+        if (expected !== updatedAt) return { redeemed: false, error: null };
+        updatedAt = 'consumed'; return { redeemed: true, error: null };
+      } },
+    '@/lib/session': { setSessionCookie: async () => { sessions++; } },
+    '@/lib/rate-limit': {}, '@/lib/utils': { debugError() {} },
+  }, { env: { SUPABASE_SERVICE_ROLE_KEY: signingKey } });
+  function sign(payload) { const encoded = Buffer.from(payload).toString('base64url');
+    return encoded + '.' + crypto.createHmac('sha256', signingKey).update(encoded).digest('base64url'); }
+  const token = sign(JSON.stringify({ purpose: 'magic', email: account.row.email, expiresAt: Date.now() + 60000, updatedAt: null }));
+  const results = await Promise.all([action.verifyMagicLink(token), action.verifyMagicLink(token)]);
+  assert.equal(results.filter(r => r.success).length, 1);
+  assert.equal(sessions, 1);
+  assert.equal((await action.verifyMagicLink(token)).success, false);
+  assert.equal((await action.verifyMagicLink(sign(account.row.email + '::' + (Date.now() + 60000)))).success, false);
+  const expired = sign(JSON.stringify({ purpose: 'magic', email: account.row.email, expiresAt: Date.now() - 1, updatedAt: null }));
+  assert.equal((await action.verifyMagicLink(expired)).expired, true);
+});
+
+test('password-reset action allows only one concurrent password write', async () => {
+  let consumed = false;
+  let writes = 0;
+  const key = 'test-only-reset-key';
+  const account = { role: 'commissioner', row: { id: 'a', email: 'test@example.invalid', is_active: true, updated_at: null } };
+  const action = load('src/actions/passwordReset.ts', {
+    crypto, '@/lib/accounts': { findAccountByEmail: async () => account, findAccountById: async () => null,
+      redeemAccountLink: async () => { if (consumed) return { redeemed: false, error: null }; consumed = true; writes++; return { redeemed: true, error: null }; } },
+    '@/lib/supabase-service': { getSupabaseServiceClient: () => ({ auth: { admin: { updateUserById: async () => ({}) } } }) },
+    '@/lib/rate-limit': {}, '@/lib/utils': { debugError() {} }, bcryptjs: { default: { hash: async () => 'test-hash' } },
+  }, { env: { SUPABASE_SERVICE_ROLE_KEY: key } });
+  const payload = Buffer.from(`reset::${account.row.email}::${Date.now() + 60000}::`).toString('base64url');
+  const token = payload + '.' + crypto.createHmac('sha256', key).update(payload).digest('base64url');
+  const results = await Promise.all([action.resetPasswordWithToken(token, 'password-one'), action.resetPasswordWithToken(token, 'password-two')]);
+  assert.equal(results.filter(r => r.success).length, 1); assert.equal(writes, 1);
+});

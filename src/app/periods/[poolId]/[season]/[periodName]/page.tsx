@@ -6,6 +6,8 @@ import { ArrowLeft, Trophy, Medal, Award, Users, Calendar, BarChart3, AlertTrian
 import { useToast } from '@/hooks/use-toast';
 import { debugLog, debugError, debugWarn} from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { isWeekComplete, periodChartData } from '@/lib/period-display';
+import { normalizeGameStatus } from '@/types/game';
 import { AppNav } from '@/components/layout/AppNav';
 
 // Design tokens
@@ -165,31 +167,27 @@ export default function PeriodLeaderboardPage() {
   useEffect(() => {
     loadPeriodData();
     // loadPeriodData is declared below via a plain function (not useCallback)
-    // and also reads `seasonType` (derived fresh from searchParams each
-    // render) — omitted here to avoid pulling in a function reference whose
+    // and reads `seasonType`, included below. The function itself is
+    // omitted here to avoid pulling in a function reference whose
     // identity changes every render, which would turn this into a fetch-on-
     // every-render effect instead of one gated on the listed route params.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poolId, season, periodNumber, periodName]);
+  }, [poolId, season, periodNumber, periodName, seasonType]);
 
-  // Initialize selected participants when leaderboard data loads
+  // Initialize once per new leaderboard; clearing chart selection stays cleared.
   useEffect(() => {
-    if (leaderboard && leaderboard.length > 0 && selectedParticipants.length === 0) {
-      setSelectedParticipants(leaderboard.map(p => p.name));
-    }
-  }, [leaderboard, selectedParticipants.length]);
+    setSelectedParticipants(leaderboard.map(p => p.participant_id));
+  }, [leaderboard]);
 
   // Determine if all weeks are completed
   useEffect(() => {
-    if (periodInfo && games.length > 0) {
+    setAllWeeksCompleted(false);
+    if (periodInfo && periodInfo.weeks.length > 0 && games.length > 0) {
       const completedWeeks = periodInfo.weeks.filter(week => {
         const weekGames = games.filter(game => game.week === week);
         if (weekGames.length === 0) return false;
 
-        const allGamesFinished = weekGames.every(game => {
-          const status = game.status?.toLowerCase() || '';
-          return status === 'final' || status === 'post';
-        });
+        const allGamesFinished = isWeekComplete(weekGames);
 
         debugLog(`Week ${week}: ${weekGames.length} games, all finished: ${allGamesFinished}`);
         return allGamesFinished;
@@ -486,70 +484,15 @@ export default function PeriodLeaderboardPage() {
 
   const handleParticipantSelection = (action: 'select-all' | 'clear-all') => {
     if (action === 'select-all') {
-      setSelectedParticipants(leaderboard.map(p => p.name));
+      setSelectedParticipants(leaderboard.map(p => p.participant_id));
     } else if (action === 'clear-all') {
       setSelectedParticipants([]);
     }
   };
 
-  const prepareChartData = (): Array<{ week: string; [key: string]: number | string }> => {
-    debugLog('Chart data preparation - leaderboard:', leaderboard);
-    debugLog('Chart data preparation - selectedParticipants:', selectedParticipants);
-    debugLog('Chart data preparation - periodInfo:', periodInfo);
-
-    if (leaderboard && leaderboard.length > 0 && selectedParticipants.length > 0) {
-      debugLog('Using leaderboard data for chart (selected participants)');
-
-      let weeks: number[] = [];
-      if (periodInfo && periodInfo.weeks && periodInfo.weeks.length > 0) {
-        weeks = periodInfo.weeks;
-      } else {
-        const weeksFromScores = new Set<number>();
-        leaderboard.forEach(participant => {
-          participant.weekly_scores?.forEach(score => {
-            weeksFromScores.add(score.week);
-          });
-        });
-        weeks = Array.from(weeksFromScores).sort((a, b) => a - b);
-      }
-
-      if (weeks.length === 0) {
-        weeks = [1, 2, 3, 4];
-      }
-
-      debugLog('Weeks for chart:', weeks);
-      debugLog('Selected participants for chart:', selectedParticipants);
-
-      const chartData: Array<{ week: string; [key: string]: number | string }> = [];
-
-      weeks.forEach(week => {
-        const weekData: { week: string; [key: string]: number | string } = { week: `Week ${week}` };
-
-        leaderboard
-          .filter(participant => selectedParticipants.includes(participant.name))
-          .forEach(participant => {
-            const weeklyScore = participant.weekly_scores?.find(score => score.week === week);
-            const points = weeklyScore ? weeklyScore.points || 0 : 0;
-            weekData[participant.name] = points;
-
-            debugLog(`Week ${week} - ${participant.name}: ${points} points`);
-          });
-
-        chartData.push(weekData);
-      });
-
-      debugLog('Chart data from leaderboard:', chartData);
-      return chartData;
-    }
-
-    debugLog('No leaderboard data or selected participants available for chart');
-    return [];
-  };
-
-  const chartData = prepareChartData();
-  debugLog('Chart data prepared:', chartData);
-  debugLog('Current leaderboard state:', leaderboard);
-  debugLog('Current periodInfo state:', periodInfo);
+  const chartWeeks = periodInfo?.weeks.length ? periodInfo.weeks
+    : Array.from(new Set(leaderboard.flatMap(p => p.weekly_scores.map(score => score.week)))).sort((a, b) => a - b);
+  const chartData = selectedParticipants.length > 0 ? periodChartData(leaderboard, chartWeeks, selectedParticipants) : [];
 
   // ── Loading state ──
   if (isLoading) {
@@ -896,7 +839,7 @@ export default function PeriodLeaderboardPage() {
                       if (weekGames.length > 0) {
                         const finishedGames = weekGames.filter(game => {
                           const status = game.status?.toLowerCase() || '';
-                          return status === 'final' || status === 'post';
+                          return normalizeGameStatus(status) === 'finished';
                         });
 
                         if (finishedGames.length === weekGames.length) {
@@ -905,7 +848,7 @@ export default function PeriodLeaderboardPage() {
                           statusBg = 'oklch(46% 0.14 155 / 0.15)';
                           statusColor = greenHi;
                           statusBorder = 'oklch(46% 0.14 155 / 0.4)';
-                        } else if (finishedGames.length > 0) {
+                        } else if (finishedGames.length > 0 || weekGames.some(game => normalizeGameStatus(game.status) === 'live')) {
                           weekStatus = 'in-progress';
                           statusText = 'In Progress';
                           statusBg = 'oklch(72% 0.16 60 / 0.1)';
@@ -938,13 +881,15 @@ export default function PeriodLeaderboardPage() {
                                       </span>
                                     </div>
                                   </>
+                                ) : weekStatus === 'completed' ? (
+                                  <p style={{ ...b, color: textDim }}>No winner data available</p>
                                 ) : weekStatus === 'in-progress' ? (
                                   <>
                                     <p style={{ ...b, fontWeight: 600, fontSize: '0.95rem', color: amber }}>Games In Progress</p>
                                     <p style={{ ...b, fontSize: '0.78rem', color: textDim, marginTop: '0.2rem' }}>
                                       {weekGames.filter(game => {
                                         const status = game.status?.toLowerCase() || '';
-                                        return status === 'final' || status === 'post';
+                                        return normalizeGameStatus(status) === 'finished';
                                       }).length} of {weekGames.length} games finished
                                     </p>
                                   </>
@@ -992,7 +937,7 @@ export default function PeriodLeaderboardPage() {
                     <p style={{ ...bc, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: textDim, textTransform: 'uppercase', marginBottom: '0.6rem' }}>Select Participants to Display:</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
                       {leaderboard.map((participant) => {
-                        const checked = selectedParticipants.includes(participant.name);
+                        const checked = selectedParticipants.includes(participant.participant_id);
                         return (
                           <label
                             key={participant.participant_id}
@@ -1003,9 +948,9 @@ export default function PeriodLeaderboardPage() {
                               checked={checked}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedParticipants(prev => [...prev, participant.name]);
+                                  setSelectedParticipants(prev => [...prev, participant.participant_id]);
                                 } else {
-                                  setSelectedParticipants(prev => prev.filter(name => name !== participant.name));
+                                  setSelectedParticipants(prev => prev.filter(id => id !== participant.participant_id));
                                 }
                               }}
                               style={{ accentColor: green, width: 13, height: 13 }}
@@ -1067,7 +1012,8 @@ export default function PeriodLeaderboardPage() {
                             <Line
                               key={participant.participant_id}
                               type="monotone"
-                              dataKey={participant.name}
+                              dataKey={participant.participant_id}
+                              name={participant.name}
                               stroke={chartColors[index % chartColors.length]}
                               strokeWidth={2}
                               dot={{ r: 4, fill: chartColors[index % chartColors.length] }}

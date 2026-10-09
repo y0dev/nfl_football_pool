@@ -124,3 +124,7 @@ legacy unsigned sessions require signing in again.
 
 Run the isolated security/setup regression checks with
 `node --test tests/unit/security-and-setup.test.mjs`.
+
+Magic and password-reset links are consumed atomically against the account
+revision. Redeeming a link or updating the account invalidates other outstanding
+links. Older magic links must be requested again after this update.
