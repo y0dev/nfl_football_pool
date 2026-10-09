@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import {
   createResponsiveEmailTemplate,
+  ensureResponsiveEmailDocument,
   createInfoBox,
   createTwoColumnGrid,
   createParticipantTable
@@ -77,7 +78,7 @@ class EmailService {
         from: this.config.from,
         to: emailData.to,
         subject: emailData.subject,
-        html: emailData.html,
+        html: ensureResponsiveEmailDocument(emailData.html, emailData.subject),
         text: emailData.text || this.stripHtml(emailData.html),
       };
 
@@ -91,7 +92,10 @@ class EmailService {
   }
 
   private stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '');
+    return html
+      .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]*>/g, '');
   }
 
   // Template for commissioner account creation notification
@@ -671,7 +675,7 @@ class EmailService {
   async sendDeletionConfirmationRequest(email: string, displayName: string, confirmUrl: string): Promise<boolean> {
     const subject = 'Confirm Your Sunday Huddle Account Deletion';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #dc2626;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #dc2626;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Confirm Deletion</h1>
@@ -691,7 +695,7 @@ class EmailService {
           </tr>
         </table>
         <div style="text-align:center;margin:32px 0;">
-          <a href="${confirmUrl}" style="display:inline-block;background-color:#991b1b;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+          <a class="email-button" href="${confirmUrl}" style="display:inline-block;background-color:#991b1b;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
             Yes, Delete My Account
           </a>
         </div>
@@ -706,7 +710,7 @@ class EmailService {
   async sendAccountDeletionConfirmation(email: string, displayName: string): Promise<boolean> {
     const subject = 'Your Sunday Huddle Account Has Been Deleted';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">So Long, ${displayName}</h1>
@@ -739,7 +743,7 @@ class EmailService {
   async sendEmailChangeConfirmation(newEmail: string, displayName: string, confirmUrl: string): Promise<boolean> {
     const subject = 'Confirm Your New Sunday Huddle Email';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Confirm Your Email</h1>
@@ -758,7 +762,7 @@ class EmailService {
           </tr>
         </table>
         <div style="text-align:center;margin:32px 0;">
-          <a href="${confirmUrl}" style="display:inline-block;background-color:#1e6e43;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+          <a class="email-button" href="${confirmUrl}" style="display:inline-block;background-color:#1e6e43;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
             Confirm New Email
           </a>
         </div>
@@ -773,7 +777,7 @@ class EmailService {
   async sendEmailChangedNotification(oldEmail: string, displayName: string, newEmail: string): Promise<boolean> {
     const subject = 'Your Sunday Huddle Email Has Changed';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #d4a520;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #d4a520;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Email Changed</h1>
@@ -806,7 +810,7 @@ class EmailService {
   ): Promise<boolean> {
     const subject = 'Reset Your Sunday Huddle Password';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0;font-size:11px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:8px 0 0;font-size:26px;font-weight:900;color:#f1f5f9;letter-spacing:0.03em;text-transform:uppercase;">Reset Your Password</h1>
@@ -815,7 +819,7 @@ class EmailService {
           Hi ${displayName}, click the button below to reset your password. This link expires in <strong style="color:#f1f5f9;">1 hour</strong>.
         </p>
         <div style="text-align:center;margin:32px 0;">
-          <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+          <a class="email-button" href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
             Reset Password
           </a>
         </div>
@@ -831,7 +835,7 @@ class EmailService {
   async sendPasswordResetConfirmation(email: string, displayName: string): Promise<boolean> {
     const subject = 'Your Sunday Huddle Password Has Been Reset';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:24px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Password Reset</h1>
@@ -850,7 +854,7 @@ class EmailService {
           </tr>
         </table>
         <div style="text-align:center;margin:32px 0;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login" style="display:inline-block;background-color:#1e6e43;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+          <a class="email-button" href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login" style="display:inline-block;background-color:#1e6e43;color:#f1f5f9;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
             Sign In to Dashboard
           </a>
         </div>
@@ -869,7 +873,7 @@ class EmailService {
   ): Promise<boolean> {
     const subject = 'Your Sunday Huddle Sign-In Link';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0;font-size:11px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:8px 0 0;font-size:26px;font-weight:900;color:#f1f5f9;letter-spacing:0.03em;text-transform:uppercase;">Your Sign-In Link</h1>
@@ -878,7 +882,7 @@ class EmailService {
           Hi ${displayName}, click the button below to sign in to your commissioner dashboard. This link expires in <strong style="color:#f1f5f9;">15 minutes</strong>.
         </p>
         <div style="text-align:center;margin:32px 0;">
-          <a href="${magicUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
+          <a class="email-button" href="${magicUrl}" style="display:inline-block;padding:14px 32px;background:#2d6a4f;color:#f1f5f9;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;">
             Sign In to Dashboard
           </a>
         </div>
@@ -896,7 +900,7 @@ class EmailService {
     const accentColor = isActive ? '#1e6e43' : '#7f1d1d';
     const badgeColor  = isActive ? '#4ade80' : '#f87171';
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid ${accentColor};">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid ${accentColor};">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:22px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">Account ${action}</h1>
@@ -943,7 +947,7 @@ class EmailService {
       : '';
 
     const html = `
-      <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
+      <div class="email-legacy" style="width:100%;box-sizing:border-box;max-width:560px;margin:0 auto;font-family:Arial,sans-serif;background:#0d1117;padding:40px 24px;border-radius:10px;border:1px solid #1e2a3a;border-top:3px solid #1e6e43;">
         <div style="text-align:center;margin-bottom:32px;">
           <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.22em;color:#4ade80;text-transform:uppercase;font-weight:700;">Sunday Huddle</p>
           <h1 style="margin:0;font-size:22px;font-weight:900;color:#f1f5f9;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;">${isComped ? 'Plan Upgraded — Free' : 'Plan Updated'}</h1>
@@ -979,7 +983,7 @@ class EmailService {
     const loginUrl = `${baseUrl}/admin/login`;
 
     const planTable = `
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:18px 0;border-collapse:collapse;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-data-table email-plan-table" style="margin:18px 0;border-collapse:collapse;table-layout:fixed;">
         <thead>
           <tr style="background-color:#141c26;">
             <th style="padding:10px 14px;text-align:left;color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #1e2a3a;">Feature</th>

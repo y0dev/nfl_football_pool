@@ -23,6 +23,53 @@ const C = {
   textDim:   '#64748b',
 };
 
+// Inline styles provide the baseline; media queries enhance narrow clients.
+// Outlook's desktop renderer gets a fixed-width table fallback separately.
+function emailHead(title: string): string {
+  return `<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>${title}</title>
+  <style>
+    body { margin:0; padding:0; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+    table { border-spacing:0; }
+    td, th, p, h1, h2, a { overflow-wrap:anywhere; word-wrap:break-word; }
+    img { border:0; max-width:100%; height:auto; }
+    .email-data-table { table-layout:fixed; }
+    .email-plan-table th:first-child { width:40%; }
+    @media only screen and (max-width:600px) {
+      .email-outer { padding:24px 12px !important; }
+      .email-container { width:100% !important; max-width:100% !important; }
+      .email-legacy { padding:24px 16px !important; }
+      .email-heading { font-size:22px !important; line-height:1.35 !important; }
+      .email-content { font-size:16px !important; }
+      .email-column { display:block !important; width:100% !important; box-sizing:border-box; padding:0 0 12px !important; }
+      .email-button-table { width:100% !important; }
+      .email-button { display:block !important; padding:14px 16px !important; text-align:center !important; }
+      .email-data-table th, .email-data-table td { padding:8px 6px !important; }
+      .email-participants thead { display:none !important; }
+      .email-participants td { display:block !important; width:auto !important; padding:8px 12px !important; border-bottom:0 !important; }
+      .email-participants tr { display:block !important; border-bottom:1px solid #1e2a3a; }
+    }
+  </style>
+  <!--[if mso]><style>body,table,td{font-family:Arial,sans-serif !important;}</style><![endif]-->`;
+}
+
+/** Give legacy account/billing fragments the same mobile and Outlook shell. */
+export function ensureResponsiveEmailDocument(html: string, title: string): string {
+  if (/<html[\s>]/i.test(html)) return html;
+  return `<!DOCTYPE html><html lang="en"><head>${emailHead(title)}</head>
+    <body style="margin:0;padding:0;background-color:${C.outerBg};color:${C.text};font-family:Arial,sans-serif;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${C.outerBg};"><tr>
+        <td class="email-outer" align="center" style="padding:40px 20px;">
+          <!--[if mso]><table role="presentation" width="560" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+          <table class="email-container" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;margin:0 auto;"><tr><td class="email-content" style="font-size:15px;line-height:1.65;">${html}</td></tr></table>
+          <!--[if mso]></td></tr></table><![endif]-->
+        </td></tr></table>
+    </body></html>`;
+}
+
 export interface ResponsiveEmailOptions {
   title: string;
   content: string;
@@ -53,21 +100,16 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>${title}</title>
-  <!--[if mso]>
-  <style type="text/css">body,table,td{font-family:Arial,sans-serif !important;}</style>
-  <![endif]-->
+  ${emailHead(title)}
 </head>
 <body style="margin:0;padding:0;background-color:${C.outerBg};font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:${C.outerBg};">
     <tr>
-      <td style="padding:40px 20px;">
+      <td class="email-outer" align="center" style="padding:40px 20px;">
 
+        <!--[if mso]><table role="presentation" width="560" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
         <!-- Single flowing column, no card/border around it -->
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="560" style="margin:0 auto;max-width:560px;width:100%;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-container" align="center" style="margin:0 auto;max-width:560px;width:100%;">
 
           <!-- Small wordmark, not a big branded banner -->
           <tr>
@@ -80,20 +122,20 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
           <!-- Heading — left-aligned like the body it introduces -->
           <tr>
             <td style="padding-bottom:18px;">
-              <h1 style="margin:0;font-size:21px;font-weight:700;color:${C.text};line-height:1.35;">${title}</h1>
+              <h1 class="email-heading" style="margin:0;font-size:24px;font-weight:700;color:${C.text};line-height:1.35;">${title}</h1>
             </td>
           </tr>
 
           <!-- Body copy -->
           <tr>
-            <td style="font-size:15px;line-height:1.65;">
+            <td class="email-content" style="font-size:15px;line-height:1.65;color:#f1f5f9;overflow-wrap:anywhere;word-wrap:break-word;">
               ${content}
 
               ${buttonText && buttonUrl ? `
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 4px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" class="email-button-table" style="margin:24px 0 4px;">
                 <tr>
                   <td style="border-radius:6px;background-color:${accentColor};">
-                    <a href="${buttonUrl}" style="display:inline-block;color:${C.text};text-decoration:none;padding:12px 28px;font-weight:600;font-size:15px;">
+                    <a class="email-button" href="${buttonUrl}" style="display:inline-block;color:${C.text};text-decoration:none;padding:12px 28px;font-weight:600;font-size:15px;">
                       ${buttonText}
                     </a>
                   </td>
@@ -113,6 +155,7 @@ export function createResponsiveEmailTemplate(options: ResponsiveEmailOptions): 
           </tr>
 
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
       </td>
     </tr>
   </table>
@@ -142,8 +185,8 @@ export function createTwoColumnGrid(leftContent: string, rightContent: string): 
   return `
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:18px 0;">
       <tr>
-        <td style="padding:0 8px 0 0;width:50%;vertical-align:top;">${leftContent}</td>
-        <td style="padding:0 0 0 8px;width:50%;vertical-align:top;">${rightContent}</td>
+        <td class="email-column" style="padding:0 8px 0 0;width:50%;vertical-align:top;">${leftContent}</td>
+        <td class="email-column" style="padding:0 0 0 8px;width:50%;vertical-align:top;">${rightContent}</td>
       </tr>
     </table>`.trim();
 }
@@ -151,18 +194,19 @@ export function createTwoColumnGrid(leftContent: string, rightContent: string): 
 export function createParticipantTable(participants: Array<{ name: string; email?: string }>): string {
   if (participants.length === 0) return createInfoBox('No participants found.', 'info');
 
+  const hasEmail = participants.some(p => !!p.email);
   const rows = participants.map(p => `
     <tr>
       <td style="padding:10px 14px;border-bottom:1px solid #1e2a3a;color:#f1f5f9;font-size:14px;">${p.name}</td>
-      ${p.email ? `<td style="padding:10px 14px;border-bottom:1px solid #1e2a3a;color:#94a3b8;font-size:13px;">${p.email}</td>` : ''}
+      ${hasEmail ? `<td style="padding:10px 14px;border-bottom:1px solid #1e2a3a;color:#94a3b8;font-size:13px;">${p.email || '—'}</td>` : ''}
     </tr>`).join('');
 
   return `
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:16px 0;border-collapse:collapse;background-color:#141c26;border-radius:6px;border:1px solid #1e2a3a;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-participants email-data-table" style="margin:16px 0;border-collapse:collapse;background-color:#141c26;border-radius:6px;border:1px solid #1e2a3a;">
       <thead>
         <tr style="background-color:#1e2a3a;">
           <th style="padding:10px 14px;text-align:left;color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Name</th>
-          ${participants[0]?.email ? `<th style="padding:10px 14px;text-align:left;color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Email</th>` : ''}
+          ${hasEmail ? `<th style="padding:10px 14px;text-align:left;color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Email</th>` : ''}
         </tr>
       </thead>
       <tbody>${rows}</tbody>

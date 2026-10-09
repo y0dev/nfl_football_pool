@@ -216,3 +216,15 @@ npx playwright show-trace trace.zip
 - [Playwright Documentation](https://playwright.dev/)
 - [Playwright Testing Guide](https://playwright.dev/docs/intro)
 - [Playwright API Reference](https://playwright.dev/docs/api/class-playwright)
+
+## Responsive email layout checks
+
+Run `node --test tests/unit/email-layout.test.mjs` to check reminder, reset,
+submission-summary, and promotion messages at 320, 375, 768, and 1280 pixels.
+The tests use a mocked mail transport; they never send emails. They use system
+Chromium when available, otherwise Playwright Chromium. Set
+`EMAIL_TEST_BROWSER_PATH` to use another Chromium executable.
+
+Set `EMAIL_PREVIEW_DIR=/tmp/email-previews` when running the command to save
+sample HTML and phone/desktop screenshots. Browser layout checks do not replace
+checking the received messages in Outlook, Gmail, and Apple Mail.
