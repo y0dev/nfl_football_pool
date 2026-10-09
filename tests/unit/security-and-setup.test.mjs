@@ -5,12 +5,13 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import ts from 'typescript';
 
-function load(file, dependencies, processState) {
+function load(file, dependencies, processState, globals = {}) {
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: file,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(code, { exports, Buffer, process: processState, console: { log() {}, error() {} },
+  vm.runInNewContext(code, { ...globals, exports, Buffer, process: processState, console: { log() {}, error() {} },
     require(name) { if (!(name in dependencies)) throw new Error(`Unexpected dependency: ${name}`); return dependencies[name]; },
   });
   return exports;
@@ -166,4 +167,77 @@ test('password-reset action allows only one concurrent password write', async ()
   const token = payload + '.' + crypto.createHmac('sha256', key).update(payload).digest('base64url');
   const results = await Promise.all([action.resetPasswordWithToken(token, 'password-one'), action.resetPasswordWithToken(token, 'password-two')]);
   assert.equal(results.filter(r => r.success).length, 1); assert.equal(writes, 1);
+});
+
+test('regular-season period API returns chart scores and pick counts limited to that quarter', async () => {
+  const review = { periodTotals: [{ period_name: 'Q1', participant_id: 'a', participant_name: 'Alex', points: 42, correct: 6, weeks_won: 1 }],
+    quarterlyWinners: [], weeklyWinners: [], weeklyScores: [
+      { participant_id: 'a', week: 1, points: 30, correct: 4, total: 8 },
+      { participant_id: 'a', week: 2, points: 12, correct: 2, total: 8 },
+      { participant_id: 'a', week: 5, points: 99, correct: 9, total: 16 },
+      { participant_id: 'b', week: 1, points: 7, correct: 1, total: 8 },
+    ] };
+  const query = { select() { return this; }, eq() { return this; }, in: async () => ({ data: [] }) };
+  const route = load('src/app/api/periods/leaderboard/route.ts', {
+    'next/server': { NextResponse: { json: value => value } },
+    '@/lib/supabase-service': { getSupabaseServiceClient: () => ({ from: () => query }) },
+    '@/lib/utils': { getRegularSeasonPeriods: () => [{ name: 'Q1', weeks: [1, 2, 3, 4] }], debugLog() {}, debugError() {} },
+    '@/lib/playoff-utils': {}, '@/lib/season-review': { computeSeasonReview: async () => review },
+    '@/types/game': {}, '@/lib/pool-access': { checkPoolAccessFromRequest: async () => ({ allowed: true }) },
+  }, state, { URL });
+  const response = await route.GET({ url: 'http://localhost/api/periods/leaderboard?poolId=p&season=2026&periodName=Q1' });
+  const entry = response.data.leaderboard[0];
+  assert.equal(entry.total_picks, 16);
+  assert.equal(entry.weekly_scores.length, 2);
+  assert.equal(entry.weekly_scores[0].points, 30);
+  assert.equal(entry.weekly_scores[1].points, 12);
+});
+
+function periodPageHarness(fetchImpl, loading = true) {
+  const effects = [], updates = [], rendered = [], authCalls = [], navigations = [];
+  let stateIndex = 0;
+  const jsx = (type, props) => { rendered.push({ type, props }); return { type, props }; };
+  const appNav = () => null;
+  const page = load('src/app/periods/[poolId]/[season]/[periodName]/page.tsx', {
+    react: { useState: initial => { const index = stateIndex++; return [index === 7 ? loading : initial, value => updates.push({ index, value })]; }, useEffect: fn => effects.push(fn) },
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'next/navigation': { useParams: () => ({ poolId: 'p', season: '2026', periodName: '1' }), useRouter: () => ({ push: path => navigations.push(path) }), useSearchParams: () => ({ get: () => null }) },
+    'lucide-react': {}, '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
+    '@/lib/utils': { debugLog() {}, debugError() {}, debugWarn() {} }, recharts: {},
+    '@/lib/period-display': { isWeekComplete: () => false, periodChartData: () => [] }, '@/types/game': {},
+    '@/lib/auth': { useAuth: () => ({ signOut: async () => authCalls.push('logout') }) },
+    '@/lib/supabase': { getSupabaseClient: () => ({ auth: { signOut: async () => { throw Error('optional provider unavailable'); } } }) },
+    '@/components/layout/AppNav': { AppNav: appNav },
+  }, { env: { NODE_ENV: 'production' } }, { fetch: fetchImpl, AbortController });
+  page.default();
+  return { effects, updates, authCalls, navigations, nav: rendered.find(node => node.type === appNav) };
+}
+
+test('failed period load clears old winner, standings, games and completion state', async () => {
+  const h = periodPageHarness(async () => { throw Error('network failure'); });
+  h.effects[1](); // data loading, after admin verification effect
+  await new Promise(resolve => setImmediate(resolve));
+  for (const index of [2, 5, 11]) assert.ok(h.updates.some(u => u.index === index && u.value === null));
+  for (const index of [3, 4, 10]) assert.ok(h.updates.some(u => u.index === index && Array.isArray(u.value) && !u.value.length));
+  assert.ok(h.updates.some(u => u.index === 9 && u.value === false));
+  assert.ok(h.updates.some(u => u.index === 7 && u.value === false));
+});
+
+test('cancelled period request cannot restore obsolete results', async () => {
+  const pending = [];
+  const h = periodPageHarness(() => new Promise(resolve => { pending.push(resolve); }));
+  const cleanup = h.effects[1]();
+  cleanup();
+  const before = h.updates.length;
+  pending.forEach(resolve => resolve({ json: async () => ({ success: true, data: { leaderboard: [{ name: 'old' }] } }) }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.updates.length, before);
+});
+
+test('period sign-out clears app auth and redirects even if Supabase sign-out fails', async () => {
+  const h = periodPageHarness(async () => {}, false);
+  assert.ok(h.nav);
+  await h.nav.props.onSignOut();
+  assert.deepEqual(h.authCalls, ['logout']);
+  assert.deepEqual(h.navigations, ['/login']);
 });

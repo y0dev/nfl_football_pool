@@ -35,6 +35,12 @@ async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number,
       total_points: t.points,
       total_correct: t.correct,
       weeks_won: t.weeks_won,
+      weekly_scores: review.weeklyScores
+        .filter(score => score.participant_id === t.participant_id && period.weeks.includes(score.week))
+        .map(({ week, points, correct, total }) => ({ week, points, correct, total })),
+      total_picks: review.weeklyScores
+        .filter(score => score.participant_id === t.participant_id && period.weeks.includes(score.week))
+        .reduce((total, score) => total + score.total, 0),
     }))
     .sort((a, b) => b.total_points - a.total_points);
 
