@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -876,7 +877,7 @@ test.describe("Pick'em Pool — emails", () => {
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId: g2, selectedTeam: 'HB' });
 
       const res = await request.post('/api/pickem/send-reminders', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId },
       });
       expect(res.status()).toBe(200);
@@ -903,13 +904,13 @@ test.describe("Pick'em Pool — emails", () => {
       await submitPickemPick({ participantId: fixture.participants.Alice, poolId: fixture.poolId, gameId, selectedTeam: 'HA' });
 
       const rejected = await request.post('/api/pickem/notify-week-results', {
-        headers: { Cookie: `sh-session=${notOwner!.id}` },
+        headers: { Cookie: `sh-session=${createSessionToken(notOwner!.id)}` },
         data: { poolId: fixture.poolId },
       });
       expect(rejected.status()).toBe(403);
 
       const allowed = await request.post('/api/pickem/notify-week-results', {
-        headers: { Cookie: `sh-session=${fixture.ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(fixture.ownerId)}` },
         data: { poolId: fixture.poolId },
       });
       expect(allowed.status()).toBe(200);

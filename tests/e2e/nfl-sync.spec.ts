@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -133,7 +134,7 @@ test.describe('NFL Sync — server-side authorization', () => {
     });
 
     test(`${c.name} rejects a commissioner caller`, async ({ request }) => {
-      const headers = { Cookie: `sh-session=${commissionerId}` };
+      const headers = { Cookie: `sh-session=${createSessionToken(commissionerId)}` };
       const res = c.method === 'GET' ? await request.get(c.url, { headers }) : await request.post(c.url, { data: c.data, headers });
       expect(res.status()).toBe(403);
     });
@@ -143,7 +144,7 @@ test.describe('NFL Sync — server-side authorization', () => {
 test.describe('POST /api/admin/nfl-sync/preview — real ESPN data (shape only, not exact counts)', () => {
   test('returns a well-formed preview for the current week', async ({ request }) => {
     const res = await request.post('/api/admin/nfl-sync/preview', {
-      headers: { Cookie: `sh-session=${superAdminId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
       data: { date: new Date().toISOString() },
     });
     expect(res.status()).toBe(200);
@@ -171,7 +172,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { runId, decisions: { [changeAId]: 'approved', [changeBId]: 'rejected' } },
       });
       expect(res.status()).toBe(200);
@@ -203,7 +204,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { runId, decisions: { [changeId]: 'approved' } },
       });
       expect(res.status()).toBe(200);
@@ -242,7 +243,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { runId, decisions: { [changeId]: 'approved' } },
       });
       const body = await res.json();
@@ -258,7 +259,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
     const runId = await seedRun({ status: 'applied' });
     try {
       const res = await request.post('/api/admin/nfl-sync/apply', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { runId, approveAll: true },
       });
       expect(res.status()).toBe(409);
@@ -269,7 +270,7 @@ test.describe('POST /api/admin/nfl-sync/apply — approval, rejection, staleness
 
   test('returns 404 for an unknown run id', async ({ request }) => {
     const res = await request.post('/api/admin/nfl-sync/apply', {
-      headers: { Cookie: `sh-session=${superAdminId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
       data: { runId: '00000000-0000-0000-0000-000000000000', approveAll: true },
     });
     expect(res.status()).toBe(404);
@@ -287,7 +288,7 @@ test.describe('POST /api/admin/season-games/rollback — protects real participa
 
     try {
       const res = await request.post('/api/admin/season-games/rollback', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { season: 2098, seasonType: 2, week: 1 },
       });
       expect(res.status()).toBe(409);
@@ -307,7 +308,7 @@ test.describe('POST /api/admin/season-games/rollback — protects real participa
     await seedGame(gameId, { season: 2097, season_type: 2, week: 1 });
 
     const res = await request.post('/api/admin/season-games/rollback', {
-      headers: { Cookie: `sh-session=${superAdminId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
       data: { season: 2097, seasonType: 2, week: 1 },
     });
     expect(res.status()).toBe(200);

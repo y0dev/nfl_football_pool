@@ -1,3 +1,4 @@
+import { verifySessionToken, createSessionToken } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteClient } from '@/lib/supabase-ssr';
 
@@ -243,7 +244,7 @@ function buildSessionRedirect(
   });
 
   // Persistent httpOnly session cookie for server-side route protection (middleware)
-  response.cookies.set('sh-session', admin.id, {
+  response.cookies.set('sh-session', createSessionToken(admin.id), {
     path: '/',
     maxAge: 90 * 24 * 60 * 60,
     sameSite: 'lax',
@@ -289,7 +290,7 @@ async function handleLinkIntent(
     return response;
   };
 
-  const sessionAdminId = request.cookies.get('sh-session')?.value;
+  const sessionAdminId = verifySessionToken(request.cookies.get('sh-session')?.value);
   if (!sessionAdminId) {
     console.log('[OAuth:link] no sh-session cookie → not logged in, redirecting to login');
     return respond('/login?error=no-account');

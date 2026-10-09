@@ -24,18 +24,18 @@ import {
 dotenv.config({ path: '.env.local' });
 
 // Validate environment variables
-const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('❌ Missing required environment variables:');
-  console.error('   SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+  console.error('   SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
   console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅ Set' : '❌ Missing');
   console.error('');
   console.error('Please check your .env.local file and ensure these variables are set.');
   console.error('');
   console.error('Required variables:');
-  console.error('  SUPABASE_URL=your_supabase_url');
+  console.error('  NEXT_PUBLIC_SUPABASE_URL=your_supabase_url');
   console.error('  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key');
   process.exit(1);
 }
@@ -47,6 +47,7 @@ async function setupDatabase() {
   console.log('Setting up database tables...');
 
   try {
+    const failures: string[] = [];
     // Create tables in order
     const tables = [
       { name: 'admins', sql: adminsTable },
@@ -74,6 +75,7 @@ async function setupDatabase() {
       const { error } = await supabase.rpc('sql', { query: table.sql });
       
       if (error) {
+        failures.push(`${table.name}: ${error.message}`);
         // If sql function doesn't exist, try alternative approach
         console.log(`Trying alternative method for ${table.name}...`);
         
@@ -90,6 +92,7 @@ async function setupDatabase() {
     const { error: rlsError } = await supabase.rpc('sql', { query: rlsPolicies });
     
     if (rlsError) {
+      failures.push(`RLS policies: ${rlsError.message}`);
       console.log('⚠️  RLS policies application attempted (manual setup may be required)');
     } else {
       console.log('✅ RLS policies applied successfully');
@@ -150,6 +153,7 @@ async function setupDatabase() {
     const { error: winnerRlsError } = await supabase.rpc('sql', { query: winnerRlsPolicies });
     
     if (winnerRlsError) {
+      failures.push(`Winner RLS policies: ${winnerRlsError.message}`);
       console.log('⚠️  Winner table RLS policies application attempted (manual setup may be required)');
     } else {
       console.log('✅ Winner table RLS policies applied successfully');
@@ -171,10 +175,12 @@ async function setupDatabase() {
     console.log('3. After running the SQL, you can seed the database with:');
     console.log('   npm run seed');
 
+    if (failures.length) throw new Error(`Database setup incomplete:\n${failures.join('\n')}`);
     console.log('Database setup complete!');
   } catch (error) {
     console.error('Database setup failed:', error);
+    process.exitCode = 1;
   }
 }
 
-setupDatabase(); 
+setupDatabase();
