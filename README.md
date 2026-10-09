@@ -25,7 +25,7 @@ A modern web application for managing NFL confidence pools with real-time scorin
 
 ## Technical Stack
 
-- **Frontend**: Next.js 14 with TypeScript
+- **Frontend**: Next.js 16 with TypeScript
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
@@ -35,22 +35,27 @@ A modern web application for managing NFL confidence pools with real-time scorin
 ## Setup
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.9+ (validated with Node.js 24)
 - Supabase CLI
 - Supabase project
 
 ### Installation
 ```bash
-npm install
-cp env.example .env.local
+npm ci
+# Create a local configuration without overwriting an existing one
+test -f .env.local || cp env.example .env.local
 # Fill in your Supabase credentials
 npm run dev
 ```
 
 ### Database Setup
 ```bash
-npm run setup-database
+npm run setup-db
 ```
+
+Use a development Supabase project. The authoritative schema is in
+`supabase/migrations`; the legacy setup script may require manual SQL setup
+and does not replace applying those migrations.
 
 ### Deploy Edge Functions
 ```bash
@@ -61,11 +66,16 @@ chmod +x scripts/deploy-edge-function.sh
 ## Environment Variables
 
 ```bash
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_PROJECT_ID=your_project_id
+POOL_ACCESS_SECRET=your_random_hex_secret
 ```
+
+Keep the service-role key server-only; do not give it a `NEXT_PUBLIC_` name.
+Generate `POOL_ACCESS_SECRET` with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))".
+See `env.example` for optional integrations and site URL settings.
 
 ## Admin Features
 
@@ -106,3 +116,15 @@ The system automatically:
 ## License
 
 MIT License - see LICENSE file for details
+
+Admin sessions are signed and expire after 90 days. Set a server-only
+`SESSION_SECRET`, or authentication uses `POOL_ACCESS_SECRET` with a separate
+signature domain. Rotating the active signing secret logs out existing sessions;
+legacy unsigned sessions require signing in again.
+
+Run the isolated security/setup regression checks with
+`node --test tests/unit/security-and-setup.test.mjs`.
+
+Magic and password-reset links are consumed atomically against the account
+revision. Redeeming a link or updating the account invalidates other outstanding
+links. Older magic links must be requested again after this update.

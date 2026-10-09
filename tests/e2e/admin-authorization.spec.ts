@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -55,7 +56,7 @@ test.beforeAll(async () => {
 });
 
 function sessionCookieFor(id: string) {
-  return { Cookie: `sh-session=${id}` };
+  return { Cookie: `sh-session=${createSessionToken(id)}` };
 }
 
 const UNAUTHENTICATED_CASES: { name: string; method: 'GET' | 'POST' | 'DELETE'; url: string; data?: object }[] = [

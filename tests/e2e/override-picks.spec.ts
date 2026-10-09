@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -23,7 +24,7 @@ const supabase = createClient(
 );
 
 function sessionCookieFor(id: string) {
-  return { Cookie: `sh-session=${id}` };
+  return { Cookie: `sh-session=${createSessionToken(id)}` };
 }
 
 test.describe('POST /api/admin/override-picks (overrideMode: week)', () => {

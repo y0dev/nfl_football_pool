@@ -1,8 +1,8 @@
 'use server';
 
 import { createHmac } from 'crypto';
-import { findAccountByEmail } from '@/lib/accounts';
-import { setSessionCookie } from '@/actions/sessionCookie';
+import { findAccountByEmail, redeemAccountLink } from '@/lib/accounts';
+import { setSessionCookie } from '@/lib/session';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { debugError } from '@/lib/utils';
 
@@ -29,14 +29,14 @@ function sign(payload: string): string {
   return createHmac('sha256', signingSecret()).update(payload).digest('base64url');
 }
 
-function buildToken(email: string): string {
+function buildToken(email: string, updatedAt: string | null): string {
   const expiresAt = Date.now() + TOKEN_TTL_MS;
-  const payload = Buffer.from(`${email}::${expiresAt}`).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ purpose: 'magic', email, expiresAt, updatedAt })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-function parseToken(token: string): { email: string; valid: boolean; expired: boolean } {
-  const invalid = { email: '', valid: false, expired: false };
+function parseToken(token: string): { email: string; valid: boolean; expired: boolean; updatedAt: string | null } {
+  const invalid = { email: '', valid: false, expired: false, updatedAt: null };
   try {
     const dot = token.lastIndexOf('.');
     if (dot === -1) return invalid;
@@ -44,16 +44,13 @@ function parseToken(token: string): { email: string; valid: boolean; expired: bo
     const sig = token.slice(dot + 1);
     if (sign(payload) !== sig) return invalid;
 
-    const decoded = Buffer.from(payload, 'base64url').toString();
-    const sep = decoded.indexOf('::');
-    if (sep === -1) return invalid;
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    const { email, expiresAt, updatedAt } = parsed;
+    if (parsed.purpose !== 'magic' || typeof email !== 'string' || !email || !Number.isFinite(expiresAt)
+      || !(updatedAt === null || typeof updatedAt === 'string')) return invalid;
+    if (Date.now() >= expiresAt) return { email, valid: false, expired: true, updatedAt };
+    return { email, valid: true, expired: false, updatedAt };
 
-    const email = decoded.slice(0, sep);
-    const expiresAt = parseInt(decoded.slice(sep + 2), 10);
-    if (isNaN(expiresAt)) return invalid;
-    if (Date.now() > expiresAt) return { email, valid: false, expired: true };
-
-    return { email, valid: true, expired: false };
   } catch {
     return invalid;
   }
@@ -81,7 +78,7 @@ export async function requestMagicLink(
   }
   const admin = account.row;
 
-  const token = buildToken(admin.email);
+  const token = buildToken(admin.email, admin.updated_at ?? null);
   const magicUrl = `${appBaseUrl()}/login/verify?token=${encodeURIComponent(token)}`;
 
   try {
@@ -106,7 +103,7 @@ export async function verifyMagicLink(token: string): Promise<{
   error?: string;
   expired?: boolean;
 }> {
-  const { email, valid, expired } = parseToken(token);
+  const { email, valid, expired, updatedAt } = parseToken(token);
 
   if (expired) return { success: false, expired: true, error: 'This magic link has expired. Please request a new one.' };
   if (!valid) return { success: false, error: 'This magic link is invalid or has already been used.' };
@@ -117,6 +114,9 @@ export async function verifyMagicLink(token: string): Promise<{
     return { success: false, error: 'Account not found or inactive.' };
   }
   const { role, row: admin } = account;
+
+  const { redeemed, error } = await redeemAccountLink(admin.id, role, updatedAt);
+  if (error || !redeemed) return { success: false, error: 'This magic link is invalid or has already been used.' };
 
   // Set server-side session cookie so middleware can protect routes
   await setSessionCookie(admin.id);

@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -46,7 +47,7 @@ test.describe('POST /api/admin/clone-pool — auth boundaries', () => {
     // whether poolId exists — a 400 "Pool not found." here instead would
     // leak pool-existence to a caller who was never allowed to ask.
     const res = await request.post('/api/admin/clone-pool', {
-      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+      headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
       data: { poolId: '00000000-0000-0000-0000-000000000000' },
     });
     expect(res.status()).toBe(403);
@@ -56,7 +57,7 @@ test.describe('POST /api/admin/clone-pool — auth boundaries', () => {
 
   test('rejects a pool that does not exist', async ({ request }) => {
     const res = await request.post('/api/admin/clone-pool', {
-      headers: { Cookie: `sh-session=${superAdminId}` },
+      headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
       data: { poolId: '00000000-0000-0000-0000-000000000000' },
     });
     expect(res.status()).toBe(400);
@@ -88,7 +89,7 @@ test.describe('POST /api/admin/clone-pool — plan enforcement', () => {
       poolId = pool!.id;
 
       const res = await request.post('/api/admin/clone-pool', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { poolId },
       });
       expect(res.status()).toBe(400);
@@ -167,7 +168,7 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
 
       // ── Act: real clone via the real super-admin API route
       const res = await request.post('/api/admin/clone-pool', {
-        headers: { Cookie: `sh-session=${superAdminId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(superAdminId)}` },
         data: { poolId: sourcePoolId },
       });
       expect(res.ok()).toBeTruthy();

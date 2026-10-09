@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServiceClient();
-    const { data: pool } = await supabase.from('pools').select('created_by').eq('id', poolId).maybeSingle();
+    const { data: pool } = await supabase.from('pools').select('created_by, season').eq('id', poolId).maybeSingle();
     if (!pool) {
       return NextResponse.json({ success: false, error: 'Pool not found' }, { status: 404 });
     }
@@ -362,6 +362,22 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
+      }
+
+      // The commissioner just submitted on the participant's behalf — any
+      // auto-saved draft for this week (src/app/api/picks/draft/route.ts)
+      // is now resolved, so clear it rather than leaving a stale "Load
+      // Draft" prompt around for picks that already went in.
+      if (pool.season != null) {
+        const { error: draftDeleteError } = await supabase
+          .from('pick_drafts')
+          .delete()
+          .eq('participant_id', participantId)
+          .eq('pool_id', poolId)
+          .eq('week', week)
+          .eq('season', pool.season)
+          .eq('season_type', seasonType);
+        if (draftDeleteError) debugError('Error clearing pick draft after override:', draftDeleteError);
       }
 
       const participant = await supabase

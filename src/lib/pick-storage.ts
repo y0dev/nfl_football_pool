@@ -1,6 +1,17 @@
 import { StoredPick } from '@/types/game';
 import { debugLog, debugError } from '@/lib/utils';
 
+/** Context needed to auto-save a draft to the server — season/seasonType
+ * aren't on StoredPick itself, and mondayNightScore is tracked separately
+ * in WeeklyPick's own state. Optional: if omitted (a caller that doesn't
+ * pass it), the local-only save still happens, but the 2-minute timer has
+ * nothing it can safely POST to the draft endpoint, so it's skipped. */
+interface DraftSaveContext {
+  season: number;
+  seasonType: number;
+  mondayNightScore?: number | null;
+}
+
 interface StoredPicksData {
   picks: StoredPick[];
   participant_id: string;
@@ -8,14 +19,21 @@ interface StoredPicksData {
   week: number;
   lastSaved: number;
   expiresAt: number;
+  draftContext?: DraftSaveContext;
 }
 
 const PICK_STORAGE_KEY = 'nfl_pool_draft_picks';
-const AUTO_SUBMIT_DELAY = 5 * 60 * 1000; // 5 minutes in milliseconds
+// How long a participant can go without changing anything or submitting
+// before their in-progress picks get auto-saved as a server-side draft a
+// commissioner can pick up and submit for them (src/actions/savePickDraft.ts).
+// Deliberately does NOT submit real picks on its own — see the removed
+// auto-submit behavior this replaced; silently finalizing someone's picks
+// without their consent was the actual problem being fixed here.
+const AUTO_DRAFT_DELAY = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 class PickStorage {
   private static instance: PickStorage;
-  private autoSubmitTimer: NodeJS.Timeout | null = null;
+  private autoDraftTimer: NodeJS.Timeout | null = null;
 
   static getInstance(): PickStorage {
     if (!PickStorage.instance) {
@@ -25,7 +43,7 @@ class PickStorage {
   }
 
   // Save picks to localStorage
-  savePicks(picks: StoredPick[], participant_id: string, pool_id: string, week: number): void {
+  savePicks(picks: StoredPick[], participant_id: string, pool_id: string, week: number, draftContext?: DraftSaveContext): void {
     if (typeof window === 'undefined') return;
 
     const data: StoredPicksData = {
@@ -34,14 +52,15 @@ class PickStorage {
       pool_id,
       week,
       lastSaved: Date.now(),
-      expiresAt: Date.now() + AUTO_SUBMIT_DELAY
+      expiresAt: Date.now() + AUTO_DRAFT_DELAY,
+      draftContext,
     };
 
     localStorage.setItem(PICK_STORAGE_KEY, JSON.stringify(data));
-    
-    // Set up auto-submit timer
-    this.setupAutoSubmit(data);
-    
+
+    // Set up the auto-draft-save timer
+    this.setupAutoDraft(data);
+
     debugLog('💾 Picks saved to localStorage:', picks.length, 'picks');
   }
 
@@ -81,11 +100,11 @@ class PickStorage {
     if (typeof window === 'undefined') return;
 
     localStorage.removeItem(PICK_STORAGE_KEY);
-    this.clearAutoSubmitTimer();
+    this.clearAutoDraftTimer();
     debugLog('🗑️ Picks cleared from localStorage');
   }
 
-  // Get time remaining until auto-submit
+  // Get time remaining until the draft auto-save
   getTimeRemaining(): number {
     if (typeof window === 'undefined') return 0;
 
@@ -121,44 +140,57 @@ class PickStorage {
     }
   }
 
-  // Set up auto-submit timer
-  private setupAutoSubmit(data: StoredPicksData): void {
-    this.clearAutoSubmitTimer();
-    
+  // Set up the auto-draft-save timer
+  private setupAutoDraft(data: StoredPicksData): void {
+    this.clearAutoDraftTimer();
+
     const timeRemaining = data.expiresAt - Date.now();
     if (timeRemaining > 0) {
-      this.autoSubmitTimer = setTimeout(() => {
-        this.autoSubmitPicks(data);
+      this.autoDraftTimer = setTimeout(() => {
+        this.saveDraftToServer(data);
       }, timeRemaining);
     }
   }
 
-  // Clear auto-submit timer
-  private clearAutoSubmitTimer(): void {
-    if (this.autoSubmitTimer) {
-      clearTimeout(this.autoSubmitTimer);
-      this.autoSubmitTimer = null;
+  // Clear the auto-draft-save timer
+  private clearAutoDraftTimer(): void {
+    if (this.autoDraftTimer) {
+      clearTimeout(this.autoDraftTimer);
+      this.autoDraftTimer = null;
     }
   }
 
-  // Auto-submit picks when timer expires
-  private async autoSubmitPicks(data: StoredPicksData): Promise<void> {
+  // Save a draft to the server when the inactivity timer expires — the
+  // participant's local in-progress state (localStorage) is left alone so
+  // they can still resume and submit for real if they come back.
+  private async saveDraftToServer(data: StoredPicksData): Promise<void> {
+    if (!data.draftContext) {
+      debugLog('⏭️ Skipping auto-draft-save — no season/seasonType context available');
+      return;
+    }
     try {
-      debugLog('⏰ Auto-submitting picks after 5 minutes...');
-      
-      // Import the submitPicks function dynamically to avoid circular dependencies
-      const { submitPicks } = await import('@/actions/submitPicks');
-      
-      const result = await submitPicks(data.picks);
-      
+      debugLog('⏰ Auto-saving draft after 2 minutes of inactivity...');
+
+      // Import dynamically to avoid circular dependencies
+      const { savePickDraft } = await import('@/actions/savePickDraft');
+
+      const result = await savePickDraft({
+        participantId: data.participant_id,
+        poolId: data.pool_id,
+        week: data.week,
+        season: data.draftContext.season,
+        seasonType: data.draftContext.seasonType,
+        picks: data.picks,
+        mondayNightScore: data.draftContext.mondayNightScore ?? null,
+      });
+
       if (result.success) {
-        debugLog('✅ Picks auto-submitted successfully');
-        this.clearPicks();
+        debugLog('✅ Draft auto-saved for the commissioner to review');
       } else {
-        debugError('❌ Auto-submit failed:', result.error);
+        debugError('❌ Auto-draft-save failed:', result.error);
       }
     } catch (error) {
-      debugError('❌ Error during auto-submit:', error);
+      debugError('❌ Error during auto-draft-save:', error);
     }
   }
 
@@ -171,11 +203,11 @@ class PickStorage {
       if (!stored) return;
 
       const data: StoredPicksData = JSON.parse(stored);
-      data.expiresAt = Date.now() + AUTO_SUBMIT_DELAY;
+      data.expiresAt = Date.now() + AUTO_DRAFT_DELAY;
       data.lastSaved = Date.now();
-      
+
       localStorage.setItem(PICK_STORAGE_KEY, JSON.stringify(data));
-      this.setupAutoSubmit(data);
+      this.setupAutoDraft(data);
     } catch (error) {
       debugError('Error updating expiration:', error);
     }

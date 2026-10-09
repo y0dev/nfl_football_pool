@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -48,7 +49,7 @@ async function cleanup(id: string) {
 // account. Tests below authenticate as the seeded account itself unless
 // specifically testing that cross-account protection.
 function sessionHeaders(id: string) {
-  return { Cookie: `sh-session=${id}` };
+  return { Cookie: `sh-session=${createSessionToken(id)}` };
 }
 
 test.describe('GET /api/admin/account-type — provider detection reads DB, not client state', () => {

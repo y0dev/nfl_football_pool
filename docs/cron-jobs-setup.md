@@ -20,14 +20,15 @@ The rest of this doc is the full setup for reference / rebuilding from scratch.
 |---|---|---|
 | `update-game-scores` | Refreshes `status`/`home_score`/`away_score`/`winner` on `games` from ESPN | `supabase/functions/update-game-scores/index.ts` |
 | `determine-weekly-winners` | Once a week's games are all final, computes scores and writes `weekly_winners`/`period_winners`/`season_winners` | `supabase/functions/determine-weekly-winners/index.ts` |
+| `cleanup-pick-drafts` | Every Wednesday, deletes any `pick_drafts` rows left over from a week whose games are all finished (see `docs`/the pick-drafts feature — a commissioner already got a real-time email when the draft was created; this just clears out what's now stale) | `supabase/functions/cleanup-pick-drafts/index.ts` |
 | `cron_run_locks` table | Mutual-exclusion lock so two overlapping invocations of the same job never race each other | `supabase/migrations/20260807190000_add_cron_run_locks.sql` |
-| `pg_cron` + `pg_net` schedule | Calls both functions on a recurring schedule via HTTP, using the project's secret key | `supabase/migrations/20260803220827_schedule_winners_and_scores_cron.sql` |
+| `pg_cron` + `pg_net` schedule | Calls all three functions on a recurring schedule via HTTP, using the project's secret key | `supabase/migrations/20260803220827_schedule_winners_and_scores_cron.sql`, `supabase/migrations/20260925040000_schedule_pick_drafts_cleanup_cron.sql` |
 | `update-game-scores` activity gate | Skips the actual ESPN call unless a game's kickoff has already passed but its status hasn't caught up yet — so the job is a no-op outside real game windows instead of hitting ESPN on every tick, all season | `supabase/migrations/20260808140000_restrict_update_game_scores_to_active_games.sql` |
 | `_shared/cron-lock.ts` | Acquires/releases the lock row at the start/end of each run | `supabase/functions/_shared/cron-lock.ts` |
 
-Both functions authenticate callers via `withSupabase({ auth: 'secret' })`, which
+All three functions authenticate callers via `withSupabase({ auth: 'secret' })`, which
 checks the project's **secret** (service-role) key on the `apikey` header — not
-`Authorization: Bearer`. This requires `verify_jwt = false` for both functions
+`Authorization: Bearer`. This requires `verify_jwt = false` for each function
 (already set in `supabase/config.toml`) so Supabase's own JWT gate doesn't reject
 a secret-key caller before the function's own check runs.
 
@@ -112,15 +113,16 @@ bundle ("Module not found") because `_shared/` never gets uploaded with it.
 ```bash
 npx supabase functions deploy update-game-scores --project-ref muvtenjtdzlwcwmzksxy
 npx supabase functions deploy determine-weekly-winners --project-ref muvtenjtdzlwcwmzksxy
+npx supabase functions deploy cleanup-pick-drafts --project-ref muvtenjtdzlwcwmzksxy
 ```
 
-Or use the repo's script, which does both and defaults the project ref:
+Or use the repo's script, which does all three and defaults the project ref:
 
 ```bash
 bash scripts/deploy-edge-function.sh
 ```
 
-Confirm `verify_jwt = false` is set for both functions — it already is in
+Confirm `verify_jwt = false` is set for each function — it already is in
 `supabase/config.toml`, and the CLI applies it on deploy. You can double-check in
 **Dashboard → Edge Functions → (function) → Settings**.
 
@@ -132,8 +134,9 @@ In the SQL Editor:
 select jobname, schedule, active from cron.job;
 ```
 
-You should see two rows: `update-game-scores` (`*/10 * * * *`) and
-`determine-weekly-winners` (`5,15,25,35,45,55 * * * *`).
+You should see three rows: `update-game-scores` (`*/10 * * * *`),
+`determine-weekly-winners` (`5,15,25,35,45,55 * * * *`), and
+`cleanup-pick-drafts` (`0 15 * * 3`, i.e. Wednesdays at 15:00 UTC).
 
 To see recent run history and whether calls are succeeding:
 

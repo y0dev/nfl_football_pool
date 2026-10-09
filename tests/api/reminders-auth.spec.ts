@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 
 // ─────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ test.describe('POST /api/admin/send-reminders', () => {
 
   test('rejects calls from a session that does not resolve to any account', async ({ request }) => {
     const res = await request.post('/api/admin/send-reminders', {
-      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+      headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
       data: { participantIds: ['00000000-0000-0000-0000-000000000000'], week: 1, seasonType: 2 },
     });
     expect(res.status()).toBe(403);

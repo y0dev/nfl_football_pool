@@ -8,9 +8,11 @@
 # Usage:
 #   scripts/test-edge-functions.sh local scores
 #   scripts/test-edge-functions.sh local winners
+#   scripts/test-edge-functions.sh local drafts
 #   scripts/test-edge-functions.sh local both
 #   scripts/test-edge-functions.sh prod scores
 #   scripts/test-edge-functions.sh prod winners
+#   scripts/test-edge-functions.sh prod drafts
 #   scripts/test-edge-functions.sh prod both
 #
 # local  - requires `npx supabase start` (and separately
@@ -74,6 +76,7 @@ call() {
 case "$fn" in
   scores)  call update-game-scores ;;
   winners) call determine-weekly-winners ;;
+  drafts)  call cleanup-pick-drafts ;;
   both)    call update-game-scores; call determine-weekly-winners ;;
-  *) echo "Unknown function '$fn'. Use scores, winners, or both." >&2; exit 1 ;;
+  *) echo "Unknown function '$fn'. Use scores, winners, drafts, or both." >&2; exit 1 ;;
 esac

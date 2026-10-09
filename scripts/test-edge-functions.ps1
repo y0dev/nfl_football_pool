@@ -7,9 +7,11 @@
 # Usage:
 #   .\scripts\test-edge-functions.ps1 local scores
 #   .\scripts\test-edge-functions.ps1 local winners
+#   .\scripts\test-edge-functions.ps1 local drafts
 #   .\scripts\test-edge-functions.ps1 local both
 #   .\scripts\test-edge-functions.ps1 prod scores
 #   .\scripts\test-edge-functions.ps1 prod winners
+#   .\scripts\test-edge-functions.ps1 prod drafts
 #   .\scripts\test-edge-functions.ps1 prod both
 #
 # local  - requires `npx supabase start` (and separately
@@ -27,7 +29,7 @@ param(
     [string]$Target,
 
     [Parameter(Position = 1)]
-    [ValidateSet('scores', 'winners', 'both')]
+    [ValidateSet('scores', 'winners', 'drafts', 'both')]
     [string]$Function = 'both'
 )
 
@@ -95,6 +97,7 @@ function Invoke-EdgeFunction([string]$Name) {
 switch ($Function) {
     'scores' { Invoke-EdgeFunction 'update-game-scores' }
     'winners' { Invoke-EdgeFunction 'determine-weekly-winners' }
+    'drafts' { Invoke-EdgeFunction 'cleanup-pick-drafts' }
     'both' {
         Invoke-EdgeFunction 'update-game-scores'
         Invoke-EdgeFunction 'determine-weekly-winners'

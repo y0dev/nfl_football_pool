@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 
 // ─────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ test.describe('GET /api/admin/all-pools — super-admin only', () => {
 
   test('rejects a caller that is not a super admin (or does not exist)', async ({ request }) => {
     const res = await request.get('/api/admin/all-pools', {
-      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+      headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
     });
     expect(res.status()).toBe(403);
     const body = await res.json();
@@ -65,7 +66,7 @@ test.describe('POST /api/admin/transfer-pool — super-admin only', () => {
 
   test('rejects a caller that is not a super admin (or does not exist)', async ({ request }) => {
     const res = await request.post('/api/admin/transfer-pool', {
-      headers: { Cookie: 'sh-session=00000000-0000-0000-0000-000000000000' },
+      headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
       data: { poolId: '00000000-0000-0000-0000-000000000000', newCommissionerEmail: 'someone@example.com' },
     });
     expect(res.status()).toBe(403);

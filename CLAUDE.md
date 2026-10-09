@@ -105,8 +105,8 @@ Required in `.env.local` (see `env.example`):
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY            # server-only; primary
-NEXT_PUBLIC_SUPABASE_SERVICE_KEY     # fallback for client components still using the service client directly — being phased out, do not add new usages
-POOL_ACCESS_SECRET                   # required for private pools to work at all
+POOL_ACCESS_SECRET                   # required for private pools; also signs admin sessions unless SESSION_SECRET is set
+SESSION_SECRET                       # optional separate server-only session signing key
 ```
 
 Optional: `API_SPORTS_KEY` (NFL data fallback), `SMTP_HOST/PORT/USER/PASS/FROM` (email), `UPSTASH_REDIS_REST_URL/TOKEN` (shared rate limiting across serverless instances — falls back to an in-memory limiter if unset), `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/`STRIPE_PRICE_*` (billing routes 503 until set), `NEXT_PUBLIC_ENABLE_PRICING`, `NEXT_PUBLIC_SALE`/`NEXT_PUBLIC_SALE_LABEL`, `NEXT_PUBLIC_SITE_URL`. A handful of `NEXT_PUBLIC_*`/dev-only flags (debug panel, simulated picks, dummy data, dev password reset) are gated to `NODE_ENV === 'development'` in code, so they can't leak into a real production build regardless of what ends up in a deployed env file — see the comments in `env.example` before relying on any of them.

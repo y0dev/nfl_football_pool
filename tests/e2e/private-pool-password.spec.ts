@@ -1,3 +1,4 @@
+import { createSessionToken } from '@/lib/session';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -143,7 +144,7 @@ test.describe('setPoolPassword — toggling Private and setting a password witho
       // this goes through the real PATCH /api/pools/[id] wrapper rather than
       // calling the Server Action directly — see that route's own comment.
       const patchRes = await request.patch(`/api/pools/${poolId}`, {
-        headers: { Cookie: `sh-session=${ownerId}` },
+        headers: { Cookie: `sh-session=${createSessionToken(ownerId!)}` },
         data: { is_private: true },
       });
       expect(patchRes.ok()).toBeTruthy();

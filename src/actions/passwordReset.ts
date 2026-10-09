@@ -2,7 +2,7 @@
 
 import { createHmac } from 'crypto';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { findAccountByEmail, findAccountById, updateAccount } from '@/lib/accounts';
+import { findAccountByEmail, findAccountById, redeemAccountLink } from '@/lib/accounts';
 import { checkRateLimit } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { debugError } from '@/lib/utils';
@@ -135,15 +135,16 @@ export async function resetPasswordWithToken(
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
-  const { error: updateError } = await updateAccount(admin.id, role, {
+  const { redeemed, error: updateError } = await redeemAccountLink(admin.id, role, updatedAt, {
     password_hash: passwordHash,
-    updated_at: new Date().toISOString(),
   });
 
   if (updateError) {
     debugError('Password reset update failed:', updateError.code);
     return { success: false, error: 'Failed to update password. Please try again.' };
   }
+
+  if (!redeemed) return { success: false, error: 'This reset link has already been used or is out of date. Please request a new one.' };
 
   // Also update Supabase Auth password for accounts that use it
   try {
