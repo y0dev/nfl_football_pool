@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ShieldOff, RefreshCw, Zap, AlertTriangle, Check, X } from 'lucide-react';
+import { ArrowLeft, ShieldOff, RefreshCw, Zap, AlertTriangle, Check, X, FileClock } from 'lucide-react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { AdminGuard } from '@/components/auth/admin-guard';
 import { AppNav } from '@/components/layout/AppNav';
@@ -74,8 +74,32 @@ interface PickForm {
   points: number | null;
 }
 
+interface DraftPick {
+  game_id: string;
+  predicted_winner: string;
+  confidence_points: number;
+}
+
+interface ParticipantDraft {
+  participant_id: string;
+  picks: DraftPick[];
+  monday_night_score: number | null;
+  updated_at: string;
+}
+
 function isGameStarted(game: GameRow, now: Date): boolean {
   return new Date(game.kickoff_time) <= now || normalizeGameStatus(game.status) !== 'scheduled';
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
 function OverridePicksPageContent() {
@@ -116,6 +140,7 @@ function OverridePicksPageContent() {
   const [overrideReason, setOverrideReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [now, setNow] = useState<Date>(new Date());
+  const [draft, setDraft] = useState<ParticipantDraft | null>(null);
 
   // ── Auth + pool + participant load ──
   useEffect(() => {
@@ -193,6 +218,12 @@ function OverridePicksPageContent() {
       setForm(nextForm);
       setInitialPickGameIds(nextInitial);
       setNow(new Date());
+
+      const participantDraft: ParticipantDraft | undefined = (data.drafts ?? []).find(
+        (d: ParticipantDraft) => d.participant_id === participantId
+      );
+      setDraft(participantDraft ?? null);
+
       // Default the reason for the common case this page exists for —
       // never overwrites a reason the admin already typed, and only ever
       // applies when the participant has nothing in for this week at all.
@@ -324,6 +355,25 @@ function OverridePicksPageContent() {
         ? `Filled in ${gamesNeedingAutoPick.length} game${gamesNeedingAutoPick.length !== 1 ? 's' : ''} with random winners and random points — already-started games with no pick got 0. Review before saving.`
         : `Filled in ${gamesNeedingAutoPick.length} game${gamesNeedingAutoPick.length !== 1 ? 's' : ''} with random winners and random confidence points. Review before saving.`,
     });
+  };
+
+  // Populates the form from what the participant actually had selected
+  // before they went idle for 2 minutes without submitting (auto-saved by
+  // src/lib/pick-storage.ts via POST /api/picks/draft). Overwrites whatever
+  // is currently in the form for games the draft covers — that's the point
+  // of "load" — so the admin should review before saving.
+  const handleLoadDraft = () => {
+    if (!draft || draft.picks.length === 0) return;
+    setForm(prev => {
+      const next = { ...prev };
+      for (const p of draft.picks) {
+        if (!games.some(g => g.id === p.game_id)) continue; // stale draft from a since-changed game list
+        next[p.game_id] = { winner: p.predicted_winner, points: p.confidence_points };
+      }
+      return next;
+    });
+    setOverrideReason(prev => prev.trim() ? prev : "Loaded from the participant's auto-saved draft.");
+    toast({ title: 'Draft loaded', description: `Filled in ${draft.picks.length} pick${draft.picks.length !== 1 ? 's' : ''} from the participant's draft. Review before saving.` });
   };
 
   const handleSubmit = async () => {
@@ -483,6 +533,27 @@ function OverridePicksPageContent() {
             <div style={{ background: card, border: `1px solid oklch(50% 0.18 60 / 0.4)`, borderLeft: `3px solid ${amber}`, borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <AlertTriangle style={{ width: 16, height: 16, color: amber, flexShrink: 0 }} />
               <p style={{ ...b, fontSize: '0.85rem', color: text }}>{eligibility.reason}</p>
+            </div>
+          )}
+
+          {draft && draft.picks.length > 0 && (
+            <div style={{ background: 'oklch(24% 0.05 155)', border: `1px solid oklch(40% 0.1 155)`, borderLeft: `3px solid ${greenHi}`, borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <FileClock style={{ width: 16, height: 16, color: greenHi, flexShrink: 0 }} />
+              <div style={{ flex: '1 1 auto', minWidth: 200 }}>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.78rem', color: text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Draft available — {draft.picks.length} pick{draft.picks.length !== 1 ? 's' : ''}
+                </p>
+                <p style={{ ...b, fontSize: '0.78rem', color: textMid, marginTop: '0.15rem' }}>
+                  Auto-saved {formatRelativeTime(draft.updated_at)} after they stopped making changes without submitting.
+                </p>
+              </div>
+              <button
+                onClick={handleLoadDraft}
+                disabled={eligibility?.allowed === false}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: greenHi, color: bg, border: 'none', borderRadius: 6, ...bc, fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: eligibility?.allowed === false ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+              >
+                Load Draft
+              </button>
             </div>
           )}
 

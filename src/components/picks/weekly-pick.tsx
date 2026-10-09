@@ -376,6 +376,14 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     checkWeekUnlocked();
   }, [games, currentWeek, seasonType, preventGameLoading, upcomingWeek]);
 
+  // Context the 2-minute inactivity timer needs to auto-save a draft to the
+  // server (src/lib/pick-storage.ts) — undefined until both are known, in
+  // which case the timer still saves locally but skips the server draft.
+  const getDraftContext = () =>
+    poolSeason != null && seasonType != null
+      ? { season: poolSeason, seasonType, mondayNightScore }
+      : undefined;
+
   // Auto-save picks to localStorage when picks change (backup mechanism)
   useEffect(() => {
     if (selectedUser && picks.length > 0 && hasUnsavedChanges) {
@@ -389,11 +397,15 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           timestamp: now
         }));
 
-        pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+        pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek, getDraftContext());
         setLastSaved(new Date(now));
         setHasUnsavedChanges(false);
       }
     }
+    // getDraftContext deliberately omitted — it's a plain (non-memoized)
+    // function recreated every render, so listing it here would fire this
+    // effect on every render instead of only when picks actually change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picks, selectedUser, poolId, currentWeek, hasUnsavedChanges, lastSaved]);
 
   // Countdown timer for week unlock
@@ -522,7 +534,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     setHasUnsavedChanges(true);
     if (selectedUser) {
       const storedPicks: StoredPick[] = updatedPicks.map(p => ({ ...p, timestamp: Date.now() }));
-      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek, getDraftContext());
       setLastSaved(new Date());
     }
   };
@@ -549,7 +561,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     setHasUnsavedChanges(true);
     if (selectedUser) {
       const storedPicks: StoredPick[] = updatedPicks.map(p => ({ ...p, timestamp: Date.now() }));
-      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek);
+      pickStorage.savePicks(storedPicks, selectedUser.id, poolId, currentWeek, getDraftContext());
       setLastSaved(new Date());
     }
   };
@@ -656,7 +668,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
     setHasUnsavedChanges(true);
 
     const storedPicks = newPicks.map(pick => ({ ...pick, timestamp: Date.now() }));
-    pickStorage.savePicks(storedPicks, selectedUser!.id, poolId, currentWeek);
+    pickStorage.savePicks(storedPicks, selectedUser!.id, poolId, currentWeek, getDraftContext());
     setLastSaved(new Date());
 
     return newPicks;
@@ -760,7 +772,7 @@ export function WeeklyPick({ poolId, weekNumber, seasonType, selectedUser: propS
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <AlertTriangle style={{ width: 14, height: 14, color: 'oklch(58% 0.15 250)', flexShrink: 0 }} />
             <span style={{ ...b, fontSize: '0.8rem', color: 'oklch(75% 0.12 250)' }}>
-              Your picks are being auto-saved. They will be automatically submitted in 5 minutes if you don&apos;t submit them manually.
+              Your picks are being auto-saved. If you go 2 minutes without submitting, they&apos;ll be saved as a draft your commissioner can submit on your behalf.
             </span>
           </div>
         </div>

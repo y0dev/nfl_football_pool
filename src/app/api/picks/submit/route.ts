@@ -223,6 +223,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // The participant just submitted for real — any auto-saved draft
+    // (src/app/api/picks/draft/route.ts) for this week is now stale and
+    // would otherwise keep showing the commissioner a "Load Draft" prompt
+    // for picks that no longer need any help getting submitted.
+    if (games && games.length > 0) {
+      const { error: draftDeleteError } = await supabase
+        .from('pick_drafts')
+        .delete()
+        .eq('participant_id', firstPick.participant_id)
+        .eq('pool_id', firstPick.pool_id)
+        .eq('week', games[0].week)
+        .eq('season', games[0].season)
+        .eq('season_type', games[0].season_type);
+      if (draftDeleteError) debugError('Error clearing pick draft after submit:', draftDeleteError);
+    }
+
     // Save Monday night score to tie_breakers table if provided
     if (mondayNightScore !== null && mondayNightScore !== undefined) {
       const week = games?.[0]?.week || 1;

@@ -60,10 +60,23 @@ export async function GET(request: NextRequest) {
       }));
     }
 
+    // Auto-saved drafts (src/app/api/picks/draft/route.ts) for participants
+    // who started picking but never submitted — surfaced on the
+    // override-picks page as a "Load Draft" shortcut instead of the
+    // commissioner having to guess what the participant was going for.
+    const { data: draftsData } = await supabase
+      .from('pick_drafts')
+      .select('participant_id, picks, monday_night_score, updated_at')
+      .eq('pool_id', poolId)
+      .eq('season', season)
+      .eq('season_type', seasonType)
+      .eq('week', week);
+
     return NextResponse.json({
       success: true,
       games: gamesData ?? [],
       picks,
+      drafts: draftsData ?? [],
     });
   } catch (error) {
     debugError('Override picks data error:', error);

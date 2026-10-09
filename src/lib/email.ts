@@ -622,6 +622,52 @@ class EmailService {
     });
   }
 
+  // Fired once per draft (never on every 2-minute re-save of the same
+  // still-open one — see src/app/api/picks/draft/route.ts) so a
+  // commissioner learns right away that a participant started picking but
+  // went idle without submitting, while there's still time to either submit
+  // the draft on their behalf or clear it from the override-picks page.
+  async sendPickDraftAlert(
+    adminEmail: string,
+    adminName: string,
+    poolName: string,
+    weekNumber: number,
+    participantName: string,
+    overridePicksLink: string
+  ): Promise<boolean> {
+    const subject = `Draft picks saved for ${participantName} — Week ${weekNumber} (${poolName})`;
+
+    const content = `
+      <p style="margin: 0 0 20px; color: #f1f5f9; font-size: 16px; line-height: 1.6;">
+        Hi ${adminName},
+      </p>
+
+      ${createInfoBox(`
+        <strong>📝 Draft picks saved</strong><br><br>
+        <strong>${participantName}</strong> started making picks for Week ${weekNumber} in <strong>${poolName}</strong> but went a couple of minutes without submitting — their in-progress selections were saved as a draft.
+      `, 'warning')}
+
+      <p style="margin: 20px 0; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        You can review the draft and either submit it on their behalf or clear it, from the Override Picks page. If it's left alone, it's automatically cleared once the week is over.
+      </p>
+    `;
+
+    const html = createResponsiveEmailTemplate({
+      title: 'Draft Picks Saved',
+      content,
+      buttonText: 'Review Draft',
+      buttonUrl: overridePicksLink,
+      footerText: `This is an automated alert for Week ${weekNumber} in ${poolName}.`,
+      accentColor: '#d4a520'
+    });
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject,
+      html
+    });
+  }
+
   async sendDeletionConfirmationRequest(email: string, displayName: string, confirmUrl: string): Promise<boolean> {
     const subject = 'Confirm Your Sunday Huddle Account Deletion';
     const html = `

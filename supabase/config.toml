@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.update-game-scores]
 verify_jwt = false
+
+[functions.cleanup-pick-drafts]
+verify_jwt = false

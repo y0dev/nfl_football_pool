@@ -18,6 +18,9 @@ npx supabase functions deploy determine-weekly-winners --project-ref "$SUPABASE_
 echo "Deploying update-game-scores..."
 npx supabase functions deploy update-game-scores --project-ref "$SUPABASE_PROJECT_ID"
 
+echo "Deploying cleanup-pick-drafts..."
+npx supabase functions deploy cleanup-pick-drafts --project-ref "$SUPABASE_PROJECT_ID"
+
 echo "Deployment complete! Scheduling is managed by the SQL migration in"
 echo "supabase/migrations/ (pg_cron), not this script — run 'supabase db push'"
 echo "(or apply the migration via the SQL editor) once, separately, to"
