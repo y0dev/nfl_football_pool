@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { debugInfo, debugWarn, debugLog, debugError, ESPN_BASE_URL } from './utils';
-import { classify as classifyShared, weekDateRange as weekDateRangeShared, mapEspnEventsToGames, type ESPNScoreboardEvent } from './espn-scoreboard';
+import { classify as classifyShared, weekDateRange as weekDateRangeShared, mapEspnEventsToGames, fetchEspnEventsAcrossDays, type ESPNScoreboardEvent } from './espn-scoreboard';
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
@@ -416,13 +416,15 @@ class NFLAPIService {
     try {
       debugInfo(`Fetching games for ${weekStart}-${weekEnd}...`);
 
-      // ESPN rejects a same-day range ("20261011-20261011") with a 400 but
-      // accepts the plain single-date form.
-      const params: Record<string, string> = {
-        dates: weekStart === weekEnd ? weekStart : `${weekStart}-${weekEnd}`,
-      };
-      if (limit !== undefined) params.limit = String(limit);
-      const data = await this.makeRequest('/scoreboard', params) as ESPNScoreboardResponse;
+      // ESPN rejects `dates=START-END` ranges (even same-day) with a 400, so
+      // request each day on its own and merge — see fetchEspnEventsAcrossDays.
+      const events = await fetchEspnEventsAcrossDays<ESPNScoreboardEvent>(weekStart, weekEnd, async (ymd) => {
+        const params: Record<string, string> = { dates: ymd };
+        if (limit !== undefined) params.limit = String(limit);
+        const day = await this.makeRequest('/scoreboard', params) as ESPNScoreboardResponse;
+        return (day.events ?? []) as unknown as ESPNScoreboardEvent[];
+      });
+      const data = { events };
 
       if (!data.events || data.events.length === 0) {
         debugWarn(`No events found for weekStart ${weekStart}`);
