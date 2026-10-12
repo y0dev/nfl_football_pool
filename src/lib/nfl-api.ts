@@ -416,7 +416,11 @@ class NFLAPIService {
     try {
       debugInfo(`Fetching games for ${weekStart}-${weekEnd}...`);
 
-      const params: Record<string, string> = { dates: `${weekStart}-${weekEnd}` };
+      // ESPN rejects a same-day range ("20261011-20261011") with a 400 but
+      // accepts the plain single-date form.
+      const params: Record<string, string> = {
+        dates: weekStart === weekEnd ? weekStart : `${weekStart}-${weekEnd}`,
+      };
       if (limit !== undefined) params.limit = String(limit);
       const data = await this.makeRequest('/scoreboard', params) as ESPNScoreboardResponse;
 
