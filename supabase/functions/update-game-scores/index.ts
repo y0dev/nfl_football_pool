@@ -55,8 +55,8 @@ export default {
       const openGameMap = new Map(openGames.map((g: any) => [g.id, g]))
 
       // Fetch the scoreboard for each calendar day an open game could have
-      // been played on (its kickoff date and the next UTC day, to cover late
-      // games that cross midnight) plus today, matched by ESPN event id.
+      // been played on (its kickoff date plus the days either side, to cover
+      // the UTC/Eastern date mismatch on late games) plus today, matched by ESPN event id.
       // Driving this off the open games' own kickoff dates — rather than a
       // fixed window around today — means a game the cron missed on its day
       // is still picked up on a later run. Games kicking off in the future
@@ -131,8 +131,10 @@ function scoreboardDates(openGames: any[]): string[] {
   for (const g of openGames) {
     const kickoff = g.kickoff_time ? new Date(g.kickoff_time).getTime() : NaN
     if (Number.isNaN(kickoff) || kickoff > now + 86_400_000) continue
-    dates.add(toYMD(new Date(kickoff)))
-    dates.add(toYMD(new Date(kickoff + 86_400_000)))
+    // ESPN files games under their US Eastern calendar date, which trails the
+    // UTC date for evening kickoffs (an 8:20pm ET game is 00:20 UTC the next
+    // day) — so include the day before as well as the day after.
+    for (const offset of [-1, 0, 1]) dates.add(toYMD(new Date(kickoff + offset * 86_400_000)))
   }
   // YYYYMMDD sorts chronologically; keep the most recent days if capped.
   return [...dates].sort().slice(-MAX_SCOREBOARD_DAYS)
@@ -141,22 +143,24 @@ function scoreboardDates(openGames: any[]): string[] {
 // ESPN's scoreboard now rejects `dates=START-END` ranges with a 400, so fetch
 // each day in the window separately (plain `dates=YYYYMMDD`) and merge by id.
 async function fetchScoreboardEvents(dates: string[]): Promise<any[]> {
-  const events = new Map<string, any>()
-  for (const date of dates) {
+  // Deliberately no custom User-Agent override — ESPN's WAF 403s a spoofed
+  // or app-identifying UA (confirmed: 'NFL-Confidence-Pool/1.0' and even a
+  // full browser UA both get blocked) but passes an honest, unmodified
+  // runtime default (Deno/*, curl/*). Don't "fix" this by adding one back.
+  //
+  // Fetched in parallel: pg_net gives the cron's HTTP call only 5s, so a
+  // sequential loop over several days risks timing out.
+  const days = await Promise.all(dates.map(async (date) => {
     const url = `${ESPN_BASE}/scoreboard?dates=${date}`
     console.log(`Fetching ESPN scoreboard events from ${url}`)
-    // Deliberately no custom User-Agent override — ESPN's WAF 403s a spoofed
-    // or app-identifying UA (confirmed: 'NFL-Confidence-Pool/1.0' and even a
-    // full browser UA both get blocked) but passes an honest, unmodified
-    // runtime default (Deno/*, curl/*). Don't "fix" this by adding one back.
-    const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-    })
+    const response = await fetch(url, { headers: { 'Accept': 'application/json' } })
     if (!response.ok) {
       throw new Error(`ESPN API request failed: ${response.status} ${response.statusText}`)
     }
     const data = await response.json()
-    for (const event of data.events ?? []) events.set(event.id, event)
-  }
+    return (data.events ?? []) as any[]
+  }))
+  const events = new Map<string, any>()
+  for (const day of days) for (const event of day) events.set(event.id, event)
   return [...events.values()]
 }
