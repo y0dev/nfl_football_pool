@@ -43,7 +43,7 @@ function PoolHistoryContent() {
   const [currentSeasonType, setCurrentSeasonType] = useState(parseInt(seasonTypeParam || '2'));
   const [games, setGames] = useState<Game[]>([]);
   const [, setGamesLoading] = useState(false);
-  const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number } | null>(null);
+  const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number; is_tie: boolean } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState<boolean | null>(null);
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,14 +88,17 @@ function PoolHistoryContent() {
     setWeekWinner(null);
     setWeekHasPicks(null);
     try {
+      let tiedWinnerName: string | null = null;
       const winnerRes = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
       if (winnerRes.ok) {
         const winnerCheck = await winnerRes.json();
+        tiedWinnerName = winnerCheck.tiedWinnerName ?? null;
         if (winnerCheck.winnerExists && winnerCheck.winner) {
           setWeekWinner({
             participant_name: winnerCheck.winner.winner_name,
             points: winnerCheck.winner.winner_points,
             correct_picks: winnerCheck.winner.winner_correct_picks,
+            is_tie: !!tiedWinnerName,
           });
           setWeekHasPicks(true);
           return;
@@ -108,7 +111,7 @@ function PoolHistoryContent() {
         const anyPicksSubmitted = !!result.leaderboard?.some((entry: { total_picks?: number }) => (entry.total_picks ?? 0) > 0);
         if (result.success && anyPicksSubmitted) {
           const winner = result.leaderboard[0];
-          setWeekWinner({ participant_name: winner.participant_name, points: winner.total_points, correct_picks: winner.correct_picks });
+          setWeekWinner({ participant_name: tiedWinnerName ?? winner.participant_name, points: winner.total_points, correct_picks: winner.correct_picks, is_tie: !!tiedWinnerName });
           setWeekHasPicks(true);
         } else {
           setWeekHasPicks(false);
@@ -440,7 +443,7 @@ function PoolHistoryContent() {
             <div style={{ background: card, border: `1px solid ${border}`, borderTop: `3px solid ${gold}`, borderRadius: 10, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
               <Trophy style={{ width: 28, height: 28, color: gold, flexShrink: 0 }} />
               <div>
-                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase', marginBottom: '0.15rem' }}>{getWeekTitle()} Winner</p>
+                <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', color: gold, textTransform: 'uppercase', marginBottom: '0.15rem' }}>{getWeekTitle()} {weekWinner.is_tie ? 'Co-Winners' : 'Winner'}</p>
                 <p style={{ ...bc, fontWeight: 900, fontSize: '1.1rem', color: text, textTransform: 'uppercase' }}>{weekWinner.participant_name}</p>
                 <p style={{ ...b, fontSize: '0.8rem', color: textMid }}>{weekWinner.points} points &middot; {weekWinner.correct_picks} correct picks</p>
               </div>

@@ -15,7 +15,7 @@ loadEnv({ path: '.env.local' });
 // ─────────────────────────────────────────────────────────────
 
 import { createPool } from '../../src/actions/createPool';
-import { computeSeasonReview } from '../../src/lib/season-review';
+import { computeSeasonReview, getTiedWinnerName } from '../../src/lib/season-review';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -118,6 +118,94 @@ test.describe('computeSeasonReview — weeks_won only credits a fully decided we
     } finally {
       if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
       if (gameIds.length) await supabase.from('games').delete().in('id', gameIds);
+      if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
+      if (poolId) await supabase.from('pools').delete().eq('id', poolId);
+      await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);
+    }
+  });
+
+  test('a tied week credits every tied participant, including a quarter-ending week; the quarter still has one winner', async () => {
+    test.setTimeout(30000);
+    const ownerEmail = `e2e-weeks-won-tie-${Date.now()}@sundayhuddle.net`;
+    let poolId: string | undefined;
+    const season = 2021;
+    const tiedWeek = 8;
+    const tieBreakerWeek = 9; // ends Q2 — the tie-breaker decides the quarter, not this week
+    const tiedGameId = `e2e-weekswon-tie-${season}-w${tiedWeek}-${Date.now()}`;
+    const tieBreakerGameId = `e2e-weekswon-tie-${season}-w${tieBreakerWeek}-${Date.now()}`;
+
+    try {
+      const created = await createPool({
+        name: 'E2E Weeks Won Tie Pool',
+        created_by: ownerEmail,
+        season,
+        season_scope: [2],
+        is_private: false,
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) return;
+      poolId = created.data.id as string;
+
+      const { data: participants, error: participantsError } = await supabase
+        .from('participants')
+        .insert([
+          { pool_id: poolId, name: 'Karen', is_active: true },
+          { pool_id: poolId, name: 'Jason', is_active: true },
+          { pool_id: poolId, name: 'Brandon', is_active: true },
+        ])
+        .select('id, name');
+      if (participantsError || !participants) throw new Error(`Failed to seed participants: ${participantsError?.message}`);
+      const idOf = (name: string) => participants.find(p => p.name === name)!.id;
+
+      const { error: gamesError } = await supabase.from('games').insert([
+        {
+          id: tiedGameId, season, season_type: 2, week: tiedWeek,
+          home_team: 'Green Bay Packers', away_team: 'Chicago Bears',
+          home_team_id: 5, away_team_id: 6,
+          kickoff_time: '2021-10-31T13:00:00Z', status: 'final', winner: 'Green Bay Packers',
+        },
+        {
+          id: tieBreakerGameId, season, season_type: 2, week: tieBreakerWeek,
+          home_team: 'Buffalo Bills', away_team: 'Miami Dolphins',
+          home_team_id: 3, away_team_id: 4,
+          kickoff_time: '2021-11-07T13:00:00Z', status: 'final', winner: 'Buffalo Bills',
+        },
+      ]);
+      if (gamesError) throw new Error(`Failed to seed games: ${gamesError.message}`);
+
+      const { error: picksError } = await supabase.from('picks').insert([
+        { pool_id: poolId, game_id: tiedGameId, participant_id: idOf('Karen'), predicted_winner: 'Green Bay Packers', confidence_points: 9 },
+        { pool_id: poolId, game_id: tiedGameId, participant_id: idOf('Jason'), predicted_winner: 'Green Bay Packers', confidence_points: 9 },
+        { pool_id: poolId, game_id: tiedGameId, participant_id: idOf('Brandon'), predicted_winner: 'Green Bay Packers', confidence_points: 4 },
+        { pool_id: poolId, game_id: tieBreakerGameId, participant_id: idOf('Karen'), predicted_winner: 'Buffalo Bills', confidence_points: 5 },
+        { pool_id: poolId, game_id: tieBreakerGameId, participant_id: idOf('Jason'), predicted_winner: 'Buffalo Bills', confidence_points: 5 },
+      ]);
+      if (picksError) throw new Error(`Failed to seed picks: ${picksError.message}`);
+
+      const review = await computeSeasonReview(poolId, season);
+
+      const tied = review.weeklyWinners.find(w => w.week === tiedWeek);
+      expect(tied?.winner_name).toBe('Jason & Karen');
+      expect([...(tied?.winner_participant_ids ?? [])].sort()).toEqual([idOf('Jason'), idOf('Karen')].sort());
+      expect(getTiedWinnerName(review, tiedWeek)).toBe('Jason & Karen');
+
+      expect(getTiedWinnerName(review, tieBreakerWeek)).toBe('Jason & Karen');
+
+      // Karen and Jason finish Q2 level on points and weeks won — it still
+      // resolves to exactly one quarter winner.
+      const q2Winners = review.quarterlyWinners.filter(q => q.period_name === 'Q2');
+      expect(q2Winners).toHaveLength(1);
+      expect([idOf('Jason'), idOf('Karen')]).toContain(q2Winners[0].winner_participant_id);
+
+      // Each week counts once overall, even though both have two winners.
+      expect(review.weeklyWinners).toHaveLength(2);
+      const statOf = (name: string) => review.participantStats.find(p => p.participant_id === idOf(name))!;
+      expect(statOf('Brandon').weeks_won).toBe(0);
+      expect(statOf('Karen').weeks_won).toBe(2);
+      expect(statOf('Jason').weeks_won).toBe(2);
+    } finally {
+      if (poolId) await supabase.from('picks').delete().eq('pool_id', poolId);
+      await supabase.from('games').delete().in('id', [tiedGameId, tieBreakerGameId]);
       if (poolId) await supabase.from('participants').delete().eq('pool_id', poolId);
       if (poolId) await supabase.from('pools').delete().eq('id', poolId);
       await supabase.from('huddles').delete().eq('commissioner_email', ownerEmail);

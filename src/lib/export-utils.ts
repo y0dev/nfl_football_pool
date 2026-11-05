@@ -342,7 +342,7 @@ export async function exportPeriodData(
           rank: 0 // We'll calculate rank later
         });
 
-        // Check if this participant won this week (highest points)
+        // Check if this participant won this week (highest points, ties share the win)
         if (weekPoints > 0) {
           const isWeekWinner = Array.from(participantWeekPicks.entries()).every(([otherId, otherWeekPicks]) => {
             if (otherId === participantId) return true;
@@ -351,7 +351,7 @@ export async function exportPeriodData(
               const isCorrect = pick.game_winner && pick.predicted_winner.toLowerCase() === pick.game_winner.toLowerCase();
               return sum + (isCorrect ? pick.confidence_points : 0);
             }, 0);
-            return weekPoints > otherWeekPoints;
+            return weekPoints >= otherWeekPoints;
           });
           if (isWeekWinner) weeksWon++;
         }

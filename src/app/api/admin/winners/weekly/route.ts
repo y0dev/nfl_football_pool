@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { computeSeasonReview } from '@/lib/season-review';
+import { computeSeasonReview, getTiedWinnerName } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -20,10 +20,8 @@ export async function GET(request: NextRequest) {
     if (week) {
       // Delegates to the same centralized computation the Season Review tab
       // uses, rather than the old winner-calculator.ts implementation (which
-      // cached results that never invalidated). Note: unlike the old
-      // calculator, this doesn't resolve ties via the pool's tie-breaker
-      // question/answer — a tied week's "winner" here is picked by points
-      // alone. That gap pre-dates this change and is a known follow-up.
+      // cached results that never invalidated). A tied week comes back as
+      // one entry listing every co-winner.
       const review = await computeSeasonReview(poolId, parseInt(season));
       const weeklyWinner = review.weeklyWinners.find(w => w.week === parseInt(week));
 
@@ -53,9 +51,18 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      // One stored row per week — fill in co-winners on tied regular-season weeks.
+      const review = await computeSeasonReview(poolId, parseInt(season)).catch(error => {
+        debugError('Error checking for tied week winners:', error);
+        return null;
+      });
+
       return NextResponse.json({
         success: true,
-        weeklyWinners: weeklyWinners || []
+        weeklyWinners: (weeklyWinners || []).map(row => {
+          const tiedName = review && row.season_type === 2 ? getTiedWinnerName(review, row.week) : null;
+          return tiedName ? { ...row, winner_name: tiedName } : row;
+        })
       });
     }
 

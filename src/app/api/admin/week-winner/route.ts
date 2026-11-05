@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
+import { computeSeasonReview, getTiedWinnerName } from '@/lib/season-review';
 import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -44,17 +45,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // weekly_winners holds one row per week, so a tied week's co-winners come
+    // from the live computation. Season review is regular-season only; a
+    // failure here just falls back to the stored row.
+    let tiedWinnerName: string | null = null;
+    if (parseInt(seasonType) === 2) {
+      try {
+        const review = await computeSeasonReview(poolId, parseInt(season));
+        tiedWinnerName = getTiedWinnerName(review, parseInt(week));
+      } catch (reviewError) {
+        debugError('Error checking for tied week winners:', reviewError);
+      }
+    }
+
     if (existingWinner) {
       return NextResponse.json({
         success: true,
         winnerExists: true,
-        winner: existingWinner
+        winner: tiedWinnerName ? { ...existingWinner, winner_name: tiedWinnerName } : existingWinner,
+        tiedWinnerName
       });
     } else {
       return NextResponse.json({
         success: true,
         winnerExists: false,
-        winner: null
+        winner: null,
+        tiedWinnerName
       });
     }
 
