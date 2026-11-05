@@ -174,6 +174,7 @@ export function PoolPicksContent() {
     participant_name: string;
     points: number;
     correct_picks: number;
+    is_tie: boolean;
   } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState(false);
   const [weekEnded, setWeekEnded] = useState(false);
@@ -386,17 +387,20 @@ export function PoolPicksContent() {
         poolId, weekNumber: currentWeek, seasonType: currentSeasonType, season: poolSeason
       });
       try {
+        let tiedWinnerName: string | null = null;
         const winnerCheckResponse = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${currentWeek}&seasonType=${currentSeasonType}&season=${poolSeason}`);
 
         if (winnerCheckResponse.ok) {
           const winnerCheck = await winnerCheckResponse.json();
+          tiedWinnerName = winnerCheck.tiedWinnerName ?? null;
 
           if (winnerCheck.winnerExists && winnerCheck.winner) {
             debugLog('Using existing winner from database:', winnerCheck.winner);
             setWeekWinner({
               participant_name: winnerCheck.winner.winner_name,
               points: winnerCheck.winner.winner_points,
-              correct_picks: winnerCheck.winner.winner_correct_picks
+              correct_picks: winnerCheck.winner.winner_correct_picks,
+              is_tie: !!tiedWinnerName
             });
             setWeekHasPicks(true);
             setShowLeaderboard(true);
@@ -421,9 +425,10 @@ export function PoolPicksContent() {
             const winner = result.leaderboard[0];
             debugLog('Winner from leaderboard:', winner);
             setWeekWinner({
-              participant_name: winner.participant_name,
+              participant_name: tiedWinnerName ?? winner.participant_name,
               points: winner.total_points,
-              correct_picks: winner.correct_picks
+              correct_picks: winner.correct_picks,
+              is_tie: !!tiedWinnerName
             });
             setWeekHasPicks(true);
             setShowLeaderboard(true);
@@ -1431,7 +1436,7 @@ export function PoolPicksContent() {
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: `oklch(74% 0.16 72 / 0.15)`, border: `2px solid oklch(74% 0.16 72 / 0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                 <Crown style={{ width: 32, height: 32, color: gold }} />
               </div>
-              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Week {currentWeek} Winner</p>
+              <p style={{ ...bc, fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.26em', color: gold, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Week {currentWeek} {weekWinner.is_tie ? 'Co-Winners' : 'Winner'}</p>
               <h2 style={{ ...bc, fontWeight: 900, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: text, textTransform: 'uppercase', lineHeight: 0.95, marginBottom: '0.75rem' }}>
                 {weekWinner.participant_name}
               </h2>

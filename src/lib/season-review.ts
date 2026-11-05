@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from './supabase-service';
-import { getRegularSeasonPeriods, PERIOD_WEEKS } from './utils';
+import { getRegularSeasonPeriods } from './utils';
 import { normalizeGameStatus } from '../types/game';
 
 const PICKS_PAGE_SIZE = 1000;
@@ -173,7 +173,11 @@ export interface QuarterlyWinner {
 
 export interface WeeklyWinnerEntry {
   week: number;
+  /** First of winner_participant_ids — every tied winner is in that list. */
   winner_participant_id: string;
+  /** Every participant credited with this week: more than one on a tied week. */
+  winner_participant_ids: string[];
+  /** Display name — all tied winners joined, e.g. "Jason & Karen". */
   winner_name: string;
   winner_points: number;
   winner_correct_picks: number;
@@ -224,6 +228,19 @@ export interface SeasonReviewData {
     closest_weekly_margin: number;
     biggest_weekly_blowout: number;
   };
+}
+
+/** "A", "A & B", "A, B & C". */
+function joinWinnerNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? 'Unknown';
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
+}
+
+/** The joined co-winner name for a tied week, or null if the week has a sole
+ * winner (or none) — for callers showing the single stored weekly_winners row. */
+export function getTiedWinnerName(review: Pick<SeasonReviewData, 'weeklyWinners'>, week: number): string | null {
+  const entry = review.weeklyWinners.find(w => w.week === week);
+  return entry && entry.winner_participant_ids.length > 1 ? entry.winner_name : null;
 }
 
 function emptyPayload(poolName: string | undefined): SeasonReviewData {
@@ -366,29 +383,33 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
     const isWeekComplete = weekCompleteMap.get(week) ?? false;
 
     let winner = standings[0];
+    let weekWinnerIds: string[] = [];
     if (isWeekComplete && winner && winner.entry.points > 0) {
       const topScorers = standings.filter(s => s.entry.points === winner.entry.points);
-      // Ties are only formally broken on tie-breaker (period) weeks, or for
-      // non-normal pools — matching the same gating the Deno cron function
-      // uses, since tie_breakers answers are only collected for those weeks.
-      const isPeriodWeek = PERIOD_WEEKS.includes(week as typeof PERIOD_WEEKS[number]);
-      if (topScorers.length > 1 && (!isNormalPool || isPeriodWeek)) {
+      // A tied week is a shared win: everyone tied gets credit. That includes
+      // the last week of a quarter — its tie-breaker answers decide the
+      // quarter's winner (below), not the week's. Only non-normal pools break
+      // weekly ties, matching the Deno cron function.
+      weekWinnerIds = topScorers.map(s => s.id);
+      if (topScorers.length > 1 && !isNormalPool) {
         const resolved = await resolveTieBreaker(
           supabase, poolTieInfo, week, 2,
           topScorers.map(s => ({ id: s.id, points: s.entry.points })),
         );
         const resolvedWinner = standings.find(s => s.id === resolved[0]?.id);
-        if (resolvedWinner) winner = resolvedWinner;
+        if (resolvedWinner) {
+          winner = resolvedWinner;
+          weekWinnerIds = [resolvedWinner.id];
+        }
       }
     }
-    const winnerWon = isWeekComplete && winner && winner.entry.points > 0;
     // Streaks are a week-over-week concept too — an incomplete week must
     // not touch them either way: not crediting a not-yet-decided leader,
     // but also not resetting someone's streak just because their week
     // isn't finished yet.
     if (isWeekComplete) {
       participants.forEach(p => {
-        const wonThisWeek = winnerWon && p.id === winner.id;
+        const wonThisWeek = weekWinnerIds.includes(p.id);
         if (wonThisWeek) {
           currentStreak.set(p.id, (currentStreak.get(p.id) ?? 0) + 1);
           longestStreak.set(p.id, Math.max(longestStreak.get(p.id) ?? 0, currentStreak.get(p.id) ?? 0));
@@ -400,12 +421,18 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
       });
     }
 
-    if (winnerWon) {
-      weeksWonCount.set(winner.id, (weeksWonCount.get(winner.id) ?? 0) + 1);
+    if (weekWinnerIds.length > 0) {
+      // Sorted by name so a tie reads the same on every page and every load —
+      // participants has no guaranteed order.
+      const weekWinners = participants
+        .filter(p => weekWinnerIds.includes(p.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      weekWinners.forEach(p => weeksWonCount.set(p.id, (weeksWonCount.get(p.id) ?? 0) + 1));
       weeklyWinners.push({
         week,
-        winner_participant_id: winner.id,
-        winner_name: participants.find(p => p.id === winner.id)?.name ?? 'Unknown',
+        winner_participant_id: weekWinners[0].id,
+        winner_participant_ids: weekWinners.map(p => p.id),
+        winner_name: joinWinnerNames(weekWinners.map(p => p.name)),
         winner_points: winner.entry.points,
         winner_correct_picks: winner.entry.correct,
         total_participants: standings.length,
@@ -430,7 +457,7 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
         // Weeks-won scoped to just this period (not the participant's
         // season-wide total) — matches the edge function's period-winner
         // tie-break, which only counts wins within the quarter's own weeks.
-        const periodWeeksWon = weeklyWinners.filter(w => period.weeks.includes(w.week) && w.winner_participant_id === p.id).length;
+        const periodWeeksWon = weeklyWinners.filter(w => period.weeks.includes(w.week) && w.winner_participant_ids.includes(p.id)).length;
         periodParticipantTotals.push({ id: p.id, points: periodPoints, correct: periodCorrect, weeks_won: periodWeeksWon });
       }
     });

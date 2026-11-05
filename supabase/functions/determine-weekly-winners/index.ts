@@ -22,7 +22,6 @@ const JOB_NAME = 'determine-weekly-winners'
 
 const REGULAR_SEASON_TYPE = 2
 const SUPER_BOWL_SEASON_TYPE = 3
-const PERIOD_WEEKS = [4, 9, 14, 18]
 const QUARTERS: Record<number, { name: string; startWeek: number; endWeek: number }> = {
   4:  { name: 'Q1', startWeek: 1, endWeek: 4 },
   9:  { name: 'Q2', startWeek: 5, endWeek: 9 },
@@ -261,9 +260,10 @@ async function calculateWeeklyWinner(supabase: any, pool: any, week: number, sea
 
   if (topScorers.length > 1) {
     const isNormalPool = pool.pool_type === 'normal' || pool.pool_type == null
-    const isPeriodWeek = PERIOD_WEEKS.includes(week)
     const isSuperBowl = seasonType === SUPER_BOWL_SEASON_TYPE
-    const shouldUseTieBreaker = !isNormalPool || isPeriodWeek || isSuperBowl
+    // Quarter-ending weeks are not special here: their tie-breaker answers
+    // decide the quarter's winner (calculatePeriodWinner), not the week's.
+    const shouldUseTieBreaker = !isNormalPool || isSuperBowl
 
     if (shouldUseTieBreaker) {
       const resolved = await resolveTieBreaker(supabase, pool, week, seasonType, topScorers)
@@ -312,6 +312,22 @@ async function resolveTieBreaker(supabase: any, pool: any, week: number, seasonT
   return withDiff.sort((a: any, b: any) => (a.tie_breaker_difference ?? Infinity) - (b.tie_breaker_difference ?? Infinity))
 }
 
+// weekly_winners stores one row per week, but a tied week is a shared win in a
+// normal pool (same rule as computeSeasonReview in src/lib/season-review.ts) —
+// so credit everyone who matched the winning score that week.
+function creditWeeksWon(totals: Map<string, any>, scores: any[], weeklyWinners: any[], pool: any) {
+  const isNormalPool = pool.pool_type === 'normal' || pool.pool_type == null
+  for (const w of weeklyWinners) {
+    const winnerIds = isNormalPool
+      ? scores.filter((s: any) => s.week === w.week && s.points === w.winner_points).map((s: any) => s.participant_id)
+      : [w.winner_participant_id]
+    for (const id of winnerIds) {
+      const t = totals.get(id)
+      if (t) t.weeks_won++
+    }
+  }
+}
+
 // ---- Period (quarterly) winner ----
 
 async function ensurePeriodWinner(supabase: any, pool: any, quarterWeek: number) {
@@ -352,7 +368,7 @@ async function ensurePeriodWinner(supabase: any, pool: any, quarterWeek: number)
 async function calculatePeriodWinner(supabase: any, pool: any, quarter: { name: string; startWeek: number; endWeek: number }) {
   const { data: scores } = await supabase
     .from('scores')
-    .select(`participant_id, points, correct_picks, participants!inner(name)`)
+    .select(`participant_id, week, points, correct_picks, participants!inner(name)`)
     .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
     .gte('week', quarter.startWeek).lte('week', quarter.endWeek)
 
@@ -377,14 +393,11 @@ async function calculatePeriodWinner(supabase: any, pool: any, quarter: { name: 
 
   const { data: weeklyWinners } = await supabase
     .from('weekly_winners')
-    .select('winner_participant_id')
+    .select('week, winner_participant_id, winner_points, tie_breaker_used')
     .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
     .gte('week', quarter.startWeek).lte('week', quarter.endWeek)
 
-  for (const w of weeklyWinners ?? []) {
-    const t = totals.get(w.winner_participant_id)
-    if (t) t.weeks_won++
-  }
+  creditWeeksWon(totals, scores, weeklyWinners ?? [], pool)
 
   const list = Array.from(totals.values()).sort((a: any, b: any) => b.period_points - a.period_points)
   if (list.length === 0) return null
@@ -502,7 +515,7 @@ async function ensureSeasonWinner(supabase: any, pool: any) {
 async function calculateSeasonWinner(supabase: any, pool: any) {
   const { data: scores } = await supabase
     .from('scores')
-    .select(`participant_id, points, correct_picks, participants!inner(name)`)
+    .select(`participant_id, week, points, correct_picks, participants!inner(name)`)
     .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
 
   if (!scores || scores.length === 0) return null
@@ -526,13 +539,10 @@ async function calculateSeasonWinner(supabase: any, pool: any) {
 
   const { data: weeklyWinners } = await supabase
     .from('weekly_winners')
-    .select('winner_participant_id')
+    .select('week, winner_participant_id, winner_points, tie_breaker_used')
     .eq('pool_id', pool.id).eq('season', pool.season).eq('season_type', REGULAR_SEASON_TYPE)
 
-  for (const w of weeklyWinners ?? []) {
-    const t = totals.get(w.winner_participant_id)
-    if (t) t.weeks_won++
-  }
+  creditWeeksWon(totals, scores, weeklyWinners ?? [], pool)
 
   const list = Array.from(totals.values()).sort((a: any, b: any) => b.total_points - a.total_points)
   if (list.length === 0) return null

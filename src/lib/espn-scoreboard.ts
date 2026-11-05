@@ -216,8 +216,41 @@ export function mapEspnEventsToGames(events: ESPNScoreboardEvent[]): NFLGame[] {
   }).filter(Boolean) as NFLGame[];
 }
 
+/** ESPN's scoreboard rejects `dates=START-END` ranges (even same-day ones)
+ * with a 400, but accepts a single `dates=YYYYMMDD`. This expands an
+ * inclusive YYYYMMDD range into per-day requests (a few at a time), merges
+ * the events by id, and returns them in date order. `fetchDay` returns one
+ * day's raw events, or throws — any failed day fails the whole range so a
+ * partial result can't masquerade as a complete one. */
+export async function fetchEspnEventsAcrossDays<T extends { id: string }>(
+  start: string,
+  end: string,
+  fetchDay: (ymd: string) => Promise<T[]>,
+  concurrency = 6,
+): Promise<T[]> {
+  const toDate = (ymd: string) => new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8)));
+  const toYMD = (d: Date) =>
+    `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+
+  const days: string[] = [];
+  for (let d = toDate(start); d <= toDate(end); d = new Date(d.getTime() + 86_400_000)) days.push(toYMD(d));
+
+  const results: T[][] = new Array(days.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, days.length) }, async () => {
+    while (next < days.length) {
+      const i = next++;
+      results[i] = await fetchDay(days[i]);
+    }
+  }));
+
+  const events = new Map<string, T>();
+  for (const day of results) for (const event of day) events.set(event.id, event);
+  return [...events.values()];
+}
+
 /** Fetches ESPN's scoreboard directly from the browser for an arbitrary
- * `dates=` range — the admin's own IP, not blocked, unlike Vercel's server
+ * date range (one request per day, see fetchEspnEventsAcrossDays) — the admin's own IP, not blocked, unlike Vercel's server
  * IPs (see this file's header comment). ESPN's endpoint sends
  * Access-Control-Allow-Origin: *, so this is CORS-permitted. Returns null
  * on any failure so the caller can fall back to the server-side fetch
@@ -226,13 +259,14 @@ export function mapEspnEventsToGames(events: ESPNScoreboardEvent[]): NFLGame[] {
  * ESPN silently caps at 100 events with none given. */
 export async function fetchEspnEventsForRangeFromBrowser(start: string, end: string, limit?: number): Promise<ESPNScoreboardEvent[] | null> {
   try {
-    const params = new URLSearchParams({ dates: `${start}-${end}` });
-    if (limit !== undefined) params.set('limit', String(limit));
-    const url = `${ESPN_SCOREBOARD_URL}?${params.toString()}`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data?.events) ? data.events : [];
+    return await fetchEspnEventsAcrossDays<ESPNScoreboardEvent>(start, end, async (ymd) => {
+      const params = new URLSearchParams({ dates: ymd });
+      if (limit !== undefined) params.set('limit', String(limit));
+      const res = await fetch(`${ESPN_SCOREBOARD_URL}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`ESPN responded ${res.status} for ${ymd}`);
+      const data = await res.json();
+      return Array.isArray(data?.events) ? data.events : [];
+    });
   } catch (error) {
     debugError('Direct browser fetch of ESPN failed:', error);
     return null;
