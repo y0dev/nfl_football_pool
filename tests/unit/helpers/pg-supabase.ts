@@ -286,6 +286,7 @@ CREATE TABLE season_winners (
 const MIGRATION_FILES = [
   '20260820120000_add_survivor_pool_tables.sql',
   '20261110120000_recalculate_confidence_results.sql',
+  '20261110130000_atomic_survivor_pick_replacement.sql',
 ];
 
 export async function createTestDatabase(): Promise<{ db: PGlite; supabase: FakeSupabase }> {

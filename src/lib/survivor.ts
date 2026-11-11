@@ -12,14 +12,18 @@
 // the leaderboard route's own inline computation). Survivor gets exactly
 // one.
 //
-// Status (ACTIVE/ELIMINATED) is always computed LIVE from survivor_picks +
-// games — there is no cached/derived status table to fall out of sync.
-// WINNER is the one exception: it's only ever assigned by finalizeSurvivorSeason()
-// (an explicit commissioner action, mirroring how season_winners works for
-// Confidence pools — see src/app/api/admin/close-season/route.ts), never
-// inferred just because someone happens to currently be the last participant
-// standing. An active participant stays ACTIVE, not WINNER, until that
-// explicit action runs.
+// Two separate things per participant:
+//   - liveStatus (ACTIVE/ELIMINATED): eligibility, always computed LIVE from
+//     survivor_picks + games. Nothing cached, so a corrected game result
+//     changes it immediately.
+//   - status: what to show. Same as liveStatus, except participants named in
+//     the persisted survivor_winners row show as WINNER. That row is only
+//     written by finalizeSurvivorSeason() (an explicit commissioner action),
+//     never inferred from someone currently being the last one standing.
+// Finalization decides winners from liveStatus only, never from the
+// persisted WINNER label. Otherwise a winner whose winning game was later
+// corrected to a loss would keep counting as a survivor and stay the winner
+// on every re-finalization.
 
 import { getSupabaseServiceClient } from './supabase-service';
 import { normalizeGameStatus } from '@/types/game';
@@ -31,6 +35,7 @@ import {
 } from './survivor-settings';
 
 export type SurvivorStatus = 'ACTIVE' | 'ELIMINATED' | 'WINNER';
+export type SurvivorLiveStatus = 'ACTIVE' | 'ELIMINATED';
 export type SurvivorEliminationReason = 'loss' | 'tie' | 'no_pick';
 
 // Re-exported for existing callers of this file — the canonical
@@ -88,7 +93,11 @@ export interface SurvivorPickResult {
 export interface SurvivorParticipantState {
   participantId: string;
   participantName: string;
+  /** Display status: liveStatus, or WINNER for participants in the
+   * persisted survivor_winners row. Don't use it to decide eligibility. */
   status: SurvivorStatus;
+  /** Eligibility from current game results only. Ignores survivor_winners. */
+  liveStatus: SurvivorLiveStatus;
   usedTeams: string[];
   picks: SurvivorPickResult[];
   eliminatedWeek?: number;
@@ -233,7 +242,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
 
     const resolvedPicks: SurvivorPickResult[] = [];
     const usedTeams: string[] = [];
-    let status: SurvivorStatus = 'ACTIVE';
+    let status: SurvivorLiveStatus = 'ACTIVE';
     let eliminatedWeek: number | undefined;
     let eliminatedSeasonType: number | undefined;
     let eliminatedTeam: string | undefined;
@@ -324,7 +333,8 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     return {
       participantId: participant.id,
       participantName: participant.name,
-      status,
+      status: status as SurvivorStatus,
+      liveStatus: status,
       usedTeams,
       picks: resolvedPicks,
       eliminatedWeek,
@@ -336,15 +346,17 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     };
   });
 
-  // Layer WINNER on top of the live ACTIVE/ELIMINATED computation, but only
-  // for participants named in a persisted survivor_winners row — never
-  // inferred just from currently being the last one active.
-  const { data: winnerRow } = await supabase
+  // Layer WINNER on top of the live ACTIVE/ELIMINATED computation for
+  // display, but only for participants named in a persisted survivor_winners
+  // row — never inferred just from currently being the last one active.
+  // liveStatus is left alone.
+  const { data: winnerRow, error: winnerError } = await supabase
     .from('survivor_winners')
     .select('winner_participant_ids')
     .eq('pool_id', poolId)
     .eq('season', pool.season)
     .maybeSingle();
+  if (winnerError) throw new Error(winnerError.message);
   const winnerParticipantIds: string[] = winnerRow?.winner_participant_ids ?? [];
   if (winnerParticipantIds.length > 0) {
     for (const p of participantStates) {
@@ -382,6 +394,8 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
   };
 }
 
+const TEAM_ALREADY_USED_ERROR = 'You have already used this team this season. You can only use each team once during the pool.';
+
 export type SubmitSurvivorPickResult =
   | { success: true }
   | { success: false; error: string };
@@ -392,8 +406,8 @@ export type SubmitSurvivorPickResult =
  * Confidence's /api/picks/submit: once a pick exists for the week, any
  * further submission is rejected outright ("Picks already submitted for
  * this week") rather than allowed as a silent change — except during
- * playoffs, which keep the delete-then-insert update path (so the reuse
- * check below naturally excludes the pick being replaced). */
+ * playoffs, where a pick can be changed until the week locks. The change is
+ * atomic (replace_survivor_pick RPC): a failed change keeps the old pick. */
 export async function submitSurvivorPick(params: {
   participantId: string;
   poolId: string;
@@ -447,7 +461,8 @@ export async function submitSurvivorPick(params: {
   // determined and the pool is closed).
   const state = await computeSurvivorPoolState(params.poolId);
   const participantState = state.participants.find(p => p.participantId === params.participantId);
-  if (!devUnlocked && participantState && participantState.status !== 'ACTIVE') {
+  // Blocked if eliminated by current results, or already declared a winner.
+  if (!devUnlocked && participantState && (participantState.status !== 'ACTIVE' || participantState.liveStatus !== 'ACTIVE')) {
     return { success: false, error: `You are ${participantState.status === 'WINNER' ? 'the winner of' : 'eliminated from'} this Survivor pool and cannot make further picks.` };
   }
 
@@ -468,7 +483,7 @@ export async function submitSurvivorPick(params: {
 
   // Once a pick exists for this week, reject any further submission —
   // matching Confidence's reject-on-resubmission rule — except during
-  // playoffs, which fall through to the delete-then-insert update below.
+  // playoffs, which fall through to the atomic replacement below.
   const isPlayoff = game.season_type === 3;
   if (!devUnlocked && !isPlayoff) {
     const { data: existingWeekPick, error: existingWeekPickError } = await supabase
@@ -486,47 +501,42 @@ export async function submitSurvivorPick(params: {
     }
   }
 
-  // Delete any existing pick for this participant/week (playoffs only, to
-  // support updates there), then re-check team reuse against what
-  // remains, then insert.
-  const { error: deleteError } = await supabase
-    .from('survivor_picks')
-    .delete()
-    .eq('participant_id', params.participantId)
-    .eq('pool_id', params.poolId)
-    .eq('season', pool.season)
-    .eq('season_type', game.season_type)
-    .eq('week', game.week);
-  if (deleteError) return { success: false, error: 'Failed to update pick.' };
-
+  // Validate everything BEFORE writing anything, so a rejected change (most
+  // importantly a playoff pick update) never touches the saved pick. The
+  // pick being replaced this week doesn't count as a prior use of its team.
   const { data: existingPicks, error: existingPicksError } = await supabase
     .from('survivor_picks')
-    .select('selected_team')
+    .select('selected_team, season_type, week')
     .eq('participant_id', params.participantId)
     .eq('pool_id', params.poolId)
     .eq('season', pool.season);
   if (existingPicksError) return { success: false, error: 'Failed to verify previously used teams.' };
-  if ((existingPicks ?? []).some(p => p.selected_team === params.selectedTeam)) {
-    return { success: false, error: 'You have already used this team this season. You can only use each team once during the pool.' };
+  const isThisWeek = (p: { season_type: number; week: number }) => p.season_type === game.season_type && p.week === game.week;
+  if ((existingPicks ?? []).some(p => p.selected_team === params.selectedTeam && !isThisWeek(p))) {
+    return { success: false, error: TEAM_ALREADY_USED_ERROR };
   }
 
-  const { error: insertError } = await supabase
-    .from('survivor_picks')
-    .insert({
-      participant_id: params.participantId,
-      pool_id: params.poolId,
-      game_id: params.gameId,
-      season: pool.season,
-      season_type: game.season_type,
-      week: game.week,
-      selected_team: params.selectedTeam,
-      submitted_by: params.submittedBy ?? null,
-    });
-  if (insertError) {
-    debugError('submitSurvivorPick insert error:', insertError);
+  // Replace (or create) this week's pick in one transaction: the RPC deletes
+  // the old pick and inserts the new one, re-checking team reuse under a
+  // lock. If anything fails, the previous pick is still saved.
+  const { error: replaceError } = await supabase.rpc('replace_survivor_pick', {
+    p_participant_id: params.participantId,
+    p_pool_id: params.poolId,
+    p_game_id: params.gameId,
+    p_season: pool.season,
+    p_season_type: game.season_type,
+    p_week: game.week,
+    p_selected_team: params.selectedTeam,
+    p_submitted_by: params.submittedBy ?? null,
+  });
+  if (replaceError) {
+    debugError('submitSurvivorPick replace error:', replaceError);
+    if (replaceError.message?.includes('SURVIVOR_TEAM_ALREADY_USED')) {
+      return { success: false, error: TEAM_ALREADY_USED_ERROR };
+    }
     // The UNIQUE constraints are the authoritative backstop even if the
     // pre-checks above raced with a concurrent submission.
-    if (insertError.code === '23505') {
+    if (replaceError.code === '23505') {
       return { success: false, error: 'That team has already been used, or a pick already exists for this week.' };
     }
     return { success: false, error: 'Failed to save pick. Please try again.' };
@@ -550,51 +560,9 @@ export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSu
   const supabase = getSupabaseServiceClient();
   const state = await computeSurvivorPoolState(poolId);
 
-  let winnerParticipantIds: string[];
-  let resolution: string;
-
-  // Includes WINNER, not just ACTIVE: a participant already declared the
-  // winner by a previous finalize call was never eliminated, so re-running
-  // finalize (e.g. after a score correction) must still count them as a
-  // surviving candidate — otherwise a second call sees zero ACTIVE
-  // participants (they're all WINNER already) and zero ELIMINATED ones,
-  // and incorrectly falls through to the "no participants" error below.
-  const active = state.participants.filter(p => p.status === 'ACTIVE' || p.status === 'WINNER');
-
-  if (active.length === 1) {
-    winnerParticipantIds = [active[0].participantId];
-    resolution = 'last_active';
-  } else if (active.length > 1) {
-    if (state.settings.endOfSeasonRule === 'all_remaining_winners') {
-      winnerParticipantIds = active.map(p => p.participantId);
-      resolution = 'all_remaining';
-    } else {
-      const result = pickByMarginTiebreaker(active);
-      winnerParticipantIds = result;
-      resolution = 'margin_tiebreaker';
-    }
-  } else {
-    // Wipeout — every participant was eliminated. The "last remaining"
-    // group is whoever survived the longest (the highest eliminatedWeek),
-    // evaluated with the same end-of-season rule as a normal multi-survivor
-    // finish, since they were functionally tied for last-standing.
-    const eliminated = state.participants.filter(p => p.status === 'ELIMINATED');
-    if (eliminated.length === 0) {
-      return { success: false, error: 'No participants found for this pool — nothing to finalize.' };
-    }
-    const maxWeek = Math.max(...eliminated.map(p => p.eliminatedWeek ?? -1));
-    const lastStanding = eliminated.filter(p => p.eliminatedWeek === maxWeek);
-    if (lastStanding.length === 1) {
-      winnerParticipantIds = [lastStanding[0].participantId];
-      resolution = 'wipeout_last_standing';
-    } else if (state.settings.endOfSeasonRule === 'all_remaining_winners') {
-      winnerParticipantIds = lastStanding.map(p => p.participantId);
-      resolution = 'wipeout_all_remaining';
-    } else {
-      winnerParticipantIds = pickByMarginTiebreaker(lastStanding);
-      resolution = 'wipeout_margin_tiebreaker';
-    }
-  }
+  const resolved = resolveSurvivorWinners(state.participants, state.settings);
+  if (!resolved.success) return resolved;
+  const { winnerParticipantIds, resolution } = resolved;
 
   const { error } = await supabase
     .from('survivor_winners')
@@ -603,13 +571,59 @@ export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSu
       season: state.season,
       winner_participant_ids: winnerParticipantIds,
       resolution,
+      determined_at: new Date().toISOString(),
     }, { onConflict: 'pool_id,season' });
   if (error) return { success: false, error: error.message };
 
   return { success: true, winnerParticipantIds, resolution };
 }
 
-function pickByMarginTiebreaker(candidates: SurvivorParticipantState[]): string[] {
+type WinnerCandidate = Pick<SurvivorParticipantState, 'participantId' | 'liveStatus' | 'eliminatedWeek' | 'eliminatedSeasonType' | 'picks'>;
+
+/** Chronological position of an elimination: preseason (1) < regular
+ * season (2) < playoffs (3), then week. A playoff week-1 exit outlasts a
+ * regular-season week-18 one. */
+function eliminationOrder(p: WinnerCandidate): number {
+  return (p.eliminatedSeasonType ?? 0) * 100 + (p.eliminatedWeek ?? -1);
+}
+
+/** Pure winner resolution from live eligibility. Exported for tests. */
+export function resolveSurvivorWinners(
+  participants: WinnerCandidate[],
+  settings: Pick<SurvivorTypeSettings, 'endOfSeasonRule'>,
+): { success: true; winnerParticipantIds: string[]; resolution: string } | { success: false; error: string } {
+  // liveStatus only — never the persisted WINNER label. A previous winner
+  // whose winning game was corrected to a loss is ELIMINATED here.
+  const active = participants.filter(p => p.liveStatus === 'ACTIVE');
+
+  if (active.length === 1) {
+    return { success: true, winnerParticipantIds: [active[0].participantId], resolution: 'last_active' };
+  }
+  if (active.length > 1) {
+    return settings.endOfSeasonRule === 'all_remaining_winners'
+      ? { success: true, winnerParticipantIds: active.map(p => p.participantId), resolution: 'all_remaining' }
+      : { success: true, winnerParticipantIds: pickByMarginTiebreaker(active), resolution: 'margin_tiebreaker' };
+  }
+
+  // Wipeout — every participant was eliminated. The "last remaining" group
+  // is whoever survived the longest, evaluated with the same end-of-season
+  // rule as a normal multi-survivor finish, since they were functionally
+  // tied for last-standing.
+  const eliminated = participants.filter(p => p.liveStatus === 'ELIMINATED');
+  if (eliminated.length === 0) {
+    return { success: false, error: 'No participants found for this pool — nothing to finalize.' };
+  }
+  const last = Math.max(...eliminated.map(eliminationOrder));
+  const lastStanding = eliminated.filter(p => eliminationOrder(p) === last);
+  if (lastStanding.length === 1) {
+    return { success: true, winnerParticipantIds: [lastStanding[0].participantId], resolution: 'wipeout_last_standing' };
+  }
+  return settings.endOfSeasonRule === 'all_remaining_winners'
+    ? { success: true, winnerParticipantIds: lastStanding.map(p => p.participantId), resolution: 'wipeout_all_remaining' }
+    : { success: true, winnerParticipantIds: pickByMarginTiebreaker(lastStanding), resolution: 'wipeout_margin_tiebreaker' };
+}
+
+function pickByMarginTiebreaker(candidates: WinnerCandidate[]): string[] {
   const totals = candidates.map(p => ({
     id: p.participantId,
     margin: p.picks.reduce((sum, pick) => sum + (pick.result === 'win' ? pick.margin : 0), 0),
