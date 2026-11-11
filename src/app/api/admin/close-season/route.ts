@@ -4,32 +4,14 @@ import { computeSeasonReview } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 
 /**
- * Season winner for the close-season action — delegates to the same
- * centralized computeSeasonReview() used by the Season Review tab, rather
- * than maintaining a separate points-primary calculation here. This used
- * to implement its own independent algorithm (highest total points, ties
- * broken by weeks won), which silently disagreed with the periods-won rule
- * the Season Review tab uses — a commissioner closing the season here could
- * see a different "winner" than what Season Review reports for the same
- * pool. periods_won isn't part of season_winners' schema, so it's omitted
- * from the persisted row; the source of truth for that number is always a
- * fresh computeSeasonReview() call, not this cached table.
+ * Season winner for the close-season action: the season_winners row that
+ * computeSeasonReview() produces, which is the same row the
+ * determine-weekly-winners cron and scripts/close-season.ts write. Always
+ * recomputed, never read back from the table.
  */
 async function computeSeasonWinner(poolId: string, season: number) {
   const review = await computeSeasonReview(poolId, season);
-  if (!review.seasonWinner) return null;
-  const w = review.seasonWinner;
-  return {
-    pool_id: poolId,
-    season,
-    winner_participant_id: w.winner_participant_id,
-    winner_name: w.winner_name,
-    total_points: w.total_points,
-    total_correct_picks: w.total_correct_picks,
-    weeks_won: w.weeks_won,
-    tie_breaker_used: w.tie_breaker_used,
-    total_participants: review.participantStats.length,
-  };
+  return review.seasonWinnerRow;
 }
 
 export async function POST(request: NextRequest) {
@@ -68,6 +50,7 @@ export async function POST(request: NextRequest) {
     const alreadyClosed: string[] = [];
     const winnersComputed: string[] = [];
     const winnersAlreadyExist: string[] = [];
+    const notes: string[] = [];
     const errors: string[] = [];
 
     for (const pool of pools) {
@@ -102,7 +85,9 @@ export async function POST(request: NextRequest) {
       } else {
         const winner = await computeSeasonWinner(pool.id, pool.season);
         if (!winner) {
-          errors.push(`${pool.name}: no score data to compute winner`);
+          // Nothing scorable yet (no picks, or no period won). Not a failed
+          // write, so it doesn't fail the request.
+          notes.push(`${pool.name}: no score data to compute winner`);
         } else {
           const { error: upsertError } = await supabase
             .from('season_winners')
@@ -117,15 +102,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // A failed deactivate or winner write must not read as success — the
+    // Pool Settings UI shows "winner recorded" whenever success is true.
     return NextResponse.json({
-      success: true,
+      success: errors.length === 0,
+      error: errors.length > 0 ? errors.join('; ') : undefined,
       closed,
       alreadyClosed,
       winnersComputed,
       winnersAlreadyExist,
+      notes,
       errors,
       totalProcessed: pools.length,
-    });
+    }, { status: errors.length === 0 ? 200 : 500 });
   } catch (error) {
     debugError('close-season error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

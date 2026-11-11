@@ -43,7 +43,7 @@ function PoolHistoryContent() {
   const [currentSeasonType, setCurrentSeasonType] = useState(parseInt(seasonTypeParam || '2'));
   const [games, setGames] = useState<Game[]>([]);
   const [, setGamesLoading] = useState(false);
-  const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number; is_tie: boolean } | null>(null);
+  const [weekWinner, setWeekWinner] = useState<{ participant_name: string; points: number; correct_picks: number | string; is_tie: boolean } | null>(null);
   const [weekHasPicks, setWeekHasPicks] = useState<boolean | null>(null);
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,15 +89,17 @@ function PoolHistoryContent() {
     setWeekHasPicks(null);
     try {
       let tiedWinnerName: string | null = null;
+      let tiedCorrectPicks: string | null = null;
       const winnerRes = await fetch(`/api/admin/week-winner?poolId=${poolId}&week=${week}&seasonType=${seasonType}&season=${season}`);
       if (winnerRes.ok) {
         const winnerCheck = await winnerRes.json();
         tiedWinnerName = winnerCheck.tiedWinnerName ?? null;
+        tiedCorrectPicks = winnerCheck.tiedCorrectPicks ?? null;
         if (winnerCheck.winnerExists && winnerCheck.winner) {
           setWeekWinner({
             participant_name: winnerCheck.winner.winner_name,
             points: winnerCheck.winner.winner_points,
-            correct_picks: winnerCheck.winner.winner_correct_picks,
+            correct_picks: tiedCorrectPicks ?? winnerCheck.winner.winner_correct_picks,
             is_tie: !!tiedWinnerName,
           });
           setWeekHasPicks(true);
@@ -111,7 +113,7 @@ function PoolHistoryContent() {
         const anyPicksSubmitted = !!result.leaderboard?.some((entry: { total_picks?: number }) => (entry.total_picks ?? 0) > 0);
         if (result.success && anyPicksSubmitted) {
           const winner = result.leaderboard[0];
-          setWeekWinner({ participant_name: tiedWinnerName ?? winner.participant_name, points: winner.total_points, correct_picks: winner.correct_picks, is_tie: !!tiedWinnerName });
+          setWeekWinner({ participant_name: tiedWinnerName ?? winner.participant_name, points: winner.total_points, correct_picks: tiedCorrectPicks ?? winner.correct_picks, is_tie: !!tiedWinnerName });
           setWeekHasPicks(true);
         } else {
           setWeekHasPicks(false);

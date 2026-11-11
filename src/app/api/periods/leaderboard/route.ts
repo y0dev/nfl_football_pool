@@ -79,6 +79,8 @@ async function getRegularSeasonPeriodLeaderboard(poolId: string, season: number,
       winner_name: w.winner_name,
       winner_points: w.winner_points,
       winner_correct_picks: w.winner_correct_picks,
+      // Co-winners can have different correct-pick counts ("9 / 8").
+      winner_correct_picks_display: w.winner_correct_picks_display,
       tie_breaker_used: false,
       total_participants: w.total_participants,
     }));

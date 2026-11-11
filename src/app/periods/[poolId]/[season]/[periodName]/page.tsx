@@ -48,6 +48,8 @@ interface WeeklyWinner {
   winner_name: string;
   winner_points: number;
   winner_correct_picks: number;
+  /** "9", or "9 / 8" when a tied week's co-winners differ. */
+  winner_correct_picks_display: string;
   tie_breaker_used: boolean;
   total_participants: number;
 }
@@ -269,6 +271,7 @@ function PeriodLeaderboardContent() {
             winner_name: winner.winner_name || 'Unknown',
             winner_points: winner.winner_points || 0,
             winner_correct_picks: winner.winner_correct_picks || 0,
+            winner_correct_picks_display: String(winner.winner_correct_picks_display ?? winner.winner_correct_picks ?? 0),
             tie_breaker_used: winner.tie_breaker_used || false,
             total_participants: winner.total_participants || 0
           }));
@@ -711,7 +714,7 @@ function PeriodLeaderboardContent() {
                                       </span>
                                       <span style={{ color: textDim, fontSize: '0.7rem' }}>•</span>
                                       <span style={{ ...b, fontSize: '0.78rem', color: textMid }}>
-                                        <span style={{ fontWeight: 700 }}>{winner.winner_correct_picks}</span> correct
+                                        <span style={{ fontWeight: 700 }}>{winner.winner_correct_picks_display}</span> correct
                                       </span>
                                     </div>
                                   </>

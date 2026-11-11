@@ -24,6 +24,8 @@
     "fetch-games-all": "npm run fetch-games-preseason && npm run fetch-games-regular-only && npm run fetch-games-postseason",
     "create-test-data": "tsx scripts/create-test-data.ts",
     "test": "playwright test",
+    "test:unit": "node --import tsx --test \"tests/unit/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p .",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
@@ -74,6 +76,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@eslint/eslintrc": "^3.3.3",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.17",
