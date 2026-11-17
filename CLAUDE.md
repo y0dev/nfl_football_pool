@@ -9,6 +9,8 @@ npm run dev          # Dev server with Turbopack at http://localhost:3000
 npm run build        # Production build
 npm run lint         # ESLint check
 npm run test         # Playwright E2E tests (headless)
+npm run test:unit    # Unit/DB tests (node:test + in-process Postgres via PGlite; no secrets) — what CI runs
+npm run typecheck    # tsc --noEmit
 npm run test:headed  # Tests with visible browser
 npm run test:ui      # Interactive test runner
 npm run test:debug   # Debug test execution
@@ -44,7 +46,8 @@ A pool's `competition_type` is one of `NFL_CONFIDENCE` (default), `PICKEM`, or `
 - **Client picks** → Server Action (`src/actions/submitPicks.ts`, plus `pickem`/`survivor`-specific equivalents) → API route → Supabase
 - **Score calculation** → `src/lib/winner-calculator.ts` / `src/lib/season-review.ts` compute scores → stored in `scores` / `weekly_winners` / `period_winners` / `season_winners`
 - **NFL game data** → ESPN API via `src/lib/nfl-api.ts` (falls back from API Sports) → `games` table
-- **Scheduled scoring** → `pg_cron` + `pg_net` call two Supabase Edge Functions on a recurring schedule: `update-game-scores` (refreshes game status/score from ESPN) and `determine-weekly-winners` (once a week is final, computes weekly/period/season winners). A `cron_run_locks` table prevents overlapping runs. See `docs/cron-jobs-setup.md`.
+- **Scheduled scoring** → `pg_cron` + `pg_net` call two Supabase Edge Functions on a recurring schedule: `update-game-scores` (refreshes game status/score from ESPN) and `determine-weekly-winners` (recomputes scores + weekly/period/season winners for Confidence pools). Triggers mark a pool in `confidence_results_dirty` whenever a finished game, a pick on one, a tie-breaker, a participant or the pool's tie-breaker settings change; the cron only fires while a pool is marked, and writes each pool's changes in one transaction (`apply_confidence_pool_results`). A `cron_run_locks` table prevents overlapping runs. See `docs/cron-jobs-setup.md`.
+- **One set of Confidence scoring rules** → `supabase/functions/_shared/confidence-results.ts` (no imports, runs in Deno and Node). `computeSeasonReview()`, the cron, both Close Season paths and `winner-calculator.ts` all go through it — don't add another implementation.
 - **Payments** → Stripe Checkout (`src/app/api/stripe/checkout`) → webhook (`src/app/api/stripe/webhook`) → `payments` table + `commissioners.plan`/`addon_pools`. One-time **per-season** purchases, not recurring subscriptions — see Billing below.
 - **Email notifications** → `src/lib/email.ts` (Nodemailer, Hostinger/Titan SMTP) → templates in `src/lib/email-templates*.ts`
 
@@ -113,4 +116,4 @@ Optional: `API_SPORTS_KEY` (NFL data fallback), `SMTP_HOST/PORT/USER/PASS/FROM` 
 
 ### Testing
 
-Playwright e2e specs live in `tests/e2e/`. Global setup (`tests/setup/global-setup.ts`) seeds/reactivates a couple of shared demo admin accounts several specs depend on. Global teardown (`tests/setup/global-teardown.ts`) sweeps any pool/commissioner/huddle left behind by a spec that didn't clean up after itself (e.g. crashed before its own `finally` ran) — matched by the repo-wide convention of `"E2E "`-prefixed pool names and `e2e-*@sundayhuddle.*` emails every spec already uses. Don't run the Stripe specs (`stripe-payment.spec.ts`, the webhook-idempotency spec) as part of routine verification — they create real Supabase commissioner accounts that need manual cleanup; only run them when a change specifically touches billing logic.
+Unit/DB tests live in `tests/unit/*.test.ts` (`npm run test:unit`, required in CI via `.github/workflows/ci.yml`). They run the real migration SQL in PGlite through a small Supabase-client stand-in (`tests/unit/helpers/pg-supabase.ts`). Playwright e2e specs live in `tests/e2e/`. Global setup (`tests/setup/global-setup.ts`) seeds/reactivates a couple of shared demo admin accounts several specs depend on. Global teardown (`tests/setup/global-teardown.ts`) sweeps any pool/commissioner/huddle left behind by a spec that didn't clean up after itself (e.g. crashed before its own `finally` ran) — matched by the repo-wide convention of `"E2E "`-prefixed pool names and `e2e-*@sundayhuddle.*` emails every spec already uses. Don't run the Stripe specs (`stripe-payment.spec.ts`, the webhook-idempotency spec) as part of routine verification — they create real Supabase commissioner accounts that need manual cleanup; only run them when a change specifically touches billing logic.

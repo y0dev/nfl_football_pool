@@ -25,6 +25,10 @@
 !tests/utils/**
 !tests/setup
 !tests/setup/**
+!tests/unit
+!tests/unit/**
+!.github
+!.github/**
 !tests/how-it-works-faq.spec.ts
 !next.config.js
 !playwright.config.ts

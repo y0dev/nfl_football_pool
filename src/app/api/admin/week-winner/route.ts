@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { computeSeasonReview, getTiedWinnerName } from '@/lib/season-review';
+import { computeSeasonReview, getTiedWinnerCorrectPicks, getTiedWinnerName } from '@/lib/season-review';
 import { debugLog, debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -49,10 +49,12 @@ export async function GET(request: NextRequest) {
     // from the live computation. Season review is regular-season only; a
     // failure here just falls back to the stored row.
     let tiedWinnerName: string | null = null;
+    let tiedCorrectPicks: string | null = null;
     if (parseInt(seasonType) === 2) {
       try {
         const review = await computeSeasonReview(poolId, parseInt(season));
         tiedWinnerName = getTiedWinnerName(review, parseInt(week));
+        tiedCorrectPicks = getTiedWinnerCorrectPicks(review, parseInt(week));
       } catch (reviewError) {
         debugError('Error checking for tied week winners:', reviewError);
       }
@@ -63,14 +65,18 @@ export async function GET(request: NextRequest) {
         success: true,
         winnerExists: true,
         winner: tiedWinnerName ? { ...existingWinner, winner_name: tiedWinnerName } : existingWinner,
-        tiedWinnerName
+        tiedWinnerName,
+        // Co-winners can have different correct-pick counts: "9 / 8", in the
+        // same order as the names in tiedWinnerName.
+        tiedCorrectPicks
       });
     } else {
       return NextResponse.json({
         success: true,
         winnerExists: false,
         winner: null,
-        tiedWinnerName
+        tiedWinnerName,
+        tiedCorrectPicks
       });
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { computeSeasonReview, getTiedWinnerName } from '@/lib/season-review';
+import { computeSeasonReview, getTiedWinnerCorrectPicks, getTiedWinnerName } from '@/lib/season-review';
 import { debugError } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -61,7 +61,10 @@ export async function GET(request: NextRequest) {
         success: true,
         weeklyWinners: (weeklyWinners || []).map(row => {
           const tiedName = review && row.season_type === 2 ? getTiedWinnerName(review, row.week) : null;
-          return tiedName ? { ...row, winner_name: tiedName } : row;
+          const tiedCorrectPicks = review && row.season_type === 2 ? getTiedWinnerCorrectPicks(review, row.week) : null;
+          return tiedName
+            ? { ...row, winner_name: tiedName, winner_correct_picks_display: tiedCorrectPicks ?? String(row.winner_correct_picks) }
+            : { ...row, winner_correct_picks_display: String(row.winner_correct_picks) };
         })
       });
     }
