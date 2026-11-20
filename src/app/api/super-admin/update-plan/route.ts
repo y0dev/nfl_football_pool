@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
-import { debugError } from '@/lib/utils';
+import { debugError, getNFLSeasonYear } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
 
     const updateData: Record<string, unknown> = {
       plan,
+      // A manual Standard grant covers the current season, same as a paid
+      // one (comped accounts ignore plan_season — see isPaidPlanCurrent).
+      plan_season: plan === 'standard' ? getNFLSeasonYear() : null,
       updated_at: new Date().toISOString(),
     };
 

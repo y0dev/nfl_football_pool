@@ -88,6 +88,9 @@ function buildProposedPayload(game: NFLGame): Record<string, unknown> {
 
 function snapshotRelevantFields(row: DbGameRow): Record<string, unknown> {
   return {
+    week: row.week,
+    season: row.season,
+    season_type: row.season_type,
     kickoff_time: row.kickoff_time,
     home_score: row.home_score,
     away_score: row.away_score,
@@ -125,6 +128,16 @@ export function diffGame(incoming: NFLGame, existing: DbGameRow | null): Propose
   if (kickoffChanged) {
     fieldDiffs.kickoff_time = { old: before.kickoff_time, new: proposedPayload.kickoff_time };
     summaryLines.push('Kickoff time changed');
+  }
+
+  // A rescheduled game (postponement, flex into another week, moved into the
+  // postseason) changes which week it scores in — the Confidence results
+  // for both the old and new week are recomputed once this is applied.
+  for (const field of ['week', 'season', 'season_type'] as const) {
+    if (before[field] !== proposedPayload[field]) {
+      fieldDiffs[field] = { old: before[field], new: proposedPayload[field] };
+      summaryLines.push(`${field === 'season_type' ? 'Season type' : field === 'week' ? 'Week' : 'Season'} changed: ${before[field]} → ${proposedPayload[field]}`);
+    }
   }
 
   if (before.status !== proposedPayload.status) {
@@ -189,7 +202,10 @@ export function buildSyncPreview(
   };
 }
 
-const SNAPSHOT_FIELDS = ['kickoff_time', 'home_score', 'away_score', 'winner', 'status', 'home_team', 'away_team', 'home_team_id', 'away_team_id'] as const;
+const SNAPSHOT_FIELDS = ['week', 'season', 'season_type', 'kickoff_time', 'home_score', 'away_score', 'winner', 'status', 'home_team', 'away_team', 'home_team_id', 'away_team_id'] as const;
+/** Added to snapshots later — a pending change recorded before then has no
+ * value for them, which must not read as "the database moved". */
+const LATER_SNAPSHOT_FIELDS: ReadonlySet<string> = new Set(['week', 'season', 'season_type']);
 
 function snapshotValuesEqual(field: string, a: unknown, b: unknown): boolean {
   // kickoff_time round-trips through Postgres/JSONB as a different but
@@ -210,7 +226,8 @@ function snapshotValuesEqual(field: string, a: unknown, b: unknown): boolean {
 function snapshotsEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return SNAPSHOT_FIELDS.every(field => snapshotValuesEqual(field, a[field], b[field]));
+  return SNAPSHOT_FIELDS.every(field =>
+    (LATER_SNAPSHOT_FIELDS.has(field) && (!(field in a) || !(field in b))) || snapshotValuesEqual(field, a[field], b[field]));
 }
 
 /** Re-checks a proposed change's baseSnapshot against the CURRENT games row

@@ -51,8 +51,9 @@ export default {
       log('open_games_loaded', { open_game_count: openGames.length })
 
       // Scoreboard days: each open game's kickoff date (±1 day) plus today,
-      // so a game missed on its day is still caught up later. See
-      // scoreboardDates() in ../_shared/espn-score-sync.ts.
+      // so a game missed on its day is still caught up later. Capped per
+      // run; older outstanding games rotate through the spare slots so none
+      // is starved. See scoreboardDates() in ../_shared/espn-score-sync.ts.
       const dates = scoreboardDates(openGames)
       const events = await fetchScoreboardEvents(dates)
       log('espn_events_fetched', { dates, event_count: events.length })

@@ -6,6 +6,7 @@ import { Shield, Plus, Check } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { PriceTag } from '@/components/pricing/price-tag';
+import { SalesFinalNotice } from '@/components/pricing/sales-final-notice';
 import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
 
 // Design tokens (matches landing page / app-wide dark theme)
@@ -160,7 +161,7 @@ export default function PricingContent() {
             Everything You Need To <span style={{ color: gold }}>Run Your Huddle</span>
           </h1>
           <p style={{ ...b, fontSize: '1rem', lineHeight: 1.72, color: textMid, maxWidth: '52ch', margin: '0 auto' }}>
-            Pricing is per season — roughly 6 months of NFL action. Start free, upgrade when your Huddle needs more room.
+            Pricing is per season — one payment covers the whole season, through the Super Bowl. No subscription, no auto-renewal. Start free, upgrade when your Huddle needs more room.
           </p>
         </div>
       </section>
@@ -170,6 +171,7 @@ export default function PricingContent() {
       {/* ── PLANS ── */}
       <section style={{ background: surface, padding: '3rem 0' }}>
         <div className="lp-inner">
+          <SalesFinalNotice />
           {/* Two plans: Free and Standard — that's the price */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'start', maxWidth: 720, margin: '0 auto' }}>
 

@@ -14,6 +14,21 @@ jobs:
     name: Lint, typecheck, unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Real PostgreSQL for the SQL tests that also run against it (PGlite's
+    # millisecond clock can hide timing bugs) — see
+    # tests/unit/helpers/real-postgres.ts.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,8 +40,11 @@ jobs:
       - run: npm run typecheck
       # Scores/winners recalculation, Survivor finalization and pick
       # replacement, ESPN date fetching. Runs the real migration SQL in
-      # in-process Postgres (PGlite); needs no secrets or network.
+      # in-process Postgres (PGlite); needs no secrets or network. Tests that
+      # also target real Postgres use the service container above.
       - run: npm run test:unit
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
 
   edge-functions:
     name: Edge Functions (Deno check)

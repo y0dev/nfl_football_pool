@@ -211,8 +211,7 @@ export const DEFAULT_SEASON_TYPE = 2; // 1=Preseason, 2=Regular Season, 3=Postse
  * 
  * @returns The NFL season year (e.g., if it's January 2025, returns 2024)
  */
-export function getNFLSeasonYear(): number {
-  const now = new Date();
+export function getNFLSeasonYear(now: Date = new Date()): number {
   const currentYear = now.getFullYear();
   const month = now.getMonth() + 1; // 1-12
   const day = now.getDate();

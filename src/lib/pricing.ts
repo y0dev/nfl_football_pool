@@ -54,6 +54,17 @@ export function getAddonPoolPrice(): PriceInfo {
   return priceInfo(ADDON_LIST, ADDON_SALE);
 }
 
+// No-refund policy — one string so checkout, the pricing/upgrade pages, the
+// receipt email and the Terms all say the same thing.
+export const ALL_SALES_FINAL = 'All sales are final — no refunds.';
+export const ALL_SALES_FINAL_DETAIL =
+  'All sales are final. Purchases are non-refundable, including if you downgrade, stop using Sunday Huddle, or your pool ends early.';
+
+/** "2026–27" for the season that kicks off in 2026 and ends at the Super Bowl. */
+export function seasonLabel(season: number): string {
+  return `${season}–${String((season + 1) % 100).padStart(2, '0')}`;
+}
+
 export function getSaleLabel(): string {
   return process.env.NEXT_PUBLIC_SALE_LABEL || 'Launch Special';
 }

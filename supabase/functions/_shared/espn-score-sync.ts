@@ -9,6 +9,14 @@ export const ESPN_BASE = 'https://site.web.api.espn.com/apis/site/v2/sports/foot
  * can't trigger a request flood. */
 export const MAX_SCOREBOARD_DAYS = 14
 
+/** Open games that kicked off within this many days are "recent": their
+ * dates are fetched on every run. Older open games are the backlog. */
+export const RECENT_DAYS = 3
+
+/** The backlog advances one slice per this interval — the update-game-scores
+ * cron cadence (every 10 minutes). */
+export const BACKLOG_ROTATION_MS = 10 * 60_000
+
 const DAY_MS = 86_400_000
 
 export function toYMD(d: Date): string {
@@ -20,22 +28,41 @@ export function toYMD(d: Date): string {
  * and the days either side. Driving this off the open games' own kickoff
  * dates, rather than a fixed window around today, means a game the cron
  * missed on its day is still picked up on a later run. Games more than a
- * day in the future are skipped. Capped at the most recent
- * MAX_SCOREBOARD_DAYS days.
+ * day in the future are skipped.
+ *
+ * At most MAX_SCOREBOARD_DAYS dates per run. Today and recent games (last
+ * RECENT_DAYS days) always fit. Older open games share the remaining slots
+ * through a rotation that advances every BACKLOG_ROTATION_MS, so every old
+ * outstanding game is fetched within a few runs — and a game ESPN never
+ * resolves can't permanently crowd the others out (a plain "keep the most
+ * recent N days" cap left any game older than the window stuck forever).
  *
  * ESPN files games under their US Eastern calendar date, which trails the
  * UTC date for evening kickoffs (an 8:20pm ET game is 00:20 UTC the next
  * day), hence the day before as well as the day after.
  */
 export function scoreboardDates(openGames: Array<{ kickoff_time?: string | null }>, now: number = Date.now()): string[] {
-  const dates = new Set<string>([toYMD(new Date(now))])
+  const recent = new Set<string>([toYMD(new Date(now))])
+  const backlog = new Set<string>()
   for (const g of openGames) {
     const kickoff = g.kickoff_time ? new Date(g.kickoff_time).getTime() : NaN
     if (Number.isNaN(kickoff) || kickoff > now + DAY_MS) continue
-    for (const offset of [-1, 0, 1]) dates.add(toYMD(new Date(kickoff + offset * DAY_MS)))
+    const target = kickoff >= now - RECENT_DAYS * DAY_MS ? recent : backlog
+    for (const offset of [-1, 0, 1]) target.add(toYMD(new Date(kickoff + offset * DAY_MS)))
   }
-  // YYYYMMDD sorts chronologically; keep the most recent days if capped.
-  return [...dates].sort().slice(-MAX_SCOREBOARD_DAYS)
+  for (const d of recent) backlog.delete(d)
+
+  // YYYYMMDD sorts chronologically. The recent window spans at most
+  // RECENT_DAYS + 4 dates, well under the cap.
+  const recentDates = [...recent].sort().slice(-MAX_SCOREBOARD_DAYS)
+  const slots = MAX_SCOREBOARD_DAYS - recentDates.length
+  const old = [...backlog].sort()
+  let picked = old
+  if (old.length > slots) {
+    const start = (Math.floor(now / BACKLOG_ROTATION_MS) * slots) % old.length
+    picked = Array.from({ length: slots }, (_, i) => old[(start + i) % old.length])
+  }
+  return [...new Set([...recentDates, ...picked])].sort()
 }
 
 /** ESPN's scoreboard rejects `dates=START-END` ranges with a 400, so each day

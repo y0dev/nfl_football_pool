@@ -140,6 +140,46 @@ export interface SurvivorPoolState {
    * computeWeekUnlockStatus (see currentWeekGames below). */
   currentWeek: { week: number; seasonType: number } | null;
   currentWeekGames: SurvivorCurrentWeekGame[];
+  finalization: SurvivorFinalization;
+}
+
+/** Whether the persisted survivor_winners row still matches what current
+ * game results say. A corrected result after finalizing makes it
+ * 'outdated' — the commissioner must re-finalize; nothing does it for them
+ * (see finalizeSurvivorSeason). */
+export interface SurvivorFinalization {
+  status: 'not_finalized' | 'up_to_date' | 'outdated';
+  finalizedAt: string | null;
+  /** Winners as stored at the last finalization. */
+  finalizedWinnerIds: string[];
+  /** Winners re-finalizing now would store (null if none can be resolved). */
+  currentWinnerIds: string[] | null;
+  /** Every scheduled game in scope has a final result, or at most one
+   * participant is still alive — the season can be finalized. */
+  readyToFinalize: boolean;
+}
+
+export function describeSurvivorFinalization(
+  participants: WinnerCandidate[],
+  settings: Pick<SurvivorTypeSettings, 'endOfSeasonRule'>,
+  stored: { winnerParticipantIds: string[]; determinedAt: string | null } | null,
+  allGamesFinal: boolean,
+): SurvivorFinalization {
+  const resolved = resolveSurvivorWinners(participants, settings);
+  const currentWinnerIds = resolved.success ? [...resolved.winnerParticipantIds].sort() : null;
+  const finalizedWinnerIds = [...(stored?.winnerParticipantIds ?? [])].sort();
+  const activeCount = participants.filter(p => p.liveStatus === 'ACTIVE').length;
+  const finalized = !!stored && finalizedWinnerIds.length > 0;
+  const matches = currentWinnerIds != null
+    && currentWinnerIds.length === finalizedWinnerIds.length
+    && currentWinnerIds.every((id, i) => id === finalizedWinnerIds[i]);
+  return {
+    status: !finalized ? 'not_finalized' : matches ? 'up_to_date' : 'outdated',
+    finalizedAt: stored?.determinedAt ?? null,
+    finalizedWinnerIds,
+    currentWinnerIds,
+    readyToFinalize: participants.length > 0 && (allGamesFinal || activeCount <= 1),
+  };
 }
 
 function hasFinalResult(game: GameRow): boolean {
@@ -352,7 +392,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
   // liveStatus is left alone.
   const { data: winnerRow, error: winnerError } = await supabase
     .from('survivor_winners')
-    .select('winner_participant_ids')
+    .select('winner_participant_ids, determined_at')
     .eq('pool_id', poolId)
     .eq('season', pool.season)
     .maybeSingle();
@@ -391,6 +431,12 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
     winnerParticipantIds,
     currentWeek,
     currentWeekGames,
+    finalization: describeSurvivorFinalization(
+      participantStates,
+      settings,
+      winnerRow ? { winnerParticipantIds, determinedAt: winnerRow.determined_at ?? null } : null,
+      currentWeekEntry === null,
+    ),
   };
 }
 

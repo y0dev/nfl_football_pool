@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  BACKLOG_ROTATION_MS,
   MAX_SCOREBOARD_DAYS,
   fetchScoreboardEvents,
   gameUpdateFromEvent,
@@ -57,11 +58,40 @@ test('future games and bad kickoff times add no dates', () => {
   assert.deepEqual(scoreboardDates([{ kickoff_time: '2026-11-15T18:00:00Z' }, { kickoff_time: null }, { kickoff_time: 'nope' }], NOW), ['20261110']);
 });
 
-test('dates are capped to the most recent days', () => {
-  const stale = Array.from({ length: 30 }, (_, i) => ({ kickoff_time: new Date(NOW - (i + 1) * 3 * 86_400_000).toISOString() }));
-  const dates = scoreboardDates(stale, NOW);
+const DAY = 86_400_000;
+const kickoffsDaysAgo = (...days: number[]) => days.map(d => ({ kickoff_time: new Date(NOW - d * DAY).toISOString() }));
+
+test('dates are capped per run, and today plus recent games always fit', () => {
+  const stale = kickoffsDaysAgo(...Array.from({ length: 30 }, (_, i) => (i + 2) * 3)); // 6..93 days ago
+  const recent = kickoffsDaysAgo(0.2, 1, 2);
+  const dates = scoreboardDates([...stale, ...recent], NOW);
   assert.equal(dates.length, MAX_SCOREBOARD_DAYS);
-  assert.equal(dates[dates.length - 1], '20261110', 'keeps the newest');
+  for (const d of ['20261107', '20261108', '20261109', '20261110']) assert.ok(dates.includes(d), `recent ${d}`);
+  assert.deepEqual(dates, [...dates].sort());
+});
+
+test('old outstanding games are not starved: every backlog date is fetched within a few runs', () => {
+  // 40 open games stuck 5..125 days ago — far more dates than one run fits.
+  const stale = kickoffsDaysAgo(...Array.from({ length: 40 }, (_, i) => 5 + i * 3));
+  const wanted = new Set(stale.flatMap(g => {
+    const t = Date.parse(g.kickoff_time);
+    return [-1, 0, 1].map(o => new Date(t + o * DAY).toISOString().slice(0, 10).replace(/-/g, ''));
+  }));
+  const seen = new Set<string>();
+  let runs = 0;
+  for (; runs < 50 && [...wanted].some(d => !seen.has(d)); runs++) {
+    const dates = scoreboardDates(stale, NOW + runs * BACKLOG_ROTATION_MS);
+    assert.ok(dates.length <= MAX_SCOREBOARD_DAYS);
+    for (const d of dates) seen.add(d);
+  }
+  assert.deepEqual([...wanted].filter(d => !seen.has(d)), [], 'every old date visited');
+  assert.ok(runs <= Math.ceil(wanted.size / (MAX_SCOREBOARD_DAYS - 1)) + 1, `covered in ${runs} runs (10 min apart)`);
+});
+
+test('a small backlog is fetched in full every run', () => {
+  const dates = scoreboardDates(kickoffsDaysAgo(20, 40), NOW);
+  for (const d of ['20261020', '20261021', '20261022', '20260930', '20261001', '20261002', '20261110']) assert.ok(dates.includes(d), d);
+  assert.equal(dates.length, 7);
 });
 
 test('fetches one single-day request per date (never a date range) and merges events by id', async () => {

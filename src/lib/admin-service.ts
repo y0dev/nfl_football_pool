@@ -41,6 +41,7 @@ export interface Admin {
   plan?: string | null;
   trial_ends_at?: string | null;
   billing_exempt?: boolean | null;
+  plan_season?: number | null;
 }
 
 /**
@@ -297,7 +298,7 @@ class AdminService {
           .select('id, email, full_name, is_super_admin, is_active, created_at'),
         this.supabase
           .from('commissioners')
-          .select('id, email, full_name, is_active, created_at, plan, trial_ends_at'),
+          .select('id, email, full_name, is_active, created_at, plan, trial_ends_at, billing_exempt, plan_season'),
       ]);
 
       if (adminsResult.error) {

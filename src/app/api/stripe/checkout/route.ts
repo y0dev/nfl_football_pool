@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
 import { getStripe, getPriceId, BillingProduct } from '@/lib/stripe';
+import { computePlanInfo, isPaidPlanCurrent } from '@/lib/plan';
+import { ALL_SALES_FINAL, seasonLabel } from '@/lib/pricing';
 
 // Create a Stripe Checkout session for a plan purchase.
 // Returns 503 until Stripe is configured and pricing is unhidden, so the
@@ -67,10 +69,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add-on pools sit on top of Standard — require it first
-    if (product === 'addon_pool' && (admin.plan ?? 'free') !== 'standard') {
+    // Season-aware: a Standard plan bought for a season that has ended no
+    // longer counts (see isPaidPlanCurrent in src/lib/plan.ts).
+    const planInfo = computePlanInfo(admin);
+    const season = planInfo.currentSeason;
+    const hasPaidStandardThisSeason = isPaidPlanCurrent(admin, season) && (admin.plan ?? 'free') === 'standard';
+
+    // All sales are final, so never let someone pay twice for the same
+    // season (double-click, second tab, stale page).
+    if (product === 'standard' && hasPaidStandardThisSeason) {
       return NextResponse.json(
-        { success: false, error: 'Add-on pools require the Standard plan' },
+        { success: false, error: `You already have Standard for the ${seasonLabel(season)} season.` },
+        { status: 400 }
+      );
+    }
+
+    // Add-on pools sit on top of a paid Standard plan for this season — a
+    // trial doesn't count, since the add-ons would outlive it.
+    if (product === 'addon_pool' && !hasPaidStandardThisSeason) {
+      return NextResponse.json(
+        { success: false, error: `Add-on pools require the Standard plan for the ${seasonLabel(season)} season` },
         { status: 400 }
       );
     }
@@ -120,16 +138,18 @@ export async function POST(request: NextRequest) {
       // to say, which depends on Stripe Dashboard config we can't verify
       // from code. This puts the same fact directly on the payment page
       // itself, right by the button where money actually changes hands.
+      // Also states the no-refund policy right where money changes hands.
       custom_text: {
         submit: {
-          message: product === 'addon_pool'
-            ? 'One-time payment covering this NFL season for each additional pool — no auto-renewal or subscription.'
-            : 'One-time payment covering this NFL season — no auto-renewal or subscription.',
+          message: (product === 'addon_pool'
+            ? `One-time payment covering the ${seasonLabel(season)} NFL season (through the Super Bowl) for each additional pool — no auto-renewal or subscription.`
+            : `One-time payment covering the ${seasonLabel(season)} NFL season (through the Super Bowl) — no auto-renewal or subscription.`)
+            + ` ${ALL_SALES_FINAL}`,
         },
       },
       success_url: `${baseUrl}/upgrade?checkout=success`,
       cancel_url: `${baseUrl}/upgrade?checkout=cancelled`,
-      metadata: { adminId, product, quantity: String(qty) },
+      metadata: { adminId, product, quantity: String(qty), season: String(season) },
     });
 
     return NextResponse.json({ success: true, url: session.url });

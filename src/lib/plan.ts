@@ -1,6 +1,9 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { getOrCreateHuddleRecordForCommissioner } from './huddles';
-import { INACTIVE_POOL_LIMITS } from './utils';
+import { INACTIVE_POOL_LIMITS, getNFLSeasonYear } from './utils';
+import { isPaidPlanCurrent, type AdminPlanRow } from './plan-season';
+
+export { isPaidPlanCurrent, type AdminPlanRow };
 
 export type Plan = 'free' | 'standard';
 
@@ -42,17 +45,20 @@ export interface PlanInfo {
   huddleLimit: number;
   /** Comped by the site admin — keeps their plan without ever paying. */
   billingExempt: boolean;
+  /** The NFL season (getNFLSeasonYear) the paid Standard plan covers, or
+   *  null when it isn't season-bound (comped, free, legacy row). */
+  planSeason: number | null;
+  /** True when the account bought Standard for a season that has since
+   *  ended and hasn't bought the current one — it's back on Free. */
+  planLapsed: boolean;
+  /** The NFL season a purchase made right now would cover. */
+  currentSeason: number;
 }
 
-type AdminPlanRow = {
-  plan?: string | null;
-  trial_ends_at?: string | null;
-  addon_pools?: number | null;
-  billing_exempt?: boolean | null;
-} | null;
-
-function computePlanInfo(row: AdminPlanRow): PlanInfo {
-  const now = new Date();
+export function computePlanInfo(row: AdminPlanRow, now: Date = new Date()): PlanInfo {
+  const currentSeason = getNFLSeasonYear(now);
+  const storedPlanCurrent = isPaidPlanCurrent(row, currentSeason);
+  const planLapsed = !!row && (row.plan ?? 'free') !== 'free' && !storedPlanCurrent;
   const trialEndsAt = row?.trial_ends_at ?? null;
   const trialDate = trialEndsAt ? new Date(trialEndsAt) : null;
   const isTrialActive = trialDate ? trialDate > now : false;
@@ -61,7 +67,8 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     : 0;
 
   // While trial is active, grant Standard-level access regardless of plan column
-  const rawPlan = isTrialActive ? 'standard' : (row?.plan ?? 'free');
+  // A lapsed season-bound plan reads as free.
+  const rawPlan = isTrialActive ? 'standard' : (storedPlanCurrent ? (row?.plan ?? 'free') : 'free');
   // Defend against stale/unrecognized values in admins.plan — e.g. rows
   // still holding the retired 'pro' tier — rather than crashing on
   // LIMITS[plan] below. A legacy premium tier maps to today's highest
@@ -80,6 +87,9 @@ function computePlanInfo(row: AdminPlanRow): PlanInfo {
     participantLimit: LIMITS[plan].participants,
     huddleLimit: LIMITS[plan].huddles,
     billingExempt: row?.billing_exempt ?? false,
+    planSeason: storedPlanCurrent && !row?.billing_exempt ? (row?.plan_season ?? null) : null,
+    planLapsed: planLapsed && !isTrialActive,
+    currentSeason,
   };
 }
 
