@@ -5,7 +5,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { PGlite } from '@electric-sql/pglite';
 import { createTestDatabase, installServiceClient, type FakeSupabase } from './helpers/pg-supabase';
-import { computeSurvivorPoolState, finalizeSurvivorSeason, resolveSurvivorWinners, submitSurvivorPick } from '../../src/lib/survivor';
+import { NextRequest } from 'next/server';
+import { computeSurvivorPoolState, describeSurvivorFinalization, finalizeSurvivorSeason, resolveSurvivorWinners, submitSurvivorPick } from '../../src/lib/survivor';
+import { createSessionToken } from '../../src/lib/session';
+import { POST as survivorFinalizePOST } from '../../src/app/api/survivor/finalize/route';
 
 const SEASON = 2026;
 
@@ -169,4 +172,74 @@ test('replace_survivor_pick re-checks team reuse in the database and rolls back'
     /SURVIVOR_TEAM_ALREADY_USED/,
   );
   assert.deepEqual(await playoffPicks(db, p.A), [{ selected_team: 'PHI', game_id: 'po-2' }]);
+});
+
+// ---- Commissioner re-finalization (the route the admin panel calls) ----
+
+test('commissioner re-finalization: a corrected result marks the pool outdated until re-finalized', async () => {
+  process.env.SESSION_SECRET ??= 'unit-test-session-secret';
+  const { db } = await setup();
+  await db.exec(`
+    CREATE TABLE admins (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email varchar NOT NULL, is_active boolean DEFAULT true);
+    CREATE TABLE commissioners (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email varchar NOT NULL, is_active boolean DEFAULT true);
+  `);
+  const p = await createPool(db, [2]);
+  const { rows: [owner] } = await db.query<{ id: string }>(`INSERT INTO commissioners (email) VALUES ('e2e-owner@sundayhuddle.test') RETURNING id`);
+  const { rows: [stranger] } = await db.query<{ id: string }>(`INSERT INTO commissioners (email) VALUES ('e2e-other@sundayhuddle.test') RETURNING id`);
+  await db.query(`UPDATE pools SET created_by = 'e2e-owner@sundayhuddle.test' WHERE id = $1`, [p.poolId]);
+
+  await game(db, { id: 'w1-kc', week: 1, seasonType: 2, home: 'KC', away: 'DEN', kickoff: '2026-09-10T00:20:00Z', status: 'final', homeScore: 24, awayScore: 10 });
+  await game(db, { id: 'w1-buf', week: 1, seasonType: 2, home: 'BUF', away: 'MIA', kickoff: '2026-09-13T17:00:00Z', status: 'final', homeScore: 10, awayScore: 20 });
+  await game(db, { id: 'w2-sf', week: 2, seasonType: 2, home: 'SF', away: 'NYJ', kickoff: '2026-09-20T17:00:00Z', status: 'final', homeScore: 30, awayScore: 3 });
+  await pick(db, p.poolId, p.A, 'w1-kc', 2, 1, 'KC');
+  await pick(db, p.poolId, p.A, 'w2-sf', 2, 2, 'SF');
+  await pick(db, p.poolId, p.B, 'w1-buf', 2, 1, 'MIA');
+  await pick(db, p.poolId, p.B, 'w2-sf', 2, 2, 'NYJ');
+  await pick(db, p.poolId, p.C, 'w1-buf', 2, 1, 'BUF');
+
+  const finalizeAs = async (accountId: string) => {
+    const req = new NextRequest('http://test/api/survivor/finalize', { method: 'POST', body: JSON.stringify({ poolId: p.poolId }) });
+    req.cookies.set('sh-session', createSessionToken(accountId));
+    const res = await survivorFinalizePOST(req);
+    return { status: res.status, body: await res.json() };
+  };
+  const storedWinners = async () =>
+    (await db.query<{ winner_participant_ids: string[] }>(`SELECT winner_participant_ids FROM survivor_winners WHERE pool_id = $1`, [p.poolId])).rows[0]?.winner_participant_ids;
+
+  let state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.status, 'not_finalized');
+  assert.equal(state.finalization.readyToFinalize, true, 'every game is final');
+  assert.deepEqual(state.finalization.currentWinnerIds, [p.A]);
+
+  assert.equal((await finalizeAs(stranger.id)).status, 403, 'another commissioner cannot finalize this pool');
+  assert.equal(await storedWinners(), undefined);
+
+  const first = await finalizeAs(owner.id);
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body.winnerParticipantIds, [p.A]);
+  state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.status, 'up_to_date');
+
+  // Correction after finalizing: KC actually lost week 1.
+  await db.query(`UPDATE games SET home_score = 10, away_score = 24 WHERE id = 'w1-kc'`);
+  state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.status, 'outdated', 'the admin panel shows "Re-finalize needed"');
+  assert.deepEqual(state.finalization.finalizedWinnerIds, [p.A]);
+  assert.deepEqual(state.finalization.currentWinnerIds, [p.B]);
+  assert.deepEqual(await storedWinners(), [p.A], 'nothing re-finalizes on its own');
+
+  const second = await finalizeAs(owner.id);
+  assert.equal(second.status, 200);
+  assert.deepEqual(await storedWinners(), [p.B], 'persisted winner matches current results');
+  state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.status, 'up_to_date');
+  assert.equal(state.participants.find(x => x.participantId === p.B)!.status, 'WINNER');
+});
+
+test('finalization readiness: not ready mid-season while several players are alive', () => {
+  const alive = (id: string) => ({ participantId: id, liveStatus: 'ACTIVE' as const, picks: [] });
+  const f = describeSurvivorFinalization([alive('a'), alive('b')], { endOfSeasonRule: 'all_remaining_winners' }, null, false);
+  assert.equal(f.status, 'not_finalized');
+  assert.equal(f.readyToFinalize, false);
+  assert.equal(describeSurvivorFinalization([alive('a')], { endOfSeasonRule: 'all_remaining_winners' }, null, false).readyToFinalize, true, 'one player left');
 });

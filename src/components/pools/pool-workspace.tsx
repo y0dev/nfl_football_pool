@@ -15,6 +15,7 @@ import { PayoutSettings } from '@/components/admin/payout-settings';
 import { PayoutCalculator } from '@/components/admin/payout-calculator';
 import { ExportData } from '@/components/admin/export-data';
 import { SurvivorStandingsPanel } from '@/components/leaderboard/survivor-leaderboard';
+import { SurvivorFinalizePanel } from '@/components/admin/survivor-finalize-panel';
 import { PickemStandingsPanel } from '@/components/leaderboard/pickem-leaderboard';
 import { debugError, getCurrentWeekLabel, getNFLSeasonYear } from '@/lib/utils';
 import { getPoolPayoutConfig } from '@/actions/poolPayouts';
@@ -266,6 +267,8 @@ export function PoolWorkspace({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  // Bumped after a Survivor finalize so the panels refetch the new winner.
+  const [survivorRefreshKey, setSurvivorRefreshKey] = useState(0);
   const [sendingSurvivorReminders, setSendingSurvivorReminders] = useState(false);
   const [survivorReminderResult, setSurvivorReminderResult] = useState<string | null>(null);
   const handleSendSurvivorReminders = async () => {
@@ -552,7 +555,8 @@ export function PoolWorkspace({
               {survivorReminderResult && (
                 <p style={{ ...b, fontSize: '0.75rem', color: textMid, marginBottom: '0.75rem' }}>{survivorReminderResult}</p>
               )}
-              <SurvivorStandingsPanel poolId={poolId} />
+              <SurvivorFinalizePanel key={`fin-${survivorRefreshKey}`} poolId={poolId} onFinalized={() => setSurvivorRefreshKey(k => k + 1)} />
+              <SurvivorStandingsPanel key={`st-${survivorRefreshKey}`} poolId={poolId} />
             </div>
           )}
 
@@ -693,7 +697,8 @@ export function PoolWorkspace({
             <Trophy style={{ width: 16, height: 16, color: gold }} />
             <p style={{ ...bc, fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.07em', color: text, textTransform: 'uppercase' }}>Survivor Standings</p>
           </div>
-          <SurvivorStandingsPanel poolId={poolId} />
+          <SurvivorFinalizePanel key={`fin-${survivorRefreshKey}`} poolId={poolId} onFinalized={() => setSurvivorRefreshKey(k => k + 1)} />
+          <SurvivorStandingsPanel key={`st-${survivorRefreshKey}`} poolId={poolId} />
         </div>
       )}
       {activePoolTab === 'leaderboard' && isPickem && (
