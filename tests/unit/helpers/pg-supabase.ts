@@ -176,7 +176,12 @@ const MIGRATIONS = path.resolve(__dirname, '../../../supabase/migrations');
  * plus the unique keys the app's upserts rely on), trimmed to the columns
  * the code under test touches. */
 const BASE_SCHEMA = `
-CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+DO $roles$ BEGIN
+  -- Roles are cluster-wide, so a real Postgres server may already have them.
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
+END $roles$;
 CREATE SCHEMA cron;
 CREATE FUNCTION cron.schedule(text, text, text) RETURNS bigint LANGUAGE sql AS 'SELECT 1::bigint';
 
@@ -287,7 +292,14 @@ const MIGRATION_FILES = [
   '20260820120000_add_survivor_pool_tables.sql',
   '20261110120000_recalculate_confidence_results.sql',
   '20261110130000_atomic_survivor_pick_replacement.sql',
+  '20261119130000_dedupe_confidence_dirty_marking.sql',
 ];
+
+/** The full test schema as SQL scripts, in order — for running the same
+ *  schema on a real Postgres server (see helpers/real-postgres.ts). */
+export function testSchemaScripts(): string[] {
+  return [BASE_SCHEMA, ...MIGRATION_FILES.map(file => fs.readFileSync(path.join(MIGRATIONS, file), 'utf8'))];
+}
 
 export async function createTestDatabase(): Promise<{ db: PGlite; supabase: FakeSupabase }> {
   const db = new PGlite({
