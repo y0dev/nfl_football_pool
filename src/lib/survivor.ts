@@ -154,21 +154,31 @@ export interface SurvivorFinalization {
   finalizedWinnerIds: string[];
   /** Winners re-finalizing now would store (null if none can be resolved). */
   currentWinnerIds: string[] | null;
-  /** Every scheduled game in scope has a final result, or at most one
-   * participant is still alive — the season can be finalized. */
+  /** True only when no unresolved game can still change who wins: the
+   * schedule isn't empty, and either every game in scope is final or at most
+   * one player is alive and no pending pick could reorder the eliminations.
+   * Enforced by finalizeSurvivorSeason(), including re-finalization. */
   readyToFinalize: boolean;
+  /** Why the season can't be finalized yet (null when ready). */
+  notReadyReason: string | null;
+}
+
+/** What the schedule looks like for the pool's season scope. */
+export interface SurvivorScheduleSummary {
+  gameCount: number;
+  allGamesFinal: boolean;
 }
 
 export function describeSurvivorFinalization(
   participants: WinnerCandidate[],
   settings: Pick<SurvivorTypeSettings, 'endOfSeasonRule'>,
   stored: { winnerParticipantIds: string[]; determinedAt: string | null } | null,
-  allGamesFinal: boolean,
+  schedule: SurvivorScheduleSummary,
 ): SurvivorFinalization {
   const resolved = resolveSurvivorWinners(participants, settings);
   const currentWinnerIds = resolved.success ? [...resolved.winnerParticipantIds].sort() : null;
   const finalizedWinnerIds = [...(stored?.winnerParticipantIds ?? [])].sort();
-  const activeCount = participants.filter(p => p.liveStatus === 'ACTIVE').length;
+  const notReadyReason = survivorNotReadyReason(participants, schedule);
   const finalized = !!stored && finalizedWinnerIds.length > 0;
   const matches = currentWinnerIds != null
     && currentWinnerIds.length === finalizedWinnerIds.length
@@ -178,8 +188,41 @@ export function describeSurvivorFinalization(
     finalizedAt: stored?.determinedAt ?? null,
     finalizedWinnerIds,
     currentWinnerIds,
-    readyToFinalize: participants.length > 0 && (allGamesFinal || activeCount <= 1),
+    readyToFinalize: notReadyReason === null,
+    notReadyReason,
   };
+}
+
+/** Week position in the same ordering eliminationOrder() uses. */
+function weekOrderOf(seasonType: number, week: number): number {
+  return seasonType * 100 + week;
+}
+
+/** Null when the winner no longer depends on any unresolved game. */
+function survivorNotReadyReason(participants: WinnerCandidate[], schedule: SurvivorScheduleSummary): string | null {
+  if (participants.length === 0) return 'This pool has no active participants.';
+  if (schedule.gameCount === 0) return "No games are scheduled in this pool's season scope yet.";
+
+  const active = participants.filter(p => p.liveStatus === 'ACTIVE');
+  if (active.length > 1 && !schedule.allGamesFinal) {
+    return 'More than one player is still alive and games remain to be played.';
+  }
+
+  // A pick on an unfinished game can still change when (or whether) its
+  // player was eliminated, which changes the winner. With one player left,
+  // only picks up to the latest elimination matter: that player's later
+  // picks can't let anyone else outlast them. Otherwise (a wipeout, or
+  // several survivors decided by the end-of-season rule) every pending pick
+  // matters.
+  const eliminated = participants.filter(p => p.liveStatus === 'ELIMINATED');
+  const cutoff = active.length === 1
+    ? (eliminated.length > 0 ? Math.max(...eliminated.map(eliminationOrder)) : -Infinity)
+    : Infinity;
+  const unresolved = participants.some(p =>
+    p.picks.some(pick => pick.result === 'pending' && weekOrderOf(pick.seasonType, pick.week) <= cutoff));
+  if (unresolved) return "A pick on a game that isn't final yet could still change the winner.";
+
+  return null;
 }
 
 function hasFinalResult(game: GameRow): boolean {
@@ -435,7 +478,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
       participantStates,
       settings,
       winnerRow ? { winnerParticipantIds, determinedAt: winnerRow.determined_at ?? null } : null,
-      currentWeekEntry === null,
+      { gameCount: allSeasonGames?.length ?? 0, allGamesFinal: currentWeekEntry === null },
     ),
   };
 }
@@ -602,9 +645,15 @@ export interface FinalizeSurvivorSeasonResult {
  * upserts (never trusts a previously-stored row), mirroring how Confidence
  * Pool's close-season action always recomputes season_winners rather than
  * reading a cached value. */
-export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSurvivorSeasonResult | { success: false; error: string }> {
+export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSurvivorSeasonResult | { success: false; error: string; notReady?: true }> {
   const supabase = getSupabaseServiceClient();
   const state = await computeSurvivorPoolState(poolId);
+
+  // Readiness applies to re-finalization too: an outdated result is not a
+  // reason to declare a winner that an unfinished game could still change.
+  if (!state.finalization.readyToFinalize) {
+    return { success: false, notReady: true, error: `This season can't be finalized yet. ${state.finalization.notReadyReason ?? ''}`.trim() };
+  }
 
   const resolved = resolveSurvivorWinners(state.participants, state.settings);
   if (!resolved.success) return resolved;
@@ -624,7 +673,7 @@ export async function finalizeSurvivorSeason(poolId: string): Promise<FinalizeSu
   return { success: true, winnerParticipantIds, resolution };
 }
 
-type WinnerCandidate = Pick<SurvivorParticipantState, 'participantId' | 'liveStatus' | 'eliminatedWeek' | 'eliminatedSeasonType' | 'picks'>;
+export type WinnerCandidate = Pick<SurvivorParticipantState, 'participantId' | 'liveStatus' | 'eliminatedWeek' | 'eliminatedSeasonType' | 'picks'>;
 
 /** Chronological position of an elimination: preseason (1) < regular
  * season (2) < playoffs (3), then week. A playoff week-1 exit outlasts a

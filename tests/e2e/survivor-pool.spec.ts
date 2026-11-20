@@ -523,6 +523,8 @@ test.describe('Survivor Pool — winner determination', () => {
   test('finalize always recomputes and upserts rather than trusting a previously stored row', async () => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
+      // Finalizing needs a non-empty schedule.
+      await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysAgo(3), status: 'finished', homeScore: 20, awayScore: 10, winner: 'Home A' });
       const first = await finalizeSurvivorSeason(fixture.poolId);
       expect(first.success).toBe(true);
       const second = await finalizeSurvivorSeason(fixture.poolId);

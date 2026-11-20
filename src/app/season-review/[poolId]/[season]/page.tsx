@@ -31,6 +31,9 @@ interface SeasonWinnerSummary {
   weeks_won: number;
   total_correct_picks: number;
   tie_breaker_used: boolean;
+  /** From the calculation engine — matches how the tie was actually broken. */
+  tie_breaker_explanation: string | null;
+  winner_tie_breaker_answer: number | null;
 }
 
 interface QuarterlyWinnerSummary {
@@ -283,14 +286,14 @@ export default function SeasonReviewPage() {
                       <p style={{ ...b, fontSize: '0.8rem', color: textMid, marginTop: '0.3rem' }}>
                         {seasonWinner.periods_won} of 4 periods won &bull; {seasonWinner.total_points} points &bull; {seasonWinner.weeks_won} weeks won
                       </p>
-                      {seasonWinner.tie_breaker_used && (
+                      {seasonWinner.tie_breaker_used && seasonWinner.tie_breaker_explanation && (
                         <span style={{
                           display: 'inline-block', marginTop: '0.5rem',
                           ...bc, fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.07em',
                           padding: '0.15rem 0.45rem', borderRadius: 4, textTransform: 'uppercase',
                           background: 'oklch(65% 0.12 290 / 0.15)', color: purple,
                           border: `1px solid oklch(65% 0.12 290 / 0.35)`,
-                        }}>Tied on periods won — total points broke the tie</span>
+                        }}>{seasonWinner.tie_breaker_explanation}{seasonWinner.winner_tie_breaker_answer != null ? ` (answered ${seasonWinner.winner_tie_breaker_answer})` : ''}</span>
                       )}
                     </div>
                     <div style={{ textAlign: 'right' }}>

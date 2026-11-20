@@ -238,8 +238,95 @@ test('commissioner re-finalization: a corrected result marks the pool outdated u
 
 test('finalization readiness: not ready mid-season while several players are alive', () => {
   const alive = (id: string) => ({ participantId: id, liveStatus: 'ACTIVE' as const, picks: [] });
-  const f = describeSurvivorFinalization([alive('a'), alive('b')], { endOfSeasonRule: 'all_remaining_winners' }, null, false);
+  const midSeason = { gameCount: 10, allGamesFinal: false };
+  const f = describeSurvivorFinalization([alive('a'), alive('b')], { endOfSeasonRule: 'all_remaining_winners' }, null, midSeason);
   assert.equal(f.status, 'not_finalized');
   assert.equal(f.readyToFinalize, false);
-  assert.equal(describeSurvivorFinalization([alive('a')], { endOfSeasonRule: 'all_remaining_winners' }, null, false).readyToFinalize, true, 'one player left');
+  assert.equal(describeSurvivorFinalization([alive('a')], { endOfSeasonRule: 'all_remaining_winners' }, null, midSeason).readyToFinalize, true, 'one player left');
+});
+
+const RULE = { endOfSeasonRule: 'all_remaining_winners' } as const;
+const pendingPick = (seasonType: number, week: number) =>
+  ({ week, seasonType, gameId: `g-${seasonType}-${week}`, selectedTeam: 'X', selectedTeamName: 'X', result: 'pending' as const, margin: 0 });
+
+test('finalization readiness: an empty schedule is never ready', () => {
+  const f = describeSurvivorFinalization(
+    [{ participantId: 'a', liveStatus: 'ACTIVE', picks: [] }], RULE, null, { gameCount: 0, allGamesFinal: true });
+  assert.equal(f.readyToFinalize, false);
+  assert.match(f.notReadyReason!, /No games are scheduled/);
+});
+
+test('finalization readiness: one player left but a pending pick before the last elimination blocks it', () => {
+  // A's week-5 game is unfinished. If A lost it, A went out before B (week 6)
+  // and B would win, so the winner still depends on that game.
+  const participants = [
+    { participantId: 'a', liveStatus: 'ACTIVE' as const, picks: [pendingPick(2, 5)] },
+    { participantId: 'b', liveStatus: 'ELIMINATED' as const, eliminatedSeasonType: 2, eliminatedWeek: 6, picks: [] },
+  ];
+  const f = describeSurvivorFinalization(participants, RULE, null, { gameCount: 20, allGamesFinal: false });
+  assert.equal(f.readyToFinalize, false);
+  assert.match(f.notReadyReason!, /isn't final yet/);
+});
+
+test("finalization readiness: the last player's pending pick after every elimination does not block it", () => {
+  const participants = [
+    { participantId: 'a', liveStatus: 'ACTIVE' as const, picks: [pendingPick(2, 7)] },
+    { participantId: 'b', liveStatus: 'ELIMINATED' as const, eliminatedSeasonType: 2, eliminatedWeek: 6, picks: [] },
+  ];
+  const f = describeSurvivorFinalization(participants, RULE, null, { gameCount: 20, allGamesFinal: false });
+  assert.equal(f.readyToFinalize, true);
+  assert.equal(f.notReadyReason, null);
+});
+
+test('finalization readiness: in a wipeout any pending pick blocks it', () => {
+  const participants = [
+    { participantId: 'a', liveStatus: 'ELIMINATED' as const, eliminatedSeasonType: 2, eliminatedWeek: 6, picks: [pendingPick(2, 4)] },
+    { participantId: 'b', liveStatus: 'ELIMINATED' as const, eliminatedSeasonType: 2, eliminatedWeek: 6, picks: [] },
+  ];
+  assert.equal(describeSurvivorFinalization(participants, RULE, null, { gameCount: 20, allGamesFinal: false }).readyToFinalize, false);
+});
+
+test('finalize rejects an empty schedule and leaves no winner row', async () => {
+  const { db } = await setup();
+  const p = await createPool(db, [2]);
+  const res = await finalizeSurvivorSeason(p.poolId);
+  assert.equal(res.success, false);
+  assert.match((res as { error: string }).error, /No games are scheduled/);
+  const { rows } = await db.query(`SELECT 1 FROM survivor_winners WHERE pool_id = $1`, [p.poolId]);
+  assert.equal(rows.length, 0);
+});
+
+test('an outdated pool cannot be re-finalized while an unfinished game could change the winner', async () => {
+  const { db } = await setup();
+  const p = await createPool(db, [2]);
+  await game(db, { id: 'w1-kc', week: 1, seasonType: 2, home: 'KC', away: 'DEN', kickoff: '2026-09-10T00:20:00Z', status: 'final', homeScore: 24, awayScore: 10 });
+  await game(db, { id: 'w1-buf', week: 1, seasonType: 2, home: 'BUF', away: 'MIA', kickoff: '2026-09-13T17:00:00Z', status: 'final', homeScore: 10, awayScore: 20 });
+  await game(db, { id: 'w2-sf', week: 2, seasonType: 2, home: 'SF', away: 'NYJ', kickoff: '2026-09-20T17:00:00Z', status: 'final', homeScore: 30, awayScore: 3 });
+  await pick(db, p.poolId, p.A, 'w1-kc', 2, 1, 'KC');
+  await pick(db, p.poolId, p.A, 'w2-sf', 2, 2, 'SF');
+  await pick(db, p.poolId, p.B, 'w1-buf', 2, 1, 'MIA');
+  await pick(db, p.poolId, p.B, 'w2-sf', 2, 2, 'NYJ');
+  await pick(db, p.poolId, p.C, 'w1-buf', 2, 1, 'BUF');
+  assert.deepEqual((await finalizeSurvivorSeason(p.poolId)).success, true);
+
+  // A's week-1 game is reopened (score correction in progress) and B's
+  // week-2 loss is corrected to a win. Stored winner A is now outdated, but
+  // A's week-1 game decides whether A or B wins.
+  await db.query(`UPDATE games SET status = 'in_progress' WHERE id = 'w1-kc'`);
+  await db.query(`UPDATE games SET home_score = 3, away_score = 30 WHERE id = 'w2-sf'`);
+  let state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.status, 'outdated');
+  assert.equal(state.finalization.readyToFinalize, false);
+
+  const blocked = await finalizeSurvivorSeason(p.poolId);
+  assert.equal(blocked.success, false);
+  assert.equal((blocked as { notReady?: boolean }).notReady, true);
+  const stored = (await db.query<{ winner_participant_ids: string[] }>(`SELECT winner_participant_ids FROM survivor_winners WHERE pool_id = $1`, [p.poolId])).rows[0];
+  assert.deepEqual(stored.winner_participant_ids, [p.A], 'stored winner untouched');
+
+  // Once the game is final again the commissioner can re-finalize.
+  await db.query(`UPDATE games SET status = 'final' WHERE id = 'w1-kc'`);
+  state = await computeSurvivorPoolState(p.poolId);
+  assert.equal(state.finalization.readyToFinalize, true);
+  assert.equal((await finalizeSurvivorSeason(p.poolId)).success, true);
 });

@@ -152,10 +152,29 @@ export interface SeasonTotal {
   periods_won: number
 }
 
+/** Which step settled a tie on periods won, in the order the engine tries
+ * them: the season tie-breaker answer (only when the pool has an answer),
+ * otherwise most weeks won; then total points; then name. */
+export type ChampionTieBreakerMethod = 'season_answer' | 'weeks_won' | 'total_points' | 'name'
+
 export interface ChampionResult extends SeasonTotal {
   tie_breaker_used: boolean
+  /** Null when the champion won outright on periods won. */
+  tie_breaker_method: ChampionTieBreakerMethod | null
   winner_tie_breaker_answer: number | null
   tie_breaker_difference: number | null
+}
+
+/** The champion explanation shown in Season Review, derived from the method
+ * the engine actually used. */
+export function describeChampionTieBreak(method: ChampionTieBreakerMethod | null): string | null {
+  switch (method) {
+    case 'season_answer': return 'Tied on periods won — closest season tie-breaker answer decided it'
+    case 'weeks_won': return 'Tied on periods won — most weeks won decided it'
+    case 'total_points': return 'Tied on periods won — total points decided it'
+    case 'name': return 'Tied on every tie-breaker — decided alphabetically'
+    default: return null
+  }
 }
 
 export interface ConfidenceResults {
@@ -268,6 +287,8 @@ function latestAnswer(tieBreakers: ResultTieBreaker[], participantId: string, se
 // ---------------------------------------------------------------------------
 
 const weekKey = (seasonType: number, week: number) => `${seasonType}-${week}`
+/** Chronological position: preseason < regular season < playoffs, then week. */
+const weekOrder = (seasonType: number, week: number) => seasonType * 100 + week
 
 export function computeConfidenceResults(input: ConfidenceResultsInput): ConfidenceResults {
   const { pool, tieBreakers } = input
@@ -352,13 +373,23 @@ export function computeConfidenceResults(input: ConfidenceResultsInput): Confide
 
   const regularWeeks = weeks.filter(w => w.season_type === REGULAR_SEASON_TYPE)
   const regularWeekByNumber = new Map(regularWeeks.map(w => [w.week, w]))
+  // A regular-season week with no games blocks its period only while it
+  // could still get games: once a later week exists, it's a gap left by a
+  // schedule correction (e.g. its last game moved away), not a week to wait
+  // for. Otherwise one emptied week would freeze that quarter's stored
+  // winner forever.
+  const latestWeekOrder = Math.max(-Infinity, ...weeks.map(w => weekOrder(w.season_type, w.week)))
+  const regularWeekDone = (week: number) => {
+    const w = regularWeekByNumber.get(week)
+    return w ? w.complete : weekOrder(REGULAR_SEASON_TYPE, week) < latestWeekOrder
+  }
   const weeksWonIn = (participantId: string, weekNumbers?: number[]) =>
     regularWeeks.filter(w => (!weekNumbers || weekNumbers.includes(w.week)) && w.winners.some(x => x.participant_id === participantId)).length
 
   // Q1-Q4.
   const periodWins = new Map<string, number>()
   const periods: PeriodResult[] = REGULAR_SEASON_PERIODS.map(period => {
-    const complete = period.weeks.every(w => regularWeekByNumber.get(w)?.complete === true)
+    const complete = period.weeks.some(w => regularWeekByNumber.has(w)) && period.weeks.every(regularWeekDone)
     const totals: PeriodTotal[] = []
     for (const p of participants) {
       let points = 0
@@ -420,14 +451,24 @@ export function computeConfidenceResults(input: ConfidenceResultsInput): Confide
     const contenders = seasonTotals.filter(t => t.periods_won === maxPeriodWins)
     const byPoints = (a: SeasonTotal, b: SeasonTotal) => b.total_points - a.total_points
     let best: SeasonTotal & Ranked = { ...contenders[0], answer: null, difference: Infinity }
+    let method: ChampionTieBreakerMethod | null = null
     if (contenders.length > 1) {
-      best = poolAnswer != null
-        ? rankByTieBreaker(contenders, id => latestAnswer(tieBreakers, id, REGULAR_SEASON_TYPE), poolAnswer, byPoints)[0]
-        : [...contenders].sort((a, b) => b.weeks_won - a.weeks_won || byPoints(a, b) || byName(a, b)).map(t => ({ ...t, answer: null, difference: Infinity }))[0]
+      const ranked: Array<SeasonTotal & Ranked> = poolAnswer != null
+        ? rankByTieBreaker(contenders, id => latestAnswer(tieBreakers, id, REGULAR_SEASON_TYPE), poolAnswer, byPoints)
+        : [...contenders].sort((a, b) => b.weeks_won - a.weeks_won || byPoints(a, b) || byName(a, b)).map(t => ({ ...t, answer: null, difference: Infinity }))
+      best = ranked[0]
+      // The first criterion, in sort order, on which the winner beats the
+      // runner-up is the one that decided it.
+      const next = ranked[1]
+      method = poolAnswer != null && best.difference !== next.difference ? 'season_answer'
+        : poolAnswer == null && best.weeks_won !== next.weeks_won ? 'weeks_won'
+        : best.total_points !== next.total_points ? 'total_points'
+        : 'name'
     }
     champion = {
       ...stripRank(best),
       tie_breaker_used: contenders.length > 1,
+      tie_breaker_method: method,
       winner_tie_breaker_answer: best.answer,
       tie_breaker_difference: finiteOrNull(best.difference),
     }
@@ -630,7 +671,8 @@ function rowMatches<T extends object>(desired: T, existing: Partial<T> | undefin
  * Those are recomputed every time and corrected if a game result, pick or
  * tie-breaker changed after they were first recorded. Incomplete weeks are
  * left alone, so a game temporarily flipped back to "live" never wipes a
- * recorded result.
+ * recorded result. Weeks with no games left at all have their stored
+ * scores and winner deleted.
  */
 export function planResultWrites(
   poolId: string,
@@ -659,6 +701,29 @@ export function planResultWrites(
     } else if (storedWinners.length > 0) {
       plan.weekly_deletes.push({ season_type: week.season_type, week: week.week })
     }
+  }
+
+  // Weeks that no longer exist in the schedule (a correction moved or
+  // deleted every game in them) keep no scores or winner. Skipped when the
+  // season has no games at all, so an empty games read can never wipe a
+  // season's results.
+  if (results.weeks.length > 0) {
+    const present = new Set(results.weeks.map(w => weekKey(w.season_type, w.week)))
+    const orphanScoreWeeks = new Map<string, { season_type: number; week: number }>()
+    for (const s of existing.scores) {
+      const st = existingSeasonType(s.season_type)
+      const key = weekKey(st, s.week)
+      if (!present.has(key)) orphanScoreWeeks.set(key, { season_type: st, week: s.week })
+    }
+    for (const w of orphanScoreWeeks.values()) plan.scores.push({ ...w, rows: [] })
+
+    const orphanWinnerWeeks = new Map<string, { season_type: number; week: number }>()
+    for (const w of existing.weeklyWinners) {
+      const st = existingSeasonType(w.season_type)
+      const key = weekKey(st, w.week)
+      if (!present.has(key)) orphanWinnerWeeks.set(key, { season_type: st, week: w.week })
+    }
+    plan.weekly_deletes.push(...orphanWinnerWeeks.values())
   }
 
   for (const period of results.periods) {

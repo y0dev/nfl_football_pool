@@ -1,10 +1,12 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import {
   computeConfidenceResults,
+  describeChampionTieBreak,
   formatCoWinnerCorrectPicks,
   joinWinnerNames,
   toSeasonWinnerRow,
   REGULAR_SEASON_TYPE,
+  type ChampionTieBreakerMethod,
   type CoWinner,
   type SeasonWinnerRow,
 } from '../../supabase/functions/_shared/confidence-results';
@@ -107,6 +109,12 @@ export interface SeasonChampion {
   weeks_won: number;
   periods_won: number;
   tie_breaker_used: boolean;
+  /** What settled a tie on periods won (null when won outright). */
+  tie_breaker_method: ChampionTieBreakerMethod | null;
+  /** Display text for tie_breaker_method — show this, don't re-derive it. */
+  tie_breaker_explanation: string | null;
+  /** The champion's season tie-breaker answer, when that decided it. */
+  winner_tie_breaker_answer: number | null;
 }
 
 export interface PeriodTotalEntry {
@@ -378,6 +386,9 @@ export async function computeSeasonReview(poolId: string, season: number): Promi
     weeks_won: champion.weeks_won,
     periods_won: champion.periods_won,
     tie_breaker_used: champion.tie_breaker_used,
+    tie_breaker_method: champion.tie_breaker_method,
+    tie_breaker_explanation: describeChampionTieBreak(champion.tie_breaker_method),
+    winner_tie_breaker_answer: champion.tie_breaker_method === 'season_answer' ? champion.winner_tie_breaker_answer : null,
   } : null;
   const runnerUp = champion
     ? participantStats.find(ps => ps.participant_id !== champion.participant_id) ?? null
