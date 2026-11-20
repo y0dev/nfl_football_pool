@@ -36,6 +36,7 @@ import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { PoolWorkspace } from '@/components/pools/pool-workspace';
 import { loadHuddleForCommissioner } from '@/actions/huddles';
 import { loadPools as loadMyPools } from '@/actions/loadPools';
+import { isPaidPlanCurrent } from '@/lib/plan-season';
 
 // Design tokens — match landing page exactly
 const bg      = 'oklch(13% 0.025 255)';
@@ -588,8 +589,9 @@ function AdminDashboardContent() {
 
   const now = new Date();
   const commissionerAdmins = admins.filter(a => !a.is_super_admin);
-  const payingCommissioners = commissionerAdmins.filter(a => a.plan === 'standard' || a.plan === 'pro').length;
-  const freeCommissioners   = commissionerAdmins.filter(a => (a.plan ?? 'free') === 'free').length;
+  // Season-aware: a Standard plan bought for an ended season counts as free.
+  const payingCommissioners = commissionerAdmins.filter(a => isPaidPlanCurrent(a)).length;
+  const freeCommissioners   = commissionerAdmins.filter(a => !isPaidPlanCurrent(a)).length;
   const trialingCommissioners = commissionerAdmins.filter(a => a.trial_ends_at && new Date(a.trial_ends_at) > now).length;
   const planItems = [
     { label: 'Paying',   value: payingCommissioners,   sub: 'Standard + Pro plans', color: greenHi },

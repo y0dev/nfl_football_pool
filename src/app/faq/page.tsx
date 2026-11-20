@@ -58,6 +58,14 @@ const faqs = [
     q: 'Can a commissioner reuse a pool for a new season?',
     a: 'Yes — commissioners on the Standard plan can clone a pool from their League page to get a head start on the next season. It copies the pool\'s settings and participants, but never last season\'s picks, scores, or standings, so it starts clean.',
   },
+  {
+    q: 'How long does a Standard plan last?',
+    a: 'One NFL season, through the Super Bowl. It\'s a one-time payment, not a subscription, so nothing renews automatically. In mid-February the account goes back to Free (your pools and history are kept) until you buy the next season. Add-on pools expire with the season they were bought for.',
+  },
+  {
+    q: 'Can I get a refund?',
+    a: 'No. All sales are final and purchases are non-refundable, including if you downgrade or your pool ends early. If you\'re not sure yet, start on the Free plan (or the free trial, when it\'s offered) before you buy.',
+  },
 ];
 
 function FaqItem({ q, a }: { q: string; a: string }) {

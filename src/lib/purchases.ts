@@ -3,7 +3,8 @@
 import Stripe from 'stripe';
 import { getSupabaseServiceClient } from './supabase-service';
 import { emailService } from './email';
-import { debugError } from './utils';
+import { debugError, getNFLSeasonYear } from './utils';
+import { isPaidPlanCurrent } from './plan';
 
 // Applies a completed Stripe Checkout Session to the database: idempotent
 // (safe to call more than once for the same session — checks `payments`
@@ -72,10 +73,30 @@ export async function applyCompletedCheckoutSession(session: Stripe.Checkout.Ses
     return { applied: false, reason: 'unknown_admin' };
   }
 
+  // The season this purchase covers was fixed at checkout (metadata), so a
+  // purchase paid just before the Feb 14 rollover but delivered after it
+  // still lands on the season the buyer saw. Older sessions without it fall
+  // back to the season at apply time.
+  const metadataSeason = Number(session.metadata?.season);
+  const season = Number.isInteger(metadataSeason) && metadataSeason > 2000 ? metadataSeason : getNFLSeasonYear();
+
   if (product === 'standard') {
+    // Add-on pools belong to the season they were bought for: a new
+    // season's Standard purchase starts from zero unless the existing plan
+    // already covers this same season (also true after a same-season
+    // downgrade + re-buy, so paid add-ons aren't lost).
+    const carriesAddons = admin.plan_season != null
+      ? admin.plan_season === season
+      : isPaidPlanCurrent(admin, season);
     const { error } = await supabase
       .from('commissioners')
-      .update({ plan: 'standard', trial_ends_at: null, updated_at: new Date().toISOString() })
+      .update({
+        plan: 'standard',
+        plan_season: season,
+        trial_ends_at: null,
+        ...(carriesAddons ? {} : { addon_pools: 0 }),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', adminId);
     if (error) throw error;
   } else {
@@ -105,6 +126,7 @@ export async function applyCompletedCheckoutSession(session: Stripe.Checkout.Ses
         quantity,
         amountCents: session.amount_total ?? null,
         currency: session.currency ?? 'usd',
+        season,
       });
     } catch (emailError) {
       console.error('Failed to send upgrade confirmation email (plan update already applied):', emailError);
@@ -120,6 +142,7 @@ export async function applyCompletedCheckoutSession(session: Stripe.Checkout.Ses
     amount_cents: session.amount_total ?? null,
     currency: session.currency ?? 'usd',
     status: 'completed',
+    season,
   });
   if (recordError) {
     console.error('Failed to record payment — idempotency marker missing, a retry could double-apply this event:', recordError);
@@ -132,6 +155,11 @@ export type RefundResult =
   | { applied: true }
   | { applied: false; reason: 'missing_payment_intent' | 'unknown_payment' | 'already_refunded' | 'unknown_admin' };
 
+// All sales are final — Sunday Huddle doesn't offer refunds. This handler
+// only exists so that if a refund ever does happen anyway (a manual refund
+// issued from the Stripe Dashboard, or one required by law), the account
+// can't keep what it no longer paid for.
+//
 // Reverts the plan/addon-pool grant a purchase made, once Stripe reports the
 // underlying charge refunded. Looks the purchase up by payment_intent (the
 // only id a `charge.refunded` event carries that also lives on our own

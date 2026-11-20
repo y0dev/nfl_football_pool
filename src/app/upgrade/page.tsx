@@ -13,8 +13,9 @@ import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
-import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
+import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS, seasonLabel } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
+import { SalesFinalNotice } from '@/components/pricing/sales-final-notice';
 
 type Plan = 'free' | 'standard';
 
@@ -28,6 +29,9 @@ interface PlanStatus {
   participantLimit?: number;
   addonPools?: number;
   billingExempt?: boolean;
+  planSeason?: number | null;
+  planLapsed?: boolean;
+  currentSeason?: number;
   billing?: { pricingVisible: boolean; stripeEnabled: boolean };
 }
 
@@ -273,7 +277,7 @@ function UpgradeContent() {
           </h1>
           <p style={{ ...b, fontSize: '0.95rem', color: textMid, maxWidth: '48ch', margin: '0 auto' }}>
             {pricingVisible
-              ? 'Pricing is per season — roughly 6 months of NFL action. Cancel or change plans between seasons, no lock-in.'
+              ? `Pricing is per season — one payment covers ${planStatus?.currentSeason ? `the ${seasonLabel(planStatus.currentSeason)} season` : 'the whole season'}, through the Super Bowl. No subscription, no auto-renewal.`
               : 'Your current plan and limits at a glance.'}
           </p>
         </div>
@@ -295,9 +299,21 @@ function UpgradeContent() {
         </div>
       )}
 
+      {!isLoadingPlan && planStatus?.planLapsed && planStatus.currentSeason && (
+        <div className="lp-inner" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ background: 'oklch(74% 0.16 72 / 0.1)', border: `1px solid oklch(74% 0.16 72 / 0.35)`, borderRadius: 8, padding: '0.85rem 1.25rem', textAlign: 'center' }}>
+            <p style={{ ...b, fontSize: '0.85rem', color: gold }}>
+              Your Standard plan covered a season that has ended, so your account is back on Free.{' '}
+              <strong>Upgrade below to cover the {seasonLabel(planStatus.currentSeason)} season.</strong>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Plans */}
       <section style={{ padding: '1rem 0 3rem' }}>
         <div className="lp-inner">
+          {pricingVisible && <SalesFinalNotice />}
           {!pricingVisible ? (
             /* Pricing hidden (pre-launch): current plan + limits only, no dollar amounts */
             <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 10, padding: '1.75rem', maxWidth: 560, margin: '0 auto' }}>
@@ -377,6 +393,11 @@ function UpgradeContent() {
                         </AlertDialogTitle>
                         <AlertDialogDescription style={{ color: textMid }}>
                           You&apos;ll lose email pick reminders, season &amp; playoff tracking, and any pools beyond your first. This takes effect immediately.
+                          {!planStatus?.isTrialActive && !billingExempt && (
+                            <>
+                              {' '}<strong style={{ color: gold }}>All sales are final — you won&apos;t be refunded</strong>, and you&apos;d need to buy Standard again to get it back this season.
+                            </>
+                          )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -447,8 +468,10 @@ function UpgradeContent() {
                         >
                           {isCheckingOut ? 'Redirecting…' : 'Prefer to pay now? Upgrade directly'}
                         </button>
+                        <SalesFinalNotice variant="inline" />
                       </>
                     ) : stripeEnabled ? (
+                      <>
                       <button
                         onClick={() => handleCheckout('standard')}
                         disabled={isCheckingOut}
@@ -465,6 +488,8 @@ function UpgradeContent() {
                       >
                         {isCheckingOut ? 'Redirecting…' : 'Upgrade to Standard'}
                       </button>
+                      <SalesFinalNotice variant="inline" />
+                      </>
                     ) : (
                     <a
                       href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
@@ -483,7 +508,11 @@ function UpgradeContent() {
                     )
                   ) : (
                     <div style={{ padding: '0.55rem 1rem', background: 'oklch(46% 0.14 155 / 0.15)', border: `1px solid ${green}`, borderRadius: 6, textAlign: 'center', ...bc, fontWeight: 700, fontSize: '0.72rem', color: greenHi, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      {planStatus?.isTrialActive ? 'Current Plan (Trial)' : 'Current Plan'}
+                      {planStatus?.isTrialActive
+                        ? 'Current Plan (Trial)'
+                        : planStatus?.planSeason
+                          ? `Current Plan · ${seasonLabel(planStatus.planSeason)} Season`
+                          : 'Current Plan'}
                     </div>
                   )}
                 </div>
@@ -552,7 +581,9 @@ function UpgradeContent() {
                   >
                     {isCheckingOut ? 'Redirecting…' : `Buy ${extraPools} Extra Pool${extraPools !== 1 ? 's' : ''}`}
                   </button>
-                ) : (
+                ) : null}
+                {addonStripeEnabled && <SalesFinalNotice variant="inline" />}
+                {addonStripeEnabled ? null : (
                 <a
                   href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Add-on Pools&body=I'd like to add ${extraPools} extra pool${extraPools !== 1 ? 's' : ''} to my Standard plan ($${totalAddon}/season).`}
                   style={{
@@ -579,7 +610,7 @@ function UpgradeContent() {
             {billingExempt
               ? `Your ${currentPlan === 'standard' ? 'Standard plan' : 'plan'} is comped — the site admin manages it at no cost. Add-on pools are still a real purchase, processed securely by Stripe.`
               : stripeEnabled
-              ? 'Prices shown are before tax. Payments are processed securely by Stripe — your plan updates automatically after checkout, and any applicable sales tax is calculated based on your billing address.'
+              ? 'Prices shown are before tax. Payments are processed securely by Stripe — your plan updates automatically after checkout, and any applicable sales tax is calculated based on your billing address. All sales are final.'
               : 'Payments are handled manually for now. You will receive a confirmation email once your plan is active.'}
           </p>
           </>

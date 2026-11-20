@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = 'August 27, 2026';
-const LAST_UPDATED = 'August 28, 2026';
+const LAST_UPDATED = 'November 19, 2026';
 
 const toc = [
   { id: 'introduction', label: 'Introduction' },
@@ -193,11 +193,21 @@ export default function TermsPage() {
           automatically renew or re-charge you the following season.
         </p>
         <p>
-          If a payment fails or is declined, the associated plan or add-on is not granted. If Stripe issues a refund
-          for a purchase (for example, at our discretion or as required by law), the corresponding plan upgrade or
-          add-on pool capacity is automatically revoked from your account once the refund is processed. We do not
-          publish a fixed self-service refund window; if you believe you are entitled to a refund, contact us at{' '}
-          <strong>[CONTACT EMAIL]</strong> and we will review your request.
+          <strong>Season coverage.</strong> A Standard plan or add-on pool purchase covers one NFL season — the season
+          shown at checkout — through that season&rsquo;s Super Bowl. The season ends for billing purposes on
+          February 14 following the Super Bowl. After that, your account returns to the Free plan and its limits
+          (your pools, picks, and history are kept) until you purchase the next season. Add-on pools expire with the
+          season they were purchased for. A purchase made late in a season (for example, during the playoffs) covers
+          only the remainder of that season, not the following one.
+        </p>
+        <p>
+          <strong>All sales are final. We do not offer refunds.</strong> Purchases are non-refundable and
+          non-transferable, including if you downgrade to the Free plan, stop using the Service, delete your account,
+          or your pool ends early or is not used. Please use the Free plan or a free trial, where offered, to decide
+          whether the Standard plan is right for you before purchasing. If a payment fails or is declined, the
+          associated plan or add-on is not granted. Nothing in this section limits any right to a refund that cannot
+          be waived under applicable law; if a refund is issued for that reason, the corresponding plan or add-on
+          pool capacity is removed from your account.
         </p>
         <p>
           You are responsible for any applicable taxes on your purchase, except taxes on our net income. We may

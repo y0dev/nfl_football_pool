@@ -7,6 +7,7 @@ import {
   createParticipantTable
 } from './email-templates-base';
 import { debugLog, debugError, debugWarn } from '@/lib/utils';
+import { ALL_SALES_FINAL_DETAIL, seasonLabel } from '@/lib/pricing';
 
 interface EmailConfig {
   host: string;
@@ -1332,9 +1333,10 @@ class EmailService {
   async sendUpgradeConfirmation(
     adminEmail: string,
     adminName: string,
-    details: { product: 'standard' | 'addon_pool'; quantity: number; amountCents: number | null; currency: string }
+    details: { product: 'standard' | 'addon_pool'; quantity: number; amountCents: number | null; currency: string; season?: number }
   ): Promise<boolean> {
-    const { product, quantity, amountCents, currency } = details;
+    const { product, quantity, amountCents, currency, season } = details;
+    const seasonText = season ? `${seasonLabel(season)} season` : 'per season';
     const isStandard = product === 'standard';
     const amount = amountCents != null
       ? (amountCents / 100).toLocaleString('en-US', { style: 'currency', currency: currency.toUpperCase() })
@@ -1355,7 +1357,7 @@ class EmailService {
       </p>
       ${createInfoBox(`
         <strong>Order Summary</strong><br>
-        ${isStandard ? 'Standard plan (per season)' : `Add-on pool${quantity !== 1 ? 's' : ''} (per season): ${quantity}`}<br>
+        ${isStandard ? `Standard plan (${seasonText})` : `Add-on pool${quantity !== 1 ? 's' : ''} (${seasonText}): ${quantity}`}<br>
         ${amount ? `Amount charged: ${amount}<br>` : ''}
         Date: ${new Date().toLocaleString()}
       `, 'success')}
@@ -1363,6 +1365,10 @@ class EmailService {
         ${isStandard
           ? 'You now have full season & playoff tracking, automatic pick reminders, and room for more pools in your Huddle.'
           : 'Head to your dashboard to set up your new pool.'}
+      </p>
+      <p style="margin: 20px 0 0; color: #94a3b8; font-size: 13px; line-height: 1.6;">
+        This purchase covers ${season ? `the ${seasonLabel(season)} NFL season, through the Super Bowl` : 'the current NFL season'} and does not renew automatically.
+        <strong style="color: #f1f5f9;">${ALL_SALES_FINAL_DETAIL}</strong>
       </p>
     `;
 
