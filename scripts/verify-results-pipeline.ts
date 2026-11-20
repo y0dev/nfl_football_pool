@@ -163,6 +163,13 @@ async function cleanup() {
   await supabase.from('confidence_results_dirty').delete().eq('pool_id', poolId ?? '00000000-0000-0000-0000-000000000000');
 }
 
+// Ctrl+C would otherwise exit without the finally below, leaving the fake
+// games behind (the e2e sweep only removes pools).
+process.once('SIGINT', () => {
+  console.log('\nInterrupted — cleaning up…');
+  cleanup().finally(() => process.exit(130));
+});
+
 async function main() {
   console.log(`Results pipeline check (${invoke ? 'direct invoke' : 'waiting for cron'}), fake season ${season}`);
   await preflight();
