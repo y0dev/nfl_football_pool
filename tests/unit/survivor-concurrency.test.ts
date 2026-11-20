@@ -72,10 +72,13 @@ test('[PostgreSQL] a team claimed by a concurrent pick in another week is reject
     await c1.query('BEGIN');
     await replace(c1, s, s.gameFor('KC'), 1, 'KC'); // week 1 -> KC, uncommitted
     await c2.query('BEGIN');
-    const clash = replace(c2, s, 'po2-0', 2, 'KC'); // week 2 -> KC, waits on the lock
+    // Week 2 -> KC, waits on the lock. The rejection is awaited from the
+    // start: it can land as soon as the server commits c1, before c1's
+    // COMMIT call returns, and an unobserved rejection fails the test run.
+    const clash = assert.rejects(replace(c2, s, 'po2-0', 2, 'KC'), /SURVIVOR_TEAM_ALREADY_USED/, 'the re-check after the lock sees the committed KC pick');
     await new Promise(r => setTimeout(r, 300));
     await c1.query('COMMIT');
-    await assert.rejects(clash, /SURVIVOR_TEAM_ALREADY_USED/, 'the re-check after the lock sees the committed KC pick');
+    await clash;
     await c2.query('ROLLBACK');
     assert.deepEqual(await picks(db, s.participantId), [{ week: 1, selected_team: 'KC' }, { week: 2, selected_team: 'NE' }], 'week 2 pick preserved');
   } finally {
