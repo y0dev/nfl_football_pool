@@ -5,7 +5,9 @@
 //   npm run verify-results-pipeline            # wait for the real cron (proves it runs)
 //   npm run verify-results-pipeline -- --invoke  # call the Edge Function directly
 //
-// Uses NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY from .env.local.
+// Uses NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY from .env.local,
+// and SUPABASE_SECRET_KEY (sb_secret_...) for --invoke: the Edge Functions'
+// auth: 'secret' mode rejects the legacy JWT service_role key.
 // Everything it creates lives in a random fake season (2900-2999) under an
 // "E2E "-prefixed pool, so no real pool or game is touched, and it is all
 // deleted at the end (the e2e teardown sweep also catches leftovers).
@@ -22,12 +24,17 @@ loadEnv({ path: '.env.local' });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY;
+const functionKey = process.env.SUPABASE_SECRET_KEY;
 if (!url || !key) {
   console.error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
   process.exit(1);
 }
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 const invoke = process.argv.includes('--invoke');
+if (invoke && !functionKey?.startsWith('sb_secret_')) {
+  console.error('--invoke needs SUPABASE_SECRET_KEY (sb_secret_..., Project Settings -> API Keys)');
+  process.exit(1);
+}
 const TIMEOUT_MS = invoke ? 120_000 : 20 * 60_000; // cron ticks are minutes apart
 const POLL_MS = invoke ? 3_000 : 20_000;
 
@@ -63,7 +70,7 @@ async function preflight() {
 async function runFunction() {
   for (let attempt = 1; attempt <= 6; attempt++) {
     const res = await fetch(`${url}/functions/v1/determine-weekly-winners`, {
-      method: 'POST', headers: { apikey: key!, 'Content-Type': 'application/json' }, body: '{}',
+      method: 'POST', headers: { apikey: functionKey!, 'Content-Type': 'application/json' }, body: '{}',
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(`determine-weekly-winners HTTP ${res.status}: ${JSON.stringify(body)}`);
