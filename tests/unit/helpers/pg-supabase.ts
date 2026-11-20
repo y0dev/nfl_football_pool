@@ -293,6 +293,7 @@ const MIGRATION_FILES = [
   '20261110120000_recalculate_confidence_results.sql',
   '20261110130000_atomic_survivor_pick_replacement.sql',
   '20261119130000_dedupe_confidence_dirty_marking.sql',
+  '20261119140000_confidence_dirty_on_schedule_changes.sql',
 ];
 
 /** The full test schema as SQL scripts, in order — for running the same
