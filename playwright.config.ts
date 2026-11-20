@@ -5,8 +5,13 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  /* tests/unit runs under node:test (npm run test:unit), not Playwright. */
-  testIgnore: ['**/unit/**'],
+  /* tests/unit runs under node:test (npm run test:unit), not Playwright.
+   * E2E_SKIP_STRIPE (set by .github/workflows/e2e.yml) also skips the Stripe
+   * specs, which create real commissioner accounts needing manual cleanup. */
+  testIgnore: [
+    '**/unit/**',
+    ...(process.env.E2E_SKIP_STRIPE ? ['**/stripe-payment.spec.ts', '**/stripe-webhook-idempotency.spec.ts'] : []),
+  ],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
