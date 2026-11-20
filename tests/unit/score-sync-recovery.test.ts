@@ -111,6 +111,47 @@ test('moving a finished game to another week rescores both weeks', async () => {
   assert.equal((await weekPoints(db, f.poolId, 11))[f.alice], 8, 'week 11 gained it');
 });
 
+const periodRow = async (db: PGlite, poolId: string, period: string) =>
+  (await all<{ winner_participant_id: string; period_points: number }>(db,
+    `SELECT winner_participant_id, period_points FROM period_winners WHERE pool_id = $1 AND period_name = $2`, [poolId, period]))[0];
+const seasonRow = async (db: PGlite, poolId: string) =>
+  (await all<{ winner_participant_id: string; total_points: number }>(db,
+    `SELECT winner_participant_id, total_points FROM season_winners WHERE pool_id = $1`, [poolId]))[0];
+
+test('removing the last game in a finalized week deletes its scores and winner and reconciles the period and season', async () => {
+  const { db, supabase, f } = await setup();
+  assert.equal((await periodRow(db, f.poolId, 'Q2')).period_points, 26, 'Alice: 6 + 4 x 5 before');
+  const seasonBefore = await seasonRow(db, f.poolId);
+
+  // Remove week 5 one game at a time, running the cron between each, so the
+  // last delete is the one that empties a week that was already finalized.
+  for (const g of [1, 2, 3]) {
+    await db.query(`DELETE FROM picks WHERE game_id = $1`, [gameId(5, g)]);
+    await db.query(`DELETE FROM games WHERE id = $1`, [gameId(5, g)]);
+    await settleAndAssertFresh(supabase);
+  }
+
+  assert.deepEqual(await weekPoints(db, f.poolId, 5), {}, 'no scores left for the removed week');
+  assert.deepEqual(await weekWinners(db, f.poolId, 5), [], 'no weekly winner left for the removed week');
+  const q2 = await periodRow(db, f.poolId, 'Q2');
+  assert.equal(q2.period_points, 20, 'Q2 recomputed without week 5');
+  const seasonAfter = await seasonRow(db, f.poolId);
+  assert.equal(seasonAfter.total_points, seasonBefore.total_points - 6, "season total drops by Alice's week-5 points");
+});
+
+test('moving every game out of a finalized week leaves no stale rows for it', async () => {
+  const { db, supabase, f } = await setup();
+  await db.query(`UPDATE games SET week = 8 WHERE week = 7 AND season = $1`, [SEASON]);
+  assert.deepEqual(await dirty(db), [f.poolId]);
+
+  const run = await settleAndAssertFresh(supabase);
+  assert.equal(run.results[0].changes?.weekly_deletes, 1, 'week 7 winner deleted');
+  assert.deepEqual(await weekPoints(db, f.poolId, 7), {});
+  assert.deepEqual(await weekWinners(db, f.poolId, 7), []);
+  assert.equal((await weekPoints(db, f.poolId, 8))[f.alice], 10, 'week 8 now holds both weeks');
+  assert.ok(await periodRow(db, f.poolId, 'Q2'), 'Q2 still has a winner with week 7 empty');
+});
+
 test('moving a game to another season marks pools in both seasons', async () => {
   const { db, f } = await setup();
   const { rows: [other] } = await db.query<{ id: string }>(`INSERT INTO pools (name, season) VALUES ('E2E Other Season', $1) RETURNING id`, [SEASON - 1]);

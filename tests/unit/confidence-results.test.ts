@@ -156,3 +156,64 @@ test('write plan is empty when stored rows already match, and corrects a stale w
   const fix = planResultWrites('pool', 2026, pool, results, stale);
   assert.equal(fix.weekly_upserts[0].winner_participant_id, 'a');
 });
+
+test('write plan deletes scores and winners for a week with no games left, never on an empty schedule', () => {
+  const pool = { pool_type: 'normal', tie_breaker_answer: null };
+  const storedWeek4 = {
+    scores: [{ participant_id: 'a', week: 4, season_type: null, points: 3, correct_picks: 1, total_picks: 1 }],
+    weeklyWinners: [{ week: 4, season_type: 2, winner_participant_id: 'a' }],
+    periodWinners: [],
+    seasonWinner: null,
+  };
+  const plan = planResultWrites('pool', 2026, pool, computeConfidenceResults(input([weekOf(3, [{ alice: 3, bob: 1 }])], pool)), storedWeek4);
+  assert.deepEqual(plan.scores.find(s => s.week === 4), { season_type: 2, week: 4, rows: [] });
+  assert.deepEqual(plan.weekly_deletes, [{ season_type: 2, week: 4 }]);
+
+  const empty = planResultWrites('pool', 2026, pool, computeConfidenceResults(input([], pool)), storedWeek4);
+  assert.equal(empty.scores.length + empty.weekly_deletes.length, 0, 'an empty games read deletes nothing');
+});
+
+test('a week emptied by a schedule correction does not hold its period open once later weeks exist', () => {
+  const weeks = [1, 2, 4, 5].map(w => weekOf(w, [{ alice: 3, bob: 1 }])); // week 3 has no games
+  const r = computeConfidenceResults(input(weeks));
+  assert.equal(r.periods[0].complete, true, 'Q1 complete despite the gap');
+
+  const r2 = computeConfidenceResults(input([1, 2, 3].map(w => weekOf(w, [{ alice: 3, bob: 1 }]))));
+  assert.equal(r2.periods[0].complete, false, 'week 4 not scheduled yet: Q1 still open');
+});
+
+test('champion tie-breaker method reports the step that actually decided a 2-2 periods tie', async () => {
+  const { describeChampionTieBreak } = await import('../../supabase/functions/_shared/confidence-results');
+  // Alice takes Q1 + Q2 (weeks 1 and 5), Bob takes Q3 + Q4 (weeks 10 and 15).
+  const season = (aliceWins: Array<{ week: number; alice: number; bob: number }>) => aliceWins.map(w => weekOf(w.week, [{ alice: w.alice, bob: w.bob }]));
+  const close = [{ week: 1, alice: 2, bob: 1 }, { week: 5, alice: 2, bob: 1 }, { week: 10, alice: 1, bob: 2 }, { week: 15, alice: 1, bob: 2 }];
+
+  // Everything equal: alphabetical.
+  let c = computeConfidenceResults(input(season(close))).champion!;
+  assert.deepEqual([c.name, c.tie_breaker_method], ['Alice', 'name']);
+
+  // Bob scores more, same weeks won: total points.
+  const bobBig = [close[0], close[1], { week: 10, alice: 0, bob: 10 }, { week: 15, alice: 0, bob: 10 }];
+  c = computeConfidenceResults(input(season(bobBig))).champion!;
+  assert.deepEqual([c.name, c.tie_breaker_method], ['Bob', 'total_points']);
+
+  // Alice wins an extra Q1 week: weeks won beats Bob's points.
+  c = computeConfidenceResults(input(season([...bobBig, { week: 2, alice: 2, bob: 1 }]))).champion!;
+  assert.deepEqual([c.name, c.tie_breaker_method], ['Alice', 'weeks_won']);
+
+  // With a pool answer, the closest season answer wins even against more
+  // points and more weeks won.
+  c = computeConfidenceResults(input(season(bobBig), { pool_type: 'normal', tie_breaker_answer: 45 }, {
+    tieBreakers: [
+      { participant_id: 'a', week: 18, season_type: 2, answer: 44 },
+      { participant_id: 'b', week: 18, season_type: 2, answer: 30 },
+    ],
+  })).champion!;
+  assert.deepEqual([c.name, c.tie_breaker_method, c.winner_tie_breaker_answer], ['Alice', 'season_answer', 44]);
+  assert.match(describeChampionTieBreak(c.tie_breaker_method)!, /season tie-breaker answer/);
+
+  // Pool answer set but nobody answered: falls through to total points.
+  c = computeConfidenceResults(input(season(bobBig), { pool_type: 'normal', tie_breaker_answer: 45 })).champion!;
+  assert.deepEqual([c.name, c.tie_breaker_method], ['Bob', 'total_points']);
+  assert.equal(describeChampionTieBreak(null), null);
+});
