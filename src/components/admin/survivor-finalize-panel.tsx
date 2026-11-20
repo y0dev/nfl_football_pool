@@ -84,7 +84,8 @@ export function SurvivorFinalizePanel({ poolId, onFinalized }: { poolId: string;
 
   const outdated = f.status === 'outdated';
   const accent = outdated ? amber : f.status === 'up_to_date' ? greenHi : gold;
-  const canFinalize = f.status === 'outdated' || (f.status === 'not_finalized' && f.readyToFinalize);
+  // Readiness gates re-finalizing too: the server rejects it otherwise.
+  const canFinalize = f.readyToFinalize && f.status !== 'up_to_date';
 
   return (
     <div
@@ -111,13 +112,14 @@ export function SurvivorFinalizePanel({ poolId, onFinalized }: { poolId: string;
                 You finalized{finalizedOn ? ` on ${finalizedOn}` : ''} with <strong>{names(f.finalizedWinnerIds)}</strong> as the winner,
                 but a game result has changed since. Current results say <strong>{names(f.currentWinnerIds)}</strong>.
                 Standings keep showing the old winner until you re-finalize.
+                {!f.readyToFinalize && f.notReadyReason ? <> You can re-finalize once this is settled: {f.notReadyReason}</> : null}
               </>
             ) : f.status === 'up_to_date' ? (
               <>Winner: <strong style={{ color: text }}>{names(f.finalizedWinnerIds)}</strong>{finalizedOn ? ` · finalized ${finalizedOn}` : ''}. Matches current results.</>
             ) : f.readyToFinalize ? (
               <>Every game is final (or one player remains). Finalizing declares <strong style={{ color: text }}>{names(f.currentWinnerIds)}</strong> the winner.</>
             ) : (
-              <>Finalize once the last game in this pool&apos;s scope is final, or only one player is left.</>
+              <>{f.notReadyReason ?? "Finalize once the last game in this pool's scope is final, or only one player is left."}</>
             )}
           </p>
           {message && <p style={{ ...b, fontSize: '0.75rem', color: textDim, marginTop: '0.4rem' }}>{message}</p>}

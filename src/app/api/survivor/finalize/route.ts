@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
 
     const result = await finalizeSurvivorSeason(poolId);
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      // 409: the request is valid but the season isn't settled yet (an
+      // unfinished game could still change the winner, or no schedule).
+      return NextResponse.json({ success: false, error: result.error }, { status: 'notReady' in result && result.notReady ? 409 : 400 });
     }
 
     return NextResponse.json({ success: true, winnerParticipantIds: result.winnerParticipantIds, resolution: result.resolution });
