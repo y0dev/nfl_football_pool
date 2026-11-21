@@ -111,6 +111,10 @@ export interface WeekResult {
   week: number
   /** Every game in the week is finished. Only complete weeks have winners. */
   complete: boolean
+  /** The week has a game that hasn't started (newly scheduled, or moved in
+   * by a schedule change). Unlike a final game briefly reported live again,
+   * this reopens the week: any recorded winner for it is withdrawn. */
+  has_unplayed_game: boolean
   /** Participants with at least one pick, points-descending, then by name. */
   scores: WeekScore[]
   /** Empty when there's no winner. More than one on a shared (tied) week,
@@ -206,6 +210,16 @@ export function isGameFinished(game: { status?: string | null; winner?: string |
   return status != null && TERMINAL_GAME_STATUSES.has(status)
 }
 
+// In-progress vocabulary, mirroring normalizeGameStatus() in src/types/game.ts.
+const LIVE_GAME_STATUSES = new Set(['live', 'in_progress', 'in'])
+
+/** An unfinished game that has kicked off. Any other unfinished game hasn't
+ * been played yet. */
+export function isGameLive(game: { status?: string | null }): boolean {
+  const status = game.status?.toLowerCase()
+  return status != null && LIVE_GAME_STATUSES.has(status)
+}
+
 export function isNormalPool(pool: Pick<ResultPool, 'pool_type'>): boolean {
   return pool.pool_type === 'normal' || pool.pool_type == null
 }
@@ -299,11 +313,14 @@ export function computeConfidenceResults(input: ConfidenceResultsInput): Confide
 
   // Group games by week and work out which weeks are complete.
   const gameById = new Map(input.games.map(g => [g.id, g]))
-  const weekMeta = new Map<string, { season_type: number; week: number; complete: boolean }>()
+  const weekMeta = new Map<string, { season_type: number; week: number; complete: boolean; has_unplayed_game: boolean }>()
   for (const g of input.games) {
     const key = weekKey(g.season_type, g.week)
-    const meta = weekMeta.get(key) ?? { season_type: g.season_type, week: g.week, complete: true }
-    if (!isGameFinished(g)) meta.complete = false
+    const meta = weekMeta.get(key) ?? { season_type: g.season_type, week: g.week, complete: true, has_unplayed_game: false }
+    if (!isGameFinished(g)) {
+      meta.complete = false
+      if (!isGameLive(g)) meta.has_unplayed_game = true
+    }
     weekMeta.set(key, meta)
   }
 
@@ -337,6 +354,7 @@ export function computeConfidenceResults(input: ConfidenceResultsInput): Confide
         season_type: meta.season_type,
         week: meta.week,
         complete: meta.complete,
+        has_unplayed_game: meta.has_unplayed_game,
         scores,
         winners: [],
         tie_breaker_used: false,
@@ -671,8 +689,9 @@ function rowMatches<T extends object>(desired: T, existing: Partial<T> | undefin
  * Those are recomputed every time and corrected if a game result, pick or
  * tie-breaker changed after they were first recorded. Incomplete weeks are
  * left alone, so a game temporarily flipped back to "live" never wipes a
- * recorded result. Weeks with no games left at all have their stored
- * scores and winner deleted.
+ * recorded result. Two exceptions: a week reopened by a game that hasn't
+ * started loses its winner (and the quarter/season winners built on it),
+ * and a week with no games left at all loses its scores and winner.
  */
 export function planResultWrites(
   poolId: string,
@@ -685,6 +704,25 @@ export function planResultWrites(
     scores: [], weekly_upserts: [], weekly_deletes: [], period_upserts: [], period_deletes: [], season_upsert: null, season_delete: false,
   }
   const existingSeasonType = (st: number | null) => st ?? REGULAR_SEASON_TYPE
+
+  // A week reopened by a newly scheduled game has no winner until that game
+  // is final: withdraw any recorded one, and the quarter and season winners
+  // computed from it. Its scores stay (still right for the games played) and
+  // are rewritten when the week completes. A week that is incomplete only
+  // because a final game is briefly reported live again keeps everything.
+  const reopened = results.weeks.filter(w => !w.complete && w.has_unplayed_game)
+  for (const week of reopened) {
+    if (existing.weeklyWinners.some(w => w.week === week.week && existingSeasonType(w.season_type) === week.season_type)) {
+      plan.weekly_deletes.push({ season_type: week.season_type, week: week.week })
+    }
+  }
+  const reopenedRegularWeeks = new Set(reopened.filter(w => w.season_type === REGULAR_SEASON_TYPE).map(w => w.week))
+  for (const period of results.periods) {
+    if (period.period.weeks.some(w => reopenedRegularWeeks.has(w)) && existing.periodWinners.some(p => p.period_name === period.period.name)) {
+      plan.period_deletes.push(period.period.name)
+    }
+  }
+  if (reopenedRegularWeeks.size > 0 && existing.seasonWinner) plan.season_delete = true
 
   for (const week of results.weeks) {
     if (!week.complete) continue
