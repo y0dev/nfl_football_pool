@@ -152,6 +152,72 @@ test('moving every game out of a finalized week leaves no stale rows for it', as
   assert.ok(await periodRow(db, f.poolId, 'Q2'), 'Q2 still has a winner with week 7 empty');
 });
 
+// ---- Schedule changes that reopen a finalized week ----
+
+const stored = async (db: PGlite, poolId: string) => ({
+  week10: await weekWinners(db, poolId, 10),
+  q3: (await periodRow(db, poolId, 'Q3'))?.winner_participant_id ?? null,
+  season: (await seasonRow(db, poolId))?.winner_participant_id ?? null,
+});
+
+test('a newly scheduled game inserted into a finalized week withdraws its winner until the game is final', async () => {
+  const { db, supabase, f } = await setup();
+  assert.deepEqual(await stored(db, f.poolId), { week10: [f.alice], q3: f.alice, season: f.alice }, 'finalized before');
+  const pointsBefore = await weekPoints(db, f.poolId, 10);
+
+  await db.query(
+    `INSERT INTO games (id, week, season, season_type, home_team, away_team, status)
+     VALUES ('g-10-4', 10, $1, 2, 'H10-4', 'A10-4', 'scheduled')`, [SEASON]);
+  assert.deepEqual(await dirty(db), [f.poolId], 'an unfinished game inserted into a finalized week marks the pool');
+  await db.query(
+    `INSERT INTO picks (participant_id, pool_id, game_id, predicted_winner, confidence_points) VALUES ($1, $2, 'g-10-4', 'H10-4', 4)`,
+    [f.bob, f.poolId]);
+
+  const run = await settleAndAssertFresh(supabase);
+  assert.deepEqual(run.results[0].changes, { score_weeks: 0, weekly_upserts: 0, weekly_deletes: 1, period_upserts: 0, period_deletes: 1, season: 'deleted' });
+  assert.deepEqual(await stored(db, f.poolId), { week10: [], q3: null, season: null }, 'no stale finalized winner while the game is unresolved');
+  assert.deepEqual(await weekPoints(db, f.poolId, 10), pointsBefore, 'scores for the games already played stay');
+
+  // The game finishes: Bob's 4 points take week 10, Q3 and the season.
+  await db.query(`UPDATE games SET status = 'final', winner = 'H10-4' WHERE id = 'g-10-4'`);
+  await settleAndAssertFresh(supabase);
+  assert.deepEqual(await stored(db, f.poolId), { week10: [f.bob], q3: f.bob, season: f.bob });
+  assert.equal((await weekPoints(db, f.poolId, 10))[f.bob], 9);
+});
+
+test("moving an unplayed game into a finalized week withdraws that week's winner and completes the week it left", async () => {
+  const { db, supabase, f } = await setup(async db => {
+    await db.query(`UPDATE games SET status = 'scheduled', winner = NULL WHERE id = $1`, [gameId(12, 3)]);
+  });
+  assert.deepEqual(await weekWinners(db, f.poolId, 12), [], 'week 12 open: its game was postponed');
+  assert.deepEqual(await weekWinners(db, f.poolId, 10), [f.alice]);
+
+  await db.query(`UPDATE games SET week = 10 WHERE id = $1`, [gameId(12, 3)]);
+  assert.deepEqual(await dirty(db), [f.poolId]);
+
+  await settleAndAssertFresh(supabase);
+  assert.deepEqual(await weekWinners(db, f.poolId, 10), [], 'week 10 reopened by the rescheduled game');
+  assert.equal((await weekWinners(db, f.poolId, 12)).length, 1, 'week 12 complete without it');
+  assert.equal((await periodRow(db, f.poolId, 'Q3')), undefined, 'Q3 winner withdrawn');
+});
+
+test("a final game briefly reported live again keeps the finalized week's winner", async () => {
+  const { db, supabase, f } = await setup();
+  await db.query(`UPDATE games SET status = 'in', winner = NULL WHERE id = $1`, [gameId(10, 1)]);
+  assert.deepEqual(await dirty(db), [f.poolId]);
+  const run = await runConfidenceResultsJob(supabase);
+  assert.equal(run.results[0].status, 'unchanged');
+  assert.deepEqual(await stored(db, f.poolId), { week10: [f.alice], q3: f.alice, season: f.alice });
+});
+
+test('scheduling a future week marks nothing', async () => {
+  const { db } = await setup();
+  await db.query(
+    `INSERT INTO games (id, week, season, season_type, home_team, away_team, status)
+     VALUES ('po-1', 1, $1, 3, 'HP', 'AP', 'scheduled')`, [SEASON]);
+  assert.deepEqual(await dirty(db), [], 'no finished game in that week, so nothing to reopen');
+});
+
 test('moving a game to another season marks pools in both seasons', async () => {
   const { db, f } = await setup();
   const { rows: [other] } = await db.query<{ id: string }>(`INSERT INTO pools (name, season) VALUES ('E2E Other Season', $1) RETURNING id`, [SEASON - 1]);
