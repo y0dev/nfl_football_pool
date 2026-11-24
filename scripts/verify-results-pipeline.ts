@@ -18,6 +18,8 @@
 //      season to Bob.
 //   3. Week 2's games move into week 1 (a schedule correction that empties
 //      week 2): week 2 keeps no scores or winner.
+//   4. An unplayed game is inserted into finalized week 1: its winner, Q1
+//      and the season winner are withdrawn until it is final.
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
 loadEnv({ path: '.env.local' });
@@ -200,6 +202,17 @@ async function main() {
     await expectState('3. emptied week 2 keeps no scores or winner', {
       scores: { 1: { Alice: 4, Bob: 6 } }, weekly: { 1: 'Bob' },
       q1: 'Bob', season: { winner: 'Bob', points: 6 },
+    });
+
+    // A newly scheduled game reopens finalized week 1: its winner, and the
+    // Q1 and season winners built on it, are withdrawn; its scores stay.
+    must(await supabase.from('games').insert({
+      id: gid(1, 3), season, season_type: 2, week: 1, home_team: 'H3', away_team: 'A3', home_team_id: 'H3', away_team_id: 'A3',
+      kickoff_time: new Date(Date.UTC(season, 8, 8)).toISOString(), status: 'scheduled',
+    }), 'insert unplayed game');
+    await expectMarked('unplayed game inserted into a finalized week');
+    await expectState('4. reopened week 1 shows no stale winner', {
+      scores: { 1: { Alice: 4, Bob: 6 } }, weekly: {}, q1: null, season: null,
     });
     console.log('\nAll checks passed.');
   } finally {
