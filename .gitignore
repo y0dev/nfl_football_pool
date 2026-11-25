@@ -59,3 +59,4 @@ supabase/.temp/**
 .env
 .env.*
 !.env.example
+!.env.e2e.example
