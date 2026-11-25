@@ -3,18 +3,18 @@
 //
 // Sales run on a calendar (SALES below): each has a start and end, a badge
 // label and its own Standard / add-on prices, and is live only between its
-// dates — nobody has to remember to switch it off. The page and checkout use
-// the same getActiveSale(); checkout runs it on the server's clock, picks the
-// matching Stripe price id (src/lib/stripe.ts) and refuses to charge if that
-// Stripe price's amount differs from what the page shows. See the Sales
-// section of docs/stripe-billing-setup.md.
+// dates — nobody has to remember to switch it off. Like NFL Sunday Ticket,
+// the price steps down as fewer weeks remain. The page and checkout use the
+// same getActiveSale(); checkout runs it on the server's clock and charges
+// exactly that amount (Stripe price_data, src/lib/stripe.ts), so a sale needs
+// no Stripe setup. See the Sales section of docs/stripe-billing-setup.md.
 //
 // NEXT_PUBLIC_SALE (build-time) overrides the calendar:
 //   unset            → follow the calendar
 //   off              → no sale, whatever the date
 //   <sale id>        → force that sale on (e.g. to test it in dev)
 
-export type SaleId = 'preseason' | 'thanksgiving' | 'playoffs';
+export type SaleId = 'preseason' | 'thanksgiving' | 'rest_of_season' | 'playoffs';
 
 export interface Sale {
   id: SaleId;
@@ -47,6 +47,8 @@ export const ADDON_LIST = 20;
 export const SALES: readonly Sale[] = [
   // Thanksgiving through Cyber Monday.
   { id: 'thanksgiving', label: 'Thanksgiving Sale', starts: '2026-11-26T00:00:00-05:00', ends: '2026-12-01T00:00:00-05:00', standard: 40, addon: 15 },
+  // After Cyber Monday through Week 18: fewer weeks left, so no return to $60.
+  { id: 'rest_of_season', label: 'Rest of Season', starts: '2026-12-01T00:00:00-05:00', ends: '2027-01-11T00:00:00-05:00', standard: 40, addon: 15 },
   // Day after Week 18 until the season rolls over (getNFLSeasonYear, Feb 14).
   { id: 'playoffs', label: 'Playoff Sale', starts: '2027-01-11T00:00:00-05:00', ends: '2027-02-14T00:00:00-05:00', standard: 30, addon: 15 },
   // Run-up to the 2027 kickoff.
