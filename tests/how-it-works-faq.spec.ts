@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getStandardPrice } from '../src/lib/pricing';
 
 test.describe('How It Works & FAQ pages', () => {
   test('how-it-works page loads and links to FAQ', async ({ page }) => {
@@ -55,21 +56,22 @@ test.describe('Pricing page', () => {
     await expect(page).toHaveURL(/\/register$/);
   });
 
-  test('standard plan shows sale comparison when sale mode is active', async ({ page }) => {
-    // Mirrors src/lib/pricing.ts: list $50, sale $40, gated by NEXT_PUBLIC_SALE
+  test('standard plan shows sale comparison when a sale is running', async ({ page }) => {
+    // Same calendar and NEXT_PUBLIC_SALE override the page uses (src/lib/pricing.ts)
     const { config } = await import('dotenv');
     config({ path: '.env.local' });
-    const saleActive = process.env.NEXT_PUBLIC_SALE === 'true';
+    const price = getStandardPrice();
 
     await page.goto('/pricing');
     await page.waitForLoadState('networkidle');
 
-    if (saleActive) {
-      // Struck-through list price and the sale price shown side by side
-      await expect(page.getByLabel('Regular price $50').first()).toBeVisible();
-      await expect(page.getByText('$40', { exact: true }).first()).toBeVisible();
+    if (price.onSale) {
+      // Struck-through list price, the sale price and the sale's badge
+      await expect(page.getByLabel(`Regular price $${price.list}`).first()).toBeVisible();
+      await expect(page.getByText(`$${price.effective}`, { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(price.saleLabel!, { exact: true }).first()).toBeVisible();
     } else {
-      await expect(page.getByText('$50', { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(`$${price.list}`, { exact: true }).first()).toBeVisible();
     }
   });
 

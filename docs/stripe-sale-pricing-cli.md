@@ -1,5 +1,11 @@
 # Stripe CLI — Launch Sale Pricing Setup
 
+> **Historical.** This records the original single on/off "launch sale". Sales
+> now run on a calendar with their own prices (Standard $60; Thanksgiving $40,
+> playoffs $30, preseason $50) — see the Sales calendar section of
+> `docs/stripe-billing-setup.md` for the current prices and env vars. The
+> `stripe prices create` commands below still work as a pattern for new prices.
+
 Companion to `docs/stripe-billing-setup.md`. Documents the exact `stripe`
 CLI commands used to create the launch-sale prices in the **sandbox** (test
 mode) account, and the equivalent commands to run against **production**

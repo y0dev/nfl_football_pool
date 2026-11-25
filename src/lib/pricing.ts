@@ -1,34 +1,65 @@
-// Central price list — the only place dollar amounts live. Safe to import
-// from client components (NEXT_PUBLIC_* is inlined at build time).
+// Central price list — the only place dollar amounts and sale dates live.
+// Safe to import from client components.
 //
-// Sale mode is a single on/off switch, so a promotion is just an env change:
-//   NEXT_PUBLIC_SALE=true    → sale prices shown (struck-through list price +
-//                              badge) and sale Stripe price IDs charged at checkout
-//   NEXT_PUBLIC_SALE=false / unset → regular prices, no badge, regular Stripe prices
-//   NEXT_PUBLIC_SALE_LABEL=... → optional badge text, defaults to "Launch Special"
+// Sales run on a calendar (SALES below): each has a start and end, a badge
+// label and its own Standard / add-on prices, and is live only between its
+// dates — nobody has to remember to switch it off. The page and checkout use
+// the same getActiveSale(); checkout runs it on the server's clock, picks the
+// matching Stripe price id (src/lib/stripe.ts) and refuses to charge if that
+// Stripe price's amount differs from what the page shows. See the Sales
+// section of docs/stripe-billing-setup.md.
 //
-// The matching Stripe price IDs (STRIPE_PRICE_STANDARD[_SALE] /
-// STRIPE_PRICE_ADDON_POOL[_SALE]) are resolved in src/lib/stripe.ts using the
-// same isSaleEnabled() flag, so the displayed price and the charged price can
-// never drift apart. See the Sales section of docs/stripe-billing-setup.md.
+// NEXT_PUBLIC_SALE (build-time) overrides the calendar:
+//   unset            → follow the calendar
+//   off              → no sale, whatever the date
+//   <sale id>        → force that sale on (e.g. to test it in dev)
+
+export type SaleId = 'preseason' | 'thanksgiving' | 'playoffs';
+
+export interface Sale {
+  id: SaleId;
+  /** Badge text on /pricing and /upgrade. */
+  label: string;
+  /** Inclusive start / exclusive end, ISO with a US Eastern offset. */
+  starts: string;
+  ends: string;
+  /** Sale prices in whole dollars. */
+  standard: number;
+  addon: number;
+}
 
 export interface PriceInfo {
   /** Regular (list) price in whole dollars. */
   list: number;
-  /** Sale price, or null when sale mode is off. */
+  /** Sale price, or null when no sale is running. */
   sale: number | null;
   /** What the customer actually pays right now. */
   effective: number;
   onSale: boolean;
+  /** Badge text of the running sale, or null. */
+  saleLabel: string | null;
 }
 
-const STANDARD_LIST = 50;
-const STANDARD_SALE = 40;
-const ADDON_LIST = 20;
-const ADDON_SALE = 15;
+export const STANDARD_LIST = 60;
+export const ADDON_LIST = 20;
 
-export function isSaleEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_SALE === 'true';
+// Must not overlap (tests/unit/pricing.test.ts checks).
+export const SALES: readonly Sale[] = [
+  // Thanksgiving through Cyber Monday.
+  { id: 'thanksgiving', label: 'Thanksgiving Sale', starts: '2026-11-26T00:00:00-05:00', ends: '2026-12-01T00:00:00-05:00', standard: 40, addon: 15 },
+  // Day after Week 18 until the season rolls over (getNFLSeasonYear, Feb 14).
+  { id: 'playoffs', label: 'Playoff Sale', starts: '2027-01-11T00:00:00-05:00', ends: '2027-02-14T00:00:00-05:00', standard: 30, addon: 15 },
+  // Run-up to the 2027 kickoff.
+  { id: 'preseason', label: 'Preseason Sale', starts: '2027-08-01T00:00:00-04:00', ends: '2027-09-10T00:00:00-04:00', standard: 50, addon: 15 },
+];
+
+export function getActiveSale(now: Date = new Date()): Sale | null {
+  const override = process.env.NEXT_PUBLIC_SALE;
+  if (override === 'off' || override === 'false') return null;
+  const forced = SALES.find(s => s.id === override);
+  if (forced) return forced;
+  const t = now.getTime();
+  return SALES.find(s => Date.parse(s.starts) <= t && t < Date.parse(s.ends)) ?? null;
 }
 
 // Self-serve 7-day Standard trial on signup, offered from the Pricing page.
@@ -41,17 +72,18 @@ export function isTrialEnabled(): boolean {
   return process.env.NEXT_PUBLIC_TRIAL_ENABLED !== 'false';
 }
 
-function priceInfo(list: number, sale: number): PriceInfo {
-  const onSale = isSaleEnabled();
-  return { list, sale: onSale ? sale : null, effective: onSale ? sale : list, onSale };
+function priceInfo(list: number, pick: (sale: Sale) => number, now: Date): PriceInfo {
+  const sale = getActiveSale(now);
+  const salePrice = sale ? pick(sale) : null;
+  return { list, sale: salePrice, effective: salePrice ?? list, onSale: sale !== null, saleLabel: sale?.label ?? null };
 }
 
-export function getStandardPrice(): PriceInfo {
-  return priceInfo(STANDARD_LIST, STANDARD_SALE);
+export function getStandardPrice(now: Date = new Date()): PriceInfo {
+  return priceInfo(STANDARD_LIST, s => s.standard, now);
 }
 
-export function getAddonPoolPrice(): PriceInfo {
-  return priceInfo(ADDON_LIST, ADDON_SALE);
+export function getAddonPoolPrice(now: Date = new Date()): PriceInfo {
+  return priceInfo(ADDON_LIST, s => s.addon, now);
 }
 
 // No-refund policy — one string so checkout, the pricing/upgrade pages, the
@@ -63,8 +95,4 @@ export const ALL_SALES_FINAL_DETAIL =
 /** "2026–27" for the season that kicks off in 2026 and ends at the Super Bowl. */
 export function seasonLabel(season: number): string {
   return `${season}–${String((season + 1) % 100).padStart(2, '0')}`;
-}
-
-export function getSaleLabel(): string {
-  return process.env.NEXT_PUBLIC_SALE_LABEL || 'Launch Special';
 }

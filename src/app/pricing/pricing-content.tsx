@@ -6,8 +6,9 @@ import { Shield, Plus, Check } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { PriceTag } from '@/components/pricing/price-tag';
+import { useSalePrices } from '@/lib/use-sale-prices';
 import { SalesFinalNotice } from '@/components/pricing/sales-final-notice';
-import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
+import { isTrialEnabled, TRIAL_DAYS } from '@/lib/pricing';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const bg      = 'oklch(13% 0.025 255)';
@@ -58,8 +59,7 @@ const ADDON_FEATURES = [
 
 export default function PricingContent() {
   const router = useRouter();
-  const standardPrice = getStandardPrice();
-  const addonPrice = getAddonPoolPrice();
+  const { standard: standardPrice, addon: addonPrice } = useSalePrices();
   const trialEnabled = isTrialEnabled();
 
   return (

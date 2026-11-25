@@ -55,16 +55,21 @@ Notes:
 ## 2. Stripe account setup
 
 1. **Create the account** at <https://dashboard.stripe.com/register>.
-2. **Create two products** (Product catalog → Add product), each with **two
-   one-time prices** — a regular price and a sale price (pricing is per
-   season, not a subscription):
-   | Product | Regular price | Regular env var | Sale price | Sale env var |
-   |---|---|---|---|---|
-   | Sunday Huddle Standard (per season) | $50 | `STRIPE_PRICE_STANDARD` | $40 | `STRIPE_PRICE_STANDARD_SALE` |
-   | Sunday Huddle Add-on Pool (per season) | $20 | `STRIPE_PRICE_ADDON_POOL` | $15 | `STRIPE_PRICE_ADDON_POOL_SALE` |
+2. **Create two products** (Product catalog → Add product) with these
+   **one-time prices** (pricing is per season, not a subscription). A sale is
+   another price on the same product, never a new product:
 
-   The `_SALE` prices are only needed once you actually plan to run a
-   promotion — see [Sale mode](#sale-mode-env-toggled) below.
+   | Product | Price | Env var |
+   |---|---|---|
+   | Sunday Huddle Standard (per season) | $60 regular | `STRIPE_PRICE_STANDARD` |
+   | | $50 preseason sale | `STRIPE_PRICE_STANDARD_SALE` |
+   | | $40 Thanksgiving sale | `STRIPE_PRICE_STANDARD_SALE_THANKSGIVING` |
+   | | $30 playoff sale | `STRIPE_PRICE_STANDARD_SALE_PLAYOFFS` |
+   | Sunday Huddle Add-on Pool (per season) | $20 regular | `STRIPE_PRICE_ADDON_POOL` |
+   | | $15 every sale | `STRIPE_PRICE_ADDON_POOL_SALE` |
+
+   A sale's price is only needed before that sale starts — see
+   [Sales](#sales-calendar) below.
 3. **Create the webhook endpoint** (Developers → Webhooks → Add endpoint):
    - URL: `https://<your-domain>/api/stripe/webhook` — **use the exact
      canonical domain your host serves without a redirect** (e.g. if Vercel's
@@ -93,38 +98,57 @@ Notes:
    `standard` and a `payments` row appears. For local webhook testing:
    `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
 
-## Sale mode (env-toggled)
+## Sales calendar
 
-List and sale prices live in `src/lib/pricing.ts`: Standard is **$50 → $40**,
-add-on pools are **$20 → $15**. Sale mode is a single boolean switch — set it,
-redeploy, and the whole app (pricing display *and* checkout) switches together:
+Sales run on dates, not a switch. `SALES` in `src/lib/pricing.ts` lists each
+one with its start, end (US Eastern), badge text and prices. Regular prices
+are Standard **$60** and add-on pools **$20**:
 
-```
-NEXT_PUBLIC_SALE=true                 # on: sale prices + badge shown, sale
-                                       # Stripe prices charged at checkout.
-                                       # off/unset: regular prices, no badge.
-NEXT_PUBLIC_SALE_LABEL=Launch Special # optional badge text (default "Launch Special")
-```
+| Sale | Runs (Eastern) | Standard | Add-on | Standard price env var |
+|---|---|---|---|---|
+| Thanksgiving Sale | Nov 26 – Nov 30, 2026 (through Cyber Monday) | $40 | $15 | `STRIPE_PRICE_STANDARD_SALE_THANKSGIVING` |
+| Playoff Sale | Jan 11 – Feb 13, 2027 (until the season rolls over) | $30 | $15 | `STRIPE_PRICE_STANDARD_SALE_PLAYOFFS` |
+| Preseason Sale | Aug 1 – Sep 9, 2027 | $50 | $15 | `STRIPE_PRICE_STANDARD_SALE` |
 
-Unset (or set to `false`) and redeploy — these are build-time vars — to end
-the sale.
+Every sale's add-on price is `STRIPE_PRICE_ADDON_POOL_SALE`.
 
-**How the Stripe side stays in sync:** `getPriceId()` in `src/lib/stripe.ts`
-reads `isSaleEnabled()` from `src/lib/pricing.ts` and picks
-`STRIPE_PRICE_STANDARD_SALE` / `STRIPE_PRICE_ADDON_POOL_SALE` instead of the
-regular price ids whenever the flag is on — there's no separate step to keep
-the charged amount matching the displayed amount. If `NEXT_PUBLIC_SALE=true`
-but a `_SALE` price id isn't set, checkout returns 503 ("Product is not
-configured") rather than silently charging the regular price.
+### Before a sale starts
 
-To change the actual dollar amounts (not just toggle the sale), edit the
-`STANDARD_LIST` / `STANDARD_SALE` / `ADDON_LIST` / `ADDON_SALE` constants in
-`src/lib/pricing.ts` and create matching Stripe prices — that file is the only
-place the numbers live.
+1. In Stripe, add the sale's price to the **existing** product (one-time,
+   USD, the exact amount above) and put its id in the env var above.
+2. Redeploy if you changed env vars. Nothing else: the sale turns itself on
+   at its start and off at its end.
+3. When it starts, open `/pricing` (struck-through $60, sale price, badge),
+   then start a checkout and check Stripe shows the sale price before
+   abandoning it.
 
-To add a future promotion (Black Friday, Kickoff, etc.) that needs a different
-sale price than the standing one, update the `*_SALE` constants and Stripe
-price ids for that window; the on/off flag and UI don't need to change.
+### How the page and the charge stay in sync
+
+- Checkout never takes a price from the browser. `getCheckoutPrice()` in
+  `src/lib/stripe.ts` works out the running sale on the **server's** clock
+  and picks that sale's price id.
+- Before creating the Checkout Session it fetches that Stripe price and
+  refuses (503 "Product is not configured", reason in the server log) unless
+  it is active, one-time, USD and exactly the amount the page shows. A price
+  id pasted into the wrong env var can't charge the wrong amount.
+- If a sale is running but its price id isn't set, checkout also returns 503
+  rather than charging the regular price.
+- `/pricing` and `/upgrade` work the price out in the browser
+  (`useSalePrices()`), re-checking every minute, so a page built before a
+  sale started still shows it.
+
+### Changing or adding a sale
+
+Edit `SALES` in `src/lib/pricing.ts` (dates, label, prices; sales may not
+overlap — `tests/unit/pricing.test.ts` checks), add its env var to
+`SALE_PRICE_ENV` in `src/lib/stripe.ts`, and create the matching Stripe
+price. Changing dates or amounts is a code change and a deploy.
+
+### Override
+
+`NEXT_PUBLIC_SALE` (build-time) overrides the calendar: `off` ends every
+sale whatever the date; a sale id (`thanksgiving`, `playoffs`, `preseason`)
+forces that sale on, e.g. to try it in dev. Unset follows the calendar.
 
 ## 3. How purchases flow (already implemented)
 

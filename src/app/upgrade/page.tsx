@@ -13,8 +13,9 @@ import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { useToast } from '@/hooks/use-toast';
 import { isPricingVisible } from '@/lib/billing';
-import { getStandardPrice, getAddonPoolPrice, isTrialEnabled, TRIAL_DAYS, seasonLabel } from '@/lib/pricing';
+import { ADDON_LIST, STANDARD_LIST, isTrialEnabled, TRIAL_DAYS, seasonLabel } from '@/lib/pricing';
 import { PriceTag } from '@/components/pricing/price-tag';
+import { useSalePrices } from '@/lib/use-sale-prices';
 import { SalesFinalNotice } from '@/components/pricing/sales-final-notice';
 
 type Plan = 'free' | 'standard';
@@ -84,9 +85,8 @@ function UpgradeContent() {
   const [isStartingTrial, setIsStartingTrial] = useState(false);
   const trialEnabled = isTrialEnabled();
 
-  const standardPrice = getStandardPrice();
-  const addonPrice = getAddonPoolPrice();
-  const totalAddon = extraPools * addonPrice.effective;
+  const { standard: standardPrice, addon: addonPrice } = useSalePrices();
+  const totalAddon = extraPools * (addonPrice?.effective ?? ADDON_LIST);
   const pricingVisible = isPricingVisible();
 
   const fetchPlanStatus = async (id: string) => {
@@ -492,7 +492,7 @@ function UpgradeContent() {
                       </>
                     ) : (
                     <a
-                      href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice.effective}/season).`}
+                      href={`mailto:devdoesit17@gmail.com?subject=Sunday Huddle — Standard Plan&body=I'd like to upgrade to the Standard plan ($${standardPrice?.effective ?? STANDARD_LIST}/season).`}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0.6rem 1rem',
