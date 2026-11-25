@@ -701,6 +701,9 @@ test.describe('Survivor Pool — emails', () => {
   test('/api/survivor/finalize requires the pool owner or a super admin', async ({ request }) => {
     const fixture = await setupSurvivorPool({ participantNames: ['Alice'] });
     try {
+      // A finished season, so the owner's call is allowed to finalize (an
+      // unready season is refused with 409 whoever asks).
+      await createGame(fixture, { week: 1, homeTeam: 'Home A', awayTeam: 'Away A', homeTeamId: 'HA', awayTeamId: 'AA', kickoff: daysAgo(3), status: 'finished', homeScore: 20, awayScore: 10, winner: 'Home A' });
       const rejected = await request.post('/api/survivor/finalize', {
         headers: { Cookie: `sh-session=${createSessionToken('00000000-0000-0000-0000-000000000000')}` },
         data: { poolId: fixture.poolId },

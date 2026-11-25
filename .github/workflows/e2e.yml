@@ -35,6 +35,13 @@ jobs:
       POOL_ACCESS_SECRET: ${{ secrets.E2E_POOL_ACCESS_SECRET }}
       SESSION_SECRET: ${{ secrets.E2E_SESSION_SECRET }}
       DEV_MASTER_KEY: ${{ secrets.E2E_DEV_MASTER_KEY }}
+      # Dev-only test hooks the specs rely on (the debug panel's "force show
+      # picks form" etc.) — same values as a local .env.local. All of them are
+      # ignored outside NODE_ENV=development, which `npm run dev` here is.
+      NEXT_PUBLIC_SHOW_DEBUG_PANEL: 'true'
+      NEXT_PUBLIC_PICKS_DEV: 'true'
+      NEXT_PUBLIC_WEEK_UNLOCKS: 'true'
+      NEXT_PUBLIC_SIMULATE_PICKS: 'false'
     steps:
       - name: Require secrets
         run: |
