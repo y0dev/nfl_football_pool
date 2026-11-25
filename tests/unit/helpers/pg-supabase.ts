@@ -290,6 +290,7 @@ CREATE TABLE season_winners (
 /** The migrations under test, applied verbatim. */
 const MIGRATION_FILES = [
   '20260820120000_add_survivor_pool_tables.sql',
+  '20260820140000_add_pickem_pool_tables.sql',
   '20261110120000_recalculate_confidence_results.sql',
   '20261110130000_atomic_survivor_pick_replacement.sql',
   '20261119130000_dedupe_confidence_dirty_marking.sql',

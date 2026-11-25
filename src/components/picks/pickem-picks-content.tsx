@@ -13,6 +13,7 @@ import { isGameLocked } from '@/lib/pickem-settings';
 import { getTeam, getTeamAbbreviation, debugError, showDebugPanel, getWeekTitle, getMaxWeeksForSeason, DAYS_BEFORE_GAME } from '@/lib/utils';
 import { normalizeGameStatus } from '@/types/game';
 import type { PickemWeekResult, PickemGamePick } from '@/lib/pickem';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
 import { GameStatusCard, GamesStartedCard, computeGameStatusStats } from '@/components/picks/game-status-cards';
 import { DebugPanel } from '@/components/picks/debug-panel';
@@ -220,6 +221,7 @@ export function PickemPicksContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const poolId = params.id as string;
+  const poolStart = usePoolStartWeek(poolId);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -777,6 +779,7 @@ export function PickemPicksContent() {
         weekTitle={getWeekTitle(week ?? 1, seasonType ?? 2)}
         weekNav={
           <WeekNav
+                poolStart={poolStart}
             currentWeek={week ?? 1} currentSeasonType={seasonType ?? 2} upcomingWeek={upcomingWeek}
             seasonScope={pool?.seasonScope ?? [2]}
             onPrev={() => navigateToWeek((week ?? 1) - 1, seasonType ?? 2)}

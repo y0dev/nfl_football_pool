@@ -8,6 +8,8 @@ import { SeasonLeaderboard } from '@/components/leaderboard/season-leaderboard';
 import { Trophy, Lock, ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, Calendar, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
+import { isBeforePoolStart } from '@/lib/pool-start';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
@@ -34,6 +36,7 @@ function PoolHistoryContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const poolId = params.id as string;
+  const poolStart = usePoolStartWeek(poolId);
   const weekParam = searchParams.get('week');
   const seasonTypeParam = searchParams.get('seasonType');
 
@@ -214,6 +217,7 @@ function PoolHistoryContent() {
   const navigateToWeek = async (week: number, seasonType: number) => {
     const maxWeeks = getMaxWeeksForSeason(seasonType);
     if (week < 1 || week > maxWeeks) return;
+    if (isBeforePoolStart(seasonType, week, poolStart)) return; // before the pool existed
     setCurrentWeek(week);
     setCurrentSeasonType(seasonType);
     router.replace(`/pool/${poolId}/history?week=${week}&seasonType=${seasonType}`, { scroll: false });
@@ -239,7 +243,11 @@ function PoolHistoryContent() {
     }
   };
 
-  const prevDisabled = currentSeasonType === 1 && currentWeek <= 1;
+  const prevWeek = currentWeek > 1
+    ? { week: currentWeek - 1, seasonType: currentSeasonType }
+    : { week: getMaxWeeksForSeason(currentSeasonType - 1), seasonType: currentSeasonType - 1 };
+  const prevDisabled = (currentSeasonType === 1 && currentWeek <= 1)
+    || isBeforePoolStart(prevWeek.seasonType, prevWeek.week, poolStart);
   const nextDisabled = currentSeasonType === 3 && currentWeek >= getMaxWeeksForSeason(3);
 
   const handleLogout = async () => {

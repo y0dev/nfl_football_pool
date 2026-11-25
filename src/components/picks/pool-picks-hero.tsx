@@ -5,6 +5,7 @@ import { Calendar, ChevronLeft, ChevronRight, Lock, LogOut, Trophy, Unlock } fro
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SEASON_TYPE_OPTIONS, getMaxWeeksForSeason, getPlayoffRoundName } from '@/lib/utils';
 import { computeWeekUnlockStatus } from '@/lib/week-unlock-status';
+import { isBeforePoolStart, type PoolStart } from '@/lib/pool-start';
 
 // Single source of truth for the Picks page hero — originally Confidence-only
 // (src/components/picks/pool-picks-content.tsx), extracted so Pick'em and
@@ -79,6 +80,7 @@ export function WeekNav({
   onCurrent,
   onNext,
   onJumpToWeek,
+  poolStart = null,
 }: {
   currentWeek: number;
   currentSeasonType: number;
@@ -88,12 +90,15 @@ export function WeekNav({
   onCurrent: () => void;
   onNext: () => void;
   onJumpToWeek: (week: number, seasonType: number) => void;
+  /** The pool's first week (usePoolStartWeek): earlier weeks aren't offered. */
+  poolStart?: PoolStart | null;
 }) {
   const isCurrentWeek = currentWeek === upcomingWeek.week && currentSeasonType === upcomingWeek.seasonType;
   const scopeSorted = [...seasonScope].sort((a, b) => a - b);
   const minScope = scopeSorted[0] ?? 2;
   const maxScope = scopeSorted[scopeSorted.length - 1] ?? 2;
-  const prevDisabled = currentSeasonType <= minScope && currentWeek <= 1;
+  const prevDisabled = (currentSeasonType <= minScope && currentWeek <= 1)
+    || isBeforePoolStart(currentSeasonType, currentWeek - 1, poolStart);
   const nextDisabled = currentSeasonType >= maxScope && currentWeek >= getMaxWeeksForSeason(maxScope);
   const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', border: `1px solid ${border}`, borderRadius: 5, ...bc, fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.12s' };
   // When a pool spans more than one season type (e.g. regular season +
@@ -102,8 +107,9 @@ export function WeekNav({
   const weekGroups = scopeSorted.map((seasonType) => ({
     seasonType,
     label: SEASON_TYPE_OPTIONS.find((o) => o.value === seasonType)?.label ?? '',
-    weeks: Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => i + 1),
-  }));
+    weeks: Array.from({ length: getMaxWeeksForSeason(seasonType) }, (_, i) => i + 1)
+      .filter((week) => !isBeforePoolStart(seasonType, week, poolStart)),
+  })).filter((group) => group.weeks.length > 0);
   return (
     <div className="week-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
       <button className='week-nav-prev' onClick={onPrev} disabled={prevDisabled} style={{ ...btnBase, background: 'transparent', color: prevDisabled ? textDim : textMid, opacity: prevDisabled ? 0.4 : 1, cursor: prevDisabled ? 'not-allowed' : 'pointer' }}>

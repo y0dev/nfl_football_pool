@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { debugError, getRegularSeasonPeriods } from '@/lib/utils';
 import { checkPoolAccessFromRequest } from '@/lib/pool-access';
+import { periodsForPool } from '@/lib/pool-start';
 
 // Backs the period selector on the public leaderboard's Period tab. A period
 // is "available" once it has started (not only once it's fully complete) —
@@ -58,9 +59,22 @@ export async function GET(request: NextRequest) {
     // Q1-Q4 are a regular-season construct — playoffs get no period selector.
     const periods = getRegularSeasonPeriods();
 
-    const availablePeriods = currentSeasonType === 2
+    const startedPeriods = currentSeasonType === 2
       ? periods.filter(period => currentWeek! >= period.startWeek)
       : periods; // once in playoffs, the full regular season has passed
+
+    // A pool created midseason skips quarters that ended before it existed.
+    const [{ data: pool, error: poolError }, { data: regularGames, error: regularGamesError }] = await Promise.all([
+      supabase.from('pools').select('created_at').eq('id', poolId).maybeSingle(),
+      supabase.from('games').select('season_type, week, kickoff_time').eq('season', parseInt(season)).eq('season_type', 2),
+    ]);
+    if (poolError || regularGamesError) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to load the pool schedule' },
+        { status: 500 }
+      );
+    }
+    const availablePeriods = periodsForPool(startedPeriods, pool?.created_at ?? null, regularGames ?? []);
 
     // Check which periods have official winners recorded (informational only
     // — a period without one yet still shows live/partial standings).
