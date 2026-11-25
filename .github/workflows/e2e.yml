@@ -16,7 +16,9 @@ concurrency:
 jobs:
   playwright:
     name: Playwright (chromium)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, which Playwright 1.57 can't install
+    # Chromium on. Move forward together with a Playwright upgrade.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       CI: true
