@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { isPricingVisible } from "@/lib/billing";
 import { openCookiePreferences } from "@/components/cookie-consent/cookie-consent-root";
+import { X_HANDLE, X_URL } from "@/lib/social";
 
 type FooterProps = {
   pageName?: string;
@@ -98,10 +99,22 @@ export function Footer({
               </div>
             </div>
 
-            {/* Socials — none yet, reserved for future use */}
+            {/* Socials — handles live in src/lib/social.ts */}
             <div style={{ minWidth: 160 }}>
               <p style={headingStyle}>Follow</p>
-              <p style={{ fontFamily: font, fontSize: "0.82rem", color: textDim }}>Coming soon</p>
+              <a
+                href={X_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Sunday Huddle on X (@${X_HANDLE})`}
+                style={{ ...linkStyle, display: "inline-flex", alignItems: "center", gap: "0.45rem" }}
+              >
+                {/* X logo */}
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                @{X_HANDLE}
+              </a>
             </div>
           </div>
         </div>

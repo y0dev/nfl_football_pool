@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Barlow, Barlow_Condensed } from "next/font/google";
 import { CookieConsentRoot } from "@/components/cookie-consent/cookie-consent-root";
+import { X_HANDLE } from "@/lib/social";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -50,7 +51,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    site: '@sundayhuddle',
+    site: `@${X_HANDLE}`,
+    creator: `@${X_HANDLE}`,
     title: 'Sunday Huddle — NFL Confidence Pool for Friends & Family',
     description: 'Picks. People. Compete. — NFL confidence pools made simple.',
     images: ['/brand/main_logo_white.png'],
