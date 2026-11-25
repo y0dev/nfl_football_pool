@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceClient } from '@/lib/supabase-service';
 import { isPricingVisible, isStripeConfigured } from '@/lib/billing';
-import { getStripe, getPriceId, BillingProduct } from '@/lib/stripe';
+import { getStripe, getCheckoutPrice, getStripeProductId, BillingProduct } from '@/lib/stripe';
 import { computePlanInfo, isPaidPlanCurrent } from '@/lib/plan';
 import { ALL_SALES_FINAL, seasonLabel } from '@/lib/pricing';
 
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
 
     const qty = product === 'addon_pool' ? Math.min(Math.max(1, Number(quantity) || 1), 10) : 1;
 
-    const priceId = getPriceId(product as BillingProduct);
-    if (!priceId) {
+    const productId = await getStripeProductId(product as BillingProduct);
+    if (!productId) {
       return NextResponse.json(
         { success: false, error: 'Product is not configured' },
         { status: 503 }
@@ -95,6 +95,10 @@ export async function POST(request: NextRequest) {
 
     const stripe = getStripe();
 
+    // Priced here, on the server's clock, from src/lib/pricing.ts — the same
+    // calendar /pricing shows. Nothing the browser sends affects the amount.
+    const checkoutPrice = getCheckoutPrice(product as BillingProduct);
+
     // Reuse the Stripe customer across purchases (column added by the
     // billing migration — see docs/stripe-billing-setup.md)
     let customerId: string | undefined = admin.stripe_customer_id ?? undefined;
@@ -131,7 +135,10 @@ export async function POST(request: NextRequest) {
       // address it needs to calculate tax.
       automatic_tax: { enabled: true },
       customer_update: { address: 'auto', name: 'auto' },
-      line_items: [{ price: priceId, quantity: qty }],
+      line_items: [{
+        price_data: { currency: 'usd', product: productId, unit_amount: checkoutPrice.amountCents },
+        quantity: qty,
+      }],
       // Pricing is per-season, one-time — not a subscription (mode: 'payment'
       // above already reflects that), but Stripe's hosted checkout page
       // otherwise only shows whatever the Product's name/description happen
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest) {
       },
       success_url: `${baseUrl}/upgrade?checkout=success`,
       cancel_url: `${baseUrl}/upgrade?checkout=cancelled`,
-      metadata: { adminId, product, quantity: String(qty), season: String(season) },
+      metadata: { adminId, product, quantity: String(qty), season: String(season), sale: checkoutPrice.saleId ?? 'none' },
     });
 
     return NextResponse.json({ success: true, url: session.url });

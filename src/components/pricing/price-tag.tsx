@@ -1,7 +1,6 @@
 'use client';
 
 import type { PriceInfo } from '@/lib/pricing';
-import { getSaleLabel } from '@/lib/pricing';
 
 // Design tokens (matches landing page / app-wide dark theme)
 const gold    = 'oklch(74% 0.16 72)';
@@ -14,9 +13,17 @@ const b  = { fontFamily: 'var(--font-barlow)' } as const;
 /**
  * Plan price with sale comparison: when a sale is active the list price is
  * struck through next to the effective price, with a sale badge.
- *   $50̶  $30 /season  [SALE]
+ *   $60̶  $40 /season  [THANKSGIVING SALE]
+ * A null price (not yet worked out on the client) keeps the space, blank.
  */
-export function PriceTag({ price, suffix }: { price: PriceInfo; suffix: string }) {
+export function PriceTag({ price, suffix }: { price: PriceInfo | null; suffix: string }) {
+  if (!price) {
+    return (
+      <div aria-hidden style={{ visibility: 'hidden', marginBottom: '0.4rem' }}>
+        <span style={{ ...bc, fontWeight: 900, fontSize: '2.25rem', lineHeight: 1 }}>$00</span>
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
       {price.onSale && (
@@ -38,7 +45,7 @@ export function PriceTag({ price, suffix }: { price: PriceInfo; suffix: string }
           background: 'oklch(74% 0.16 72 / 0.14)', border: '1px solid oklch(74% 0.16 72 / 0.45)',
           padding: '0.18rem 0.45rem', borderRadius: 4, alignSelf: 'center',
         }}>
-          {getSaleLabel()}
+          {price.saleLabel}
         </span>
       )}
     </div>

@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { isStripeConfigured } from './billing';
-import { isSaleEnabled } from './pricing';
+import { getActiveSale, getAddonPoolPrice, getStandardPrice, type SaleId } from './pricing';
 
 // Server-side Stripe client + product catalog. Everything here is inert until
 // the Stripe env vars are set — see docs/stripe-billing-setup.md for the full
@@ -20,20 +20,44 @@ export function getStripe(): Stripe {
 
 export type BillingProduct = 'standard' | 'addon_pool';
 
-// Price IDs come from env so test/live mode is a config change, not a deploy.
-// Both are one-time (per-season) prices — no auto-renewing subscriptions.
-// Each product also has a `_SALE` price ID, used whenever NEXT_PUBLIC_SALE=true
-// (see src/lib/pricing.ts) so checkout always charges whatever /pricing shows.
-export const PRODUCTS: Record<BillingProduct, { priceEnv: string; saleEnv: string; label: string }> = {
-  standard:   { priceEnv: 'STRIPE_PRICE_STANDARD',   saleEnv: 'STRIPE_PRICE_STANDARD_SALE',   label: 'Standard plan (per season)' },
-  addon_pool: { priceEnv: 'STRIPE_PRICE_ADDON_POOL', saleEnv: 'STRIPE_PRICE_ADDON_POOL_SALE', label: 'Add-on pool (per season)' },
+// Checkout charges the amount from src/lib/pricing.ts directly (Stripe
+// `price_data`) against one Stripe product per BillingProduct, so the charge
+// can't differ from the page and a new sale needs no Stripe price. Products
+// come from env so test/live mode is a config change, not a deploy. The
+// product id can be set directly, or is read off the product's regular price
+// (the setup before price_data, so existing deployments keep working).
+// All purchases are one-time (per season) — no auto-renewing subscriptions.
+export const PRODUCTS: Record<BillingProduct, { productEnv: string; priceEnv: string; label: string }> = {
+  standard:   { productEnv: 'STRIPE_PRODUCT_STANDARD',   priceEnv: 'STRIPE_PRICE_STANDARD',   label: 'Standard plan (per season)' },
+  addon_pool: { productEnv: 'STRIPE_PRODUCT_ADDON_POOL', priceEnv: 'STRIPE_PRICE_ADDON_POOL', label: 'Add-on pool (per season)' },
 };
 
-// Sale-aware: returns null (and the checkout route responds 503) rather than
-// silently falling back to the regular price if sale mode is on but the
-// `_SALE` price ID hasn't been set — never charge a price that doesn't match
-// what the customer was shown.
-export function getPriceId(product: BillingProduct): string | null {
-  const { priceEnv, saleEnv } = PRODUCTS[product];
-  return process.env[isSaleEnabled() ? saleEnv : priceEnv] ?? null;
+export interface CheckoutPrice {
+  /** What the pricing page shows right now, in cents — the amount charged. */
+  amountCents: number;
+  saleId: SaleId | null;
+}
+
+/** The current price on the server's clock — never anything the browser sent. */
+export function getCheckoutPrice(product: BillingProduct, now: Date = new Date()): CheckoutPrice {
+  const sale = getActiveSale(now);
+  const dollars = (product === 'standard' ? getStandardPrice(now) : getAddonPoolPrice(now)).effective;
+  return { amountCents: Math.round(dollars * 100), saleId: sale?.id ?? null };
+}
+
+const resolvedProducts = new Map<BillingProduct, string>();
+
+/** The Stripe product to charge against, or null when neither env var is set. */
+export async function getStripeProductId(product: BillingProduct): Promise<string | null> {
+  const { productEnv, priceEnv } = PRODUCTS[product];
+  const direct = process.env[productEnv];
+  if (direct) return direct;
+  const cached = resolvedProducts.get(product);
+  if (cached) return cached;
+  const priceId = process.env[priceEnv];
+  if (!priceId) return null;
+  const price = await getStripe().prices.retrieve(priceId);
+  const productId = typeof price.product === 'string' ? price.product : price.product.id;
+  resolvedProducts.set(product, productId);
+  return productId;
 }
