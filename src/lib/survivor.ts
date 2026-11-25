@@ -28,6 +28,7 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { normalizeGameStatus } from '@/types/game';
 import { computeWeekUnlockStatus } from './week-unlock-status';
+import { weekPredatesPool } from './pool-start';
 import { debugError, showDebugPanel } from './utils';
 import {
   parseSurvivorTypeSettings,
@@ -346,8 +347,7 @@ export async function computeSurvivorPoolState(poolId: string, now: Date = new D
         // was created — otherwise a pool created partway through a season
         // would retroactively eliminate every participant for "missing"
         // weeks that happened before the pool (and its picks) could exist.
-        const weekPredatesPool = earliestKickoff < new Date(pool.created_at).getTime();
-        if (hasWeekStarted(games, now) && !weekPredatesPool) {
+        if (hasWeekStarted(games, now) && !weekPredatesPool(earliestKickoff, pool.created_at)) {
           if (settings.noPickRule === 'eliminate') {
             status = 'ELIMINATED';
             eliminatedWeek = week;

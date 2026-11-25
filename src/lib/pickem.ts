@@ -14,6 +14,7 @@
 import { getSupabaseServiceClient } from './supabase-service';
 import { normalizeGameStatus } from '@/types/game';
 import { showDebugPanel } from './utils';
+import { weekPredatesPool } from './pool-start';
 import {
   parsePickemTypeSettings,
   isGameLocked,
@@ -302,12 +303,15 @@ export async function computePickemSeasonSummary(poolId: string, now: Date = new
     if (!gamesByWeek.has(key)) gamesByWeek.set(key, []);
     gamesByWeek.get(key)!.push(g);
   }
+  // Only the weeks the pool exists for: a pool created midseason doesn't list,
+  // score or wait on the weeks that began before it (src/lib/pool-start.ts).
   const weekOrder = [...gamesByWeek.entries()]
     .map(([key, games]) => {
       const [seasonType, week] = key.split('-').map(Number);
       const earliestKickoff = Math.min(...games.map(g => new Date(g.kickoff_time).getTime()));
       return { seasonType, week, earliestKickoff };
     })
+    .filter(w => !weekPredatesPool(w.earliestKickoff, pool.created_at))
     .sort((a, b) => a.earliestKickoff - b.earliestKickoff);
 
   const { data: participants, error: participantsError } = await supabase

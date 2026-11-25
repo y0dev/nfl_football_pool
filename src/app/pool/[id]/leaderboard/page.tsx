@@ -16,6 +16,8 @@ import { PickemLeaderboard } from '@/components/leaderboard/pickem-leaderboard';
 import { Footer } from '@/components/layout/Footer';
 import { AppNav } from '@/components/layout/AppNav';
 import { getLatestWeekForSeason } from '@/actions/loadCurrentWeek';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
+import { isBeforePoolStart } from '@/lib/pool-start';
 import { DEFAULT_POOL_SEASON, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason } from '@/lib/utils';
 import type { CompetitionType } from '@/lib/poolTypes';
 
@@ -48,6 +50,7 @@ function PoolLeaderboardContent() {
   const params = useParams();
   const router = useRouter();
   const poolId = params.id as string;
+  const poolStart = usePoolStartWeek(poolId);
 
   const [poolName, setPoolName] = useState('');
   const [poolSeason, setPoolSeason] = useState(DEFAULT_POOL_SEASON);
@@ -154,6 +157,7 @@ function PoolLeaderboardContent() {
   const navigateToWeek = (week: number, seasonType: number) => {
     const maxWeeks = getMaxWeeksForSeason(seasonType);
     if (week < 1 || week > maxWeeks) return;
+    if (isBeforePoolStart(seasonType, week, poolStart)) return; // before the pool existed
     setCurrentWeek(week);
     setCurrentSeasonType(seasonType);
   };
@@ -176,7 +180,11 @@ function PoolLeaderboardContent() {
     }
   };
 
-  const prevDisabled = currentSeasonType === 1 && currentWeek <= 1;
+  const prevWeek = currentWeek > 1
+    ? { week: currentWeek - 1, seasonType: currentSeasonType }
+    : { week: getMaxWeeksForSeason(currentSeasonType - 1), seasonType: currentSeasonType - 1 };
+  const prevDisabled = (currentSeasonType === 1 && currentWeek <= 1)
+    || isBeforePoolStart(prevWeek.seasonType, prevWeek.week, poolStart);
   const nextDisabled = currentSeasonType === 3 && currentWeek >= getMaxWeeksForSeason(3);
 
   const btnBase: React.CSSProperties = {

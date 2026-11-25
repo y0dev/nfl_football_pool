@@ -21,6 +21,7 @@ import { userSessionManager } from '@/lib/user-session';
 import { debugLog, DEFAULT_POOL_SEASON, SESSION_CLEANUP_INTERVAL, PERIOD_WEEKS, DAYS_BEFORE_GAME, getWeekTitle as getWeekTitleUtil, getMaxWeeksForSeason, getPeriodNameForWeek, getPeriodWeeks as getPeriodWeeksForPeriod, getTeamAbbreviation, debugError, showDebugPanel, simulatePicksEnabled} from '@/lib/utils';
 import { OffseasonBanner } from '@/components/ui/offseason-banner';
 import { AppNav } from '@/components/layout/AppNav';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
 import { PoolPicksHero, WeekNav, computeHeroWeekState, computeHeroUnlockTime } from '@/components/picks/pool-picks-hero';
 import { GameStatusCard, GamesStartedCard } from '@/components/picks/game-status-cards';
 import { DebugPanel } from '@/components/picks/debug-panel';
@@ -138,6 +139,7 @@ export function PoolPicksContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const poolId = params.id as string;
+  const poolStart = usePoolStartWeek(poolId);
   const weekParam = searchParams.get('week');
   const seasonTypeParam = searchParams.get('seasonType');
 
@@ -1341,6 +1343,7 @@ export function PoolPicksContent() {
                 {getWeekTitle()} <span style={{ color: gold }}>Picks</span>
               </h1>
               <WeekNav
+                poolStart={poolStart}
                 currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
                 seasonScope={poolSeasonScope}
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
@@ -1410,6 +1413,7 @@ export function PoolPicksContent() {
                 {getWeekTitle()} <span style={{ color: gold }}>Final Results</span>
               </h1>
               <WeekNav
+                poolStart={poolStart}
                 currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
                 seasonScope={poolSeasonScope}
                 onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}
@@ -1515,6 +1519,7 @@ export function PoolPicksContent() {
         weekTitle={getWeekTitle()}
         weekNav={
           <WeekNav
+                poolStart={poolStart}
             currentWeek={currentWeek} currentSeasonType={currentSeasonType} upcomingWeek={upcomingWeek}
             seasonScope={poolSeasonScope}
             onPrev={() => navigateToWeek(currentWeek - 1, currentSeasonType)}

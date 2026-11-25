@@ -14,6 +14,8 @@ import {
 import { getRegularSeasonPeriods, getPlayoffRoundName } from '@/lib/utils';
 import { DollarSign, RefreshCw, Check, AlertTriangle, Calendar, Trophy, CalendarRange } from 'lucide-react';
 import { SharePayoutsButton, PoolTypeLabel } from '@/components/admin/payout-share';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
+import { isBeforePoolStart } from '@/lib/pool-start';
 
 const card    = 'oklch(20% 0.03 255)';
 const surface = 'oklch(17% 0.028 255)';
@@ -250,6 +252,7 @@ function WeeklyCalculator({
 }) {
   const [seasonType, setSeasonType] = useState(availableSeasonTypes.includes(defaultSeasonType) ? defaultSeasonType : availableSeasonTypes[0]);
   const [week, setWeek] = useState(defaultWeek || 1);
+  const poolStart = usePoolStartWeek(poolId);
   const [standings, setStandings] = useState<StandingEntry[] | null>(null);
   const [records, setRecords] = useState<Record<string, { id: string; paid: boolean }>>({});
   const [isCalculating, setIsCalculating] = useState(false);
@@ -333,7 +336,7 @@ function WeeklyCalculator({
         <div>
           <label style={{ ...bc, fontSize: '0.62rem', fontWeight: 700, color: textDim, textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Week</label>
           <select value={week} onChange={e => setWeek(parseInt(e.target.value))} style={{ ...b, background: surface, border: `1px solid ${border}`, color: text, padding: '0.4rem 0.6rem', borderRadius: 6, fontSize: '0.85rem' }}>
-            {Array.from({ length: maxWeek }, (_, i) => i + 1).map(w => (
+            {Array.from({ length: maxWeek }, (_, i) => i + 1).filter(w => !isBeforePoolStart(seasonType, w, poolStart)).map(w => (
               <option key={w} value={w}>{seasonType === 3 ? getPlayoffRoundName(w) : `Week ${w}`}</option>
             ))}
           </select>
@@ -508,13 +511,22 @@ function QuarterCalculator({
   seasonScope: number[];
   requestedBy: string; toast: ReturnType<typeof useToast>['toast'];
 }) {
+  const poolStart = usePoolStartWeek(poolId);
   const periodOptions = useMemo(() => {
-    const names = seasonScope.includes(2) ? QUARTER_PERIODS.map(p => p.name) : [];
+    // A pool created midseason only pays the quarters it took part in.
+    const quarters = !seasonScope.includes(2) ? []
+      : !poolStart || poolStart.seasonType < 2 ? QUARTER_PERIODS
+      : poolStart.seasonType > 2 ? []
+      : QUARTER_PERIODS.filter(p => p.endWeek >= poolStart.week);
+    const names = quarters.map(p => p.name);
     if (seasonScope.includes(3)) names.push(PLAYOFFS_PERIOD);
     return names;
-  }, [seasonScope]);
+  }, [seasonScope, poolStart]);
 
-  const [periodName, setPeriodName] = useState(periodOptions[0] ?? QUARTER_PERIODS[0].name);
+  const [chosenPeriod, setPeriodName] = useState(periodOptions[0] ?? QUARTER_PERIODS[0].name);
+  // Falls back to the first offered period if the choice stops being offered
+  // (e.g. Q1 once the pool's start week loads).
+  const periodName = periodOptions.includes(chosenPeriod) ? chosenPeriod : (periodOptions[0] ?? chosenPeriod);
   const [standings, setStandings] = useState<StandingEntry[] | null>(null);
   const [records, setRecords] = useState<Record<string, { id: string; paid: boolean }>>({});
   const [isCalculating, setIsCalculating] = useState(false);

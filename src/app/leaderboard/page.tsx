@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { SharedAdminGuard } from '@/components/auth/shared-admin-guard';
 import { loadCurrentWeek } from '@/actions/loadCurrentWeek';
 import { LeaderboardEntryWithPicks } from '@/actions/loadPicksForLeaderboard';
+import { usePoolStartWeek } from '@/lib/use-pool-start-week';
+import { isBeforePoolStart } from '@/lib/pool-start';
 import { debugLog, DEFAULT_POOL_SEASON, getMaxWeeksForSeason, getSeasonTypeName, SEASON_TYPE_OPTIONS, debugError} from '@/lib/utils';
 import {
   ArrowLeft,
@@ -111,6 +113,8 @@ function LeaderboardContent() {
   // paying (non-free) plan. Free or expired-trial accounts see this same
   // page rendered with fake teaser data behind an upgrade overlay.
   const [isGated, setIsGated] = useState(false);
+  // A pool created midseason isn't offered the weeks before it existed.
+  const poolStart = usePoolStartWeek(isGated ? null : selectedPool);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -556,7 +560,9 @@ function LeaderboardContent() {
                         <SelectValue placeholder="Select week" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: getMaxWeeksForSeason(selectedSeasonType) }, (_, i) => i + 1).map((week) => (
+                        {Array.from({ length: getMaxWeeksForSeason(selectedSeasonType) }, (_, i) => i + 1)
+                          .filter((week) => !isBeforePoolStart(selectedSeasonType, week, poolStart))
+                          .map((week) => (
                           <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
                         ))}
                       </SelectContent>
