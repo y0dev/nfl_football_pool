@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { signInAs } from '../utils/session';
 
 // ─────────────────────────────────────────────────────────────
-// Auth E2E tests
-// All network calls are mocked — no real DB needed.
+// Auth E2E tests — sign-in, registration and account settings.
+// Registration's account creation is mocked; the account-settings tests
+// use the seeded demo commissioner (read-only: nothing is saved).
 // ─────────────────────────────────────────────────────────────
 
 test.describe('Login page', () => {
@@ -18,17 +20,9 @@ test.describe('Login page', () => {
   });
 
   test('invalid login shows generic error — no credential leakage', async ({ page }) => {
-    await page.route('**/actions**', route => route.continue());
-
-    await page.route('**', async route => {
-      if (route.request().url().includes('loginUser') || route.request().method() === 'POST') {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'Invalid email or password.' }) });
-      } else {
-        await route.continue();
-      }
-    });
-
-    await page.fill('input[type="email"]', 'nobody@example.com');
+    // A real attempt for an account that doesn't exist: loginUser (a server
+    // action) answers with the same generic error as for a wrong password.
+    await page.fill('input[type="email"]', `nobody-${Date.now()}@example.com`);
     await page.fill('input[type="password"]', 'wrongpassword');
     await page.getByRole('button', { name: /sign in/i }).click();
 
@@ -48,18 +42,14 @@ test.describe('Login page', () => {
   });
 
   test('magic link sent state shows confirmation', async ({ page }) => {
-    await page.route('**/api/magic-link**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
-    );
-    await page.route('**/actions**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
-    );
-
+    // requestMagicLink is a server action and runs for real: for an address
+    // with no account it sends nothing but still answers "sent" (no account
+    // enumeration). It can take several seconds on a cold dev server.
     await page.getByRole('button', { name: /magic link/i }).click();
-    await page.fill('input[type="email"]', 'commissioner@example.com');
+    await page.fill('input[type="email"]', `no-account-${Date.now()}@example.com`);
     await page.getByRole('button', { name: /send magic link/i }).click();
 
-    await expect(page.locator('text=Magic Link Sent')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Magic Link Sent')).toBeVisible({ timeout: 20000 });
   });
 });
 
@@ -83,6 +73,17 @@ test.describe('Register page', () => {
         body: JSON.stringify({ success: true, message: 'Commissioner created successfully' }),
       })
     );
+    // After creating the account the page signs in with a server action
+    // (a POST back to /register) and redirects. Hold that request so the
+    // success banner stays up long enough to check; no account is made.
+    await page.route('**/register**', async route => {
+      if (route.request().method() === 'POST') {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await route.abort();
+      } else {
+        await route.continue();
+      }
+    });
 
     await page.fill('input[autocomplete="name"]', 'Test Commissioner');
     await page.fill('input[type="email"]', 'newcommish@example.com');
@@ -90,8 +91,7 @@ test.describe('Register page', () => {
     await page.locator('input[autocomplete="new-password"]').last().fill('securepassword123');
     await page.getByRole('button', { name: /create commissioner/i }).click();
 
-    // Should show success toast
-    await expect(page.locator('text=Commissioner account created')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Account created!/)).toBeVisible({ timeout: 5000 });
   });
 
   test('password mismatch shows validation error', async ({ page }) => {
@@ -105,53 +105,36 @@ test.describe('Register page', () => {
   });
 });
 
+// Signed in as the demo commissioner global setup seeds (pooladmin@test.com,
+// scripts/create-test-data.ts) — see tests/utils/session.ts.
+const ACCOUNT_EMAIL = 'pooladmin@test.com';
+const ACCOUNT_NAME = 'Pool Admin';
+
 test.describe('Account settings page', () => {
-  test.beforeEach(async ({ page }) => {
-    // Simulate a logged-in admin via localStorage
-    await page.goto('/login');
-    await page.evaluate(() => {
-      localStorage.setItem('nfl-pool-user', JSON.stringify({
-        id: 'test-admin-id',
-        email: 'commissioner@example.com',
-        full_name: 'Test Commissioner',
-        is_super_admin: false,
-      }));
-    });
-
-    // Mock admin verification
-    await page.route('**/admins**', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: [{ id: 'test-admin-id', is_active: true, is_super_admin: false }] }),
-      })
-    );
-
+  test.beforeEach(async ({ page, context }) => {
+    await signInAs(context, ACCOUNT_EMAIL);
     await page.goto('/admin/account');
     await page.waitForLoadState('networkidle');
   });
 
   test('renders account settings with email and name', async ({ page }) => {
-    // Wait for guard to pass or show the page
-    const emailText = page.locator('text=commissioner@example.com');
-    await expect(emailText).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=Test Commissioner')).toBeVisible();
+    await expect(page.getByText(ACCOUNT_EMAIL).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(ACCOUNT_NAME, { exact: true }).first()).toBeVisible();
   });
 
   test('change password with mismatched confirmation shows error', async ({ page }) => {
-    await expect(page.locator('text=commissioner@example.com')).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(ACCOUNT_EMAIL).first()).toBeVisible({ timeout: 15000 });
 
-    const pwInputs = page.locator('input[type="password"]');
-    await pwInputs.nth(0).fill('oldpassword');
-    await pwInputs.nth(1).fill('newpassword123');
-    await pwInputs.nth(2).fill('differentpassword');
+    await page.getByPlaceholder('Enter current password').fill('oldpassword');
+    await page.getByPlaceholder('At least 8 characters').fill('newpassword123');
+    await page.getByPlaceholder('Repeat new password').fill('differentpassword');
     await page.getByRole('button', { name: /update password/i }).click();
 
-    await expect(page.locator("text=passwords don't match")).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText("New passwords don't match")).toBeVisible({ timeout: 3000 });
   });
 
   test('delete account button is visible for non-super-admin', async ({ page }) => {
-    await expect(page.locator('text=commissioner@example.com')).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(ACCOUNT_EMAIL).first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('text=Danger Zone')).toBeVisible();
     await page.getByRole('button', { name: /delete account/i }).click();
     await expect(page.locator('text=Confirm Account Deletion')).toBeVisible();

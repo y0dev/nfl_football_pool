@@ -1,4 +1,6 @@
 import { createSessionToken } from '@/lib/session';
+import { getNFLSeasonYear } from '@/lib/utils';
+import { decryptPoolPassword, encryptPoolPassword } from '@/lib/pool-access';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { config as loadEnv } from 'dotenv';
@@ -75,8 +77,8 @@ test.describe('POST /api/admin/clone-pool — plan enforcement', () => {
 
     try {
       const { data: owner } = await supabase
-        .from('admins')
-        .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Free Owner', is_super_admin: false, is_active: true, plan: 'free' })
+        .from('commissioners')
+        .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Free Owner', is_active: true, plan: 'free' })
         .select('id')
         .single();
       ownerId = owner!.id;
@@ -98,7 +100,7 @@ test.describe('POST /api/admin/clone-pool — plan enforcement', () => {
       expect(body.error).toMatch(/standard plan/i);
     } finally {
       if (poolId) await supabase.from('pools').delete().eq('id', poolId);
-      if (ownerId) await supabase.from('admins').delete().eq('id', ownerId);
+      if (ownerId) await supabase.from('commissioners').delete().eq('id', ownerId);
     }
   });
 });
@@ -117,9 +119,11 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
       // with non-default settings, two active participants + one inactive
       // one, and a pick + a score row on the source pool (to prove the
       // clone excludes gameplay history).
+      // Pool owners live in commissioners (admins is super admins only), and
+      // Standard only counts for the season it was bought for.
       const { data: owner } = await supabase
-        .from('admins')
-        .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Clone Owner', is_super_admin: false, is_active: true, plan: 'standard' })
+        .from('commissioners')
+        .insert({ email: ownerEmail, password_hash: 'google_oauth', full_name: 'E2E Clone Owner', is_active: true, plan: 'standard', plan_season: getNFLSeasonYear() })
         .select('id')
         .single();
       ownerId = owner!.id;
@@ -139,8 +143,10 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
           season: 2020,
           huddle_id: huddleId,
           is_active: true,
+          // A private pool as the app makes it today: the password is
+          // encrypted, join_password (the legacy public join-gate) is empty.
           is_private: true,
-          join_password: 'secret123',
+          private_password_encrypted: await encryptPoolPassword('secret123'),
           season_scope: [2],
           tie_breaker_method: 'total_score',
         })
@@ -184,7 +190,8 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
         .eq('id', clonedPoolId)
         .single();
       expect(clonedPool.is_private).toBe(true);
-      expect(clonedPool.join_password).toBe('secret123');
+      expect(await decryptPoolPassword(clonedPool.private_password_encrypted)).toBe('secret123'); // same password
+      expect(clonedPool.join_password).toBeNull();
       expect(clonedPool.season_scope).toEqual([2]);
       expect(clonedPool.tie_breaker_method).toBe('total_score');
       expect(clonedPool.huddle_id).toBe(huddleId);
@@ -237,7 +244,7 @@ test.describe('POST /api/admin/clone-pool — Standard-plan owner: full clone be
         await supabase.from('pools').delete().eq('id', sourcePoolId);
       }
       if (huddleId) await supabase.from('huddles').delete().eq('id', huddleId);
-      if (ownerId) await supabase.from('admins').delete().eq('id', ownerId);
+      if (ownerId) await supabase.from('commissioners').delete().eq('id', ownerId);
     }
   });
 });

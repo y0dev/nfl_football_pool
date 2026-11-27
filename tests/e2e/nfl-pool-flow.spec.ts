@@ -51,14 +51,14 @@ test.describe('Landing Page (/)', () => {
     await expect(page.locator('h1').first()).toBeVisible();
   });
 
-  test('shows commissioner login button', async ({ page }) => {
+  // The landing nav is a menu now, with "Sign In" (was a "Commissioner Login" button).
+  test('shows a Sign In entry in the menu', async ({ page }) => {
     const h = new TestHelpers(page);
     await page.goto('/');
     await h.waitForPageLoad();
 
-    const loginBtn = page.locator('button', { hasText: /commissioner/i })
-      .or(page.locator('a', { hasText: /commissioner/i }));
-    await expect(loginBtn.first()).toBeVisible();
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Sign In' })).toBeVisible();
   });
 
   test('pool search input exists and accepts text', async ({ page }) => {
@@ -101,14 +101,14 @@ test.describe('Landing Page (/)', () => {
     await expect(page).toHaveURL(/\/pools/);
   });
 
-  test('shows features section (Weekly Competition)', async ({ page }) => {
+  test('shows the features sections', async ({ page }) => {
     const h = new TestHelpers(page);
     await page.goto('/');
     await h.waitForPageLoad();
 
-    await expect(
-      page.locator('text=/Weekly Competition/i').or(page.locator('text=/weekly competition/i'))
-    ).toBeVisible();
+    for (const name of [/Three Ways to Play/i, /Commissioner Tools/i, /All Season Long/i]) {
+      await expect(page.getByRole('heading', { name })).toBeVisible();
+    }
   });
 
   test('shows How It Works section', async ({ page }) => {
@@ -116,9 +116,7 @@ test.describe('Landing Page (/)', () => {
     await page.goto('/');
     await h.waitForPageLoad();
 
-    await expect(
-      page.locator('text=/How It Works/i').or(page.locator('text=/How it Works/i'))
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /How It Works/i })).toBeVisible();
   });
 
   test('shows game ticker or offseason banner', async ({ page }) => {
@@ -146,16 +144,14 @@ test.describe('Landing Page (/)', () => {
     await expect(searchInput).toHaveValue('Second Search');
   });
 
-  test('commissioner login button navigates to /login', async ({ page }) => {
+  test('Sign In in the menu navigates to /login', async ({ page }) => {
     const h = new TestHelpers(page);
     await page.goto('/');
     await h.waitForPageLoad();
 
-    const btn = page.locator('button', { hasText: /commissioner/i })
-      .or(page.locator('a', { hasText: /commissioner/i }))
-      .first();
-    await btn.click();
-    await expect(page).toHaveURL(/\/login/);
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    await page.getByRole('menuitem', { name: 'Sign In' }).click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
   });
 });
 
@@ -883,6 +879,7 @@ test.describe('Admin Auth Guards', () => {
     await page.goto('/admin/login');
     await h.waitForPageLoad();
 
+    // Old links go straight to /login (no ?next= back to the missing page).
     await expect(page).toHaveURL(/\/login$/);
   });
 });
@@ -1105,16 +1102,14 @@ test.describe('API Contract — /api/pools/join', () => {
 // ─────────────────────────────────────────────────────────────
 
 test.describe('Navigation', () => {
-  test('commissioner login button navigates to /login', async ({ page }) => {
+  test('Sign In in the menu navigates to /login', async ({ page }) => {
     const h = new TestHelpers(page);
     await page.goto('/');
     await h.waitForPageLoad();
 
-    const btn = page.locator('button', { hasText: /commissioner/i })
-      .or(page.locator('a', { hasText: /commissioner/i }))
-      .first();
-    await btn.click();
-    await expect(page).toHaveURL(/\/login/);
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    await page.getByRole('menuitem', { name: 'Sign In' }).click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
   });
 
   test('/login page has home link', async ({ page }) => {
