@@ -33,6 +33,25 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'http://localhost:3000',
 
+    /* Start every test with the cookie notice already dismissed, so its
+     * banner (and its "Cookie Settings" button) never overlaps or matches
+     * what a spec is clicking. Same cookie the banner's "Got it" sets — see
+     * src/lib/cookie-consent.ts. A spec testing the banner itself can clear
+     * it with context.clearCookies(). */
+    storageState: {
+      cookies: [{
+        name: 'sh_cookie_consent',
+        value: encodeURIComponent(JSON.stringify({ version: 1, choice: 'acknowledged', acknowledgedAt: '2026-01-01T00:00:00.000Z' })),
+        domain: 'localhost',
+        path: '/',
+        expires: -1,
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Lax',
+      }],
+      origins: [],
+    },
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
     

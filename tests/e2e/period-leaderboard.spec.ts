@@ -354,7 +354,9 @@ test.describe('API Contract — /api/periods/leaderboard', () => {
     const banner = page.locator('#final-results-banner').first();
     await expect(banner).toBeVisible({ timeout: 10000 });
 
-    // QuarterLeaderboard empty state: "No quarter data available yet"
+    // The quarter standings card starts collapsed outside a quarter's last
+    // week (Week 7 isn't one) — open it, then expect its empty state.
+    await page.getByText('Current Quarter Standings').click();
     await expect(page.getByText(/No quarter data available yet/i)).toBeVisible({ timeout: 8000 });
   });
 });

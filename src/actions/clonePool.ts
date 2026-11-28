@@ -6,6 +6,7 @@ import { createPool } from './createPool';
 import { updatePool } from './updatePool';
 import { debugError, DEFAULT_POOL_SEASON } from '@/lib/utils';
 import { CompetitionType } from '@/lib/poolTypes';
+import { decryptPoolPassword } from '@/lib/pool-access';
 
 export type ClonePoolResult =
   | { success: true; poolId: string; poolName: string; participantsCloned: number }
@@ -85,6 +86,21 @@ async function performClone(poolId: string, callerEmail: string, newName: string
 
     const clonedName = (newName?.trim() || `${source.name} (${DEFAULT_POOL_SEASON})`).slice(0, 255);
 
+    // A private pool's password lives encrypted in private_password_encrypted
+    // (join_password is only the legacy public join-gate), and createPool
+    // requires one for a private pool — carry the source's over so the clone
+    // keeps the same password. Pools from before the encrypted column fall
+    // back to their plaintext join_password.
+    let password: string | undefined = source.join_password ?? undefined;
+    if (source.is_private && source.private_password_encrypted) {
+      try {
+        password = await decryptPoolPassword(source.private_password_encrypted);
+      } catch (decryptError) {
+        debugError('Failed to read the source pool password during clone:', decryptError);
+        return { success: false, error: "Couldn't copy this private pool's password. Set a new one on the source pool and try again." };
+      }
+    }
+
     const createResult = await createPool({
       name: clonedName,
       created_by: source.created_by,
@@ -93,7 +109,7 @@ async function performClone(poolId: string, callerEmail: string, newName: string
       competition_type: source.competition_type as CompetitionType,
       season_scope: source.season_scope,
       is_private: source.is_private,
-      join_password: source.join_password ?? undefined,
+      join_password: password,
       huddle_id: source.huddle_id ?? undefined,
       type_settings: source.type_settings ?? undefined,
     });

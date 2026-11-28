@@ -16,14 +16,16 @@ loadEnv({ path: '.env.local' });
 // ─────────────────────────────────────────────────────────────
 
 import { createPool } from '../../src/actions/createPool';
+import { createSessionToken } from '../../src/lib/session';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
 );
 
+// The session cookie is a signed token (src/lib/session.ts), not a bare id.
 function sessionCookieFor(id: string) {
-  return { Cookie: `sh-session=${id}` };
+  return { Cookie: `sh-session=${createSessionToken(id)}` };
 }
 
 test.describe('Pick drafts', () => {

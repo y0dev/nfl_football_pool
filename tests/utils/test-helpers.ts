@@ -161,6 +161,8 @@ export const testData = {
     regularOnly: {
       id: 'a0000000-0000-0000-0000-000000000001',
       name: 'Regular Season Pool',
+      // The picks/leaderboard pages pick their UI by type and never default to one.
+      competition_type: 'NFL_CONFIDENCE',
       season: 2025,
       season_scope: [2],
       is_active: true,
@@ -174,6 +176,8 @@ export const testData = {
     preseasonAndRegular: {
       id: 'a0000000-0000-0000-0000-000000000002',
       name: 'Full Season Pool',
+      // The picks/leaderboard pages pick their UI by type and never default to one.
+      competition_type: 'NFL_CONFIDENCE',
       season: 2025,
       season_scope: [1, 2],
       is_active: true,

@@ -30,6 +30,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(callbackUrl);
   }
 
+  // The old admin sign-in page is gone (everyone signs in at /login). Send old
+  // links straight there — not through the guard below, whose ?next= would
+  // bring the visitor back to this missing page after they sign in.
+  if (pathname === '/admin/login') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
   // Protect admin and dashboard routes — require a server-side session cookie
   const needsAuth = PROTECTED.some(p => pathname === p || pathname.startsWith(p + '/'));
   if (needsAuth && !verifySessionToken(request.cookies.get('sh-session')?.value)) {

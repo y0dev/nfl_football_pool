@@ -31,12 +31,15 @@ test.describe('How It Works & FAQ pages', () => {
     await expect(page).toHaveURL(/\/how-it-works$/);
   });
 
-  test('landing page nav links to How It Works and FAQ', async ({ page }) => {
+  // The landing page's nav is a menu (Home, Browse Pools, Sign In, Create
+  // Account); How It Works, FAQ and Pricing are linked from its footer.
+  test('landing page links to How It Works and FAQ', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.locator('nav').getByRole('link', { name: 'How It Works' }).click();
+    await expect(page.locator('footer').getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/faq');
+    await page.locator('footer').getByRole('link', { name: 'How It Works' }).click();
     await expect(page).toHaveURL(/\/how-it-works$/);
   });
 });
@@ -46,14 +49,14 @@ test.describe('Pricing page', () => {
     await page.goto('/pricing');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /Run Your Season/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Run Your Huddle/i })).toBeVisible();
     // Add-ons are a cost band below the two plans, not a third plan card
     await expect(page.getByText('Add-Ons', { exact: true })).toBeVisible();
     await expect(page.getByText('Extra Pools', { exact: true })).toBeVisible();
-    await expect(page.getByText('Most popular')).toHaveCount(0);
+    await expect(page.getByText('Most popular')).toHaveCount(1); // on the Standard plan only
 
-    await page.getByRole('button', { name: 'Get Started' }).click();
-    await expect(page).toHaveURL(/\/register$/);
+    await page.getByRole('button', { name: 'Start Free' }).click();
+    await expect(page).toHaveURL(/\/register\?plan=free$/);
   });
 
   test('standard plan shows sale comparison when a sale is running', async ({ page }) => {
@@ -75,12 +78,12 @@ test.describe('Pricing page', () => {
     }
   });
 
-  test('is reachable from the landing page nav', async ({ page }) => {
+  test('is reachable from the landing page', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.locator('nav').getByRole('link', { name: 'Pricing' }).click();
+    await page.locator('footer').getByRole('link', { name: 'Pricing' }).click();
     await expect(page).toHaveURL(/\/pricing$/);
   });
 });
